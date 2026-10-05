@@ -1,6 +1,11 @@
 #!/bin/zsh
 # lotus – a beautiful start screen for the macOS terminal
 setopt extendedglob
+# Homebrew runs install steps with a temporary $HOME – use the real one
+if [[ $LOTUS_FOR_USER == [[:alnum:]._-]## ]]; then
+  _home=${~:-~$LOTUS_FOR_USER}
+  [[ $_home == /* && -d $_home ]] && HOME=$_home
+fi
 source ${0:A:h:h}/lib/core.zsh
 
 LOTUS_REPO=Fanxy13/homebrew-lotus

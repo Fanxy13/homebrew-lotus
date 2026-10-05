@@ -1,5 +1,5 @@
 cask "lotus" do
-  version "1.1.1"
+  version "1.1.2"
   sha256 "92cd80b9898ef8a6d78424f83037bde421083382debe19b583a795455e54d3e4"
 
   url "https://github.com/Fanxy13/homebrew-lotus/archive/refs/tags/v#{version}.tar.gz"
@@ -12,17 +12,25 @@ cask "lotus" do
   binary "homebrew-lotus-#{version}/bin/lotus"
 
   # Hook lotus into ~/.zshrc right away, so one command is enough
-  postflight do
-    system_command "#{staged_path}/homebrew-lotus-#{version}/bin/lotus",
-                   args:         ["setup"],
-                   print_stdout: true
+  postflight_steps do
+    run "homebrew-lotus-#{version}/bin/lotus",
+        base:           :staged_path,
+        args:           ["setup"],
+        env:            { "LOTUS_FOR_USER" => "{{user}}" },
+        print_stdout:   true,
+        writable_paths: [".zshrc", ".config/lotus", ".cache/lotus"],
+        writable_base:  :home
   end
 
   # Take the ~/.zshrc lines out again when lotus is uninstalled
-  uninstall_preflight do
-    system_command "#{staged_path}/homebrew-lotus-#{version}/bin/lotus",
-                   args:         ["unhook"],
-                   print_stdout: true
+  uninstall_preflight_steps do
+    run "homebrew-lotus-#{version}/bin/lotus",
+        base:           :staged_path,
+        args:           ["unhook"],
+        env:            { "LOTUS_FOR_USER" => "{{user}}" },
+        print_stdout:   true,
+        writable_paths: [".zshrc"],
+        writable_base:  :home
   end
 
   zap trash: [
