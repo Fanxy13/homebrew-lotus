@@ -1,0 +1,6 @@
+# id	name	kind	description	source	repo	app bundle	asset	ios min	ios max	warning
+# kind: mac (Mac app) or ipa (iOS app, installed with Sideloadly/TrollStore). ios max "-" = no known upper limit.
+aircard	AirCard	mac	Apple Wallet card skins and lock screen passcode themes, no jailbreak	https://github.com/Mak5er/AirCard	Mak5er/AirCard	AirCard.app	AirCard.dmg	18.0	-	-
+nugget	Nugget	mac	Customize iOS: hidden features, Dynamic Island, status bar and more	https://github.com/leminlimez/Nugget	leminlimez/Nugget	Nugget.app	Nugget_macOS_{arch}.dmg	17.0	26.99	Do not use on iOS 27: Apple patched the restore method Nugget relies on and it can cause data loss.
+sideloadly	Sideloadly	mac	Install IPA files on iPhone and iPad with your Apple ID	https://sideloadly.io	-	Sideloadly.app	-	7.0	-	-
+dopamine	Dopamine	ipa	Semi-untethered jailbreak, installed as an IPA with Sideloadly or TrollStore	https://github.com/opa334/Dopamine	opa334/Dopamine	-	Dopamine.ipa	15.0	26.0.1	Support depends on the chip: A12/A13 up to 18.7.1 and 26.0-26.0.1, A14 and newer up to 17.3.1, A8-A11 up to 18.7.1.

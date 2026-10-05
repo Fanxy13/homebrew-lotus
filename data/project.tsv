@@ -1,0 +1,6 @@
+# Project constants – the single place for Lotus URLs (read by the CLI and the website)
+website	https://fanxy13.github.io/homebrew-lotus/
+github	https://github.com/Fanxy13
+repo	Fanxy13/homebrew-lotus
+# Apple Shortcut "Open Lotus" (iCloud link). Empty until a shortcut is published.
+shortcut_url	

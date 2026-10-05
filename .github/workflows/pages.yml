@@ -1,0 +1,41 @@
+# Publishes the website: docs/ plus the shared data/ and logos/ the terminal uses too,
+# so commands, themes, apps and logos on the site always match the installed Lotus.
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths: [docs/**, data/**, logos/**, CHANGELOG.md, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the site
+        run: |
+          mkdir -p _site
+          cp -R docs/. _site/
+          rm -rf _site/data _site/logos
+          cp -R data logos _site/
+          cp CHANGELOG.md _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5

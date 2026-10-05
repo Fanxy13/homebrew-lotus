@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shortcuts — Lotus</title>
+  <meta name="description" content="Open Lotus with a keyboard shortcut and create your own slash commands.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.0.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.0.0">
+  <script src="js/lotus.js?v=2.0.0"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap article">
+    <header class="page-head">
+      <p class="eyebrow">Shortcuts</p>
+      <h1>Faster than <span>typing</span></h1>
+      <p class="lead">A keyboard shortcut that opens Lotus from anywhere, and your own slash commands for the sites, apps and folders you use every day.</p>
+    </header>
+
+    <h2 class="section" id="apple">Apple Shortcut</h2>
+    <div class="card shortcut-card">
+      <div class="keycombo"><kbd>⌃</kbd><kbd>⌥</kbd><kbd>L</kbd><span class="arrow">→</span><span class="mini-window"><span class="t-logo">lotus</span></span></div>
+      <div id="shortcut-ready" hidden>
+        <p>Press a key combination anywhere on your Mac and Terminal opens with Lotus.</p>
+        <ol class="steps compact">
+          <li><h3>Add the shortcut</h3><p><a class="btn primary" id="shortcut-link" target="_blank" rel="noopener">Add “Open Lotus” to Shortcuts</a></p></li>
+          <li><h3>Pick your keys</h3><p>In the Shortcuts app: open “Open Lotus” → the info button → Add Keyboard Shortcut.</p></li>
+        </ol>
+      </div>
+      <div id="shortcut-manual">
+        <p>Build it in about a minute – the ready-made link will appear here once it is published.</p>
+        <ol class="steps compact">
+          <li><h3>New shortcut</h3><p>Open the <strong>Shortcuts</strong> app and click <strong>+</strong>. Name it “Open Lotus”.</p></li>
+          <li><h3>Add one action</h3><p>Search for <strong>Run AppleScript</strong> and replace its text with:</p>
+            <div class="codeblock"><code>tell application "Terminal" to do script "lotus"</code><button class="copy" data-copy='tell application "Terminal"
+	activate
+	do script "lotus"
+end tell' aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+            <p>Copying gives you the full script, including <code>activate</code>, so Terminal comes to the front.</p></li>
+          <li><h3>Pick your keys</h3><p>Click the info button (i) → <strong>Add Keyboard Shortcut</strong> → press e.g. <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>L</kbd>.</p></li>
+          <li><h3>Allow it once</h3><p>The first run asks whether Shortcuts may control Terminal. Choose Allow.</p></li>
+        </ol>
+      </div>
+    </div>
+
+    <h2 class="section" id="custom">Your own commands</h2>
+    <p>Give anything a short name. After that, typing <code>/name</code> opens it.</p>
+    <div class="grid">
+      <div class="card"><h3>A website</h3><div class="codeblock small"><code>lotus shortcut add yt https://youtube.com</code></div><p class="muted small">Then: <code>/yt</code></p></div>
+      <div class="card"><h3>A search</h3><div class="codeblock small"><code>lotus shortcut add yts "https://youtube.com/results?search_query={q}"</code></div><p class="muted small"><code>{q}</code> becomes your words: <code>/yts lofi beats</code></p></div>
+      <div class="card"><h3>An app</h3><div class="codeblock small"><code>lotus shortcut add chat Discord</code></div><p class="muted small">Then: <code>/chat</code></p></div>
+      <div class="card"><h3>A folder or file</h3><div class="codeblock small"><code>lotus shortcut add work ~/Documents/Work</code></div><p class="muted small">Opens it in Finder.</p></div>
+      <div class="card"><h3>A Lotus command</h3><div class="codeblock small"><code>lotus shortcut add home "/weather Zurich"</code></div><p class="muted small">Then: <code>/home</code></p></div>
+      <div class="card"><h3>Manage them</h3><div class="codeblock small"><code>/lotus shortcuts</code></div><p class="muted small">List, run, edit, turn off or delete.</p></div>
+    </div>
+
+    <h3 style="margin-top:34px">All shortcut commands</h3>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr><td><code>lotus shortcut add &lt;name&gt; &lt;target&gt;</code></td><td>Add a shortcut. The type is detected: link, app, folder or file, Lotus command</td></tr>
+        <tr><td><code>lotus shortcut edit &lt;name&gt; &lt;target&gt;</code></td><td>Point it somewhere else</td></tr>
+        <tr><td><code>lotus shortcut off &lt;name&gt;</code> / <code>on</code></td><td>Turn it off without deleting it</td></tr>
+        <tr><td><code>lotus shortcut rm &lt;name&gt;</code></td><td>Delete it (asks first)</td></tr>
+        <tr><td><code>lotus shortcut list</code></td><td>Show all shortcuts</td></tr>
+      </table>
+    </div>
+    <div class="callout" style="margin-top:18px"><p>Shortcuts cannot run shell commands – that keeps a typo or a copied snippet from doing something you did not mean. Names of built-in commands like <code>/weather</code> are reserved.</p></div>
+  </main>
+  <lotus-footer></lotus-footer>
+  <script>
+    // The shortcut link lives in data/project.tsv (shortcut_url) – empty until it is published
+    Lotus.project().then((p) => {
+      if (!p.shortcut_url || !/^https:\/\/www\.icloud\.com\/shortcuts\//.test(p.shortcut_url)) return;
+      document.getElementById('shortcut-link').href = p.shortcut_url;
+      document.getElementById('shortcut-ready').hidden = false;
+      document.getElementById('shortcut-manual').hidden = true;
+    });
+  </script>
+</body>
+</html>

@@ -84,6 +84,59 @@ lotus_show() {
   lotus_render live
 }
 
+# ── Slash commands, shortcuts and the Enter key ───────────────
+
+# /weather, /skip, … from data/commands.tsv, plus the user's shortcuts → aliases
+_lotus_aliases() {
+  local line trig sub
+  local -a f
+  (( ${+_lotus_alias_names} )) && unalias ${_lotus_alias_names} 2>/dev/null
+  typeset -ga _lotus_alias_names=()
+  for line in "${(@f)$(<$LOTUS_ROOT/data/commands.tsv)}"; do
+    [[ $line == \#* ]] && continue
+    f=("${(@ps:\t:)line}")
+    trig=$f[2] sub=$f[3]
+    [[ $trig == /* ]] || continue
+    [[ $trig == /lotus ]] && sub=
+    alias "$trig=noglob lotus${sub:+ $sub}"
+    _lotus_alias_names+=($trig)
+  done
+  # links with ? or & must reach Lotus unchanged, so no globbing for lotus commands
+  alias lotus='noglob lotus'
+  for trig in ${(k)LOTUS_SHORTCUTS}; do
+    [[ ${LOTUS_SHORTCUTS[$trig]##*|} == on && -z ${aliases[/$trig]} ]] || continue
+    alias "/$trig=noglob lotus run $trig"
+    _lotus_alias_names+=(/$trig)
+  done
+}
+
+# Enter: a few friendly extras before zsh runs the line
+#   pasted link → open it · "open Spotify" (no such file) → /app · unknown /word → suggestion
+_lotus_accept_line() {
+  setopt localoptions extendedglob
+  local line=${BUFFER##[[:space:]]#}
+  line=${line%%[[:space:]]#}
+  local -a w=(${(z)line})
+  if [[ ${(L)line} == who\ is\ the\ goat(\?|) ]]; then
+    BUFFER="lotus goat"
+  elif (( ${#w} == 1 )) && [[ $line == (#i)https#://[^[:space:]]## ]]; then
+    BUFFER="lotus open ${(q)line}"
+  elif [[ $w[1] == open ]] && (( ${#w} >= 2 )) && [[ $w[2] != -* ]]; then
+    local target=${(Q)${(j: :)w[2,-1]}}
+    [[ -e ${target/#\~/$HOME} || $target == *:* || $target == *.* ]] || BUFFER="lotus app ${(q)target}"
+  elif [[ $w[1] == /[[:alpha:]][[:alnum:]_-]# && -z ${aliases[$w[1]]} && ! -e $w[1] ]]; then
+    BUFFER="lotus suggest ${(q)w[1]} ${(j: :)w[2,-1]}"
+  fi
+  zle _lotus_orig_accept_line
+}
+
+_lotus_widget() {
+  [[ -o zle ]] || return
+  (( ${+widgets[_lotus_orig_accept_line]} )) && return
+  zle -A accept-line _lotus_orig_accept_line
+  zle -N accept-line _lotus_accept_line
+}
+
 # Removes lotus from the running shell (after an uninstall)
 _lotus_unload() {
   _lotus_live_stop
@@ -91,7 +144,11 @@ _lotus_unload() {
   add-zsh-hook -d precmd _lotus_precmd
   add-zsh-hook -d zshexit _lotus_live_stop
   PROMPT=$_lotus_prompt_orig
-  unalias /settings /lotus 2>/dev/null
+  (( ${+_lotus_alias_names} )) && unalias $_lotus_alias_names 2>/dev/null
+  if (( ${+widgets[_lotus_orig_accept_line]} )); then
+    zle -A _lotus_orig_accept_line accept-line
+    zle -D _lotus_orig_accept_line
+  fi
   unfunction TRAPWINCH 2>/dev/null
   unfunction -m 'lotus*' '_lotus*'
   unset -m 'LOTUS_*' '_lotus_*'
@@ -104,7 +161,8 @@ _lotus_fix_root() {
   [[ -d $root/lib ]] && LOTUS_ROOT=$root
 }
 
-lotus() {
+# "function" keeps the lotus alias (noglob) from touching this definition when re-sourced
+function lotus {
   local -i rc
   _lotus_fix_root
   case $1 in
@@ -114,17 +172,28 @@ lotus() {
       command lotus settings; rc=$?
       if (( rc == 10 )); then _lotus_unload; return 0; fi
       (( rc )) && return rc
-      lotus_load; _lotus_prompt
+      lotus_load; _lotus_prompt; _lotus_aliases
       lotus_show ;;
+    setup)
+      command lotus "$@"; rc=$?
+      lotus_load; _lotus_prompt; _lotus_aliases
+      return rc ;;
     uninstall)
       command lotus uninstall && _lotus_unload ;;
+    shortcut|shortcuts|logo|themes)
+      command lotus "$@"; rc=$?
+      lotus_load; _lotus_aliases
+      return rc ;;
+    ai)
+      rm -f $LOTUS_CACHE/ai-prompt
+      command lotus "$@"; rc=$?
+      # /ai command: the suggestion goes onto the command line, it is never run
+      [[ -r $LOTUS_CACHE/ai-prompt ]] && { print -z -- "$(<$LOTUS_CACHE/ai-prompt)"; rm -f $LOTUS_CACHE/ai-prompt }
+      return rc ;;
     *)
       command lotus "$@" ;;
   esac
 }
-
-alias /settings='lotus settings'
-alias /lotus='lotus'
 
 # ── Start ─────────────────────────────────────────────────────
 
@@ -133,5 +202,10 @@ add-zsh-hook preexec _lotus_preexec
 add-zsh-hook precmd _lotus_precmd
 add-zsh-hook zshexit _lotus_live_stop
 
+_lotus_aliases
+_lotus_widget
 _lotus_prompt
+if (( ! LOTUS_CONFIGURED )) && [[ -t 0 && -t 1 ]]; then
+  command lotus setup --tty && lotus_load && _lotus_prompt
+fi
 (( LOTUS_STARTUP )) && [[ -t 1 ]] && lotus_render live

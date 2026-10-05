@@ -3,148 +3,158 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>lotus — your terminal, in bloom</title>
-  <meta name="description" content="A beautiful start screen for the macOS terminal: system info, hello in 15 languages and the song you're playing — live.">
-  <meta property="og:title" content="lotus — your terminal, in bloom">
-  <meta property="og:description" content="A beautiful start screen for the macOS terminal. One line to install.">
+  <title>Lotus — your terminal, in bloom</title>
+  <meta name="description" content="Lotus 2.0: a start screen and command center for the macOS terminal. Apps, weather, AI, Homebrew, audio and more.">
+  <meta property="og:title" content="Lotus — your terminal, in bloom">
+  <meta property="og:description" content="A start screen and command center for the macOS terminal. One line to install.">
   <meta name="theme-color" content="#05070a">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪷</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1.1.3">
+  <link rel="stylesheet" href="css/lotus.css?v=2.0.0">
+  <link rel="stylesheet" href="css/home.css?v=2.0.0">
   <script type="importmap">
     { "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
         "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
     } }
   </script>
+  <script src="js/lotus.js?v=2.0.0"></script>
 </head>
 <body>
-  <canvas id="scene" aria-hidden="true"></canvas>
   <div class="grain" aria-hidden="true"></div>
+  <lotus-nav></lotus-nav>
 
-  <nav class="nav">
-    <a class="brand" href="#top">🪷 lotus</a>
-    <div class="nav-links">
-      <a href="#demo">Demo</a>
-      <a href="#features">Features</a>
-      <a href="#install" class="pill">Install</a>
-      <a href="https://github.com/Fanxy13/homebrew-lotus" class="gh" aria-label="GitHub">
-        <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-      </a>
-    </div>
-  </nav>
-
-  <header class="hero" id="top">
-    <p class="eyebrow reveal">for the macOS terminal</p>
-    <h1 class="title reveal"><span>lotus</span></h1>
-    <p class="tagline reveal">Your terminal, in bloom.</p>
-    <div class="install-pill reveal" data-cmd="curl">
-      <code><span class="dollar">$</span> <span class="cmd-text">curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | zsh</span></code>
-      <button class="copy" aria-label="Copy install command">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-      </button>
-    </div>
-    <a class="scroll-hint" href="#demo" aria-label="Scroll down"><span></span></a>
-  </header>
-
-  <section class="demo-section" id="demo">
-    <div class="window reveal" id="terminal">
-      <div class="titlebar">
-        <i></i><i></i><i></i>
-        <span>zsh — 120×30</span>
+  <main>
+    <header class="hero" id="top">
+      <canvas id="scene" aria-hidden="true"></canvas>
+      <p class="eyebrow reveal">Lotus 2.0 · for the macOS terminal</p>
+      <h1 class="title reveal"><span>lotus</span></h1>
+      <p class="tagline reveal">Your terminal, in bloom. And now its control center.</p>
+      <div class="install-pill reveal" data-cmd="curl">
+        <code><span class="dollar">$</span> <span class="cmd-text">curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | zsh</span></code>
+        <button class="copy install-copy" aria-label="Copy install command">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        </button>
       </div>
-      <div class="screen">
-        <div class="startscreen">
-          <pre class="logo"></pre>
-          <pre class="info"></pre>
+      <a class="scroll-hint" href="#demo" aria-label="Scroll down"><span></span></a>
+    </header>
+
+    <section class="demo-section" id="demo">
+      <div class="window reveal" id="terminal">
+        <div class="titlebar"><i></i><i></i><i></i><span>zsh — 120×30</span></div>
+        <div class="screen">
+          <div class="startscreen">
+            <pre class="logo"></pre>
+            <pre class="info"></pre>
+          </div>
+          <pre class="output"></pre>
+          <pre class="settings"></pre>
+          <pre class="promptline"></pre>
         </div>
-        <pre class="settings"></pre>
-        <pre class="promptline"></pre>
       </div>
-    </div>
-    <div class="demo-caption reveal">
-      <span class="step" data-step="lotus"><kbd>lotus</kbd> bloom again</span>
-      <span class="step" data-step="settings"><kbd>/settings</kbd> make it yours</span>
-      <span class="step" data-step="live"><kbd>♫</kbd> always live</span>
-    </div>
-  </section>
+      <div class="demo-caption reveal">
+        <span class="step" data-step="live"><kbd>lotus</kbd> start screen</span>
+        <span class="step" data-step="weather"><kbd>/weather</kbd> ASCII forecast</span>
+        <span class="step" data-step="app"><kbd>/app</kbd> typos are fine</span>
+        <span class="step" data-step="settings"><kbd>/settings</kbd> make it yours</span>
+      </div>
+    </section>
 
-  <section class="features" id="features">
-    <div class="bento">
-      <article class="tile tile-hello reveal">
-        <div class="hello-word" aria-live="polite">Bonjour</div>
-        <p class="hello-lang">French</p>
-        <h3>Hello in 15 languages</h3>
-      </article>
+    <section class="new">
+      <div class="new-list reveal">
+        <a href="commands.html#apps"><code>/app</code> open any app</a>
+        <a href="apps.html"><code>/install</code> app catalog</a>
+        <a href="commands.html#homebrew"><code>/brew</code> Homebrew search</a>
+        <a href="commands.html#weather"><code>/weather</code> ASCII forecast</a>
+        <a href="commands.html#ai"><code>/ai</code> Apple Intelligence</a>
+        <a href="commands.html#audio"><code>/skip</code> audio control</a>
+        <a href="commands.html#media"><code>/lotus visual</code> visualizer</a>
+        <a href="commands.html#media"><code>/convert</code> MP3 and MP4</a>
+        <a href="minecraft.html"><code>/minecraft</code> server setup</a>
+        <a href="ios.html"><code>/ios</code> device tools</a>
+        <a href="shortcuts.html"><code>/yt</code> your own shortcuts</a>
+      </div>
+    </section>
 
-      <article class="tile tile-np reveal">
-        <div class="disc"><div class="disc-label"></div></div>
-        <div class="np-meta">
-          <div class="eq"><i></i><i></i><i></i><i></i><i></i></div>
-          <p class="np-title">Midnight Bloom</p>
-          <p class="np-artist">Koi Pond</p>
-          <div class="np-bar"><span></span></div>
-        </div>
-        <h3>Now playing. Live.</h3>
-      </article>
+    <section class="features" id="features">
+      <div class="bento">
+        <article class="tile tile-hello reveal">
+          <div class="hello-word" aria-live="polite">Bonjour</div>
+          <p class="hello-lang">French</p>
+          <h3>Hello in 15 languages</h3>
+        </article>
 
-      <article class="tile tile-themes reveal">
-        <div class="orbs">
-          <button class="orb" data-theme="matcha" aria-label="Matcha"><span>Matcha</span></button>
-          <button class="orb" data-theme="sakura" aria-label="Sakura"><span>Sakura</span></button>
-          <button class="orb" data-theme="ocean" aria-label="Ocean"><span>Ocean</span></button>
-          <button class="orb" data-theme="sunset" aria-label="Sunset"><span>Sunset</span></button>
-          <button class="orb" data-theme="mono" aria-label="Mono"><span>Mono</span></button>
-        </div>
-        <h3>5 themes <em>— tap one</em></h3>
-      </article>
+        <article class="tile tile-np reveal">
+          <div class="disc"><div class="disc-label"></div></div>
+          <div class="np-meta">
+            <div class="eq"><i></i><i></i><i></i><i></i><i></i></div>
+            <p class="np-title">Midnight Bloom</p>
+            <p class="np-artist">Koi Pond</p>
+            <div class="np-bar"><span></span></div>
+          </div>
+          <h3>Now playing, live. <em>/skip /back /vu /vd</em></h3>
+        </article>
 
-      <article class="tile tile-settings reveal">
-        <div class="keys"><kbd>↑</kbd><kbd>↓</kbd><kbd>⏎</kbd></div>
-        <div class="langs"><span>EN</span><span>DE</span><span>FR</span><span>ES</span></div>
-        <h3><code>/settings</code></h3>
-      </article>
+        <article class="tile tile-themes reveal">
+          <div class="theme-grid"></div>
+          <h3><span class="theme-count">13</span> themes <em>— <span class="theme-name">tap one</span></em></h3>
+        </article>
 
-      <article class="tile tile-speed reveal">
-        <div class="ring" aria-hidden="true"></div>
-        <div class="speed"><span class="speed-num">0</span><small>ms</small></div>
-        <h3>to bloom</h3>
-      </article>
+        <article class="tile tile-settings reveal">
+          <div class="keys"><kbd>↑</kbd><kbd>↓</kbd><kbd>⏎</kbd></div>
+          <div class="langs"><span>EN</span><span>DE</span><span>FR</span><span>ES</span></div>
+          <h3><code>/settings</code></h3>
+        </article>
 
-      <article class="tile tile-uninstall reveal">
-        <div class="petals-fall"><i></i><i></i><i></i><i></i><i></i></div>
-        <code class="un-cmd">lotus uninstall</code>
-        <h3>Gone without a trace</h3>
-      </article>
-    </div>
-  </section>
+        <article class="tile tile-ai reveal">
+          <div class="mini-term ai-term"></div>
+          <h3>Apple Intelligence, on your Mac <em>/ai</em></h3>
+        </article>
 
-  <section class="install" id="install">
-    <h2 class="reveal">One line.</h2>
-    <div class="tabs reveal" role="tablist">
-      <button class="tab active" data-cmd="curl" role="tab">curl</button>
-      <button class="tab" data-cmd="brew" role="tab">Homebrew</button>
-      <span class="tab-glider"></span>
-    </div>
-    <div class="install-pill big reveal" data-cmd="curl">
-      <code><span class="dollar">$</span> <span class="cmd-text">curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | zsh</span></code>
-      <button class="copy" aria-label="Copy install command">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-      </button>
-    </div>
-    <p class="install-note reveal">Then open a new terminal window. macOS · zsh · free &amp; open source.</p>
-  </section>
+        <article class="tile tile-weather reveal">
+          <div class="temp">21°<small>Zurich · clear sky</small></div>
+          <pre class="sun">  \   /
+   .-.
+- (   ) -
+   `-'
+  /   \</pre>
+          <h3>ASCII weather <em>/weather Zurich</em></h3>
+        </article>
 
-  <footer class="footer">
-    <span>🪷 lotus</span>
-    <a href="https://github.com/Fanxy13/homebrew-lotus">GitHub</a>
-    <span>MIT</span>
-  </footer>
+        <article class="tile tile-apps reveal">
+          <div class="mini-term app-term"></div>
+          <h3>Opens apps. Typos are fine. <em>/app</em></h3>
+        </article>
 
-  <script type="module" src="lotus3d.js?v=1.1.3"></script>
-  <script src="demo.js?v=1.1.3" defer></script>
-  <script src="site.js?v=1.1.3" defer></script>
+        <article class="tile tile-visual reveal">
+          <div class="vbars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <h3>Audio visualizer, 8 modes <em>/lotus visual</em></h3>
+        </article>
+      </div>
+    </section>
+
+    <section class="install" id="install">
+      <h2 class="reveal">One line.</h2>
+      <div class="tabs reveal" role="tablist">
+        <button class="tab active" data-cmd="curl" role="tab">curl</button>
+        <button class="tab" data-cmd="brew" role="tab">Homebrew</button>
+        <span class="tab-glider"></span>
+      </div>
+      <div class="install-pill big reveal" data-cmd="curl">
+        <code><span class="dollar">$</span> <span class="cmd-text">curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | zsh</span></code>
+        <button class="copy install-copy" aria-label="Copy install command">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        </button>
+      </div>
+      <p class="install-note reveal">A short setup asks for your name, theme and language. <a href="docs.html">Documentation</a></p>
+    </section>
+  </main>
+
+  <lotus-footer></lotus-footer>
+
+  <script type="module" src="js/lotus3d.js?v=2.0.0"></script>
+  <script src="js/demo.js?v=2.0.0" defer></script>
+  <script src="js/home.js?v=2.0.0" defer></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 #!/bin/zsh
-# lotus – a beautiful start screen for the macOS terminal
+# lotus – start screen and command center for the macOS terminal
 setopt extendedglob
 # Homebrew runs install steps with a temporary $HOME – use the real one
 if [[ $LOTUS_FOR_USER == [[:alnum:]._-]## ]]; then
@@ -7,13 +7,10 @@ if [[ $LOTUS_FOR_USER == [[:alnum:]._-]## ]]; then
   [[ $_home == /* && -d $_home ]] && HOME=$_home
 fi
 source ${0:A:h:h}/lib/core.zsh
+source $LOTUS_ROOT/lib/ui.zsh
+source $LOTUS_ROOT/lib/fuzzy.zsh
 
-LOTUS_REPO=Fanxy13/homebrew-lotus
 LOTUS_RC=${ZDOTDIR:-$HOME}/.zshrc
-
-say()  { print -P "%F{green}🪷%f $*" }
-
-is_brew() { [[ $LOTUS_ROOT == */(Cellar|Caskroom)/lotus/* ]] }
 
 # Window size, in case the script did not inherit it
 if [[ -t 1 ]]; then
@@ -21,115 +18,38 @@ if [[ -t 1 ]]; then
   (( ${#_size} == 2 )) && { LINES=$_size[1]; COLUMNS=$_size[2] }
 fi
 
-cmd_setup() {
-  [[ -e $LOTUS_CONF/settings.zsh ]] || lotus_save
-  lotus_build force
-
-  # Finds lotus through the `lotus` command itself, so the line keeps working
-  # after Homebrew upgrades (new version folder) – without starting a process
-  local block="# >>> lotus >>>"$'\n'
-  if [[ $LOTUS_ROOT == $HOME/.local/share/lotus && ${path[(I)$HOME/.local/bin]} == 0 ]]; then
-    block+='export PATH="$HOME/.local/bin:$PATH"'$'\n'
-  fi
-  block+='(( $+commands[lotus] )) && source ${${commands[lotus]:A}:h:h}/lib/init.zsh'$'\n'"# <<< lotus <<<"
-
-  local rc=
-  [[ -r $LOTUS_RC ]] && rc=$(<$LOTUS_RC)
-  if [[ $rc == *'# >>> lotus >>>'*'# <<< lotus <<<'* ]]; then
-    rc=${rc/'# >>> lotus >>>'*'# <<< lotus <<<'/$block}
-  else
-    rc+=${rc:+$'\n\n'}$block
-  fi
-  print -r -- $rc >| $LOTUS_RC
-  say "$LOTUS_L[added_to] $LOTUS_RC"
-  say $LOTUS_L[open_new]
-}
-
-# Removes everything lotus created. With --yes no question is asked.
-cmd_uninstall() {
-  if [[ $1 != --yes ]]; then
-    read -q "?$LOTUS_L[confirm_un]" || { print; say $LOTUS_L[cancelled]; return 1 }
-    print
-  fi
-
-  cmd_unhook
-  [[ -e $LOTUS_CONF/hushlogin-by-lotus ]] && rm -f $HOME/.hushlogin
-  rm -rf $LOTUS_CONF $LOTUS_CACHE
-
-  if is_brew; then
-    say $LOTUS_L[removed_brew]
-    local kind=--formula
-    [[ $LOTUS_ROOT == */Caskroom/* ]] && kind=--cask
-    HOMEBREW_NO_AUTOREMOVE=1 brew uninstall --quiet $kind lotus
-    brew untap --quiet fanxy13/lotus 2>/dev/null
-    say $LOTUS_L[ff_kept]
-  elif [[ $LOTUS_ROOT == $HOME/.local/share/lotus ]]; then
-    rm -f $HOME/.local/bin/lotus
-    rm -rf $LOTUS_ROOT
-  else
-    say "$LOTUS_L[own_install] $LOTUS_ROOT"
-  fi
-  say $LOTUS_L[removed]
-}
-
-# Removes the lotus lines from ~/.zshrc (also used by `brew uninstall lotus`)
-cmd_unhook() {
-  [[ -r $LOTUS_RC ]] || return 0
-  local rc=$(<$LOTUS_RC)
-  [[ $rc == *'# >>> lotus >>>'* ]] || return 0
-  rc=${rc/$'\n'#'# >>> lotus >>>'*'# <<< lotus <<<'/}
-  print -r -- $rc >| $LOTUS_RC
-  say "$LOTUS_L[removed_from] $LOTUS_RC"
-}
-
-cmd_update() {
-  if is_brew; then
-    # Refresh only the lotus tap (fast) and leave other Homebrew packages alone
-    local tap=$(brew --repository fanxy13/lotus 2>/dev/null)
-    [[ -d $tap/.git ]] && git -C $tap pull --ff-only --quiet 2>/dev/null
-    export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 HOMEBREW_NO_ENV_HINTS=1
-    if [[ -z $(brew outdated --cask fanxy13/lotus/lotus 2>/dev/null) ]]; then
-      say "$LOTUS_L[up_to_date] ($LOTUS_VERSION)"
-      return
-    fi
-    # reinstall picks up the new version; unlike `brew upgrade` it does not try
-    # to rebuild unrelated packages (e.g. pkgconf after a macOS update)
-    brew reinstall --cask fanxy13/lotus/lotus
-  else
-    curl -fsSL https://raw.githubusercontent.com/$LOTUS_REPO/main/install.sh | zsh
-  fi
-}
-
-cmd_doctor() {
-  local ok="%F{green}✓%f" bad="%F{red}✗%f"
-  print -P "lotus $LOTUS_VERSION  ($LOTUS_ROOT)"
-  if [[ -x $LOTUS_FF ]]; then
-    print -P "$ok fastfetch  $($LOTUS_FF --version 2>/dev/null)  ($LOTUS_FF)"
-  else
-    print -P "$bad fastfetch  $LOTUS_L[doc_missing]"
-  fi
-  print -P "$ok ${(r:10:)LOTUS_L[doc_colors]} $LOTUS_MODE (${TERM_PROGRAM:-$LOTUS_L[unknown_term]})"
-  print -P "$ok Settings   $LOTUS_CONF/settings.zsh"
-  if [[ -r $LOTUS_RC && $(<$LOTUS_RC) == *'# >>> lotus >>>'* ]]; then
-    print -P "$ok .zshrc     $LOTUS_L[doc_rc_ok]"
-  else
-    print -P "$bad .zshrc     $LOTUS_L[doc_rc_no]"
-  fi
-  lotus_build
-  lotus_np_query
-  print -P "$ok ${(r:10:)LOTUS_L[doc_music]} ${${(f)"$(<$LOTUS_CACHE/np-$LOTUS_MODE-$LOTUS_LANG)"}[1]}"
-}
+# Subcommand → module in lib/cmd (loaded only when needed)
+typeset -A LOTUS_MODULES=(
+  setup system  update system  upgrade system  doctor system  uninstall system  unhook system
+  help help  -h help  --help help  cheatsheet help  themes help  suggest help
+  web web  github web  goat web  browse web  google web  search web  open web
+  app app  brew brew  install install  audio audio  weather weather  ai ai
+  ios ios  minecraft minecraft  mc minecraft  convert convert  visual visual
+  shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
+)
 
 lotus_load
-case $1 in
-  ''|show)          lotus_render ;;
-  settings|config)  source $LOTUS_ROOT/lib/settings.zsh; lotus_settings_ui; exit $? ;;
-  setup)            cmd_setup ;;
-  update|upgrade)   cmd_update ;;
-  doctor)           cmd_doctor ;;
-  uninstall)        cmd_uninstall $2 ;;
-  unhook)           cmd_unhook ;;
-  version|-v|--version) print -r -- $LOTUS_VERSION ;;
-  help|-h|--help)   printf "$LOTUS_L[usage]\n" $LOTUS_VERSION ;;
-  *)                printf "$LOTUS_L[usage]\n" $LOTUS_VERSION; exit 1 ;;
+cmd=${1:-show}
+(( $# )) && shift
+
+case $cmd in
+  show)
+    if (( ! LOTUS_CONFIGURED )) && [[ -t 0 && -t 1 ]]; then
+      source $LOTUS_ROOT/lib/cmd/setup.zsh; lotus_cmd_setup_wizard
+    fi
+    lotus_render ;;
+  settings|config)
+    source $LOTUS_ROOT/lib/settings.zsh; lotus_settings_ui; exit $? ;;
+  version|-v|--version)
+    print -r -- $LOTUS_VERSION ;;
+  *)
+    module=$LOTUS_MODULES[$cmd]
+    if [[ -z $module ]]; then
+      source $LOTUS_ROOT/lib/cmd/help.zsh
+      lotus_cmd_suggest $cmd "$@"
+      exit 1
+    fi
+    source $LOTUS_ROOT/lib/cmd/$module.zsh
+    lotus_cmd_$module $cmd "$@"
+    exit $? ;;
 esac

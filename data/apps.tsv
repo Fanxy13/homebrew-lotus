@@ -1,0 +1,79 @@
+# name	cask	categories	app bundle	description
+1Password	1password	Utilities	1Password.app	Password manager that keeps all passwords secure behind one password
+AltTab	alt-tab	Utilities,Open-source software	AltTab.app	Enable Windows-like alt-tab
+Android Studio	android-studio	Development	Android Studio.app	Tools for building Android applications
+Anki	anki	Productivity,Open-source software	Anki.app	Memory training application
+Arc	arc	Browsers	Arc.app	Chromium based browser
+Audacity	audacity	Media,Open-source software	Audacity 4.app	Multi-track audio editor and recorder
+Bitwarden	bitwarden	Utilities,Free alternatives,Open-source software	Bitwarden.app	Desktop password and login vault
+Blender	blender	Media,Open-source software	Blender.app	3D creation suite
+Blizzard Battle.net	battle-net	Games	-	Online gaming platform
+Brave	brave-browser	Browsers	Brave Browser.app	Web browser focusing on privacy
+ChatGPT	chatgpt	Productivity	ChatGPT.app	OpenAI's official ChatGPT desktop app
+Claude	claude	Productivity	Claude.app	Anthropic's official Claude AI desktop app
+CurseForge	curseforge	Games	CurseForge.app	Download and manage your addons and mods
+Discord	discord	Communication	Discord.app	Voice and text chat software
+Docker Desktop	docker-desktop	Development	Docker.app	App to build and share containerised applications and microservices
+Epic Games Launcher	epic-games	Games	Epic Games Launcher.app	Launcher for *Epic Games* games
+Figma	figma	Productivity	Figma.app	Collaborative team software
+FreeMacSoft AppCleaner	appcleaner	Utilities	AppCleaner.app	Application uninstaller
+Ghostty	ghostty	Development,Open-source software	Ghostty.app	Terminal emulator that uses platform-native UI and GPU acceleration
+GIMP	gimp	Media,Free alternatives,Open-source software	GIMP.app	Free and open-source image editor
+GitHub Desktop	github	Development	GitHub Desktop.app	Desktop client for GitHub repositories
+GOG Galaxy	gog-galaxy	Games	-	Game client
+Google Chrome	google-chrome	Browsers	Google Chrome.app	Web browser
+HandBrake	handbrake-app	Media,Open-source software	HandBrake.app	Open-source video transcoder
+Heroic Games Launcher	heroic	Games,Open-source software	Heroic.app	Game launcher
+Hidden Bar	hiddenbar	Utilities,Open-source software	Hidden Bar.app	Utility to hide menu bar items
+IINA	iina	Media,Free alternatives,Open-source software	IINA.app	Free and open-source media player
+Inkscape	inkscape	Media,Free alternatives,Open-source software	Inkscape.app	Vector graphics editor
+iTerm2	iterm2	Development	iTerm.app	Terminal emulator as alternative to Apple's Terminal app
+JetBrains Toolbox	jetbrains-toolbox	Development	JetBrains Toolbox.app	JetBrains tools manager
+Joplin	joplin	Productivity,Free alternatives,Open-source software	Joplin.app	Note taking and to-do application with synchronisation capabilities
+Kdenlive	kdenlive	Media,Free alternatives,Open-source software	kdenlive.app	Free and Open Source Video Editor
+KeePassXC	keepassxc	Utilities,Free alternatives,Open-source software	KeePassXC.app	Password manager app
+KeepingYouAwake	keepingyouawake	Utilities,Open-source software	KeepingYouAwake.app	Tool to prevent the system from going into sleep mode
+Keka	keka	Utilities,Open-source software	Keka.app	File archiver
+Krita	krita	Media,Free alternatives,Open-source software	krita.app	Free and open-source painting and sketching program
+LibreOffice	libreoffice	Productivity,Free alternatives,Open-source software	LibreOffice.app	Free cross-platform office suite, fresh version
+Maccy	maccy	Utilities,Open-source software	Maccy.app	Clipboard manager
+Microsoft Edge	microsoft-edge	Browsers,Microsoft	Microsoft Edge.app	Multi-platform web browser
+Microsoft Excel	microsoft-excel	Microsoft	-	Spreadsheet software
+Microsoft OneNote	microsoft-onenote	Microsoft	-	Digital note taking app
+Microsoft Outlook	microsoft-outlook	Microsoft	-	Email client
+Microsoft PowerPoint	microsoft-powerpoint	Microsoft	-	Presentation software
+Microsoft Teams	microsoft-teams	Communication,Microsoft	-	Meet, chat, call, and collaborate in just one place
+Microsoft Visual Studio Code	visual-studio-code	Microsoft,Development	Visual Studio Code.app	Open-source code editor
+Microsoft Word	microsoft-word	Microsoft	-	Word processor
+Minecraft	minecraft	Games	Minecraft.app	Sandbox construction video game
+Mozilla Firefox	firefox	Browsers,Open-source software	Firefox.app	Web browser
+Mozilla Thunderbird	thunderbird	Communication,Free alternatives,Open-source software	Thunderbird.app	Customizable email client
+Notion	notion	Productivity	Notion.app	App to write, plan, collaborate, and get organised
+OBS	obs	Media,Open-source software	OBS.app	Open-source software for live streaming and screen recording
+Obsidian	obsidian	Productivity	Obsidian.app	Knowledge base that works on top of a local folder of plain text Markdown files
+OneDrive	onedrive	Microsoft	-	Cloud storage client
+ONLYOFFICE	onlyoffice	Productivity,Free alternatives,Open-source software	ONLYOFFICE.app	Document editor
+OpenEmu	openemu	Games,Open-source software	OpenEmu.app	Retro video game emulation
+Opera	opera	Browsers	Opera.app	Web browser
+Postman	postman	Development	Postman.app	Collaboration platform for API development
+Prism Launcher	prismlauncher	Games,Free alternatives,Open-source software	Prism Launcher.app	Minecraft launcher
+Raycast	raycast	Utilities	Raycast.app	Control your tools with a few keystrokes
+Rectangle	rectangle	Utilities,Open-source software	Rectangle.app	Move and resize windows using keyboard shortcuts or snap areas
+Signal	signal	Communication,Open-source software	Signal.app	Instant messaging application focusing on security
+Slack	slack	Communication	Slack.app	Team communication and collaboration software
+Spotify	spotify	Media	Spotify.app	Music streaming service
+Stats	stats	Utilities,Open-source software	Stats.app	System monitor for the menu bar
+Steam	steam	Games	Steam.app	Video game digital distribution service
+Sublime Text	sublime-text	Development	Sublime Text.app	Text editor for code, markup and prose
+Telegram for macOS	telegram	Communication	Telegram.app	Messaging app with a focus on speed and security
+The Unarchiver	the-unarchiver	Utilities	The Unarchiver.app	Unpacks archive files
+Todoist	todoist-app	Productivity	Todoist.app	To-do list
+Tor Browser	tor-browser	Browsers,Open-source software	Tor Browser.app	Web browser focusing on security
+UTM	utm	Development,Open-source software	UTM.app	Virtual machines UI using QEMU
+Vivaldi	vivaldi	Browsers	Vivaldi.app	Web browser with built-in email client focusing on customization and control
+VLC media player	vlc	Media,Open-source software	VLC.app	Multimedia player
+Warp	warp	Development	Warp.app	Rust-based terminal
+WhatsApp	whatsapp	Communication	WhatsApp.app	Native desktop client for WhatsApp
+Zed	zed	Development,Open-source software	Zed.app	Multiplayer code editor
+Zen Browser	zen	Browsers,Open-source software	Zen.app	Gecko based web browser
+Zoom	zoom	Communication	-	Video communication and virtual meeting platform

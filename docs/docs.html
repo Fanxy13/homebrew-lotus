@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentation — Lotus</title>
+  <meta name="description" content="Install, set up and configure Lotus. Settings, AI providers, updates, privacy and the changelog.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.0.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.0.0">
+  <script src="js/lotus.js?v=2.0.0"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap article">
+    <header class="page-head">
+      <p class="eyebrow">Documentation</p>
+      <h1>How Lotus <span>works</span></h1>
+      <p class="lead">Lotus 2.0 is a start screen and command center for the macOS terminal. Everything below in one place.</p>
+    </header>
+
+    <nav class="toc card">
+      <a href="#install">Install</a><a href="#setup">First start</a><a href="#use">Using Lotus</a><a href="#settings">Settings</a>
+      <a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#update">Update and uninstall</a>
+      <a href="#privacy">Privacy and security</a><a href="#trouble">Troubleshooting</a><a href="#changelog">Changelog</a>
+    </nav>
+
+    <h2 class="section" id="install">Install</h2>
+    <p>Paste one line into Terminal:</p>
+    <div class="codeblock"><code><span class="dollar">$</span> <span data-install="curl">curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | zsh</span></code><button class="copy" data-install="curl" data-copy="" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+    <p>Or with Homebrew:</p>
+    <div class="codeblock"><code><span class="dollar">$</span> <span data-install="brew">brew install Fanxy13/lotus/lotus</span></code><button class="copy" data-install="brew" data-copy="" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+    <div class="table-wrap" style="margin-top:18px">
+      <table class="docs">
+        <tr><th>Needs</th><th>Details</th></tr>
+        <tr><td>macOS 11 or newer</td><td>Apple silicon and Intel. Terminal.app shows all colors from macOS 26 on, older versions use 256 colors automatically.</td></tr>
+        <tr><td>zsh</td><td>The default shell since macOS 10.15.</td></tr>
+        <tr><td>fastfetch</td><td>Installed automatically – it reads the system information.</td></tr>
+        <tr><td>Optional</td><td>Homebrew for <code>/brew</code> and <code>/install</code>, yt-dlp and ffmpeg for <code>/convert</code>, Java for <code>/minecraft</code>. Lotus offers to set them up when you need them. <code>lotus doctor</code> shows what is there.</td></tr>
+      </table>
+    </div>
+
+    <h2 class="section" id="setup">First start</h2>
+    <p>The first time Lotus runs, a short setup asks four things – you can change all of them later:</p>
+    <ol class="steps">
+      <li><h3>Your name</h3><p>Used in the greeting.</p></li>
+      <li><h3>A theme</h3><p>13 color themes with a preview.</p></li>
+      <li><h3>Auto-start</h3><p>Show Lotus every time Terminal opens, or only when you type <code>lotus</code>.</p></li>
+      <li><h3>Interface language</h3><p>English, Deutsch, Français or Español.</p></li>
+    </ol>
+    <p class="muted">Run it again any time with <code>lotus setup</code>. Updating from Lotus 1.x keeps your settings and skips the setup.</p>
+
+    <h2 class="section" id="use">Using Lotus</h2>
+    <p>Commands start with a slash and work in every Terminal window. The full list is on the <a href="commands.html">commands page</a> and in the terminal with <code>/lotus cheatsheet</code>.</p>
+    <div class="grid">
+      <div class="card"><h3>Forgiving</h3><p class="muted"><code>/weatr</code> → “Did you mean /weather?”. App names, packages and shortcuts are matched the same way.</p></div>
+      <div class="card"><h3>Links</h3><p class="muted">Paste a link and press Enter – it opens in your browser. <code>open Spotify</code> opens apps.</p></div>
+      <div class="card"><h3>Clean errors</h3><p class="muted">Missing tools, no internet or a wrong input get a short explanation and a way forward instead of raw shell errors.</p></div>
+    </div>
+
+    <h2 class="section" id="settings">Settings</h2>
+    <p>Type <code>/settings</code>. Arrow keys to move, Enter or ←→ to change, <kbd>v</kbd> to preview the start screen, <kbd>q</kbd> to close.</p>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Setting</th><th>Choices</th></tr>
+        <tr><td>Name, Language</td><td>Your name · English, Deutsch, Français, Español</td></tr>
+        <tr><td>Auto-start on terminal launch</td><td>On or off. <code>lotus</code> always works.</td></tr>
+        <tr><td>Logo</td><td>Lotus Classic, Minimal, Large, Terminal, Custom, None. Preview them or paste your own ASCII art (<a href="ascii.html">ASCII Art page</a>).</td></tr>
+        <tr><td>Theme</td><td>13 themes – see the <a href="themes.html">themes page</a></td></tr>
+        <tr><td>Colored prompt, “Last login” line</td><td>On or off</td></tr>
+        <tr><td>Greeting</td><td>Top: 15 languages in order or at random. Bottom (by time of day): off by default.</td></tr>
+        <tr><td>Sections</td><td>Hardware, session, uptime and date, now playing</td></tr>
+        <tr><td>Now playing</td><td>Live updates, interval (1–5 s), color mode, visualizer mode</td></tr>
+        <tr><td>Weather and web</td><td>Default city, units (°C or °F), search engine (Google, DuckDuckGo, Bing, Ecosia, Brave)</td></tr>
+        <tr><td>AI</td><td>Provider (automatic, Apple Intelligence, Ollama, OpenAI-compatible), model, API URL, API key in the Keychain</td></tr>
+        <tr><td>Lotus</td><td>Manage shortcuts, run the setup again, uninstall</td></tr>
+      </table>
+    </div>
+
+    <h2 class="section" id="config">Configuration file</h2>
+    <p>Everything is stored in <code>~/.config/lotus/settings.zsh</code> – plain text, one setting per line. Your own logo is <code>~/.config/lotus/logo.txt</code>. Temporary data (weather, now playing) lives in <code>~/.cache/lotus</code>.</p>
+    <div class="term"><div class="term-bar"><i></i><i></i><i></i><span>settings.zsh</span></div><pre><span class="t-dim"># lotus – settings (easier: lotus settings)</span>
+LOTUS_NAME=<span class="t-acc">'Alex'</span>
+LOTUS_THEME=<span class="t-acc">'matcha'</span>
+LOTUS_STARTUP=<span class="t-acc">'1'</span>
+LOTUS_WEATHER_LOCATION=<span class="t-acc">'Zurich'</span>
+LOTUS_AI_PROVIDER=<span class="t-acc">'auto'</span>
+typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|on'</span>)</pre></div>
+
+    <h2 class="section" id="ai">AI providers</h2>
+    <p><code>/ai</code> uses the first provider that works on your Mac. Pick one in <code>/settings</code>, check them with <code>/ai status</code>.</p>
+    <div class="grid">
+      <div class="card"><h3>Apple Intelligence</h3><p class="muted">Runs on your Mac – nothing leaves it. Needs macOS 26 or newer, Apple silicon, Apple Intelligence turned on and the Command Line Tools (Lotus builds a small helper once).</p></div>
+      <div class="card"><h3>Ollama</h3><p class="muted">Local models. Install Ollama, open the app and pull a model, e.g. <code>ollama pull llama3.2</code>.</p></div>
+      <div class="card"><h3>OpenAI-compatible</h3><p class="muted">Any service with an OpenAI-style API. Set the URL in <code>/settings</code>. The key comes from <code>$LOTUS_AI_KEY</code> or the macOS Keychain (<code>lotus ai key</code>) – never from a file.</p></div>
+    </div>
+    <p class="muted"><code>/ai command</code> only suggests a command. It never runs it: you choose to put it on the command line or copy it.</p>
+
+    <h2 class="section" id="update">Update and uninstall</h2>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Command</th><th>What happens</th></tr>
+        <tr><td><code>lotus update</code></td><td>Shows the installed and the newest version, then updates. Settings stay untouched.</td></tr>
+        <tr><td><code>lotus doctor</code></td><td>Checks macOS, zsh, fastfetch, colors, ~/.zshrc and the optional tools.</td></tr>
+        <tr><td><code>lotus uninstall</code></td><td>Asks first, then removes Lotus, its settings, cache and the lines in ~/.zshrc. Also in <code>/settings</code>.</td></tr>
+        <tr><td><code>brew uninstall lotus</code></td><td>For Homebrew installs. Keeps your settings; add <code>--zap</code> to remove them too.</td></tr>
+      </table>
+    </div>
+
+    <h2 class="section" id="privacy">Privacy and security</h2>
+    <div class="grid">
+      <div class="card"><h3>No accounts, no tracking</h3><p class="muted">Lotus has no server. It only goes online for what you ask: weather (Open-Meteo), updates (GitHub), downloads you confirm.</p></div>
+      <div class="card"><h3>Nothing runs behind your back</h3><p class="muted">Installs, downloads and deletions are shown first and need a yes. Lotus never runs <code>sudo</code> silently and never stores passwords or Apple ID details.</p></div>
+      <div class="card"><h3>Checked input</h3><p class="muted">Links must be http or https, package names and city names are validated, and shortcuts cannot run shell commands.</p></div>
+      <div class="card"><h3>Trusted sources</h3><p class="muted">Apps come from Homebrew Cask, Minecraft servers from Mojang or PaperMC (checksums verified), iOS tools from their official releases.</p></div>
+    </div>
+
+    <h2 class="section" id="trouble">Troubleshooting</h2>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Problem</th><th>Fix</th></tr>
+        <tr><td><code>lotus: command not found</code></td><td>Open a new Terminal window, or run <code>exec zsh</code>.</td></tr>
+        <tr><td>Wrong colors</td><td><code>/settings</code> → Color mode → 256 colors.</td></tr>
+        <tr><td>No logo</td><td>The window is too narrow – Lotus switches to the minimal logo, then none. Make the window wider.</td></tr>
+        <tr><td><code>/skip</code> does nothing</td><td>Spotify and Music work directly. Other players need your terminal app in System Settings → Privacy &amp; Security → Accessibility.</td></tr>
+        <tr><td>Anything else</td><td>Run <code>lotus doctor</code> and open an issue on <a data-link="repo" href="https://github.com/Fanxy13/homebrew-lotus">GitHub</a>.</td></tr>
+      </table>
+    </div>
+
+    <h2 class="section" id="changelog">Changelog</h2>
+    <div id="changelog-body" class="changelog muted">Loading …</div>
+  </main>
+  <lotus-footer></lotus-footer>
+  <script>
+    // CHANGELOG.md is the single source – a tiny Markdown subset is enough here
+    fetch('CHANGELOG.md').then((r) => r.ok ? r.text() : Promise.reject()).then((md) => {
+      const e = Lotus.esc, inline = (s) => e(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      let html = '', inList = false;
+      for (const line of md.split('\n')) {
+        if (/^\s*- /.test(line)) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${inline(line.replace(/^\s*- /, ''))}</li>`; continue; }
+        if (inList) { html += '</ul>'; inList = false; }
+        if (line.startsWith('## ')) html += `<h3>${inline(line.slice(3))}</h3>`;
+        else if (line.startsWith('### ')) html += `<h4>${inline(line.slice(4))}</h4>`;
+        else if (line.trim() && !line.startsWith('# ')) html += `<p>${inline(line)}</p>`;
+      }
+      if (inList) html += '</ul>';
+      const el = document.getElementById('changelog-body');
+      el.innerHTML = html; el.classList.remove('muted');
+    }).catch(() => { document.getElementById('changelog-body').textContent = 'See CHANGELOG.md on GitHub.'; });
+  </script>
+</body>
+</html>

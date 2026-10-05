@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App Installer — Lotus</title>
+  <meta name="description" content="The apps Lotus can install for you with /install, by category.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.0.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.0.0">
+  <script src="js/lotus.js?v=2.0.0"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap">
+    <header class="page-head">
+      <p class="eyebrow">App installer</p>
+      <h1><span class="app-total">78</span> apps, <span>one word</span></h1>
+      <p class="lead">Type <code>/install</code> and a name – typos are fine. Lotus shows the app, its size and source, and installs it with Homebrew Cask after you confirm. Anything else on Homebrew works too: <code>/brew &lt;name&gt;</code></p>
+    </header>
+
+    <label class="search">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="filter" type="search" placeholder="Search apps – try “firefx”" autocomplete="off">
+    </label>
+    <div class="chips" id="cats"></div>
+    <div class="grid apps" id="apps"></div>
+    <p class="empty muted" hidden>No app matches. Lotus can still find it on Homebrew: <code>/brew</code></p>
+
+    <div class="callout" style="margin-top:40px"><p>Lotus only installs from Homebrew Cask, which downloads from the official vendor and checks every file. It never runs installers from unknown websites.</p></div>
+  </main>
+  <lotus-footer></lotus-footer>
+  <script src="js/fuzzy.js?v=2.0.0"></script>
+  <script src="js/apps.js?v=2.0.0" defer></script>
+</body>
+</html>

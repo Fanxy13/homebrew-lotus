@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASCII Art — Lotus</title>
+  <meta name="description" content="Make your own Lotus logo: prompt generator for AI tools, preview, import and export.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.0.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.0.0">
+  <script src="js/lotus.js?v=2.0.0"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap">
+    <header class="page-head">
+      <p class="eyebrow">ASCII Art</p>
+      <h1>Your own <span>logo</span></h1>
+      <p class="lead">Describe it, let an AI draw it, paste it here, then bring it into the terminal with one command.</p>
+    </header>
+
+    <section class="ascii-layout">
+      <div class="ascii-side">
+        <div class="card">
+          <h3>1 · Describe it</h3>
+          <textarea id="desc" rows="3" placeholder="A futuristic lotus flower made from terminal characters"></textarea>
+          <div class="form-row">
+            <label>Width <select id="w"><option>32</option><option>40</option><option selected>48</option><option>60</option><option>72</option><option>80</option></select></label>
+            <label>Height <select id="h"><option>12</option><option>16</option><option selected>22</option><option>30</option><option>40</option></select></label>
+          </div>
+          <div class="form-row">
+            <label>Characters <select id="chars">
+              <option value=" .:-=+*#">Lotus classic  .:-=+*#</option>
+              <option value=" ░▒▓█">Blocks  ░▒▓█</option>
+              <option value=" /\|_-()'`.,">Lines  / \ | _ -</option>
+              <option value="">Any printable ASCII</option>
+            </select></label>
+            <label>Style <select id="style"><option>filled</option><option>outline</option><option>shaded, with depth</option><option>minimal</option></select></label>
+          </div>
+          <h3>2 · Use the prompt with an AI</h3>
+          <pre class="prompt" id="prompt"></pre>
+          <div class="btn-row">
+            <button class="btn primary" id="copy-prompt">Copy prompt</button>
+            <a class="btn" id="open-chatgpt" target="_blank" rel="noopener">Open in ChatGPT</a>
+            <a class="btn" id="open-claude" target="_blank" rel="noopener">Open in Claude</a>
+          </div>
+          <p class="muted small">Lotus does not send anything anywhere. The AI runs on the site you choose, with your own account.</p>
+        </div>
+
+        <div class="card">
+          <h3>3 · Paste the result</h3>
+          <textarea id="art" rows="9" spellcheck="false" placeholder="Paste ASCII art here"></textarea>
+          <div class="btn-row">
+            <label class="btn file">Load .txt<input type="file" id="file" accept=".txt,text/plain" hidden></label>
+            <button class="btn" id="copy-art">Copy art</button>
+            <button class="btn" id="download">Download logo.txt</button>
+          </div>
+          <h3>4 · Use it in Lotus</h3>
+          <p class="muted small">Copy the art, then run:</p>
+          <div class="codeblock"><code><span class="dollar">$</span> lotus logo import --clipboard</code><button class="copy" data-copy="lotus logo import --clipboard" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+          <p class="muted small">Or paste it in the terminal with <code>lotus logo import</code>, or pick it in <code>/settings → Logo</code>.</p>
+        </div>
+      </div>
+
+      <div class="ascii-main">
+        <div class="chips" id="examples"></div>
+        <div class="term big">
+          <div class="term-bar"><i></i><i></i><i></i><span id="size">48 × 22</span></div>
+          <pre id="preview"></pre>
+        </div>
+        <p class="check" id="check"></p>
+      </div>
+    </section>
+  </main>
+  <lotus-footer></lotus-footer>
+  <script src="js/ascii.js?v=2.0.0" defer></script>
+</body>
+</html>

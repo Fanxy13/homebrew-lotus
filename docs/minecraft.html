@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minecraft Server — Lotus</title>
+  <meta name="description" content="Host your own Minecraft server on a Mac: setup, Wi-Fi play, firewall and port forwarding, explained from scratch.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.0.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.0.0">
+  <script src="js/lotus.js?v=2.0.0"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap article">
+    <header class="page-head">
+      <p class="eyebrow">Tutorial</p>
+      <h1>Your own <span>Minecraft</span> server</h1>
+      <p class="lead">Never hosted a server before? This page walks you through it – from the first download to friends joining over the internet.</p>
+    </header>
+
+    <nav class="toc card">
+      <a href="#need">What you need</a><a href="#quick">The quick way</a><a href="#manual">Step by step</a>
+      <a href="#wifi">Play on the same Wi-Fi</a><a href="#firewall">Firewall</a><a href="#forward">Port forwarding</a>
+      <a href="#safe">Stay safe</a><a href="#trouble">Troubleshooting</a>
+    </nav>
+
+    <h2 class="section" id="need">What you need</h2>
+    <div class="grid">
+      <div class="card"><h3>A Mac</h3><p class="muted">Apple silicon or Intel. It has to stay on while people play.</p></div>
+      <div class="card"><h3>Java</h3><p class="muted">Minecraft servers run on Java. Lotus checks which version your Minecraft version needs and can install it for you.</p></div>
+      <div class="card"><h3>Memory</h3><p class="muted">2–4 GB for a few friends. Keep at least half of your Mac's memory for macOS.</p></div>
+      <div class="card"><h3>Your router</h3><p class="muted">Only needed for friends outside your home. Playing on the same Wi-Fi needs no router changes.</p></div>
+    </div>
+
+    <h2 class="section" id="quick">The quick way</h2>
+    <p>Open Terminal and type:</p>
+    <div class="codeblock"><code><span class="dollar">$</span> /minecraft</code><button class="copy" data-copy="/minecraft" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+    <p class="muted">Lotus asks eight short questions and does the rest:</p>
+    <ol class="steps">
+      <li><h3>Server type</h3><p>Vanilla is the official server. Paper is faster and supports plugins.</p></li>
+      <li><h3>Version</h3><p>The newest release is suggested. It must match the version your friends play.</p></li>
+      <li><h3>Java</h3><p>Lotus reads the required Java version from Mojang and offers to install Eclipse Temurin if it is missing.</p></li>
+      <li><h3>Folder</h3><p>Each server gets its own folder in <code>~/Minecraft</code>.</p></li>
+      <li><h3>Memory</h3><p>Pick how much RAM the server may use.</p></li>
+      <li><h3>Download</h3><p>From Mojang or PaperMC only. Lotus verifies the checksum, so a broken or changed file is never used.</p></li>
+      <li><h3>EULA and settings</h3><p>You read and accept the Minecraft EULA yourself. Then name, player limit and difficulty.</p></li>
+      <li><h3>Start script</h3><p>A <code>start.command</code> file you can double-click. Stop the server by typing <code>stop</code>.</p></li>
+    </ol>
+
+    <h2 class="section" id="manual">Step by step, without Lotus</h2>
+    <ol class="steps">
+      <li><h3>Install Java</h3><p>Download Eclipse Temurin from adoptium.net, or run <code>brew install --cask temurin</code>. Check with <code>java -version</code>.</p></li>
+      <li><h3>Make a folder</h3><p><code>mkdir -p ~/Minecraft/my-server</code> and open it: <code>cd ~/Minecraft/my-server</code></p></li>
+      <li><h3>Download the server</h3><p>Get <code>server.jar</code> from minecraft.net/download/server (Vanilla) or papermc.io/downloads (Paper). Put it in the folder.</p></li>
+      <li><h3>First start</h3><p><code>java -Xms4G -Xmx4G -jar server.jar nogui</code> – it stops and creates <code>eula.txt</code>.</p></li>
+      <li><h3>Accept the EULA</h3><p>Read it at aka.ms/MinecraftEULA, then change <code>eula=false</code> to <code>eula=true</code> in <code>eula.txt</code>.</p></li>
+      <li><h3>Start again</h3><p>Run the same command. When you see <code>Done</code>, the server is running.</p></li>
+    </ol>
+
+    <h3 style="margin-top:30px">The most useful settings in server.properties</h3>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Setting</th><th>What it does</th></tr>
+        <tr><td><code>motd</code></td><td>The name in the server list</td></tr>
+        <tr><td><code>max-players</code></td><td>How many people can join at once</td></tr>
+        <tr><td><code>difficulty</code></td><td>peaceful, easy, normal or hard</td></tr>
+        <tr><td><code>white-list</code></td><td><code>true</code> = only players you added can join (recommended)</td></tr>
+        <tr><td><code>online-mode</code></td><td>Keep it <code>true</code>: players must own Minecraft and are verified</td></tr>
+        <tr><td><code>server-port</code></td><td>25565 by default – the port you forward later</td></tr>
+      </table>
+    </div>
+
+    <h2 class="section" id="wifi">Play on the same Wi-Fi</h2>
+    <ol class="steps">
+      <li><h3>Find your Mac's local address</h3><p>System Settings → Wi-Fi → Details next to your network → IP address. It looks like <code>192.168.x.x</code>.</p></li>
+      <li><h3>Join</h3><p>In Minecraft: Multiplayer → Add Server → enter that address followed by <code>:25565</code>. On the Mac itself, use <code>localhost</code>.</p></li>
+    </ol>
+
+    <h2 class="section" id="firewall">Allow the firewall</h2>
+    <p>The first time the server starts, macOS may ask whether <em>java</em> may accept incoming network connections. Choose <strong>Allow</strong>.</p>
+    <p class="muted">Missed it? System Settings → Network → Firewall → Options → find java and set it to allow incoming connections.</p>
+
+    <h2 class="section" id="forward">Play over the internet: port forwarding</h2>
+    <p>Your router hides every device at home behind one public address. Port forwarding tells it: “Minecraft traffic goes to this Mac.”</p>
+    <div class="flow card">
+      <div class="node">Friend<br><small>anywhere</small></div><span class="arrow">→</span>
+      <div class="node">Internet</div><span class="arrow">→</span>
+      <div class="node">Your router<br><small>public address</small></div><span class="arrow">→<small>TCP 25565</small></span>
+      <div class="node hl">Your Mac<br><small>local address</small></div>
+    </div>
+    <ol class="steps">
+      <li><h3>Give your Mac a fixed local address</h3><p>In the router settings look for “DHCP reservation” or “static lease” and reserve your Mac's current local address. Otherwise it can change and the forwarding breaks.</p></li>
+      <li><h3>Add the forwarding rule</h3><p>Look for “Port forwarding”, “Virtual server” or “NAT”. Forward TCP port <code>25565</code> to your Mac's local address, port <code>25565</code>.</p></li>
+      <li><h3>Find your public address</h3><p>Your router's status page shows it (often called WAN or Internet IP). Friends join with that address and <code>:25565</code>.</p></li>
+      <li><h3>Test it</h3><p>Ask a friend outside your home to join. Testing from inside your own network often does not work, even when everything is right.</p></li>
+    </ol>
+    <div class="callout warn"><p>Your public address points to your home. Share it only with people you trust. Lotus never looks it up or stores it.</p></div>
+
+    <h2 class="section" id="safe">Stay safe</h2>
+    <div class="grid">
+      <div class="card"><h3>Use a whitelist</h3><p class="muted">Set <code>white-list=true</code> and add friends in the server console with <code>whitelist add Name</code>.</p></div>
+      <div class="card"><h3>Keep online-mode on</h3><p class="muted">It makes sure every player is who they claim to be.</p></div>
+      <div class="card"><h3>Back up your world</h3><p class="muted">Stop the server and copy the <code>world</code> folder now and then.</p></div>
+      <div class="card"><h3>No router changes at all</h3><p class="muted">Tools like Tailscale create a private network for you and your friends – nothing to open on the router.</p></div>
+    </div>
+
+    <h2 class="section" id="trouble">Troubleshooting</h2>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>You see</th><th>Try this</th></tr>
+        <tr><td>Unsupported class file version</td><td>The Java version is too old. Run <code>/minecraft</code> again – it installs the right one.</td></tr>
+        <tr><td>Outdated server / client</td><td>Server and game versions must match. Set up a server with your friends' version.</td></tr>
+        <tr><td>Connection refused</td><td>Is the server running? Same Wi-Fi: check the local address. Internet: check the forwarding rule and the firewall.</td></tr>
+        <tr><td>Can't keep up! Is the server overloaded?</td><td>Give it more memory or use Paper.</td></tr>
+        <tr><td>Friends from outside cannot join</td><td>Some internet providers share one public address between customers (CGNAT). Then forwarding cannot work – use Tailscale instead.</td></tr>
+      </table>
+    </div>
+  </main>
+  <lotus-footer></lotus-footer>
+</body>
+</html>

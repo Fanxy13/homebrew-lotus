@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=1.1.5
+typeset -g LOTUS_VERSION=2.0.0
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -17,26 +17,57 @@ typeset -ga LOTUS_KEYS=(
   LOTUS_GREETING LOTUS_SALUTE
   LOTUS_SHOW_HARDWARE LOTUS_SHOW_SESSION LOTUS_SHOW_TIME LOTUS_SHOW_MUSIC
   LOTUS_LIVE LOTUS_INTERVAL
+  LOTUS_WEATHER_LOCATION LOTUS_WEATHER_UNITS LOTUS_SEARCH_ENGINE LOTUS_VISUAL_MODE
+  LOTUS_AI_PROVIDER LOTUS_AI_MODEL LOTUS_AI_URL
+  LOTUS_CONFIGURED LOTUS_CONFIG_VERSION
 )
 
 lotus_defaults() {
   typeset -g LOTUS_NAME= LOTUS_LANG=en LOTUS_STARTUP=1 LOTUS_LOGO=lotus LOTUS_THEME=matcha
-  typeset -g LOTUS_PROMPT=0 LOTUS_COLORS=auto LOTUS_GREETING=rotate LOTUS_SALUTE=fr
+  typeset -g LOTUS_PROMPT=0 LOTUS_COLORS=auto LOTUS_GREETING=rotate LOTUS_SALUTE=off
   typeset -g LOTUS_SHOW_HARDWARE=1 LOTUS_SHOW_SESSION=1 LOTUS_SHOW_TIME=1 LOTUS_SHOW_MUSIC=1
   typeset -g LOTUS_LIVE=1 LOTUS_INTERVAL=2
+  typeset -g LOTUS_WEATHER_LOCATION= LOTUS_WEATHER_UNITS=metric LOTUS_SEARCH_ENGINE=google
+  typeset -g LOTUS_VISUAL_MODE=bars LOTUS_AI_PROVIDER=auto LOTUS_AI_MODEL= LOTUS_AI_URL=
+  typeset -g LOTUS_CONFIGURED=0 LOTUS_CONFIG_VERSION=0
+  typeset -gA LOTUS_SHORTCUTS=()
 }
 
 lotus_load() {
   lotus_defaults
-  [[ -r $LOTUS_CONF/settings.zsh ]] && source $LOTUS_CONF/settings.zsh
+  if [[ -r $LOTUS_CONF/settings.zsh ]]; then
+    source $LOTUS_CONF/settings.zsh
+    lotus_migrate
+  fi
   if [[ -z $LOTUS_NAME ]]; then
     local -a full=(${=$(id -F 2>/dev/null)})
     (( ${#full[1]} > 1 )) && LOTUS_NAME=$full[1] || LOTUS_NAME=${(C)${USER:-${LOGNAME:-$(id -un)}}}
   fi
   [[ $LOTUS_INTERVAL == <1-60> ]] || LOTUS_INTERVAL=2
-  [[ $LOTUS_LOGO == heart ]] && LOTUS_LOGO=lotus   # older versions called the lotus "heart"
+  lotus_project
   lotus_lang
   lotus_colors
+}
+
+# Settings written by Lotus 1.x keep working; 2.0 drops the bottom greeting
+lotus_migrate() {
+  [[ $LOTUS_LOGO == heart ]] && LOTUS_LOGO=lotus   # older versions called the lotus "heart"
+  (( LOTUS_CONFIG_VERSION >= 2 )) && return
+  LOTUS_SALUTE=off
+  LOTUS_CONFIGURED=1          # an existing user does not need the first-time wizard
+  LOTUS_CONFIG_VERSION=2
+  [[ -w $LOTUS_CONF/settings.zsh ]] && lotus_save
+}
+
+# Project constants (website, GitHub, …) from data/project.tsv → LOTUS_P[key]
+lotus_project() {
+  (( ${+LOTUS_P} )) && return
+  typeset -gA LOTUS_P=()
+  local line
+  for line in "${(@f)$(<$LOTUS_ROOT/data/project.tsv)}"; do
+    [[ $line == \#* || $line != *$'\t'* ]] && continue
+    LOTUS_P[${line%%$'\t'*}]=${line#*$'\t'}
+  done
 }
 
 # Loads the UI texts: English first, then the chosen language on top
@@ -50,6 +81,11 @@ lotus_save() {
   zf_mkdir -p $LOTUS_CONF
   local k out="# lotus – settings (easier: lotus settings)"$'\n'
   for k in $LOTUS_KEYS; do out+="$k=${(qq)${(P)k}}"$'\n'; done
+  if (( ${#LOTUS_SHORTCUTS} )); then
+    out+="typeset -gA LOTUS_SHORTCUTS=(${(@qqkv)LOTUS_SHORTCUTS})"$'\n'
+  else
+    out+="typeset -gA LOTUS_SHORTCUTS=()"$'\n'
+  fi
   print -rn -- $out >| $LOTUS_CONF/settings.zsh
 }
 
@@ -89,18 +125,27 @@ lotus_sgr() {
   fi
 }
 
-typeset -gA LOTUS_THEMES=(
-  #         logo         key          accent       key2         salute       border       dim          music
-  matcha  '248;184;208 181;211;113 166;196;122 236;236;140 245;211;155 150;160;160 120;128;128 30;215;96'
-  sakura  '255;183;206 244;160;190 255;205;222 255;214;165 255;190;210 160;145;155 125;115;122 30;215;96'
-  ocean   '125;196;255 110;200;245 160;220;255 180;235;220 255;220;160 120;140;160 105;118;132 30;215;96'
-  sunset  '255;160;110 255;190;110 255;140;120 255;220;140 255;200;150 160;140;130 130;115;108 30;215;96'
-  mono    '230;230;230 210;210;210 255;255;255 230;230;230 255;255;255 120;120;120 110;110;110 200;200;200'
-)
+# Themes come from data/themes.tsv (shared with the website)
+#   LOTUS_THEMES[name]="logo key accent key2 salute border dim music", LOTUS_THEME_NAMES, LOTUS_THEME_LABELS
+lotus_themes() {
+  (( ${+LOTUS_THEMES} )) && return
+  typeset -gA LOTUS_THEMES=() LOTUS_THEME_LABELS=()
+  typeset -ga LOTUS_THEME_NAMES=()
+  local line
+  local -a f
+  for line in "${(@f)$(<$LOTUS_ROOT/data/themes.tsv)}"; do
+    [[ $line == \#* ]] && continue
+    f=("${(@ps:\t:)line}")
+    LOTUS_THEME_NAMES+=($f[1])
+    LOTUS_THEME_LABELS[$f[1]]=$f[2]
+    LOTUS_THEMES[$f[1]]="${f[3,10]}"
+  done
+}
 
 # Sets LOTUS_C[logo|key|accent|key2|salute|border|dim|music] as SGR codes
 lotus_colors() {
   lotus_detect_tc
+  lotus_themes
   typeset -gA LOTUS_C
   local -a rgb=(${=LOTUS_THEMES[$LOTUS_THEME]:-$LOTUS_THEMES[matcha]})
   local -a names=(logo key accent key2 salute border dim music)
@@ -109,16 +154,71 @@ lotus_colors() {
   (( LOTUS_TC )) && LOTUS_MODE=tc || LOTUS_MODE=256
 }
 
+# ── Text helpers ──────────────────────────────────────────────
+
+# Percent-encoding for links → REPLY. $2 = what a space becomes (default +)
+lotus_urlencode() {
+  local LC_ALL=C s=$1 sp=${2:-+} out= c hex
+  local -i i
+  for (( i = 1; i <= ${#s}; i++ )); do
+    c=${s[i]}
+    case $c in
+      [a-zA-Z0-9.~_-]) out+=$c ;;
+      ' ')             out+=$sp ;;
+      *)               printf -v hex '%%%02X' "'$c"; out+=$hex ;;
+    esac
+  done
+  REPLY=$out
+}
+
+# ── JSON ──────────────────────────────────────────────────────
+
+# jq ships with macOS 15 and newer; older systems get it from Homebrew
+lotus_jq() {
+  if (( $+commands[jq] )); then jq "$@"; return; fi
+  print -u2 -- "lotus: this command needs jq on your macOS version – install it with: brew install jq"
+  return 1
+}
+
+# ── Logos ─────────────────────────────────────────────────────
+
+# Built-in logos live in logos/<name>.txt; "custom" is the user's own file
+typeset -ga LOTUS_LOGOS=(lotus minimal large terminal custom none)
+typeset -gA LOTUS_LOGO_LABELS=(lotus 'Lotus Classic' minimal 'Lotus Minimal' large 'Lotus Large'
+  terminal 'Lotus Terminal' custom 'Custom' none 'None')
+
+lotus_logo_file() {   # $1 logo name → REPLY = path ("" for none or missing)
+  case $1 in
+    none)   REPLY= ;;
+    custom) REPLY=$LOTUS_CONF/logo.txt ;;
+    *)      REPLY=$LOTUS_ROOT/logos/$1.txt ;;
+  esac
+  [[ -n $REPLY && ! -r $REPLY ]] && REPLY=
+}
+
+lotus_logo_size() {   # $1 path → reply=(width height)
+  local l
+  local -i w=0 h=0
+  for l in "${(@f)$(<$1)}"; do (( ${#l} > w )) && w=${#l}; (( h++ )); done
+  reply=($w $h)
+}
+
 # ── Generate the fastfetch config (only when something changed) ──
 
 lotus_line() { REPLY=${${(l:$1::x:)}//x/─} }   # $1 × ─ (independent of the locale)
 
-lotus_box() {  # $1 title, $2 title color → REPLY = top border line
+# Border pieces left/right of a centered title → reply=(left right)
+lotus_box_parts() {
   local t=" $1 " left
   local -i nl=$(( (42 - ${#t}) / 2 ))
   lotus_line $nl; left=$REPLY
   lotus_line $(( 42 - ${#t} - nl ))
-  REPLY="{#$LOTUS_C[border]}┌${left}{#$2}${t}{#$LOTUS_C[border]}${REPLY}┐"
+  reply=("┌$left" "$REPLY┐")
+}
+
+lotus_box() {  # $1 title, $2 title color → REPLY = top border line (fastfetch markup)
+  lotus_box_parts $1
+  REPLY="{#$LOTUS_C[border]}${reply[1]}{#$2} $1 {#$LOTUS_C[border]}${reply[2]}"
 }
 
 lotus_build() {
@@ -170,8 +270,9 @@ lotus_build() {
   fi
   [[ ${m[-1]} == '"break"' ]] && { m[-1]=(); n=n-1 }
 
-  local logo='{ "type": "none" }' file=$LOTUS_ROOT/logos/$LOTUS_LOGO.txt
-  if [[ $LOTUS_LOGO != none && -r $file ]]; then
+  local logo='{ "type": "none" }' file
+  lotus_logo_file $LOTUS_LOGO; file=$REPLY
+  if [[ -n $file && -r $file ]]; then
     local -a ll=("${(@f)$(<$file)}")
     local -i top=$(( ${#ll} >= n - 2 ? 2 : (n - ${#ll}) / 2 ))
     logo="{ \"type\": \"file\", \"source\": \"${file//\"/\\\"}\", \"color\": { \"1\": \"$C[logo]\" }, \"padding\": { \"top\": $top, \"left\": 2, \"right\": 6 } }"
@@ -295,12 +396,20 @@ lotus_render() {
   zf_mkdir -p $LOTUS_CACHE
 
   local -a args=(-c $LOTUS_CACHE/fastfetch-$LOTUS_MODE.jsonc --pipe false)
-  # Window too narrow → no logo
-  if [[ $LOTUS_LOGO != none && -r $LOTUS_ROOT/logos/$LOTUS_LOGO.txt ]]; then
-    local l
-    local -i w=0
-    for l in "${(@f)$(<$LOTUS_ROOT/logos/$LOTUS_LOGO.txt)}"; do (( ${#l} > w )) && w=${#l}; done
-    (( ${COLUMNS:-200} < w + 60 )) && args+=(--logo none)
+  # Window too narrow for the logo → the minimal lotus, or no logo at all
+  lotus_logo_file $LOTUS_LOGO
+  if [[ -n $REPLY ]]; then
+    lotus_logo_size $REPLY
+    if (( ${COLUMNS:-200} < reply[1] + 60 )); then
+      lotus_logo_file minimal
+      local small=$REPLY
+      lotus_logo_size $small
+      if [[ $LOTUS_LOGO != minimal ]] && (( ${COLUMNS:-200} >= reply[1] + 60 )); then
+        args+=(--logo $small --logo-padding-top 4)
+      else
+        args+=(--logo none)
+      fi
+    fi
   fi
 
   # Fetch the song in parallel to the main run

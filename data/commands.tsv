@@ -1,0 +1,51 @@
+# category	trigger	command	usage	description	example	hidden
+# trigger: what you type in the shell (/weather) or - ; command: the lotus subcommand it runs
+Core	/lotus	show	lotus	Show the start screen again, e.g. after clear	lotus	0
+Core	-	setup	lotus setup	Run the first-time setup wizard again	lotus setup	0
+Core	-	cheatsheet	/lotus cheatsheet	Show every Lotus command	/lotus cheatsheet	0
+Core	-	update	lotus update	Update Lotus, settings stay as they are	lotus update	0
+Core	-	uninstall	lotus uninstall	Remove Lotus completely	lotus uninstall	0
+Core	-	version	lotus version	Print the installed version	lotus version	0
+Core	-	goat	who is the goat?	-	who is the goat?	1
+Apps	/app	app	/app <name>	Open an installed app, typos are fine	/app Spotfy	0
+Apps	-	app	open <name>	Same as /app	open Discord	0
+Web	/google	google	/google <words>	Search Google	/google macbook m5	0
+Web	/search	search	/search <words>	Search the web with your search engine	/search best minecraft server plugins	0
+Web	/web	browse	/web <site or words>	Open a website, or search when it is not one	/web github lotus	0
+Web	-	open	<link>	Paste a link to open it in your browser	https://github.com/Fanxy13	0
+Web	-	web	/lotus web	Open the Lotus website	/lotus web	0
+Web	-	github	/lotus github	Open the Lotus author on GitHub	/lotus github	0
+Homebrew	/brew	brew	/brew <words>	Search Homebrew formulae and casks	/brew firefox	0
+Homebrew	-	brew search	/brew search <words>	Search Homebrew, explicitly	/brew search browser	0
+Homebrew	-	brew info	/brew info <name>	Details for one package	/brew info vlc	0
+Homebrew	-	brew install	/brew install <name>	Install a package after confirmation	/brew install firefox	0
+Installer	/install	install	/install [app]	Browse curated apps by category and install them	/install Discord	0
+Audio	/np	audio now	/np	Show what is playing	/np	0
+Audio	/play	audio play	/play	Play or resume	/play	0
+Audio	/pause	audio pause	/pause	Pause	/pause	0
+Audio	/skip	audio next	/skip	Next track	/skip	0
+Audio	/back	audio previous	/back	Previous track	/back	0
+Audio	/repeat	audio repeat	/repeat	Toggle repeat (Spotify, Music)	/repeat	0
+Audio	/mute	audio mute	/mute	Mute or unmute the Mac	/mute	0
+Audio	/vu	audio up	/vu	Volume up	/vu	0
+Audio	/vd	audio down	/vd	Volume down	/vd	0
+Weather	/weather	weather	/weather [city]	Weather with ASCII art and a 3-day forecast	/weather Zurich	0
+AI	/ai	ai	/ai [question]	Ask the AI, or start a chat	/ai what is a symlink?	0
+AI	-	ai explain	/ai explain <text>	Explain a command, error or idea	/ai explain chmod 755	0
+AI	-	ai summarize	/ai summarize [file]	Summarize a file or the clipboard	/ai summarize notes.txt	0
+AI	-	ai write	/ai write <what>	Help writing text	/ai write a short bio	0
+AI	-	ai command	/ai command <task>	Suggest a shell command, never runs it	/ai command find big files	0
+AI	-	ai status	/ai status	Show which AI providers are available	/ai status	0
+Device tools	/ios	ios	/ios	iOS tools: AirCard, Nugget, Sideloadly, Dopamine	/ios	0
+Device tools	-	ios devices	/ios devices	Show connected iPhones and iPads	/ios devices	0
+Media	/convert	convert	/convert <link>	Save a video as MP3 or MP4 with yt-dlp	/convert https://youtube.com/watch?v=…	0
+Media	-	visual	/lotus visual	Animated audio visualizer, 8 modes	/lotus visual	0
+Shortcuts	-	shortcuts	/lotus shortcuts	View and manage your own commands	/lotus shortcuts	0
+Shortcuts	-	shortcut add	lotus shortcut add <name> <target>	Add a shortcut to a link, app or folder	lotus shortcut add yt https://youtube.com	0
+Shortcuts	-	shortcut rm	lotus shortcut rm <name>	Delete a shortcut	lotus shortcut rm yt	0
+Settings	/settings	settings	/settings	Open the settings menu	/settings	0
+Settings	-	logo	lotus logo import	Paste your own ASCII logo	lotus logo import	0
+Settings	-	themes	/lotus themes	Preview every theme	/lotus themes	0
+Developer tools	-	doctor	lotus doctor	Check the installation	lotus doctor	0
+Developer tools	/minecraft	minecraft	/minecraft	Minecraft server setup assistant	/minecraft	0
+Developer tools	/mc	minecraft	/mc	Short for /minecraft	/mc	0

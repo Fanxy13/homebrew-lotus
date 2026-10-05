@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iOS Tools — Lotus</title>
+  <meta name="description" content="AirCard, Nugget, Sideloadly and Dopamine: official sources, compatibility and launching from the terminal.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.0.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.0.0">
+  <script src="js/lotus.js?v=2.0.0"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap">
+    <header class="page-head">
+      <p class="eyebrow">Device tools</p>
+      <h1>iOS <span>tools</span></h1>
+      <p class="lead">Type <code>/ios</code>. Lotus detects your iPhone or iPad, checks which tools support it, opens installed apps and downloads official releases. It is a launcher – the tools stay their authors' projects.</p>
+    </header>
+
+    <section class="card checker">
+      <h3>Compatibility check</h3>
+      <div class="form-row">
+        <label>Device <select id="device"></select></label>
+        <label>iOS version <input id="version" value="18.6" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <p class="muted small">Connected devices are detected in the terminal: <code>/ios devices</code> (with <code>brew install libimobiledevice</code> it also reads the iOS version).</p>
+    </section>
+
+    <div class="grid tools" id="tools"></div>
+
+    <div class="callout warn" style="margin-top:30px"><p>Lotus never bundles these tools. Downloads come from the official GitHub releases or websites shown on each card. Jailbreaking and system tweaks can void warranties or cause data loss – read each project's own instructions first.</p></div>
+  </main>
+  <lotus-footer></lotus-footer>
+  <script src="js/ios.js?v=2.0.0" defer></script>
+</body>
+</html>
