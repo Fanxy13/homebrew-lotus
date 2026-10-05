@@ -18,7 +18,7 @@ lotus_settings_ui() {
       "text|LOTUS_NAME|$LOTUS_L[name]|"
       "choice|LOTUS_LANG|$LOTUS_L[lang]|en=English;de=Deutsch;fr=Français;es=Español"
       "bool|LOTUS_STARTUP|$LOTUS_L[startup]|"
-      "choice|LOTUS_LOGO|$LOTUS_L[logo]|lotus=$LOTUS_L[logo_lotus];heart=$LOTUS_L[logo_heart];none=$LOTUS_L[logo_none]"
+      "choice|LOTUS_LOGO|$LOTUS_L[logo]|lotus=$LOTUS_L[logo_lotus];none=$LOTUS_L[logo_none]"
       "choice|LOTUS_THEME|$LOTUS_L[theme]|matcha=Matcha;sakura=Sakura;ocean=$LOTUS_L[theme_ocean];sunset=Sunset;mono=Mono"
       "bool|LOTUS_PROMPT|$LOTUS_L[prompt]|"
       "bool|LOTUS_HUSH|$LOTUS_L[hush]|"

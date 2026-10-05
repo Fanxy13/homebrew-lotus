@@ -165,7 +165,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .screen pre { margin: 0; font: inherit; white-space: pre; }
 .screen, .install-pill code, kbd, .un-cmd { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 .startscreen { display: flex; gap: calc(var(--fs) * 0.6 * 6); }
-.startscreen .logo { color: var(--logo); font-weight: 600; padding-top: calc(var(--fs) * 1.4 * 3); }
+.startscreen .logo { color: var(--logo); font-weight: 600; padding-top: calc(var(--fs) * 1.4 * 2); }
 .settings { position: absolute; inset: 18px 22px; background: transparent; display: none; }
 .screen.alt .startscreen, .screen.alt .promptline { visibility: hidden; }
 .screen.alt .settings { display: block; }

@@ -3,7 +3,7 @@ LOTUS_L+=(
   settings 'Réglages'  head_general 'Général'  head_greeting 'Salutation'
   head_sections 'Sections'  head_np 'En écoute'
   name 'Nom'  lang 'Langue'  startup 'Afficher au démarrage'  logo 'Logo'
-  logo_heart 'Cœur'  logo_none 'Aucun'  theme 'Thème'  theme_ocean 'Océan'
+  logo_none 'Aucun'  theme 'Thème'  theme_ocean 'Océan'
   prompt 'Invite colorée'  hush 'Masquer « Last login »'
   greet_top 'En haut'  greet_bottom 'En bas, selon l’heure'
   rotate '15 langues dans l’ordre'  random '15 langues au hasard'  off 'Non'  on 'oui'

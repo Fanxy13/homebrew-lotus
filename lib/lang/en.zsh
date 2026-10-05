@@ -11,7 +11,6 @@ LOTUS_L+=(
   startup         'Show on launch'
   logo            'Logo'
   logo_lotus      'Lotus'
-  logo_heart      'Heart'
   logo_none       'None'
   theme           'Theme'
   theme_ocean     'Ocean'

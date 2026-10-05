@@ -6,15 +6,20 @@ hello in 15 languages – and the song you're playing, **live**.
 **[→ See it in action](https://fanxy13.github.io/homebrew-lotus/)**
 
 ```
-                       .                     Bonjour, Gabriel
-                      .#.
-                     .###.                   ┌──────────────── Hardware ────────────────┐
-                    .#####.                  ├─ CPU       Apple M5 (10C / 10T) @ 4.46 GHz
-           .        +#####+        .         ├─ RAM       15.26 GiB / 24.00 GiB [■■■■■■····] 63%
-           #=.      *#####*      .=#         └──────────────────────────────────────────┘
-          …                                   …
-                                             ♫ Habiba — Boef
-                                               [■■■■■■■■··] 02:48 / 03:35  ▶ playing
+                         :                        Bonjour, Gabriel
+                        +#-           :-
+           -.         +**##*.        =##-         ┌──────────────── Hardware ────────────────┐
+         .*##       +#####*#*+     +####+         ├─ CPU       Apple M5 (10C / 10T) @ 4.46 GHz
+         *###**-   *##*-  =**#* .*#*+***#:        ├─ RAM       15.26 GiB / 24.00 GiB [■■■■■■····] 63%
+         **#*=*#*--##*.:**- =** -.=:=####:        └──────────────────────────────────────────┘
+         =###*:... **.:***#+ -..+*- +###*:
+   :      *###+:+**:  *+. :--.+###*.+###*.     -  …
+   **:     **#+  =+  .        ..*::.+#*+. .=*##-
+  .###***=: +#=.+.       -*    .=:= -.+#######*   Bonjour! Gabriel.
+   ####***+*+..=##+    +##*+    .**.=*++#####*:
+   =#####*+-.. +*### -*#####*: *##*  -+**###*.    ♫ Habiba — Boef
+    =*#######*:.*### *########==**-:===**#*:        [■■■■■■■■··] 02:48 / 03:35  ▶ playing
+      =######*=. =** +########+.*+:*****=
 ```
 
 ## Install
@@ -48,7 +53,7 @@ Then open a new terminal window.
 `/settings` opens a menu (↑↓ select, ←→ or ⏎ change, `v` preview, `q` done):
 
 - Name, interface language (English, Deutsch, Français, Español)
-- Logo (lotus, heart, none) and 5 themes (Matcha, Sakura, Ocean, Sunset, Mono)
+- Lotus logo on/off and 5 themes (Matcha, Sakura, Ocean, Sunset, Mono)
 - Greeting on top: 15 languages in order or at random
 - Greeting at the bottom by time of day: French, German, English or Spanish
 - Sections on/off: hardware, session, uptime & date, now playing
