@@ -60,7 +60,7 @@ lotus_detect_tc() {
     local f=$LOTUS_CACHE/macos v
     if [[ -r $f ]]; then v=$(<$f)
     else v=$(sw_vers -productVersion 2>/dev/null); zf_mkdir -p $LOTUS_CACHE; print -r -- $v >| $f; fi
-    (( ${v%%.*} >= 26 )) && LOTUS_TC=1 || LOTUS_TC=0
+    (( ${${v%%.*}:-0} >= 26 )) && LOTUS_TC=1 || LOTUS_TC=0
   else
     LOTUS_TC=0
   fi
