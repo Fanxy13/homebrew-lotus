@@ -17,7 +17,7 @@
   // ── Install commands ────────────────────────────────────────
   const CMDS = {
     curl: 'curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | zsh',
-    brew: 'brew install Fanxy13/lotus/lotus && lotus setup',
+    brew: 'brew install Fanxy13/lotus/lotus',
   };
   const tabs = $$('.tab'), glider = $('.tab-glider');
   function selectTab(tab) {

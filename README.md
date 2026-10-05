@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install
 **Or with Homebrew:**
 
 ```bash
-brew install Fanxy13/lotus/lotus && lotus setup
+brew install Fanxy13/lotus/lotus
 ```
 
 Then open a new terminal window.

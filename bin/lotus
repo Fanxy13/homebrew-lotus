@@ -8,7 +8,7 @@ LOTUS_RC=${ZDOTDIR:-$HOME}/.zshrc
 
 say()  { print -P "%F{green}🪷%f $*" }
 
-is_brew() { [[ $LOTUS_ROOT == */Cellar/lotus/* ]] }
+is_brew() { [[ $LOTUS_ROOT == */(Cellar|Caskroom)/lotus/* ]] }
 
 # Window size, in case the script did not inherit it
 if [[ -t 1 ]]; then
@@ -20,15 +20,13 @@ cmd_setup() {
   [[ -e $LOTUS_CONF/settings.zsh ]] || lotus_save
   lotus_build force
 
-  # Stable path that survives Homebrew upgrades
-  local init=$LOTUS_ROOT/lib/init.zsh
-  is_brew && init=${init/\/Cellar\/lotus\/[^\/]##\///opt/lotus/}
-
+  # Finds lotus through the `lotus` command itself, so the line keeps working
+  # after Homebrew upgrades (new version folder) – without starting a process
   local block="# >>> lotus >>>"$'\n'
   if [[ $LOTUS_ROOT == $HOME/.local/share/lotus && ${path[(I)$HOME/.local/bin]} == 0 ]]; then
     block+='export PATH="$HOME/.local/bin:$PATH"'$'\n'
   fi
-  block+="[[ -r ${(qq)init} ]] && source ${(qq)init}"$'\n'"# <<< lotus <<<"
+  block+='(( $+commands[lotus] )) && source ${${commands[lotus]:A}:h:h}/lib/init.zsh'$'\n'"# <<< lotus <<<"
 
   local rc=
   [[ -r $LOTUS_RC ]] && rc=$(<$LOTUS_RC)
@@ -49,18 +47,15 @@ cmd_uninstall() {
     print
   fi
 
-  if [[ -r $LOTUS_RC ]]; then
-    local rc=$(<$LOTUS_RC)
-    rc=${rc/$'\n'#'# >>> lotus >>>'*'# <<< lotus <<<'/}
-    print -r -- $rc >| $LOTUS_RC
-    say "$LOTUS_L[removed_from] $LOTUS_RC"
-  fi
+  cmd_unhook
   [[ -e $LOTUS_CONF/hushlogin-by-lotus ]] && rm -f $HOME/.hushlogin
   rm -rf $LOTUS_CONF $LOTUS_CACHE
 
   if is_brew; then
     say $LOTUS_L[removed_brew]
-    HOMEBREW_NO_AUTOREMOVE=1 brew uninstall --quiet lotus
+    local kind=--formula
+    [[ $LOTUS_ROOT == */Caskroom/* ]] && kind=--cask
+    HOMEBREW_NO_AUTOREMOVE=1 brew uninstall --quiet $kind lotus
     brew untap --quiet fanxy13/lotus 2>/dev/null
     say $LOTUS_L[ff_kept]
   elif [[ $LOTUS_ROOT == $HOME/.local/share/lotus ]]; then
@@ -72,9 +67,19 @@ cmd_uninstall() {
   say $LOTUS_L[removed]
 }
 
+# Removes the lotus lines from ~/.zshrc (also used by `brew uninstall lotus`)
+cmd_unhook() {
+  [[ -r $LOTUS_RC ]] || return 0
+  local rc=$(<$LOTUS_RC)
+  [[ $rc == *'# >>> lotus >>>'* ]] || return 0
+  rc=${rc/$'\n'#'# >>> lotus >>>'*'# <<< lotus <<<'/}
+  print -r -- $rc >| $LOTUS_RC
+  say "$LOTUS_L[removed_from] $LOTUS_RC"
+}
+
 cmd_update() {
   if is_brew; then
-    brew upgrade lotus
+    brew upgrade fanxy13/lotus/lotus
   else
     curl -fsSL https://raw.githubusercontent.com/$LOTUS_REPO/main/install.sh | zsh
   fi
@@ -108,6 +113,7 @@ case $1 in
   update|upgrade)   cmd_update ;;
   doctor)           cmd_doctor ;;
   uninstall)        cmd_uninstall $2 ;;
+  unhook)           cmd_unhook ;;
   version|-v|--version) print -r -- $LOTUS_VERSION ;;
   help|-h|--help)   printf "$LOTUS_L[usage]\n" $LOTUS_VERSION ;;
   *)                printf "$LOTUS_L[usage]\n" $LOTUS_VERSION; exit 1 ;;
