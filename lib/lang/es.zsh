@@ -16,5 +16,6 @@ LOTUS_L+=(
   saved '✓ guardado'  reset_done '✓ valores por defecto'
   back '(pulsa una tecla para volver)'
   confirm_un '¿Desinstalar lotus por completo? [y/N] '
+  up_to_date 'lotus está al día'
   playing '▶ sonando'  paused '‖ en pausa'  stopped '■ detenido'  nothing 'No suena nada'
 )

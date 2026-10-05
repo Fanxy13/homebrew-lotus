@@ -84,7 +84,17 @@ cmd_unhook() {
 
 cmd_update() {
   if is_brew; then
-    brew upgrade fanxy13/lotus/lotus
+    # Refresh only the lotus tap (fast) and leave other Homebrew packages alone
+    local tap=$(brew --repository fanxy13/lotus 2>/dev/null)
+    [[ -d $tap/.git ]] && git -C $tap pull --ff-only --quiet 2>/dev/null
+    export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 HOMEBREW_NO_ENV_HINTS=1
+    if [[ -z $(brew outdated --cask fanxy13/lotus/lotus 2>/dev/null) ]]; then
+      say "$LOTUS_L[up_to_date] ($LOTUS_VERSION)"
+      return
+    fi
+    # reinstall picks up the new version; unlike `brew upgrade` it does not try
+    # to rebuild unrelated packages (e.g. pkgconf after a macOS update)
+    brew reinstall --cask fanxy13/lotus/lotus
   else
     curl -fsSL https://raw.githubusercontent.com/$LOTUS_REPO/main/install.sh | zsh
   fi

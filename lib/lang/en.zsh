@@ -58,6 +58,7 @@ LOTUS_L+=(
   removed_brew    'Removing lotus via Homebrew …'
   ff_kept         'fastfetch was kept (other tools may use it): brew uninstall fastfetch'
   cancelled       'Cancelled.'
+  up_to_date      'lotus is up to date'
   own_install     'Program files stay in place (custom install):'
   doc_missing     'missing – run: lotus update'
   doc_colors      'Colors'
