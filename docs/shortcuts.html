@@ -28,8 +28,10 @@
         <p>Press a key combination anywhere on your Mac and Terminal opens with Lotus.</p>
         <ol class="steps compact">
           <li><h3>Add the shortcut</h3><p><a class="btn primary" id="shortcut-link" target="_blank" rel="noopener">Add “Open Lotus” to Shortcuts</a></p></li>
-          <li><h3>Pick your keys</h3><p>In the Shortcuts app: open “Open Lotus” → the info button → Add Keyboard Shortcut.</p></li>
+          <li><h3>Pick your keys</h3><p>In the Shortcuts app: open “Open Lotus” → the info button (i) → <strong>Add Keyboard Shortcut</strong> → press e.g. <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>L</kbd>.</p></li>
+          <li><h3>Allow it once</h3><p>The first run asks whether Shortcuts may control Terminal. Choose Allow. If Shortcuts says scripts are turned off: Shortcuts → Settings → Advanced → <strong>Allow Running Scripts</strong>.</p></li>
         </ol>
+        <p class="muted small">The shortcut has a single action: <code>tell application "Terminal" to do script "lotus"</code>. It also shows up in Spotlight and under Services.</p>
       </div>
       <div id="shortcut-manual">
         <p>Build it in about a minute – the ready-made link will appear here once it is published.</p>

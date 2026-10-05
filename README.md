@@ -43,6 +43,9 @@ Open a new terminal window. A short setup asks for your name, a theme, whether L
 should start with every terminal window, and the interface language. Run it again
 any time with `lotus setup`.
 
+Want Lotus on a key combination? Add the **[Open Lotus](https://www.icloud.com/shortcuts/0ad5b36d73e745bebbaba4635344382e)**
+shortcut, then give it a keyboard shortcut in the Shortcuts app (info button → Add Keyboard Shortcut).
+
 Needs macOS 11 or newer and zsh. [fastfetch](https://github.com/fastfetch-cli/fastfetch)
 is installed automatically. Optional tools (Homebrew, yt-dlp, Java, …) are offered
 when a command needs them – nothing is installed without asking.
