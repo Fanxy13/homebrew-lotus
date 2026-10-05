@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=1.1.4
+typeset -g LOTUS_VERSION=1.1.5
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -124,7 +124,10 @@ lotus_box() {  # $1 title, $2 title color → REPLY = top border line
 lotus_build() {
   local cfg=$LOTUS_CACHE/fastfetch-$LOTUS_MODE.jsonc np=$LOTUS_CACHE/np-$LOTUS_MODE.jsonc
   local set=$LOTUS_CONF/settings.zsh core=$LOTUS_ROOT/lib/core.zsh
-  [[ -z $1 && -e $cfg && -e $np && $cfg -nt $core && ( ! -e $set || $cfg -nt $set ) ]] && return
+  # The cache belongs to one lotus version and folder (Homebrew moves it on updates)
+  local stamp=$LOTUS_CACHE/build-$LOTUS_MODE want="$LOTUS_VERSION $LOTUS_ROOT"
+  [[ -z $1 && -e $cfg && -e $np && -r $stamp && $(<$stamp) == $want &&
+     $cfg -nt $core && ( ! -e $set || $cfg -nt $set ) ]] && return
   zf_mkdir -p $LOTUS_CACHE
 
   local -A C=("${(@kv)LOTUS_C}")
@@ -172,6 +175,8 @@ lotus_build() {
     local -a ll=("${(@f)$(<$file)}")
     local -i top=$(( ${#ll} >= n - 2 ? 2 : (n - ${#ll}) / 2 ))
     logo="{ \"type\": \"file\", \"source\": \"${file//\"/\\\"}\", \"color\": { \"1\": \"$C[logo]\" }, \"padding\": { \"top\": $top, \"left\": 2, \"right\": 6 } }"
+  elif [[ $LOTUS_LOGO != none ]]; then
+    want=incomplete   # logo file missing right now → build again next time
   fi
 
   local bar="\"bar\": { \"char\": { \"elapsed\": \"■\", \"total\": \"·\" }, \"border\": { \"left\": \"[\", \"right\": \"]\" }, \"color\": { \"elapsed\": \"$C[key]\", \"total\": \"$C[dim]\", \"border\": \"97\" }, \"width\": 10 }"
@@ -201,6 +206,7 @@ lotus_build() {
     { \"type\": \"media\", \"key\": \"  \", \"format\": \"{progress-bar} {#$C[dim]}{progress}  {status}\" }
   ]
 }" >| $np
+  print -r -- $want >| $stamp
 }
 
 # ── Texts ─────────────────────────────────────────────────────

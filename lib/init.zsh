@@ -97,8 +97,16 @@ _lotus_unload() {
   unset -m 'LOTUS_*' '_lotus_*'
 }
 
+# After a Homebrew update the old version folder is gone: switch to the new one
+_lotus_fix_root() {
+  [[ -d $LOTUS_ROOT/lib ]] && return
+  local root=${${commands[lotus]:A}:h:h}
+  [[ -d $root/lib ]] && LOTUS_ROOT=$root
+}
+
 lotus() {
   local -i rc
+  _lotus_fix_root
   case $1 in
     ''|show)
       lotus_show ;;
