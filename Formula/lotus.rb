@@ -1,8 +1,8 @@
 class Lotus < Formula
   desc "Pretty terminal start screen with system info and live now-playing"
   homepage "https://github.com/Fanxy13/homebrew-lotus"
-  url "https://github.com/Fanxy13/homebrew-lotus/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "de04cb09c09f2e0ddab3302ddc456b9bf88bc83de5c62a904ded9906a05c74d0"
+  url "https://github.com/Fanxy13/homebrew-lotus/archive/refs/tags/v1.1.0.tar.gz"
+  sha256 "733f06fd9802b2e6fa955939d0e98389e02e93ff67658cd27a3a453a777dd426"
   license "MIT"
 
   depends_on "fastfetch"
