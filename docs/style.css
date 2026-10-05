@@ -296,10 +296,15 @@ kbd {
 .langs span.on { color: #111; background: var(--key); border-color: var(--key); }
 .tile-settings h3 code { font: 600 15px var(--mono); color: var(--text); }
 
-.ring { position: absolute; right: 26px; top: 50%; translate: 0 -50%; width: 150px; height: 150px; rotate: -90deg; }
-.ring circle { fill: none; stroke: rgba(255,255,255,.07); stroke-width: 6; }
-.ring .ring-fg { stroke: var(--key); stroke-linecap: round; stroke-dasharray: 327; stroke-dashoffset: 327; transition: stroke-dashoffset 1.6s var(--ease); filter: drop-shadow(0 0 8px var(--key)); }
-.tile-speed.in .ring-fg { stroke-dashoffset: 40; }
+@property --p { syntax: "<number>"; inherits: false; initial-value: 0; }
+.ring {
+  position: absolute; right: 26px; top: calc(50% - 75px); width: 150px; height: 150px; border-radius: 50%;
+  background: conic-gradient(var(--key) calc(var(--p) * 1%), rgba(255, 255, 255, .07) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  transition: --p 1.6s var(--ease);
+}
+.tile-speed.in .ring { --p: 88; }
 .speed { position: absolute; left: 26px; top: 40px; font: italic 400 110px/1 var(--serif); letter-spacing: -.03em; }
 .speed small { font: 500 20px var(--mono); margin-left: 6px; color: var(--muted); font-style: normal; }
 
@@ -364,7 +369,7 @@ kbd {
 }
 @media (max-width: 560px) {
   .speed { font-size: 84px; }
-  .ring { width: 110px; height: 110px; }
+  .ring { width: 110px; height: 110px; top: calc(50% - 55px); }
   .demo-caption { font-size: 13px; }
 }
 
