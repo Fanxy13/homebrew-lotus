@@ -15,7 +15,7 @@ class Lotus < Formula
 
   def caveats
     <<~EOS
-      Einmal ausführen, damit lotus beim Öffnen des Terminals startet:
+      Run once so lotus starts with every new terminal:
         lotus setup
     EOS
   end

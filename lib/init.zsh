@@ -1,4 +1,4 @@
-# lotus – Shell-Integration. Wird aus ~/.zshrc geladen (siehe: lotus setup).
+# lotus – shell integration. Loaded from ~/.zshrc (see: lotus setup).
 [[ -o interactive ]] || return 0
 
 source ${${(%):-%x}:A:h}/core.zsh
@@ -8,7 +8,7 @@ zmodload zsh/zselect 2>/dev/null
 typeset -gi LOTUS_NP_ROW=0 LOTUS_NP_COL=1 LOTUS_NP_IDX=0 LOTUS_NP_CURSOR=0 _lotus_live_pid=0
 typeset -g LOTUS_NP_LAST= _lotus_prompt_orig=$PROMPT
 
-# ── Live-Aktualisierung der Song-Zeilen ───────────────────────
+# ── Live updates of the now playing lines ─────────────────────
 
 _lotus_live_stop() {
   (( _lotus_live_pid )) && kill $_lotus_live_pid 2>/dev/null
@@ -28,7 +28,7 @@ _lotus_live_start() {
     local last=$LOTUS_NP_LAST cur
     local -i wait
     while :; do
-      # Pausiert/nichts los → seltener nachschauen
+      # Paused or nothing playing → check less often
       (( wait = LOTUS_INTERVAL * 100 ))
       [[ $last == *▶* ]] || (( wait = wait < 500 ? 500 : wait ))
       zselect -t $wait 2>/dev/null || [[ $? == 1 ]] || sleep $(( wait / 100 ))
@@ -43,10 +43,10 @@ _lotus_live_start() {
   _lotus_live_pid=$!
 }
 
-# Während ein Befehl läuft, nichts zeichnen (sonst z. B. mitten in vim)
+# Never draw while a command runs (e.g. inside vim)
 _lotus_preexec() { _lotus_live_stop }
 
-# Nach einem Befehl weitermachen – solange nichts gescrollt oder gelöscht wurde
+# After a command: keep going as long as nothing scrolled or was cleared
 _lotus_precmd() {
   (( LOTUS_NP_ROW > 0 )) || return
   if ! lotus_cursor_row || (( REPLY >= LINES || REPLY < LOTUS_NP_CURSOR )); then
@@ -76,7 +76,7 @@ _lotus_prompt() {
   fi
 }
 
-# ── Befehle ───────────────────────────────────────────────────
+# ── Commands ──────────────────────────────────────────────────
 
 lotus_show() {
   _lotus_live_stop
@@ -84,14 +84,32 @@ lotus_show() {
   lotus_render live
 }
 
+# Removes lotus from the running shell (after an uninstall)
+_lotus_unload() {
+  _lotus_live_stop
+  add-zsh-hook -d preexec _lotus_preexec
+  add-zsh-hook -d precmd _lotus_precmd
+  add-zsh-hook -d zshexit _lotus_live_stop
+  PROMPT=$_lotus_prompt_orig
+  unalias /settings /lotus 2>/dev/null
+  unfunction TRAPWINCH 2>/dev/null
+  unfunction -m 'lotus*' '_lotus*'
+  unset -m 'LOTUS_*' '_lotus_*'
+}
+
 lotus() {
+  local -i rc
   case $1 in
     ''|show)
       lotus_show ;;
     settings|config)
-      command lotus settings || return
+      command lotus settings; rc=$?
+      if (( rc == 10 )); then _lotus_unload; return 0; fi
+      (( rc )) && return rc
       lotus_load; _lotus_prompt
       lotus_show ;;
+    uninstall)
+      command lotus uninstall && _lotus_unload ;;
     *)
       command lotus "$@" ;;
   esac

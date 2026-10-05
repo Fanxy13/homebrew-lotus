@@ -1,7 +1,9 @@
 # 🪷 lotus
 
-Ein schöner Startbildschirm fürs macOS-Terminal: Logo, Systeminfos in Boxen,
-eine Begrüssung in 15 Sprachen – und der Song, der gerade läuft, **live**.
+A beautiful start screen for the macOS terminal: a logo, system info in neat boxes,
+hello in 15 languages – and the song you're playing, **live**.
+
+**[→ See it in action](https://fanxy13.github.io/homebrew-lotus/)**
 
 ```
                        .                     Bonjour, Gabriel
@@ -12,63 +14,68 @@ eine Begrüssung in 15 Sprachen – und der Song, der gerade läuft, **live**.
            #=.      *#####*      .=#         └──────────────────────────────────────────┘
           …                                   …
                                              ♫ Habiba — Boef
-                                               [■■■■■■■■··] 02:48 / 03:35  ▶ läuft
+                                               [■■■■■■■■··] 02:48 / 03:35  ▶ playing
 ```
 
-## Installieren
+## Install
 
-**Ein Befehl:**
+**One line:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | zsh
 ```
 
-**Oder mit Homebrew:**
+**Or with Homebrew:**
 
 ```bash
 brew install Fanxy13/lotus/lotus && lotus setup
 ```
 
-Danach ein neues Terminal-Fenster öffnen.
+Then open a new terminal window.
 
-## Befehle
+## Commands
 
-| Befehl | Was es macht |
+| Command | What it does |
 |---|---|
-| `lotus` | Startbildschirm wieder anzeigen (z. B. nach `clear`) |
-| `/settings` | Einstellungen öffnen (gleich wie `lotus settings`) |
-| `lotus doctor` | Installation prüfen |
-| `lotus update` | Auf die neueste Version aktualisieren |
-| `lotus uninstall` | lotus wieder entfernen |
+| `lotus` | Show the start screen again (e.g. after `clear`) |
+| `/settings` | Open the settings (same as `lotus settings`) |
+| `lotus doctor` | Check the installation |
+| `lotus update` | Update to the latest version |
+| `lotus uninstall` | Remove lotus completely |
 
-## Einstellungen
+## Settings
 
-Mit `/settings` öffnet sich ein Menü (↑↓ auswählen, ←→ oder ⏎ ändern, `v` Vorschau, `q` fertig):
+`/settings` opens a menu (↑↓ select, ←→ or ⏎ change, `v` preview, `q` done):
 
-- Name, Logo (Lotus, Herz, keins), Farbschema (Matcha, Sakura, Ozean, Sunset, Mono)
-- Begrüssung oben: 15 Sprachen der Reihe nach oder zufällig
-- Gruss unten je nach Tageszeit: Französisch, Deutsch oder Englisch
-- Bereiche ein/aus: Hardware, Session, Uptime & Datum, Läuft gerade
-- Live-Update und Intervall, farbiger Prompt, „Last login“-Zeile ausblenden
+- Name, interface language (English, Deutsch, Français, Español)
+- Logo (lotus, heart, none) and 5 themes (Matcha, Sakura, Ocean, Sunset, Mono)
+- Greeting on top: 15 languages in order or at random
+- Greeting at the bottom by time of day: French, German, English or Spanish
+- Sections on/off: hardware, session, uptime & date, now playing
+- Live updates and interval, colored prompt, hide the “Last login” line
+- **Uninstall lotus** – removes everything, also from the open shell
 
-Gespeichert wird in `~/.config/lotus/settings.zsh`.
+Settings live in `~/.config/lotus/settings.zsh`.
 
-## Läuft gerade
+## Now playing
 
-Zeigt alles, was macOS unter „Läuft gerade“ kennt – Spotify, Apple Music,
-YouTube im Browser usw. Die Anzeige aktualisiert sich live, solange der
-Startbildschirm sichtbar ist. Sobald das Terminal scrollt oder gelöscht wird,
-bleibt sie stehen – `lotus` holt sie zurück.
+Shows whatever macOS knows as “Now Playing” – Spotify, Apple Music, YouTube in
+the browser and more. The lines update live while the start screen is visible.
+Once the terminal scrolls or is cleared they stop – `lotus` brings them back.
 
-## Ressourcen
+## Lightweight
 
-- Start: ca. 30–40 ms (ein fastfetch-Lauf, Song-Abfrage parallel)
-- Live-Update: eine kurze Abfrage alle 2 s (≈ 20 ms CPU), bei Pause alle 5 s.
-  Mehrere Terminal-Fenster teilen sich das Ergebnis.
-- Nur so lange aktiv, wie der Startbildschirm sichtbar ist.
+- Startup: about 30–40 ms (one fastfetch run, the song is fetched in parallel)
+- Live updates: one short query every 2 s (≈ 20 ms CPU), every 5 s when paused.
+  Several terminal windows share the result.
+- Only active while the start screen is visible.
 
-## Voraussetzungen
+## Requirements
 
-macOS mit zsh (Standard seit macOS 10.15). [fastfetch](https://github.com/fastfetch-cli/fastfetch)
-wird automatisch installiert. Terminal.app zeigt ab macOS 26 alle Farben, auf
-älteren Versionen nutzt lotus automatisch 256 Farben.
+macOS with zsh (the default since macOS 10.15). [fastfetch](https://github.com/fastfetch-cli/fastfetch)
+is installed automatically. Terminal.app shows all colors from macOS 26 on; on
+older versions lotus switches to 256 colors by itself.
+
+## License
+
+MIT

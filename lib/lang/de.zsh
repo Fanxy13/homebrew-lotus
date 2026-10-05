@@ -1,0 +1,20 @@
+# lotus – Deutsch
+LOTUS_L+=(
+  settings 'Einstellungen'  head_general 'Allgemein'  head_greeting 'Begrüssung'
+  head_sections 'Bereiche'  head_np 'Läuft gerade'
+  name 'Name'  lang 'Sprache'  startup 'Beim Öffnen anzeigen'  logo 'Logo'
+  logo_heart 'Herz'  logo_none 'Keins'  theme 'Farbschema'  theme_ocean 'Ozean'
+  prompt 'Farbiger Prompt'  hush '„Last login“-Zeile ausblenden'
+  greet_top 'Oben'  greet_bottom 'Unten, je nach Tageszeit'
+  rotate '15 Sprachen der Reihe nach'  random '15 Sprachen zufällig'  off 'Aus'  on 'an'
+  sal_fr 'Französisch'  sal_de 'Deutsch'  sal_en 'Englisch'  sal_es 'Spanisch'
+  sec_time 'Uptime & Datum'  sec_music 'Läuft gerade'
+  live 'Live aktualisieren'  interval 'Aktualisieren alle'  sec1 '1 Sekunde'  secs 'Sekunden'
+  colors 'Farbmodus'  col_auto 'Automatisch'  col_tc '16 Mio. Farben'  col_256 '256 Farben'
+  uninstall 'lotus deinstallieren'  edit '⏎ ändern'  run '⏎ ausführen'
+  footer '↑↓ auswählen   ←→ ⏎ ändern   v Vorschau   r Standard   q fertig'
+  saved '✓ gespeichert'  reset_done '✓ Standard wiederhergestellt'
+  back '(Taste drücken, um zurückzukehren)'
+  confirm_un 'lotus komplett deinstallieren? [y/N] '
+  playing '▶ läuft'  paused '‖ pausiert'  stopped '■ gestoppt'  nothing 'Gerade läuft nichts'
+)

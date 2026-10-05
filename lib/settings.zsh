@@ -1,38 +1,43 @@
-# lotus – Einstellungs-Menü (lotus settings bzw. /settings)
+# lotus – settings menu (lotus settings or /settings)
+# Returns 10 when lotus was uninstalled, so the shell can unload it.
 
 lotus_settings_ui() {
   emulate -L zsh
   setopt extendedglob
-  lotus_load
 
-  # Typ|Variable|Bezeichnung|Werte (wert=Anzeige;…)
-  local -a items=(
-    'head||Allgemein|'
-    'text|LOTUS_NAME|Name|'
-    'bool|LOTUS_STARTUP|Beim Öffnen anzeigen|'
-    'choice|LOTUS_LOGO|Logo|lotus=Lotus;heart=Herz;none=Keins'
-    'choice|LOTUS_THEME|Farbschema|matcha=Matcha;sakura=Sakura;ocean=Ozean;sunset=Sunset;mono=Mono'
-    'bool|LOTUS_PROMPT|Farbiger Prompt|'
-    'bool|LOTUS_HUSH|„Last login“-Zeile ausblenden|'
-    'head||Begrüssung|'
-    'choice|LOTUS_GREETING|Oben|rotate=15 Sprachen der Reihe nach;random=15 Sprachen zufällig;off=Aus'
-    'choice|LOTUS_SALUTE|Unten, je nach Tageszeit|fr=Französisch;de=Deutsch;en=Englisch;off=Aus'
-    'head||Bereiche|'
-    'bool|LOTUS_SHOW_HARDWARE|Hardware|'
-    'bool|LOTUS_SHOW_SESSION|Session|'
-    'bool|LOTUS_SHOW_TIME|Uptime & Datum|'
-    'bool|LOTUS_SHOW_MUSIC|Läuft gerade|'
-    'head||Läuft gerade|'
-    'bool|LOTUS_LIVE|Live aktualisieren|'
-    'choice|LOTUS_INTERVAL|Aktualisieren alle|1=1 Sekunde;2=2 Sekunden;3=3 Sekunden;5=5 Sekunden'
-    'choice|LOTUS_COLORS|Farbmodus|auto=Automatisch;truecolor=16 Mio. Farben;256=256 Farben'
-  )
-  local hush=$HOME/.hushlogin
-  local -i LOTUS_HUSH=0
+  local hush=$HOME/.hushlogin hush_mark=$LOTUS_CONF/hushlogin-by-lotus
+  local -i LOTUS_HUSH=0 sel=2 i rc=0
   [[ -e $hush ]] && LOTUS_HUSH=1
-
-  local -i sel=2 i
   local msg= key rest
+  local -a items
+
+  # type|variable|label|values (value=label;…) – rebuilt when the language changes
+  _ls_items() {
+    items=(
+      "head||$LOTUS_L[head_general]|"
+      "text|LOTUS_NAME|$LOTUS_L[name]|"
+      "choice|LOTUS_LANG|$LOTUS_L[lang]|en=English;de=Deutsch;fr=Français;es=Español"
+      "bool|LOTUS_STARTUP|$LOTUS_L[startup]|"
+      "choice|LOTUS_LOGO|$LOTUS_L[logo]|lotus=$LOTUS_L[logo_lotus];heart=$LOTUS_L[logo_heart];none=$LOTUS_L[logo_none]"
+      "choice|LOTUS_THEME|$LOTUS_L[theme]|matcha=Matcha;sakura=Sakura;ocean=$LOTUS_L[theme_ocean];sunset=Sunset;mono=Mono"
+      "bool|LOTUS_PROMPT|$LOTUS_L[prompt]|"
+      "bool|LOTUS_HUSH|$LOTUS_L[hush]|"
+      "head||$LOTUS_L[head_greeting]|"
+      "choice|LOTUS_GREETING|$LOTUS_L[greet_top]|rotate=$LOTUS_L[rotate];random=$LOTUS_L[random];off=$LOTUS_L[off]"
+      "choice|LOTUS_SALUTE|$LOTUS_L[greet_bottom]|fr=$LOTUS_L[sal_fr];de=$LOTUS_L[sal_de];en=$LOTUS_L[sal_en];es=$LOTUS_L[sal_es];off=$LOTUS_L[off]"
+      "head||$LOTUS_L[head_sections]|"
+      "bool|LOTUS_SHOW_HARDWARE|$LOTUS_L[sec_hw]|"
+      "bool|LOTUS_SHOW_SESSION|$LOTUS_L[sec_session]|"
+      "bool|LOTUS_SHOW_TIME|$LOTUS_L[sec_time]|"
+      "bool|LOTUS_SHOW_MUSIC|$LOTUS_L[sec_music]|"
+      "head||$LOTUS_L[head_np]|"
+      "bool|LOTUS_LIVE|$LOTUS_L[live]|"
+      "choice|LOTUS_INTERVAL|$LOTUS_L[interval]|1=$LOTUS_L[sec1];2=2 $LOTUS_L[secs];3=3 $LOTUS_L[secs];5=5 $LOTUS_L[secs]"
+      "choice|LOTUS_COLORS|$LOTUS_L[colors]|auto=$LOTUS_L[col_auto];truecolor=$LOTUS_L[col_tc];256=$LOTUS_L[col_256]"
+      "head||$LOTUS_L[head_lotus]|"
+      "action|uninstall|$LOTUS_L[uninstall]|"
+    )
+  }
 
   _ls_field() { reply=("${(@s:|:)items[$1]}") }
 
@@ -49,7 +54,7 @@ lotus_settings_ui() {
     local acc=$LOTUS_C[accent] dim=$LOTUS_C[dim] out=$'\e[H\e[K\n'
     local t k label v shown
     local -a vals keys
-    out+="  "$'\e[1;'"${acc}m🪷 lotus"$'\e[0;'"${dim}m  Einstellungen · v$LOTUS_VERSION"$'\e[0m\e[K\n\e[K\n'
+    out+="  "$'\e[1;'"${acc}m🪷 lotus"$'\e[0;'"${dim}m  $LOTUS_L[settings] · v$LOTUS_VERSION"$'\e[0m\e[K\n\e[K\n'
     for i in {1..${#items}}; do
       _ls_field $i
       t=$reply[1] k=$reply[2] label=$reply[3]
@@ -60,22 +65,35 @@ lotus_settings_ui() {
       fi
       v=${(P)k}
       case $t in
-        bool)   (( v )) && shown=$'\e['"${LOTUS_C[key]}m● an"$'\e[0m' || shown=$'\e['"${dim}m○ aus"$'\e[0m' ;;
+        bool)   (( v )) && shown=$'\e['"${LOTUS_C[key]}m● $LOTUS_L[on]"$'\e[0m' \
+                        || shown=$'\e['"${dim}m○ ${(L)LOTUS_L[off]}"$'\e[0m' ;;
         choice) vals=(${(s:;:)reply[4]}); keys=(${vals%%=*})
                 shown=${${vals[${keys[(i)$v]}]}#*=}
                 (( i == sel )) && shown="‹ $shown ›" ;;
-        text)   shown=$v; (( i == sel )) && shown+=$'\e['"${dim}m  ⏎ ändern"$'\e[0m' ;;
+        text)   shown=$v; (( i == sel )) && shown+=$'\e['"${dim}m  $LOTUS_L[edit]"$'\e[0m' ;;
+        action) shown=; (( i == sel )) && shown=$'\e['"${dim}m$LOTUS_L[run]"$'\e[0m' ;;
       esac
+      label=${(r:32:)label}
+      [[ $t == action ]] && label=$'\e[38;5;203m'"$label"$'\e[0m'
       if (( i == sel )); then
-        out+=$'  \e['"${acc}m›"$'\e[0;1m '"${(r:32:)label}"$'\e[0m'"$shown"$'\e[K\n'
+        out+=$'  \e['"${acc}m›"$'\e[0;1m '"$label"$'\e[0m'"$shown"$'\e[K\n'
       else
-        out+="    ${(r:32:)label}$shown"$'\e[K\n'
+        out+="    $label$shown"$'\e[K\n'
       fi
     done
-    out+=$'\e[K\n  \e['"${dim}m↑↓ auswählen   ←→ ⏎ ändern   v Vorschau   r Standard   q fertig"$'\e[0m\e[K\n'
+    out+=$'\e[K\n  \e['"${dim}m$LOTUS_L[footer]"$'\e[0m\e[K\n'
     out+="  ${msg}"$'\e[K\e[J'
     print -rn -- $out
     msg=
+  }
+
+  # Asks at the bottom of the screen; returns 0 for yes
+  _ls_ask() {
+    print -n $'\e['"${LINES:-24};1H"$'\e[K\e[?25h  '
+    read -q "?$1"
+    local -i yes=$?
+    print -n $'\e[?25l'
+    return yes
   }
 
   _ls_change() {
@@ -96,31 +114,42 @@ lotus_settings_ui() {
         print -n $'\e['"${LINES:-24};1H"$'\e[K\e[?25h  '"$reply[3]: "
         read -r new
         print -n $'\e[?25l'
-        [[ -n ${new// } ]] && typeset -g $k=${new## #}
-        ;;
+        [[ -n ${new// } ]] && typeset -g $k=${new## #} ;;
+      action)
+        if [[ $k == uninstall ]] && _ls_ask $LOTUS_L[confirm_un]; then
+          rc=10
+        fi
+        return ;;
     esac
     if [[ $k == LOTUS_HUSH ]]; then
-      if (( LOTUS_HUSH )); then : >| $hush; else rm -f $hush; fi
+      if (( LOTUS_HUSH )); then
+        [[ -e $hush ]] || { : >| $hush; zf_mkdir -p $LOTUS_CONF; : >| $hush_mark }
+      else
+        rm -f $hush $hush_mark
+      fi
     else
       lotus_save
+      lotus_lang
       lotus_colors
+      [[ $k == LOTUS_LANG ]] && _ls_items
     fi
-    msg=$'\e['"${LOTUS_C[key]}m✓ gespeichert"$'\e[0m'
+    msg=$'\e['"${LOTUS_C[key]}m$LOTUS_L[saved]"$'\e[0m'
   }
 
   _ls_preview() {
     print -n $'\e[H\e[2J'
     lotus_render
-    print -n $'\n  \e['"${LOTUS_C[dim]}m(Taste drücken, um zurückzukehren)"$'\e[0m'
+    print -n $'\n  \e['"${LOTUS_C[dim]}m$LOTUS_L[back]"$'\e[0m'
     read -rsk1
     print -n $'\e[2J'
   }
 
+  _ls_items
   print -n $'\e[?1049h\e[?25l\e[2J'
   trap 'print -n "\e[?1049l\e[?25h"' EXIT
   trap 'return 130' INT
 
-  while :; do
+  while (( rc == 0 )); do
     _ls_draw
     read -rsk1 key || break
     if [[ $key == $'\e' ]]; then
@@ -130,14 +159,20 @@ lotus_settings_ui() {
       $'\e[A'|k)                  _ls_move -1 ;;
       $'\e[B'|j)                  _ls_move 1 ;;
       $'\e[C'|l|' '|$'\n'|$'\r')  _ls_change 1 ;;
-      $'\e[D'|h)                  _ls_field $sel; [[ $reply[1] == text ]] || _ls_change -1 ;;
+      $'\e[D'|h)                  _ls_field $sel; [[ $reply[1] == (text|action) ]] || _ls_change -1 ;;
       v|p)                        _ls_preview ;;
-      r)  local name=$LOTUS_NAME
-          lotus_defaults; LOTUS_NAME=$name
-          lotus_save; lotus_colors
-          msg=$'\e['"${LOTUS_C[key]}m✓ Standard wiederhergestellt"$'\e[0m' ;;
+      r)  local name=$LOTUS_NAME lang=$LOTUS_LANG
+          lotus_defaults; LOTUS_NAME=$name LOTUS_LANG=$lang
+          lotus_save; lotus_lang; lotus_colors; _ls_items
+          msg=$'\e['"${LOTUS_C[key]}m$LOTUS_L[reset_done]"$'\e[0m' ;;
       q|Q|$'\e')                  break ;;
     esac
   done
-  unfunction _ls_field _ls_move _ls_draw _ls_change _ls_preview
+
+  unfunction _ls_items _ls_field _ls_move _ls_draw _ls_ask _ls_change _ls_preview
+  if (( rc == 10 )); then
+    print -n $'\e[?1049l\e[?25h'
+    cmd_uninstall --yes
+  fi
+  return rc
 }

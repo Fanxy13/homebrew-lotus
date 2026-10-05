@@ -1,6 +1,6 @@
-# lotus – Kernfunktionen. Wird von init.zsh (Shell) und bin/lotus (Befehl) geladen.
+# lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=1.0.0
+typeset -g LOTUS_VERSION=1.1.0
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -10,17 +10,17 @@ zmodload zsh/datetime
 zmodload -F zsh/stat b:zstat
 zmodload -F zsh/files b:zf_mv b:zf_mkdir
 
-# ── Einstellungen ─────────────────────────────────────────────
+# ── Settings ──────────────────────────────────────────────────
 
 typeset -ga LOTUS_KEYS=(
-  LOTUS_NAME LOTUS_STARTUP LOTUS_LOGO LOTUS_THEME LOTUS_PROMPT LOTUS_COLORS
+  LOTUS_NAME LOTUS_LANG LOTUS_STARTUP LOTUS_LOGO LOTUS_THEME LOTUS_PROMPT LOTUS_COLORS
   LOTUS_GREETING LOTUS_SALUTE
   LOTUS_SHOW_HARDWARE LOTUS_SHOW_SESSION LOTUS_SHOW_TIME LOTUS_SHOW_MUSIC
   LOTUS_LIVE LOTUS_INTERVAL
 )
 
 lotus_defaults() {
-  typeset -g LOTUS_NAME= LOTUS_STARTUP=1 LOTUS_LOGO=lotus LOTUS_THEME=matcha
+  typeset -g LOTUS_NAME= LOTUS_LANG=en LOTUS_STARTUP=1 LOTUS_LOGO=lotus LOTUS_THEME=matcha
   typeset -g LOTUS_PROMPT=0 LOTUS_COLORS=auto LOTUS_GREETING=rotate LOTUS_SALUTE=fr
   typeset -g LOTUS_SHOW_HARDWARE=1 LOTUS_SHOW_SESSION=1 LOTUS_SHOW_TIME=1 LOTUS_SHOW_MUSIC=1
   typeset -g LOTUS_LIVE=1 LOTUS_INTERVAL=2
@@ -34,19 +34,27 @@ lotus_load() {
     (( ${#full[1]} > 1 )) && LOTUS_NAME=$full[1] || LOTUS_NAME=${(C)${USER:-${LOGNAME:-$(id -un)}}}
   fi
   [[ $LOTUS_INTERVAL == <1-60> ]] || LOTUS_INTERVAL=2
+  lotus_lang
   lotus_colors
+}
+
+# Loads the UI texts: English first, then the chosen language on top
+lotus_lang() {
+  typeset -gA LOTUS_L=()
+  source $LOTUS_ROOT/lib/lang/en.zsh
+  [[ $LOTUS_LANG != en && -r $LOTUS_ROOT/lib/lang/$LOTUS_LANG.zsh ]] && source $LOTUS_ROOT/lib/lang/$LOTUS_LANG.zsh
 }
 
 lotus_save() {
   zf_mkdir -p $LOTUS_CONF
-  local k out="# lotus – Einstellungen (bequemer: lotus settings)"$'\n'
+  local k out="# lotus – settings (easier: lotus settings)"$'\n'
   for k in $LOTUS_KEYS; do out+="$k=${(qq)${(P)k}}"$'\n'; done
   print -rn -- $out >| $LOTUS_CONF/settings.zsh
 }
 
-# ── Farben ────────────────────────────────────────────────────
+# ── Colors ────────────────────────────────────────────────────
 
-# Truecolor-Unterstützung des Terminals erkennen
+# Detect whether the terminal supports 24-bit color
 lotus_detect_tc() {
   case $LOTUS_COLORS in
     truecolor) LOTUS_TC=1; return ;;
@@ -56,7 +64,7 @@ lotus_detect_tc() {
         $TERM_PROGRAM == (iTerm.app|WezTerm|ghostty|vscode|WarpTerminal|Hyper|Tabby|kitty|zed) ]]; then
     LOTUS_TC=1
   elif [[ $TERM_PROGRAM == Apple_Terminal ]]; then
-    # Terminal.app kann 24-Bit-Farben erst ab macOS 26
+    # Terminal.app supports 24-bit color from macOS 26 on
     local f=$LOTUS_CACHE/macos v
     if [[ -r $f ]]; then v=$(<$f)
     else v=$(sw_vers -productVersion 2>/dev/null); zf_mkdir -p $LOTUS_CACHE; print -r -- $v >| $f; fi
@@ -66,7 +74,7 @@ lotus_detect_tc() {
   fi
 }
 
-# "r;g;b" → SGR-Code in REPLY (Truecolor oder nächste der 256 Farben)
+# "r;g;b" → SGR code in REPLY (truecolor or the nearest of the 256 colors)
 lotus_sgr() {
   if (( LOTUS_TC )); then REPLY="38;2;$1"; return; fi
   local -a c=(${(s:;:)1})
@@ -89,7 +97,7 @@ typeset -gA LOTUS_THEMES=(
   mono    '230;230;230 210;210;210 255;255;255 230;230;230 255;255;255 120;120;120 110;110;110 200;200;200'
 )
 
-# Setzt LOTUS_C[logo|key|accent|key2|salute|border|dim|music] als SGR-Codes
+# Sets LOTUS_C[logo|key|accent|key2|salute|border|dim|music] as SGR codes
 lotus_colors() {
   lotus_detect_tc
   typeset -gA LOTUS_C
@@ -100,11 +108,11 @@ lotus_colors() {
   (( LOTUS_TC )) && LOTUS_MODE=tc || LOTUS_MODE=256
 }
 
-# ── fastfetch-Konfiguration erzeugen (nur wenn sich etwas geändert hat) ──
+# ── Generate the fastfetch config (only when something changed) ──
 
-lotus_line() { REPLY=${${(l:$1::x:)}//x/─} }   # $1 × ─ (unabhängig vom Locale)
+lotus_line() { REPLY=${${(l:$1::x:)}//x/─} }   # $1 × ─ (independent of the locale)
 
-lotus_box() {  # $1 Titel, $2 Farbe Titel → REPLY = obere Rahmenzeile
+lotus_box() {  # $1 title, $2 title color → REPLY = top border line
   local t=" $1 " left
   local -i nl=$(( (42 - ${#t}) / 2 ))
   lotus_line $nl; left=$REPLY
@@ -122,7 +130,7 @@ lotus_build() {
   lotus_line 42
   local bottom="{ \"type\": \"custom\", \"format\": \"{#$C[border]}└${REPLY}┘\" }"
   local -a m=()
-  local -i n=0   # Anzahl Infozeilen (für die Logo-Ausrichtung)
+  local -i n=0   # number of info lines (to center the logo)
 
   if [[ $LOTUS_GREETING != off ]]; then
     m+=('{ "type": "custom", "format": "@@LOTUS_HELLO@@" }' '"break"'); n+=2
@@ -167,7 +175,7 @@ lotus_build() {
 
   local bar="\"bar\": { \"char\": { \"elapsed\": \"■\", \"total\": \"·\" }, \"border\": { \"left\": \"[\", \"right\": \"]\" }, \"color\": { \"elapsed\": \"$C[key]\", \"total\": \"$C[dim]\", \"border\": \"97\" }, \"width\": 10 }"
 
-  print -r -- "// Von lotus erzeugt – nicht bearbeiten, stattdessen: lotus settings
+  print -r -- "// Generated by lotus – do not edit, use: lotus settings
 {
   \"logo\": $logo,
   \"display\": {
@@ -183,7 +191,7 @@ lotus_build() {
   ]
 }" >| $cfg
 
-  print -r -- "// Von lotus erzeugt – nur die Song-Zeilen
+  print -r -- "// Generated by lotus – the now playing lines only
 {
   \"logo\": { \"type\": \"none\" },
   \"display\": { \"separator\": \"\", \"key\": { \"width\": 0 }, \"color\": { \"output\": \"97\" }, \"percent\": { \"type\": [\"num\", \"bar\"] }, $bar },
@@ -194,7 +202,7 @@ lotus_build() {
 }" >| $np
 }
 
-# ── Texte ─────────────────────────────────────────────────────
+# ── Texts ─────────────────────────────────────────────────────
 
 typeset -ga LOTUS_HELLOS=(
   Bonjour こんにちは Hello Grüezi 你好 Hola Ciao 안녕하세요
@@ -223,28 +231,30 @@ lotus_salute() {
         elif (( h < 18 )); then s='Guten Tag!'; else s='Guten Abend!'; fi ;;
     en) if (( h < 5 )); then s='Good night!'; elif (( h < 12 )); then s='Good morning!'
         elif (( h < 18 )); then s='Good afternoon!'; else s='Good evening!'; fi ;;
+    es) if (( h < 5 || h >= 20 )); then s='¡Buenas noches!'; elif (( h < 12 )); then s='¡Buenos días!'
+        else s='¡Buenas tardes!'; fi ;;
     *)  REPLY=; return ;;
   esac
   REPLY=$'\e[1;'"$LOTUS_C[salute]m$s${LOTUS_NAME:+ $LOTUS_NAME.}"$'\e[0m'
 }
 
-# ── Läuft gerade ──────────────────────────────────────────────
+# ── Now playing ───────────────────────────────────────────────
 
-# Fragt den Player ab und schreibt die zwei Zeilen in den (geteilten) Cache
+# Asks the player and writes both lines to the (shared) cache
 lotus_np_query() {
-  local f=$LOTUS_CACHE/np-$LOTUS_MODE
+  local f=$LOTUS_CACHE/np-$LOTUS_MODE-$LOTUS_LANG
   local out=$($LOTUS_FF -c $LOTUS_CACHE/np-$LOTUS_MODE.jsonc --pipe false 2>/dev/null)
   if [[ -z $out ]]; then
-    out=$'\e[1;'"$LOTUS_C[music]m♫ "$'\e[0;'"$LOTUS_C[dim]mGerade läuft nichts"$'\e[0m\n  \e['"$LOTUS_C[dim]m[··········]"$'\e[0m'
+    out=$'\e[1;'"$LOTUS_C[music]m♫ "$'\e[0;'"$LOTUS_C[dim]m$LOTUS_L[nothing]"$'\e[0m\n  \e['"$LOTUS_C[dim]m[··········]"$'\e[0m'
   else
-    out=${${${out//Playing/▶ läuft}//Paused/‖ pausiert}//Stopped/■ gestoppt}
+    out=${${${out//Playing/$LOTUS_L[playing]}//Paused/$LOTUS_L[paused]}//Stopped/$LOTUS_L[stopped]}
   fi
   print -r -- $out >| $f.$$ && zf_mv -f $f.$$ $f
 }
 
-# reply = die zwei Zeilen; frische Werte aus dem Cache werden wiederverwendet
+# reply = both lines; fresh values from the cache are reused
 lotus_np_get() {
-  local f=$LOTUS_CACHE/np-$LOTUS_MODE
+  local f=$LOTUS_CACHE/np-$LOTUS_MODE-$LOTUS_LANG
   local -a st
   if ! { [[ -r $f ]] && zstat -A st +mtime $f && (( EPOCHSECONDS - st[1] < LOTUS_INTERVAL )) }; then
     lotus_np_query
@@ -252,9 +262,9 @@ lotus_np_get() {
   reply=("${(@f)$(<$f)}")
 }
 
-# ── Startbildschirm ───────────────────────────────────────────
+# ── Start screen ──────────────────────────────────────────────
 
-# Aktuelle Cursor-Zeile ins REPLY (vorab getippte Zeichen bleiben erhalten)
+# Current cursor row in REPLY (keys typed ahead are kept)
 lotus_cursor_row() {
   local state resp
   state=$(stty -g < /dev/tty 2>/dev/null) || return 1
@@ -268,17 +278,17 @@ lotus_cursor_row() {
   REPLY=${resp%%;*}
 }
 
-# Zeigt den Startbildschirm. Mit "live" wird die Position der Song-Zeilen
-# gemerkt (LOTUS_NP_ROW/COL), damit init.zsh sie aktualisieren kann.
+# Prints the start screen. With "live" the position of the now playing lines
+# is remembered (LOTUS_NP_ROW/COL) so init.zsh can keep them updated.
 lotus_render() {
   setopt localoptions extendedglob nomonitor
   LOTUS_NP_ROW=0 LOTUS_NP_IDX=0
-  [[ -x $LOTUS_FF ]] || { print -u2 "lotus: fastfetch fehlt – lotus doctor hilft weiter"; return 1 }
+  [[ -x $LOTUS_FF ]] || { print -u2 -- $LOTUS_L[ff_missing]; return 1 }
   lotus_build
   zf_mkdir -p $LOTUS_CACHE
 
   local -a args=(-c $LOTUS_CACHE/fastfetch-$LOTUS_MODE.jsonc --pipe false)
-  # Zu schmales Fenster → ohne Logo
+  # Window too narrow → no logo
   if [[ $LOTUS_LOGO != none && -r $LOTUS_ROOT/logos/$LOTUS_LOGO.txt ]]; then
     local l
     local -i w=0
@@ -286,11 +296,11 @@ lotus_render() {
     (( ${COLUMNS:-200} < w + 60 )) && args+=(--logo none)
   fi
 
-  # Song parallel zum Hauptlauf abfragen
+  # Fetch the song in parallel to the main run
   local -i np_pid=0
   if (( LOTUS_SHOW_MUSIC )); then
     local -a st
-    local f=$LOTUS_CACHE/np-$LOTUS_MODE
+    local f=$LOTUS_CACHE/np-$LOTUS_MODE-$LOTUS_LANG
     if ! { [[ -r $f ]] && zstat -A st +mtime $f && (( EPOCHSECONDS - st[1] < LOTUS_INTERVAL )) }; then
       lotus_np_query &
       np_pid=$!
@@ -318,7 +328,7 @@ lotus_render() {
     out=${out//@@LOTUS_NP2@@/$reply[2]}
   fi
 
-  # Ohne Zeilenumbruch ausgeben: jede Zeile bleibt genau eine Bildschirmzeile
+  # Print without line wrapping: every line stays exactly one screen row
   print -n $'\e[?7l'
   print -r -- $out
   print -n $'\e[?7h'
