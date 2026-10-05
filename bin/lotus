@@ -1,0 +1,122 @@
+#!/bin/zsh
+# lotus – schöner Startbildschirm fürs Terminal (macOS)
+setopt extendedglob
+source ${0:A:h:h}/lib/core.zsh
+
+LOTUS_REPO=Fanxy13/homebrew-lotus
+LOTUS_RC=${ZDOTDIR:-$HOME}/.zshrc
+
+say()  { print -P "%F{green}🪷%f $*" }
+warn() { print -P "%F{yellow}!%f $*" >&2 }
+
+is_brew() { [[ $LOTUS_ROOT == */Cellar/lotus/* ]] }
+
+usage() {
+  print -r -- "lotus $LOTUS_VERSION – Startbildschirm fürs Terminal
+
+  lotus              Startbildschirm (wieder) anzeigen
+  lotus settings     Einstellungen öffnen   (Kurzform: /settings)
+  lotus setup        In ~/.zshrc eintragen
+  lotus update       Auf die neueste Version aktualisieren
+  lotus doctor       Installation prüfen
+  lotus uninstall    lotus entfernen
+  lotus version      Version anzeigen"
+}
+
+# Fenstergrösse, falls das Skript sie nicht geerbt hat
+if [[ -t 1 ]]; then
+  _size=(${=$(stty size < /dev/tty 2>/dev/null)})
+  (( ${#_size} == 2 )) && { LINES=$_size[1]; COLUMNS=$_size[2] }
+fi
+
+cmd_setup() {
+  lotus_load
+  [[ -e $LOTUS_CONF/settings.zsh ]] || lotus_save
+  lotus_build force
+
+  # Stabiler Pfad, der Homebrew-Updates übersteht
+  local init=$LOTUS_ROOT/lib/init.zsh
+  is_brew && init=${init/\/Cellar\/lotus\/[^\/]##\///opt/lotus/}
+
+  local block="# >>> lotus >>>"$'\n'
+  if [[ $LOTUS_ROOT == $HOME/.local/share/lotus && ${path[(I)$HOME/.local/bin]} == 0 ]]; then
+    block+='export PATH="$HOME/.local/bin:$PATH"'$'\n'
+  fi
+  block+="[[ -r ${(qq)init} ]] && source ${(qq)init}"$'\n'"# <<< lotus <<<"
+
+  local rc=
+  [[ -r $LOTUS_RC ]] && rc=$(<$LOTUS_RC)
+  if [[ $rc == *'# >>> lotus >>>'*'# <<< lotus <<<'* ]]; then
+    rc=${rc/'# >>> lotus >>>'*'# <<< lotus <<<'/$block}
+  else
+    rc+=${rc:+$'\n\n'}$block
+  fi
+  print -r -- $rc >| $LOTUS_RC
+  say "Eingetragen in $LOTUS_RC"
+  say "Öffne ein neues Terminal-Fenster – oder tippe: exec zsh"
+}
+
+cmd_uninstall() {
+  if [[ -r $LOTUS_RC ]]; then
+    local rc=$(<$LOTUS_RC)
+    rc=${rc/$'\n'#'# >>> lotus >>>'*'# <<< lotus <<<'/}
+    print -r -- $rc >| $LOTUS_RC
+    say "Aus $LOTUS_RC entfernt"
+  fi
+  if read -q "?Einstellungen ($LOTUS_CONF) auch löschen? [j/N] "; then
+    print; rm -rf $LOTUS_CONF; say "Einstellungen gelöscht"
+  else
+    print
+  fi
+  rm -rf $LOTUS_CACHE
+  if is_brew; then
+    say "Zum Schluss noch: brew uninstall lotus"
+  elif [[ $LOTUS_ROOT == $HOME/.local/share/lotus ]]; then
+    rm -f $HOME/.local/bin/lotus
+    rm -rf $LOTUS_ROOT
+    say "lotus wurde entfernt. Neues Terminal öffnen, dann ist alles weg."
+  else
+    say "Programmdateien in $LOTUS_ROOT bleiben liegen (eigene Installation)."
+  fi
+}
+
+cmd_update() {
+  if is_brew; then
+    brew upgrade lotus
+  else
+    curl -fsSL https://raw.githubusercontent.com/$LOTUS_REPO/main/install.sh | zsh
+  fi
+}
+
+cmd_doctor() {
+  lotus_load
+  local ok="%F{green}✓%f" bad="%F{red}✗%f"
+  print -P "lotus $LOTUS_VERSION  ($LOTUS_ROOT)"
+  if [[ -x $LOTUS_FF ]]; then
+    print -P "$ok fastfetch  $($LOTUS_FF --version 2>/dev/null)  ($LOTUS_FF)"
+  else
+    print -P "$bad fastfetch fehlt – lotus update installiert es neu"
+  fi
+  print -P "$ok Farben     $LOTUS_MODE (${TERM_PROGRAM:-unbekanntes Terminal})"
+  print -P "$ok Settings   $LOTUS_CONF/settings.zsh"
+  if [[ -r $LOTUS_RC && $(<$LOTUS_RC) == *'# >>> lotus >>>'* ]]; then
+    print -P "$ok .zshrc     eingetragen"
+  else
+    print -P "$bad .zshrc     nicht eingetragen – lotus setup"
+  fi
+  lotus_build
+  lotus_np_query
+  print -P "$ok Musik      ${${(f)"$(<$LOTUS_CACHE/np-$LOTUS_MODE)"}[1]}"
+}
+
+case $1 in
+  ''|show)          lotus_load; lotus_render ;;
+  settings|config)  source $LOTUS_ROOT/lib/settings.zsh; lotus_settings_ui ;;
+  setup)            cmd_setup ;;
+  update|upgrade)   cmd_update ;;
+  doctor)           cmd_doctor ;;
+  uninstall)        cmd_uninstall ;;
+  version|-v|--version) print -r -- $LOTUS_VERSION ;;
+  help|-h|--help)   usage ;;
+  *)                usage; exit 1 ;;
+esac
