@@ -15,7 +15,7 @@ struct Config {
     var provider: String
     var model: String
     var effort: String
-    let claudeKey: String
+    var claudeKey: String
     let openaiKey: String
     let openaiURL: String
     let stateDir: URL
@@ -127,7 +127,7 @@ final class Agent {
         runner.outputLimit = 30_000
         switch c.provider {
         case "claude":
-            guard !c.claudeKey.isEmpty else { throw AIError(title: "No Claude API key yet", detail: "Add one with: lotus ai key claude") }
+            guard !c.claudeKey.isEmpty else { throw AIError(title: "No Claude API key yet", detail: "Connect it with /login (or in the shell: lotus ai login)") }
             return ClaudeProvider(model: c.model, key: c.claudeKey, effort: c.effort)
         case "ollama":
             guard !c.model.isEmpty else { throw AIError(title: "No Ollama model found", detail: "Download one, e.g.: ollama pull qwen3") }
@@ -339,6 +339,7 @@ enum TUI {
     static let commands = [
         SlashCommand(name: "/help", help: "what you can do here"),
         SlashCommand(name: "/model", help: "choose the AI (Apple, Claude, Ollama …)"),
+        SlashCommand(name: "/login", help: "connect Claude with an API key"),
         SlashCommand(name: "/effort", help: "how hard the AI thinks"),
         SlashCommand(name: "/clear", help: "start a new conversation"),
         SlashCommand(name: "/compact", help: "summarize the conversation to free up room"),
@@ -362,6 +363,9 @@ enum TUI {
         var out = "\n" + frame(rows, width: width)
         out += "  \(Style.dim)Ask anything, or let me work in this folder: create files, change code, run commands.\(Style.reset)\n"
         out += "  \(Style.dim)I ask before I change anything. /help shows what else you can do.\(Style.reset)\n"
+        if agent.config.claudeKey.isEmpty {
+            out += "  \(Style.dim)Tip:\(Style.reset) \(Style.logo)/login\(Style.reset) \(Style.dim)connects Claude – the strongest AI for code and longer work.\(Style.reset)\n"
+        }
         if !agent.conversation.isEmpty {
             let mins = max(1, Int(Date().timeIntervalSince(agent.conversation.updated) / 60))
             let n = agent.conversation.turns.count / 2
@@ -470,6 +474,8 @@ enum TUI {
             }
         case "/model", "/models", "/provider":
             await chooseModel(agent, keys)
+        case "/login", "/connect", "/key":
+            await login(agent, keys)
         default:
             let known = commands.map(\.name)
             let close = known.first { $0.hasPrefix(String(cmd.prefix(3))) }
@@ -477,6 +483,115 @@ enum TUI {
             emit("\n")
         }
         return false
+    }
+
+    // Connects Claude: opens the key page, takes the pasted key (hidden), checks it and keeps it in the Keychain
+    static func login(_ agent: Agent, _ keys: KeyQueue) async {
+        var out = "  \(Style.bold)Connect Claude\(Style.reset)\n"
+        out += "  \(Style.dim)1\(Style.reset)  Sign in at console.anthropic.com and click \"Create Key\" (any name, e.g. Lotus).\n"
+        out += "  \(Style.dim)2\(Style.reset)  Copy the key and paste it here. Lotus checks it and keeps it in your Keychain.\n"
+        out += "  \(Style.dim)Claude is paid per use by Anthropic – a typical question costs well under one cent.\(Style.reset)\n\n"
+        out += "  Open the key page in your browser? \(Style.dim)[Y/n]\(Style.reset) "
+        Out.shared.write(out)
+        let answer = await keys.next()
+        let open = !(answer == .char("n") || answer == .char("N") || answer == .esc || answer == .ctrlC)
+        Out.shared.write(open ? "yes\n" : "no\n")
+        if open {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            p.arguments = ["https://console.anthropic.com/settings/keys"]
+            try? p.run()
+        }
+        for _ in 0..<3 {
+            guard let key = await readSecret("  Paste your key \(Style.dim)(hidden, enter when done)\(Style.reset): ", keys) else {
+                Renderer.shared.info("Cancelled.")
+                emit("\n")
+                return
+            }
+            guard key.hasPrefix("sk-ant-"), key.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else {
+                Out.shared.write("  \(Style.red)That is not a Claude API key – they start with sk-ant-.\(Style.reset)\n")
+                continue
+            }
+            Spinner.shared.hint = "one moment"
+            Spinner.shared.start("Checking the key with Claude")
+            let status = await checkClaudeKey(key)
+            Spinner.shared.stop()
+            Spinner.shared.hint = "esc to stop"
+            if status == 401 || status == 403 {
+                Out.shared.write("  \(Style.red)Claude did not accept this key. Copy it again (all of it) or create a new one.\(Style.reset)\n")
+                continue
+            }
+            if status != 200 {
+                Out.shared.write("  \(Style.dim)Claude could not be reached to check the key – it is saved anyway.\(Style.reset)\n")
+            }
+            guard saveClaudeKey(key) else {
+                Renderer.shared.error("The key could not be saved in the Keychain", "Try again, or set ANTHROPIC_API_KEY in your ~/.zshrc.")
+                return
+            }
+            agent.config.claudeKey = key
+            do {
+                try agent.switchTo(provider: "claude", model: agent.config.model.hasPrefix("claude-") ? agent.config.model : "")
+                agent.saveSetting("LOTUS_AI_PROVIDER", "claude")
+                Out.shared.write("  \(Style.key)✓\(Style.reset) Claude is connected – now answering: \(Style.bold)\(agent.provider.label)\(Style.reset). The conversation continues.\n")
+                Out.shared.write("  \(Style.dim)/model switches between Opus, Sonnet and Haiku.\(Style.reset)\n\n")
+            } catch let e as AIError {
+                Renderer.shared.error(e.title, e.detail)
+            } catch {}
+            return
+        }
+    }
+
+    static func readSecret(_ prompt: String, _ keys: KeyQueue) async -> String? {
+        var text = ""
+        func draw() {
+            let shown = text.isEmpty ? "" : String(repeating: "•", count: min(12, text.count)) + String(text.suffix(4))
+            Out.shared.write("\r\u{1B}[2K" + prompt + Style.dim + shown + Style.reset)
+        }
+        draw()
+        while true {
+            switch await keys.next() {
+            case .char(let c): if !c.isWhitespace { text.append(c) }
+            case .paste(let s): text += s.filter { !$0.isWhitespace }
+            case .backspace: if !text.isEmpty { text.removeLast() }
+            case .ctrlU: text = ""
+            case .enter:
+                Out.shared.write("\n")
+                let clean = text.filter { !$0.isWhitespace }
+                return clean.isEmpty ? nil : clean
+            case .esc, .ctrlC, .ctrlD, .cancelled:
+                Out.shared.write("\n")
+                return nil
+            default: break
+            }
+            draw()
+        }
+    }
+
+    static func checkClaudeKey(_ key: String) async -> Int {
+        let messages = ProcessInfo.processInfo.environment["LOTUS_AI_CLAUDE_URL"] ?? "https://api.anthropic.com/v1/messages"
+        var req = URLRequest(url: URL(string: messages.replacingOccurrences(of: "/v1/messages", with: "/v1/models"))!)
+        req.timeoutInterval = 20
+        req.setValue(key, forHTTPHeaderField: "x-api-key")
+        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        guard let (_, response) = try? await HTTP.session.data(for: req) else { return 0 }
+        return (response as? HTTPURLResponse)?.statusCode ?? 0
+    }
+
+    // Through the security tool's stdin, so the key never shows up on a command line
+    static func saveClaudeKey(_ key: String) -> Bool {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        p.arguments = ["-i"]
+        let pipe = Pipe()
+        p.standardInput = pipe
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        do { try p.run() } catch { return false }
+        let account = ProcessInfo.processInfo.environment["USER"].flatMap { $0.isEmpty ? nil : $0 } ?? "lotus"
+        pipe.fileHandleForWriting.write(Data("add-generic-password -U -s lotus-ai-claude -a \(account) -w \(key)\n".utf8))
+        try? pipe.fileHandleForWriting.close()
+        p.waitUntilExit()
+        return p.terminationStatus == 0
     }
 
     static func chooseModel(_ agent: Agent, _ keys: KeyQueue) async {
@@ -501,7 +616,7 @@ enum TUI {
             options.append(("\(agent.config.model.isEmpty ? "gpt-4o-mini" : agent.config.model) · \(host)", "openai", agent.config.provider == "openai" ? agent.config.model : ""))
         }
         if agent.config.claudeKey.isEmpty {
-            Renderer.shared.info("Claude: add a key with  lotus ai key claude  (in a normal terminal), then /model again.")
+            options.append(("Claude – connect now (paste an API key)", "login", ""))
         }
         guard !options.isEmpty else {
             Renderer.shared.info("No other AI found. Install Ollama or add a Claude key.")
@@ -511,6 +626,10 @@ enum TUI {
         let current = options.firstIndex { $0.kind == agent.config.provider && ($0.model == agent.config.model || $0.kind == "apple") } ?? 0
         guard let i = await menu("Which AI should answer?", options.map(\.label), selected: current, keys: keys) else { return }
         let o = options[i]
+        if o.kind == "login" {
+            await login(agent, keys)
+            return
+        }
         do {
             try agent.switchTo(provider: o.kind, model: o.model)
             agent.saveSetting("LOTUS_AI_PROVIDER", o.kind)

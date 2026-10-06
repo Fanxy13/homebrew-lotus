@@ -38,7 +38,8 @@ AI	-	ai summarize	/ai summarize [file]	Summarize a file or the clipboard	/ai sum
 AI	-	ai write	/ai write <what>	Help writing text	/ai write a short bio	0
 AI	-	ai command	/ai command <task>	Suggest a shell command, never runs it	/ai command find big files	0
 AI	-	ai status	/ai status	Show which AI providers are available	/ai status	0
-AI	-	ai key	lotus ai key [claude]	Save an API key in the Keychain, e.g. for Claude	lotus ai key claude	0
+AI	-	ai login	lotus ai login	Connect Claude: opens the key page, paste the key once	lotus ai login	0
+AI	-	ai key	lotus ai key openai	Save a key for an OpenAI-compatible API in the Keychain	lotus ai key openai	0
 Device tools	/ios	ios	/ios	iOS tools: AirCard, Nugget, Sideloadly, Dopamine	/ios	0
 Device tools	-	ios devices	/ios devices	Show connected iPhones and iPads	/ios devices	0
 Media	/convert	convert	/convert <link>	Save a video as MP3 or MP4 with yt-dlp	/convert https://youtube.com/watch?v=…	0

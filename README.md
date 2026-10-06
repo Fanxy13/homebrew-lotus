@@ -70,7 +70,7 @@ Everything from 1.x stays, and your settings carry over.
 | Weather | `/weather`, `/weather Zurich` | ASCII art and a 3-day forecast, no API key |
 | AI | `/ai` | The AI terminal: chat, write code, create and change files, run commands – it asks before every change |
 | | `/ai what is a symlink?`, `/ai new` | One question (it remembers the conversation for an hour) · start fresh |
-| | `lotus ai key claude` | Use Claude; also Apple Intelligence, Ollama or an OpenAI-compatible API |
+| | `lotus ai login` or `/login` | Connect Claude in a minute; also Apple Intelligence, Ollama or an OpenAI-compatible API |
 | | `/ai explain`, `summarize`, `write`, `command` | Explain an error, summarize a file, draft text, suggest a command |
 | Audio | `/np`, `/play`, `/pause`, `/skip`, `/back` | What is playing, play, pause, next, previous |
 | | `/repeat`, `/mute`, `/vu`, `/vd` | Repeat, mute, volume up and down |

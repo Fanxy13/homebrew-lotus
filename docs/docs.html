@@ -103,6 +103,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     <div class="table-wrap" style="margin-top:18px">
       <table class="docs">
         <tr><th>Inside the AI terminal</th><th>What it does</th></tr>
+        <tr><td><code>/login</code></td><td>Connect Claude: opens the key page, paste the key once</td></tr>
         <tr><td><code>/model</code></td><td>Choose who answers: Apple Intelligence, Claude Opus, Sonnet, Haiku or Fable, an Ollama model, your OpenAI-compatible API</td></tr>
         <tr><td><code>/effort</code></td><td>Quick, balanced, thorough or maximum</td></tr>
         <tr><td><code>/context</code> · <code>/compact</code></td><td>How full the memory is · summarize now</td></tr>
@@ -114,7 +115,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     <h3 style="margin-top:30px">Providers</h3>
     <p><code>/ai</code> uses the first provider that works – or the one you pick with <code>/model</code> or in <code>/settings</code>. <code>/ai status</code> shows what is available.</p>
     <div class="grid">
-      <div class="card"><h3>Claude</h3><p class="muted">The strongest choice for code and longer work. Add your API key from console.anthropic.com with <code>lotus ai key claude</code> – it goes into the macOS Keychain. You pay Anthropic for what you use.</p></div>
+      <div class="card"><h3>Claude</h3><p class="muted">The strongest choice for code and longer work. Type <code>/login</code> in the AI terminal (or <code>lotus ai login</code>): Lotus opens the key page, you paste the key once, Lotus checks it and keeps it in the macOS Keychain. You pay Anthropic for what you use.</p></div>
       <div class="card"><h3>Apple Intelligence</h3><p class="muted">Runs on your Mac – nothing leaves it, free. Good for questions, texts and small file tasks. Needs macOS 26 or newer, Apple silicon and Apple Intelligence turned on.</p></div>
       <div class="card"><h3>Ollama</h3><p class="muted">Local models. Install Ollama, open the app and download a model that can use tools, e.g. <code>ollama pull qwen3</code>.</p></div>
       <div class="card"><h3>OpenAI-compatible</h3><p class="muted">Any service with an OpenAI-style API. Set the URL in <code>/settings</code>, the key with <code>lotus ai key openai</code>.</p></div>

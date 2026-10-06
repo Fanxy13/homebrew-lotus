@@ -12,6 +12,8 @@ lotus_cmd_ai() {
   local sub=$1
   case $sub in
     status)    lotus_ai_status ;;
+    login|connect) lotus_ai_login ;;
+    logout)    lotus_ai_logout ;;
     key|keys)  shift; lotus_ai_key "$@" ;;
     new|clear|reset)
       shift
@@ -115,8 +117,18 @@ lotus_ai_provider() {
 }
 
 lotus_ai_none() {
+  if ui_has_tty && [[ -t 1 ]]; then
+    ui_header AI "no AI connected yet"
+    ui_text "Lotus did not find an AI it can use on this Mac."
+    ui_blank
+    ui_choose "What do you want to do?" "Connect Claude – paste an API key (about a minute)" "Show the other options" "Cancel" || return 1
+    case $REPLY in
+      1) lotus_ai_login && return 0 ;;
+      3) return 1 ;;
+    esac
+  fi
   ui_error "No AI is available yet" "Lotus did not find an AI it can use on this Mac." \
-    "Claude: add your API key with: lotus ai key claude" \
+    "Claude: lotus ai login  (opens the key page, then paste the key)" \
     "Apple Intelligence: macOS 26+, Apple silicon, turned on in System Settings" \
     "Ollama: install it, open the app and download a model, e.g. ollama pull qwen3" \
     "Other: set the AI URL in /settings and add a key with: lotus ai key openai"
@@ -131,7 +143,10 @@ lotus_ai_run() {
     return
   fi
   _ai_build || return 1
-  lotus_ai_provider || { lotus_ai_none; return 1 }
+  if ! lotus_ai_provider; then
+    lotus_ai_none || return 1
+    lotus_ai_provider || return 1
+  fi
   local provider=$REPLY model=$LOTUS_AI_MODEL
   case $provider in
     claude) [[ $model == claude-* ]] || model= ;;
@@ -249,7 +264,7 @@ lotus_ai_status() {
   ui_header AI "provider: ${LOTUS_AI_PROVIDER:-auto} · thinks ${effort[${LOTUS_AI_EFFORT:-high}]:-thorough}"
   local cm=${(M)LOTUS_AI_MODEL:#claude-*}
   if _ai_claude_key; then print -r -- "  $ok Claude              key saved${cm:+ · $cm}"
-  else print -r -- "  $no Claude              add a key: lotus ai key claude"; fi
+  else print -r -- "  $no Claude              connect: lotus ai login"; fi
   if _ai_apple_ok; then
     lotus_ai_helper
     if [[ -x $REPLY ]]; then state=$($REPLY --check 2>/dev/null); else state="ready (the first /ai sets it up)"; fi
@@ -281,15 +296,7 @@ lotus_ai_key() {
     case $REPLY in 1) which=claude ;; 2) which=openai ;; 3) which=remove ;; esac
   fi
   case $which in
-    claude|anthropic)
-      ui_header AI "Claude API key"
-      ui_text "Create a key at console.anthropic.com (API keys). Paste it when macOS asks for the password –"
-      ui_text "it is stored in your Keychain as \"lotus-ai-claude\" and is not shown while you type."
-      ui_blank
-      if security add-generic-password -U -s lotus-ai-claude -a "$USER" -w; then
-        ui_success "Saved in the Keychain"
-        [[ ${LOTUS_AI_PROVIDER:-auto} == auto ]] && ui_dim "Lotus uses Claude from now on (switch with /model inside /ai)."
-      fi ;;
+    claude|anthropic) lotus_ai_login ;;
     openai)
       ui_header AI "API key"
       ui_text "macOS will ask for the key and keep it in your Keychain (item: lotus-ai)."
@@ -300,6 +307,69 @@ lotus_ai_key() {
       (( REPLY == 2 )) && item=lotus-ai
       ui_confirm "Remove the key \"$item\" from the Keychain?" n || return 0
       security delete-generic-password -s $item >/dev/null 2>&1 && ui_success "Removed" || ui_warn "There was no saved key." ;;
-    *) ui_error "Unknown key type" "$which" "Use: lotus ai key claude   or   lotus ai key openai" ;;
+    *) ui_error "Unknown key type" "$which" "Use: lotus ai login   or   lotus ai key openai" ;;
   esac
+}
+
+# ── Connecting Claude ─────────────────────────────────────────
+
+# Opens the key page, takes the pasted key (hidden), checks it with Claude and keeps it in the Keychain.
+# The key never appears on screen, in a file or on a command line (it goes through stdin).
+lotus_ai_login() {
+  ui_header AI "connect Claude"
+  if ! ui_has_tty; then
+    ui_error "This needs a terminal window" "" "Run: lotus ai login"
+    return 1
+  fi
+  ui_text "1  Sign in at console.anthropic.com and click \"Create Key\" (any name, e.g. Lotus)."
+  ui_text "2  Copy the key and paste it here. Lotus checks it and keeps it in your Keychain."
+  ui_dim "   Claude is paid per use by Anthropic – a typical question costs well under one cent."
+  ui_blank
+  ui_confirm "Open the key page in your browser now?" y && open "https://console.anthropic.com/settings/keys"
+  ui_blank
+  local key tries=0
+  while (( tries++ < 3 )); do
+    print -rn -- "  Paste your key "$'\e['"$LOTUS_C[dim]m(hidden, Enter when done)"$'\e[0m'": "
+    read -rs key < /dev/tty || return 1
+    key=${key//[[:space:]]/}
+    if [[ -z $key ]]; then print; ui_info "Cancelled"; return 1; fi
+    print -r -- $'\e['"$LOTUS_C[dim]m••••••••••••${key[-4,-1]}"$'\e[0m'
+    if [[ $key != sk-ant-[A-Za-z0-9_-]## ]]; then
+      ui_warn "That is not a Claude API key – they start with sk-ant-. Try again or press Enter to stop."
+      continue
+    fi
+    ui_step "Checking the key with Claude …"
+    local code=$(print -r -- "header = \"x-api-key: $key\"" | curl -sS -o /dev/null -w '%{http_code}' -m 20 -K - \
+      -H 'anthropic-version: 2023-06-01' https://api.anthropic.com/v1/models 2>/dev/null)
+    case $code in
+      200) break ;;
+      401|403) ui_warn "Claude did not accept this key. Copy it again (all of it) or create a new one."; continue ;;
+      000) ui_warn "Claude could not be reached right now – the key is saved anyway."; break ;;
+      *) ui_warn "Claude answered with $code – the key is saved anyway."; break ;;
+    esac
+  done
+  (( tries > 3 )) && return 1
+  print -r -- "add-generic-password -U -s lotus-ai-claude -a ${USER:-lotus} -w $key" | security -i >/dev/null 2>&1
+  if [[ $(security find-generic-password -s lotus-ai-claude -w 2>/dev/null) != $key ]]; then
+    ui_error "The key could not be saved in the Keychain" "" "Try again, or set ANTHROPIC_API_KEY in your ~/.zshrc."
+    return 1
+  fi
+  if [[ ${LOTUS_AI_PROVIDER:-auto} != (auto|claude) ]]; then
+    LOTUS_AI_PROVIDER=claude
+    [[ $LOTUS_AI_MODEL == claude-* ]] || LOTUS_AI_MODEL=
+    lotus_save
+  fi
+  ui_success "Claude is connected"
+  ui_dim "Type /ai to start. Inside, /model switches between Opus, Sonnet and Haiku."
+  ui_blank
+}
+
+lotus_ai_logout() {
+  if ! security find-generic-password -s lotus-ai-claude >/dev/null 2>&1; then
+    ui_info "No Claude key is saved."
+    return 0
+  fi
+  ui_confirm "Remove the Claude key from your Keychain?" n || return 0
+  security delete-generic-password -s lotus-ai-claude >/dev/null 2>&1 && ui_success "Claude is disconnected"
+  [[ $LOTUS_AI_PROVIDER == claude ]] && { LOTUS_AI_PROVIDER=auto; lotus_save }
 }

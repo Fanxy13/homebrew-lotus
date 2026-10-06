@@ -167,7 +167,7 @@ lotus_doctor() {
   (( $+commands[ideviceinfo] )) && _row $ok libimobiledevice "(/ios devices)" || _row $opt libimobiledevice "optional: shows the iOS version of connected devices"
   /usr/libexec/java_home >/dev/null 2>&1 && _row $ok Java "$(/usr/libexec/java_home 2>/dev/null)  (/minecraft)" || _row $opt Java "not installed – /minecraft can set it up"
   xcrun --find swiftc >/dev/null 2>&1 && _row $ok Swift "for the AI terminal (/ai)" || _row $opt Swift "Command Line Tools are needed for the AI terminal: xcode-select --install"
-  { [[ -n $ANTHROPIC_API_KEY ]] || security find-generic-password -s lotus-ai-claude >/dev/null 2>&1 } && _row $ok Claude "API key in the Keychain  (/ai)" || _row $opt Claude "optional AI provider: lotus ai key claude"
+  { [[ -n $ANTHROPIC_API_KEY ]] || security find-generic-password -s lotus-ai-claude >/dev/null 2>&1 } && _row $ok Claude "API key in the Keychain  (/ai)" || _row $opt Claude "optional AI provider: lotus ai login"
   (( $+commands[ollama] )) && _row $ok Ollama "$commands[ollama]  (/ai)" || _row $opt Ollama "optional AI provider for /ai"
   ui_blank
 }

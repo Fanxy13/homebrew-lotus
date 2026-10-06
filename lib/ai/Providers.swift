@@ -276,7 +276,7 @@ final class ClaudeProvider: Provider {
 
     private func claudeError(_ status: Int, _ message: String) -> AIError {
         switch status {
-        case 401: return AIError(title: "The Claude API key was not accepted", detail: "Add a new key with: lotus ai key claude")
+        case 401: return AIError(title: "The Claude API key was not accepted", detail: "Connect a new key with /login (or in the shell: lotus ai login)")
         case 403: return AIError(title: "This Claude API key may not use \(label)", detail: message)
         case 404: return AIError(title: "\(model) was not found", detail: "Choose another model with /model.  (\(message))")
         case 413: return AIError(title: "The conversation is too long", detail: "Use /compact or /clear.")

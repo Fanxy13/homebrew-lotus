@@ -295,7 +295,7 @@ final class AppleProvider: Provider, @unchecked Sendable {
         case .exceededContextWindowSize:
             return ContextFull()
         case .guardrailViolation:
-            return AIError(title: "Apple's safety filter stopped this answer", detail: "Try other words. With a Claude key (lotus ai key claude) Lotus can use Claude instead.")
+            return AIError(title: "Apple's safety filter stopped this answer", detail: "Try other words. /login connects Claude, which can answer instead.")
         case .refusal:
             return AIError(title: "Apple Intelligence declined this request", detail: "Try asking differently.")
         case .unsupportedLanguageOrLocale:
