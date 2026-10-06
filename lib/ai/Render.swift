@@ -1,0 +1,665 @@
+// Lotus AI – drawing: streamed Markdown, tool steps, the input box and menus.
+
+import Foundation
+
+// ── Streamed Markdown ─────────────────────────────────────────
+// Turns text that arrives in small pieces into wrapped, colored terminal output.
+// Handles code fences, headings, bullets, `inline code` and **bold**.
+
+final class MarkdownStream {
+    private let firstPrefix: String
+    private let prefix: String
+    private let baseStyle: String
+    private let maxLines: Int
+    private var started = false
+    private var col = 0
+    private var lines = 0
+    private var truncated = false
+
+    private var atLineStart = true
+    private var head = ""
+    private var lineKind: LineKind = .undecided
+    private var fullLine = ""          // headings and fence lines are collected whole
+    private var inFence = false
+    private var inCode = false
+    private var bold = false
+    private var pendingStar = false
+    private var word = ""
+    private var wordWidth = 0
+
+    private enum LineKind { case undecided, text, heading, fence }
+
+    init(bullet: String, style: String = "", maxLines: Int = .max) {
+        self.firstPrefix = bullet
+        self.prefix = "  "
+        self.baseStyle = style
+        self.maxLines = maxLines
+    }
+
+    private var width: Int { max(30, min(Term.width, 120) - 2) }
+
+    private func out(_ s: String) {
+        guard !truncated else { return }
+        emit(s)
+    }
+
+    private func startLine() {
+        if !started {
+            started = true
+            out(firstPrefix + baseStyle)
+        } else {
+            out(prefix + baseStyle)
+        }
+        col = 2
+    }
+
+    private func newline() {
+        flushWord()
+        if col == 0 { startLine() }
+        out(Style.reset + "\n")
+        col = 0
+        lines += 1
+        inCode = false
+        bold = false
+        if lines >= maxLines && !truncated {
+            truncated = true
+        }
+    }
+
+    func feed(_ text: String) {
+        for ch in text { feed(ch) }
+    }
+
+    private func feed(_ ch: Character) {
+        if inFence { fenceChar(ch); return }
+        if atLineStart {
+            if lineKind == .heading || lineKind == .fence {
+                if ch == "\n" { finishCollected() } else { fullLine.append(ch) }
+                return
+            }
+            if ch == "\n" {
+                let pending = head
+                head = ""
+                atLineStart = false
+                lineKind = .text
+                for c in pending { inline(c) }
+                inline("\n")
+                return
+            }
+            head.append(ch)
+            let trimmed = head.drop(while: { $0 == " " })
+            if trimmed.isEmpty { return }
+            if trimmed.hasPrefix("```") {
+                lineKind = .fence
+                fullLine = head
+                head = ""
+                return
+            }
+            if trimmed.first == "`" && trimmed.count < 3 { return }
+            if trimmed.first == "#" {
+                if trimmed.count < 2 { return }
+                if trimmed.allSatisfy({ $0 == "#" }) && trimmed.count < 6 { return }
+                if trimmed.drop(while: { $0 == "#" }).first == " " {
+                    lineKind = .heading
+                    fullLine = head
+                    head = ""
+                    return
+                }
+            }
+            if trimmed.first == "-" || trimmed.first == "*" {
+                if trimmed.count < 2 { return }
+                if trimmed.dropFirst().first == " " {
+                    let indent = String(head.prefix(while: { $0 == " " }))
+                    head = ""
+                    atLineStart = false
+                    lineKind = .text
+                    if col == 0 { startLine() }
+                    out(indent + Style.logo + "•" + Style.reset + baseStyle + " ")
+                    col += cellWidth(indent) + 2
+                    return
+                }
+            }
+            let pending = head
+            head = ""
+            atLineStart = false
+            lineKind = .text
+            for c in pending { inline(c) }
+            return
+        }
+        inline(ch)
+    }
+
+    private func finishCollected() {
+        let line = fullLine
+        fullLine = ""
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if lineKind == .fence {
+            let lang = trimmed.dropFirst(3).trimmingCharacters(in: .whitespaces)
+            if col == 0 { startLine() }
+            out(Style.border + "╭─" + (lang.isEmpty ? "" : " " + Style.dim + lang) + Style.reset + "\n")
+            col = 0
+            lines += 1
+            inFence = true
+        } else {
+            let text = trimmed.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
+            if col == 0 { startLine() }
+            out(Style.bold + Style.accent + stripMarks(text) + Style.reset + "\n")
+            col = 0
+            lines += 1
+        }
+        lineKind = .undecided
+        atLineStart = true
+    }
+
+    private func stripMarks(_ s: String) -> String { s.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "") }
+
+    private func fenceChar(_ ch: Character) {
+        if ch != "\n" { fullLine.append(ch); return }
+        let line = fullLine
+        fullLine = ""
+        if col == 0 { startLine() }
+        if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+            out(Style.border + "╰─" + Style.reset + "\n")
+            inFence = false
+        } else {
+            out(Style.border + "│ " + Style.reset + Style.code + line + Style.reset + "\n")
+        }
+        col = 0
+        lines += 1
+        if lines >= maxLines { truncated = true }
+    }
+
+    private func inline(_ ch: Character) {
+        if pendingStar {
+            pendingStar = false
+            if ch == "*" {
+                bold.toggle()
+                word += bold ? Style.bold : Style.boldOff + baseStyle
+                return
+            }
+            word.append("*")
+            wordWidth += 1
+        }
+        switch ch {
+        case "\n":
+            newline()
+            atLineStart = true
+            lineKind = .undecided
+        case "`":
+            inCode.toggle()
+            word += inCode ? Style.code : Style.reset + baseStyle + (bold ? Style.bold : "")
+        case "*" where !inCode:
+            pendingStar = true
+        case " ":
+            flushWord()
+            if col == 0 { startLine() }
+            if col < width { out(" "); col += 1 }
+        default:
+            word.append(ch)
+            wordWidth += cellWidth(ch)
+        }
+    }
+
+    private func flushWord() {
+        guard !word.isEmpty else { return }
+        if col == 0 { startLine() }
+        if col + wordWidth > width && col > 2 && wordWidth < width - 2 {
+            out(Style.reset + "\n")
+            lines += 1
+            if lines >= maxLines { truncated = true }
+            startLine()
+            if bold { out(Style.bold) }
+            if inCode { out(Style.code) }
+        }
+        out(word)
+        col += wordWidth
+        word = ""
+        wordWidth = 0
+    }
+
+    // Ends the block; returns true when lines were left out
+    @discardableResult
+    func finish() -> Bool {
+        if pendingStar { pendingStar = false; word.append("*"); wordWidth += 1 }
+        if inFence {
+            if !fullLine.isEmpty { fenceChar("\n") }
+            if inFence {
+                if col == 0 { startLine() }
+                out(Style.border + "╰─" + Style.reset + "\n")
+                inFence = false
+                col = 0
+            }
+        } else if lineKind == .heading || lineKind == .fence {
+            finishCollected()
+        } else if !head.isEmpty {
+            let pending = head
+            head = ""
+            for c in pending { inline(c) }
+        }
+        flushWord()
+        if col > 0 { out(Style.reset + "\n"); col = 0 }
+        let wasTruncated = truncated
+        truncated = false
+        if wasTruncated { emit("  \(Style.dim)…\(Style.reset)\n") }
+        return wasTruncated
+    }
+
+    var hasOutput: Bool { started }
+}
+
+// ── What the assistant is doing, as blocks ────────────────────
+
+final class Renderer: @unchecked Sendable {
+    static let shared = Renderer()
+    private let lock = NSLock()
+    private var text: MarkdownStream?
+    private var thinking: MarkdownStream?
+    private var thinkingStarted: Date?
+    var quiet = false            // plain mode: no bullets, no colors
+
+    func textDelta(_ s: String) {
+        guard !s.isEmpty else { return }
+        lock.lock(); defer { lock.unlock() }
+        closeThinking()
+        if quiet { emit(s); return }
+        if text == nil { text = MarkdownStream(bullet: Style.logo + "● " + Style.reset) }
+        text?.feed(s)
+    }
+
+    func thinkingDelta(_ s: String) {
+        guard !s.isEmpty, !quiet else { return }
+        lock.lock(); defer { lock.unlock() }
+        closeText()
+        if thinking == nil {
+            thinkingStarted = Date()
+            emit("\(Style.dim)✻ Thinking\(Style.reset)\n")
+            thinking = MarkdownStream(bullet: "  ", style: Style.dim + Style.italic, maxLines: 8)
+        }
+        thinking?.feed(s)
+    }
+
+    private func closeText() {
+        if let t = text {
+            t.finish()
+            text = nil
+            emit("\n")
+        }
+    }
+
+    private func closeThinking() {
+        if let t = thinking {
+            t.finish()
+            thinking = nil
+            let secs = Int(Date().timeIntervalSince(thinkingStarted ?? Date()))
+            emit("  \(Style.dim)thought for \(max(1, secs))s\(Style.reset)\n\n")
+        }
+    }
+
+    // Closes whatever is open, e.g. before a tool step or at the end of the answer
+    func endBlock() {
+        lock.lock(); defer { lock.unlock() }
+        closeThinking()
+        if quiet {
+            if text != nil { text = nil }
+            return
+        }
+        closeText()
+    }
+
+    func toolHeader(_ name: String, _ detail: String) {
+        endBlock()
+        let room = max(10, Term.width - cellWidth(name) - 6)
+        emit("\(Style.key)●\(Style.reset) \(Style.bold)\(name)\(Style.reset)\(Style.dim)(\(Style.reset)\(clip(detail, room))\(Style.dim))\(Style.reset)\n")
+    }
+
+    func toolResult(_ summary: String, error: Bool = false) {
+        let color = error ? Style.red : Style.dim
+        emit("  \(Style.dim)⎿\(Style.reset)  \(color)\(clip(summary, max(20, Term.width - 6)))\(Style.reset)\n\n")
+    }
+
+    // Indented preview lines below a tool step
+    func toolLines(_ lines: [String], color: String = Style.dim, limit: Int = 8) {
+        let width = max(20, Term.width - 7)
+        for line in lines.prefix(limit) {
+            emit("     \(color)\(clip(line.replacingOccurrences(of: "\t", with: "  "), width))\(Style.reset)\n")
+        }
+        if lines.count > limit {
+            emit("     \(Style.dim)… \(lines.count - limit) more lines\(Style.reset)\n")
+        }
+    }
+
+    func info(_ s: String) {
+        endBlock()
+        emit("  \(Style.dim)\(s)\(Style.reset)\n")
+    }
+
+    func error(_ title: String, _ detail: String = "") {
+        endBlock()
+        emit("\(Style.red)●\(Style.reset) \(Style.bold)\(title)\(Style.reset)\n")
+        if !detail.isEmpty {
+            for line in detail.split(separator: "\n", omittingEmptySubsequences: false) {
+                emit("  \(Style.dim)\(line)\(Style.reset)\n")
+            }
+        }
+        emit("\n")
+    }
+}
+
+// ── Frames ────────────────────────────────────────────────────
+
+func frame(_ rows: [String], width: Int, color: String = Style.border) -> String {
+    let inner = width - 4
+    var out = color + "╭" + String(repeating: "─", count: width - 2) + "╮" + Style.reset + "\n"
+    for row in rows {
+        let pad = max(0, inner - visibleWidth(row))
+        out += color + "│" + Style.reset + " " + row + String(repeating: " ", count: pad) + " " + color + "│" + Style.reset + "\n"
+    }
+    out += color + "╰" + String(repeating: "─", count: width - 2) + "╯" + Style.reset + "\n"
+    return out
+}
+
+// ── Input box ─────────────────────────────────────────────────
+
+struct SlashCommand {
+    let name: String
+    let help: String
+}
+
+final class InputBox {
+    private let keys: KeyQueue
+    private var text: [Character] = []
+    private var cursor = 0
+    private var history: [String]
+    private var historyIndex: Int?
+    private var draft: [Character] = []
+    private var drawnRows = 0        // rows from the top of the box to the cursor
+    private var exitArmed = false
+    private let historyFile: URL?
+    let commands: [SlashCommand]
+    var status: () -> String = { "" }
+
+    init(keys: KeyQueue, commands: [SlashCommand], historyFile: URL?) {
+        self.keys = keys
+        self.commands = commands
+        self.historyFile = historyFile
+        if let f = historyFile, let data = try? String(contentsOf: f, encoding: .utf8) {
+            history = data.split(separator: "\u{1E}").map(String.init).filter { !$0.isEmpty }
+        } else {
+            history = []
+        }
+    }
+
+    private func remember(_ line: String) {
+        guard !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if history.last != line { history.append(line) }
+        if history.count > 200 { history.removeFirst(history.count - 200) }
+        if let f = historyFile {
+            try? history.joined(separator: "\u{1E}").write(to: f, atomically: true, encoding: .utf8)
+            chmod(f.path, 0o600)
+        }
+    }
+
+    private var suggestions: [SlashCommand] {
+        let s = String(text)
+        guard s.hasPrefix("/"), !s.contains(" "), !s.contains("\n") else { return [] }
+        return commands.filter { $0.name.hasPrefix(s.lowercased()) }
+    }
+
+    // Wraps the text into rows; returns rows and the cursor's row/column
+    private func layout(_ inner: Int) -> (rows: [String], row: Int, col: Int) {
+        var rows: [String] = [""]
+        var widths = [0]
+        var cRow = 0, cCol = 0
+        for (i, ch) in text.enumerated() {
+            if i == cursor { cRow = rows.count - 1; cCol = widths[widths.count - 1] }
+            if ch == "\n" {
+                rows.append(""); widths.append(0)
+                continue
+            }
+            let w = cellWidth(ch)
+            if widths[widths.count - 1] + w > inner {
+                rows.append(""); widths.append(0)
+                if i == cursor { cRow = rows.count - 1; cCol = 0 }
+            }
+            rows[rows.count - 1].append(ch)
+            widths[widths.count - 1] += w
+        }
+        if cursor == text.count {
+            cRow = rows.count - 1
+            cCol = widths[widths.count - 1]
+            if cCol >= inner { rows.append(""); widths.append(0); cRow += 1; cCol = 0 }
+        }
+        return (rows, cRow, cCol)
+    }
+
+    private func render() {
+        let width = max(24, Term.width - 1)
+        let inner = width - 8
+        var (rows, cRow, cCol) = layout(inner)
+        // Keep tall input inside the window
+        let maxRows = max(3, Term.height - 8)
+        var first = 0
+        if rows.count > maxRows {
+            first = min(max(0, cRow - maxRows + 1), rows.count - maxRows)
+            rows = Array(rows[first..<(first + maxRows)])
+            cRow -= first
+        }
+        var out = ""
+        if drawnRows > 0 { out += "\u{1B}[\(drawnRows)A" }
+        out += "\r\u{1B}[J"
+        out += Style.border + "╭" + String(repeating: "─", count: width - 2) + "╮" + Style.reset + "\n"
+        for (i, row) in rows.enumerated() {
+            let lead = (i == 0 && first == 0) ? Style.logo + ">" + Style.reset + " " : "  "
+            let pad = max(0, inner - cellWidth(row))
+            out += Style.border + "│" + Style.reset + " " + lead + row + String(repeating: " ", count: pad + 2) + " " + Style.border + "│" + Style.reset + "\n"
+        }
+        out += Style.border + "╰" + String(repeating: "─", count: width - 2) + "╯" + Style.reset
+        // Footer: command suggestions or hints and status
+        var footer: [String] = []
+        let sugg = suggestions
+        if !sugg.isEmpty {
+            for c in sugg.prefix(8) {
+                footer.append("  " + Style.logo + c.name.padding(toLength: 12, withPad: " ", startingAt: 0) + Style.reset + Style.dim + c.help + Style.reset)
+            }
+        } else {
+            let left = exitArmed ? "Press Ctrl-C again to quit" : "/ for commands · ⌥⏎ new line · ctrl-d quits"
+            let right = status()
+            let gap = max(2, width - cellWidth(left) - cellWidth(right) - 2)
+            footer.append("  " + Style.dim + left + String(repeating: " ", count: gap) + right + Style.reset)
+        }
+        for f in footer { out += "\n" + f }
+        // Move back to the cursor
+        let totalBelow = (rows.count - cRow) + footer.count
+        out += "\u{1B}[\(totalBelow)A\r\u{1B}[\(4 + cCol)C"
+        drawnRows = 1 + cRow
+        Out.shared.write(out)
+    }
+
+    private func clearBox() {
+        var out = ""
+        if drawnRows > 0 { out += "\u{1B}[\(drawnRows)A" }
+        out += "\r\u{1B}[J"
+        Out.shared.write(out)
+        drawnRows = 0
+    }
+
+    private func insert(_ s: String) {
+        for ch in s where ch != "\r" {
+            text.insert(ch, at: cursor)
+            cursor += 1
+        }
+    }
+
+    private func wordStart(from i: Int) -> Int {
+        var j = i
+        while j > 0 && text[j - 1] == " " { j -= 1 }
+        while j > 0 && text[j - 1] != " " && text[j - 1] != "\n" { j -= 1 }
+        return j
+    }
+
+    private func wordEnd(from i: Int) -> Int {
+        var j = i
+        while j < text.count && text[j] == " " { j += 1 }
+        while j < text.count && text[j] != " " && text[j] != "\n" { j += 1 }
+        return j
+    }
+
+    // Reads one message. nil means the user wants to leave.
+    func read() async -> String? {
+        text = []
+        cursor = 0
+        historyIndex = nil
+        drawnRows = 0
+        render()
+        while true {
+            let key = await keys.next()
+            if key != .ctrlC { exitArmed = false }
+            switch key {
+            case .cancelled:
+                clearBox()
+                return nil
+            case .char(let ch):
+                insert(String(ch))
+            case .paste(let s):
+                insert(s)
+            case .enter:
+                if cursor > 0 && text[cursor - 1] == "\\" {
+                    text[cursor - 1] = "\n"
+                } else if !suggestions.isEmpty && suggestions.first?.name != String(text) && !String(text).contains(" ") {
+                    text = Array(suggestions[0].name)
+                    cursor = text.count
+                    fallthrough
+                } else {
+                    let line = String(text)
+                    clearBox()
+                    echo(line)
+                    remember(line)
+                    return line
+                }
+            case .newline:
+                if key == .newline { insert("\n") }
+            case .tab:
+                if let s = suggestions.first {
+                    text = Array(s.name + " ")
+                    cursor = text.count
+                }
+            case .backspace:
+                if cursor > 0 { text.remove(at: cursor - 1); cursor -= 1 }
+            case .delete:
+                if cursor < text.count { text.remove(at: cursor) }
+            case .wordBackspace, .ctrlW:
+                let s = wordStart(from: cursor)
+                text.removeSubrange(s..<cursor)
+                cursor = s
+            case .left:
+                cursor = max(0, cursor - 1)
+            case .right:
+                cursor = min(text.count, cursor + 1)
+            case .wordLeft:
+                cursor = wordStart(from: cursor)
+            case .wordRight:
+                cursor = wordEnd(from: cursor)
+            case .home, .ctrlA:
+                cursor = (text[..<cursor].lastIndex(of: "\n").map { $0 + 1 }) ?? 0
+            case .end, .ctrlE:
+                cursor = (text[cursor...].firstIndex(of: "\n")) ?? text.count
+            case .ctrlK:
+                let e = (text[cursor...].firstIndex(of: "\n")) ?? text.count
+                text.removeSubrange(cursor..<e)
+            case .ctrlU:
+                let s = (text[..<cursor].lastIndex(of: "\n").map { $0 + 1 }) ?? 0
+                text.removeSubrange(s..<cursor)
+                cursor = s
+            case .up:
+                if !text[..<cursor].contains("\n"), !history.isEmpty {
+                    if historyIndex == nil { draft = text; historyIndex = history.count }
+                    if let i = historyIndex, i > 0 {
+                        historyIndex = i - 1
+                        text = Array(history[i - 1])
+                        cursor = text.count
+                    }
+                }
+            case .down:
+                if !text[cursor...].contains("\n"), let i = historyIndex {
+                    if i + 1 < history.count {
+                        historyIndex = i + 1
+                        text = Array(history[i + 1])
+                    } else {
+                        historyIndex = nil
+                        text = draft
+                    }
+                    cursor = text.count
+                }
+            case .ctrlL:
+                Out.shared.write("\u{1B}[2J\u{1B}[H")
+                drawnRows = 0
+            case .ctrlC:
+                if !text.isEmpty {
+                    text = []; cursor = 0
+                } else if exitArmed {
+                    clearBox()
+                    return nil
+                } else {
+                    exitArmed = true
+                }
+            case .ctrlD:
+                if text.isEmpty { clearBox(); return nil }
+                if cursor < text.count { text.remove(at: cursor) }
+            case .esc:
+                if !text.isEmpty && String(text).hasPrefix("/") { text = []; cursor = 0 }
+            default:
+                break
+            }
+            render()
+        }
+    }
+
+    // The message stays on screen above the answer
+    private func echo(_ line: String) {
+        let width = max(20, Term.width - 4)
+        var out = ""
+        for (i, part) in line.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let lead = i == 0 ? Style.logo + ">" + Style.reset + " " : "  "
+            out += lead + Style.dim + clip(String(part), width) + Style.reset + "\n"
+        }
+        Out.shared.write(out + "\n")
+    }
+}
+
+// ── Menu ──────────────────────────────────────────────────────
+
+// A small list to pick from with the arrow keys. Returns the index or nil.
+func menu(_ title: String, _ items: [String], selected: Int = 0, keys: KeyQueue) async -> Int? {
+    guard !items.isEmpty else { return nil }
+    var sel = min(max(0, selected), items.count - 1)
+    var drawn = 0
+    func draw() {
+        var out = drawn > 0 ? "\u{1B}[\(drawn)A\r\u{1B}[J" : ""
+        out += "  \(Style.bold)\(title)\(Style.reset)\n"
+        for (i, item) in items.enumerated() {
+            out += i == sel ? "  \(Style.logo)› \(item)\(Style.reset)\n" : "    \(item)\n"
+        }
+        out += "  \(Style.dim)↑↓ choose · enter select · esc cancel\(Style.reset)\n"
+        drawn = items.count + 2
+        Out.shared.write(out)
+    }
+    Out.shared.write("\u{1B}[?25l")
+    defer { Out.shared.write("\u{1B}[?25h") }
+    draw()
+    while true {
+        switch await keys.next() {
+        case .up: sel = (sel - 1 + items.count) % items.count
+        case .down, .tab: sel = (sel + 1) % items.count
+        case .enter:
+            Out.shared.write("\u{1B}[\(drawn)A\r\u{1B}[J")
+            return sel
+        case .esc, .ctrlC, .cancelled, .char("q"):
+            Out.shared.write("\u{1B}[\(drawn)A\r\u{1B}[J")
+            return nil
+        case .char(let c):
+            if let n = c.wholeNumberValue, n >= 1, n <= items.count { sel = n - 1 }
+        default: break
+        }
+        draw()
+    }
+}

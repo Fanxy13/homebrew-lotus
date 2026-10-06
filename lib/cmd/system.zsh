@@ -69,7 +69,7 @@ lotus_unhook() {
 lotus_uninstall() {
   if [[ $1 != --yes ]]; then
     ui_header Uninstall
-    ui_text "Removes Lotus, its settings, shortcuts, cache and the lines in ~/.zshrc."
+    ui_text "Removes Lotus, its settings, shortcuts, AI memory and keys, cache and the lines in ~/.zshrc."
     ui_blank
     ui_confirm "Uninstall Lotus completely?" n || { ui_info $LOTUS_L[cancelled]; return 1 }
   fi
@@ -77,6 +77,8 @@ lotus_uninstall() {
   lotus_unhook
   [[ -e $LOTUS_CONF/hushlogin-by-lotus ]] && rm -f $HOME/.hushlogin
   rm -rf $LOTUS_CONF $LOTUS_CACHE
+  local item
+  for item in lotus-ai lotus-ai-claude; do security delete-generic-password -s $item >/dev/null 2>&1; done
 
   if is_brew; then
     ui_step $LOTUS_L[removed_brew]
@@ -164,7 +166,8 @@ lotus_doctor() {
   (( $+commands[yt-dlp] && $+commands[ffmpeg] )) && _row $ok yt-dlp "with ffmpeg  (/convert)" || _row $opt yt-dlp "yt-dlp and ffmpeg are needed for /convert"
   (( $+commands[ideviceinfo] )) && _row $ok libimobiledevice "(/ios devices)" || _row $opt libimobiledevice "optional: shows the iOS version of connected devices"
   /usr/libexec/java_home >/dev/null 2>&1 && _row $ok Java "$(/usr/libexec/java_home 2>/dev/null)  (/minecraft)" || _row $opt Java "not installed – /minecraft can set it up"
-  xcrun --find swiftc >/dev/null 2>&1 && _row $ok Swift "for Apple Intelligence in /ai" || _row $opt Swift "Command Line Tools are needed for Apple Intelligence in /ai"
+  xcrun --find swiftc >/dev/null 2>&1 && _row $ok Swift "for the AI terminal (/ai)" || _row $opt Swift "Command Line Tools are needed for the AI terminal: xcode-select --install"
+  { [[ -n $ANTHROPIC_API_KEY ]] || security find-generic-password -s lotus-ai-claude >/dev/null 2>&1 } && _row $ok Claude "API key in the Keychain  (/ai)" || _row $opt Claude "optional AI provider: lotus ai key claude"
   (( $+commands[ollama] )) && _row $ok Ollama "$commands[ollama]  (/ai)" || _row $opt Ollama "optional AI provider for /ai"
   ui_blank
 }

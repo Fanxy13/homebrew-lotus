@@ -68,7 +68,9 @@ Everything from 1.x stays, and your settings carry over.
 | | `/web github lotus`, `/web youtube.com` | Open a site or search it; pasting a link opens it too |
 | | `/lotus web`, `/lotus github` | The Lotus website and GitHub |
 | Weather | `/weather`, `/weather Zurich` | ASCII art and a 3-day forecast, no API key |
-| AI | `/ai what is a symlink?` | Apple Intelligence on your Mac, Ollama or an OpenAI-compatible API |
+| AI | `/ai` | The AI terminal: chat, write code, create and change files, run commands – it asks before every change |
+| | `/ai what is a symlink?`, `/ai new` | One question (it remembers the conversation for an hour) · start fresh |
+| | `lotus ai key claude` | Use Claude; also Apple Intelligence, Ollama or an OpenAI-compatible API |
 | | `/ai explain`, `summarize`, `write`, `command` | Explain an error, summarize a file, draft text, suggest a command |
 | Audio | `/np`, `/play`, `/pause`, `/skip`, `/back` | What is playing, play, pause, next, previous |
 | | `/repeat`, `/mute`, `/vu`, `/vd` | Repeat, mute, volume up and down |
@@ -103,7 +105,7 @@ lotus shortcut add yt "https://www.youtube.com/results?search_query={q}"
 - Logo: Classic, Minimal, Large, Terminal or your own ASCII art (`lotus logo import`)
 - 13 themes: Matcha, Sakura, Ocean, Sunset, Mono, Midnight, Terminal, Lavender, Arctic, Graphite, Neon, Crimson, Retro
 - Greetings, sections, now playing and live updates
-- Weather city and units, search engine, AI provider and model, visualizer mode
+- Weather city and units, search engine, AI provider, model and how hard it thinks, visualizer mode
 - Shortcuts, setup again, reset, **uninstall**
 
 Settings are stored in `~/.config/lotus/settings.zsh`. Files from Lotus 1.x are migrated
@@ -114,7 +116,7 @@ automatically.
 - No accounts, no tracking, no analytics.
 - Lotus only goes online for what you ask: weather, updates, searches, downloads you confirm.
 - Installs, downloads and deletions are shown first and need a yes. `sudo` is never run silently.
-- API keys come from `$LOTUS_AI_KEY` or the macOS Keychain, never from files in this repository.
+- API keys come from the macOS Keychain or the environment, never from files. The AI asks before it changes a file or runs a command.
 - Links, package names, city names and shortcut names are validated; shortcuts cannot run shell commands.
 - `/convert` is meant for content you have the right to download. It does not bypass DRM or paywalls.
 - `/ios` only downloads official releases and checks compatibility before it does.
@@ -127,7 +129,7 @@ automatically.
 | `lib/core.zsh`, `lib/init.zsh` | Start screen, settings file, shell integration |
 | `lib/ui.zsh`, `lib/fuzzy.zsh` | Shared UI components and fuzzy matching |
 | `lib/cmd/*.zsh` | One module per feature (app, brew, weather, ai, ios, …) |
-| `lib/ai/lotus-ai.swift` | Apple Intelligence helper, compiled on first use |
+| `lib/ai/*.swift` | The AI terminal (Claude, Apple Intelligence, Ollama, OpenAI-compatible), built once on first use |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations |
 | `data/` | Commands, themes, app catalog, iOS tools, project links |
 | `logos/` | Built-in logos (`scripts/make-logos.py` derives them from the classic lotus) |

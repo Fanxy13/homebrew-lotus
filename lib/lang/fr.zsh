@@ -13,6 +13,7 @@ LOTUS_L+=(
   colors 'Couleurs'  col_auto 'Automatique'  col_tc '16 M de couleurs'  col_256 '256 couleurs'
   uninstall 'Désinstaller Lotus'  logos_action 'Voir les logos, coller le sien'
   head_weather 'Météo & web'  weather_city 'Ville météo'  units 'Unités'  search_engine 'Moteur de recherche'
+  ai_effort 'Réflexion'  effort_low 'rapide'  effort_medium 'équilibrée'  effort_high 'approfondie'  effort_max 'maximale'
   head_ai 'IA'  ai_provider 'Fournisseur'  shortcuts_action 'Gérer les raccourcis'  setup_again 'Relancer la configuration'  edit '⏎ modifier'  run '⏎ lancer'
   footer '↑↓ choisir   ←→ ⏎ changer   v aperçu   r défaut   q terminé'
   saved '✓ enregistré'  reset_done '✓ réglages par défaut'

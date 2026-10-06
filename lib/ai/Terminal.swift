@@ -1,0 +1,477 @@
+// Lotus AI – terminal basics: colors, output, raw keyboard input, spinner.
+
+import Foundation
+import Darwin
+
+// Colors come from the Lotus theme (SGR parameters such as "38;2;248;184;208"), set by lib/cmd/ai.zsh
+enum Style {
+    private static let env = ProcessInfo.processInfo.environment
+    private static func sgr(_ name: String, _ fallback: String) -> String {
+        let value = env[name] ?? ""
+        return "\u{1B}[" + (value.isEmpty ? fallback : value) + "m"
+    }
+    static let logo = sgr("LOTUS_AI_C_LOGO", "38;5;218")
+    static let key = sgr("LOTUS_AI_C_KEY", "38;5;150")
+    static let accent = sgr("LOTUS_AI_C_ACCENT", "38;5;218")
+    static let border = sgr("LOTUS_AI_C_BORDER", "38;5;242")
+    static let dim = sgr("LOTUS_AI_C_DIM", "38;5;245")
+    static let code = sgr("LOTUS_AI_C_MUSIC", "38;5;180")
+    static let reset = "\u{1B}[0m"
+    static let bold = "\u{1B}[1m"
+    static let boldOff = "\u{1B}[22m"
+    static let italic = "\u{1B}[3m"
+    static let red = "\u{1B}[38;5;203m"
+    static let green = "\u{1B}[38;5;114m"
+}
+
+// All output goes through one lock so the spinner never cuts into other text
+final class Out: @unchecked Sendable {
+    static let shared = Out()
+    private let lock = NSLock()
+
+    func write(_ text: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        FileHandle.standardOutput.write(Data(text.utf8))
+    }
+}
+
+func emit(_ text: String) {
+    Spinner.shared.stop()
+    Out.shared.write(text)
+}
+
+enum Term {
+    static var isTTY: Bool { isatty(STDIN_FILENO) == 1 && isatty(STDOUT_FILENO) == 1 }
+
+    static var width: Int {
+        var size = winsize()
+        // TIOCGWINSZ on Darwin
+        let ok = withUnsafeMutablePointer(to: &size) { ioctl(STDOUT_FILENO, UInt(0x4008_7468), $0) }
+        return ok == 0 && size.ws_col > 0 ? Int(size.ws_col) : 80
+    }
+
+    static var height: Int {
+        var size = winsize()
+        let ok = withUnsafeMutablePointer(to: &size) { ioctl(STDOUT_FILENO, UInt(0x4008_7468), $0) }
+        return ok == 0 && size.ws_row > 0 ? Int(size.ws_row) : 24
+    }
+}
+
+// Display width of a character in the terminal (wide CJK and pictographs take two cells)
+func cellWidth(_ ch: Character) -> Int {
+    guard let scalar = ch.unicodeScalars.first else { return 0 }
+    let v = scalar.value
+    if v == 0 || (v >= 0x300 && v <= 0x36F) || v == 0x200B || (v >= 0xFE00 && v <= 0xFE0F) { return 0 }
+    if v < 0x1100 { return 1 }
+    if (v >= 0x1100 && v <= 0x115F) || (v >= 0x2E80 && v <= 0xA4CF) || (v >= 0xAC00 && v <= 0xD7A3)
+        || (v >= 0xF900 && v <= 0xFAFF) || (v >= 0xFE30 && v <= 0xFE4F) || (v >= 0xFF00 && v <= 0xFF60)
+        || (v >= 0xFFE0 && v <= 0xFFE6) || (v >= 0x1F300 && v <= 0x1FAFF) || (v >= 0x20000 && v <= 0x3FFFD) {
+        return 2
+    }
+    return 1
+}
+
+func cellWidth(_ s: String) -> Int { s.reduce(0) { $0 + cellWidth($1) } }
+
+// Visible width of a string that may contain color codes
+func visibleWidth(_ s: String) -> Int {
+    var width = 0
+    var inEscape = false
+    for ch in s {
+        if inEscape {
+            if let a = ch.asciiValue, a >= 0x40, a <= 0x7E, ch != "[" { inEscape = false }
+            continue
+        }
+        if ch == "\u{1B}" { inEscape = true; continue }
+        width += cellWidth(ch)
+    }
+    return width
+}
+
+// Cuts a plain string to a number of cells
+func clip(_ s: String, _ cells: Int) -> String {
+    if cellWidth(s) <= cells { return s }
+    var out = ""
+    var w = 0
+    for ch in s {
+        let cw = cellWidth(ch)
+        if w + cw > max(0, cells - 1) { break }
+        out.append(ch)
+        w += cw
+    }
+    return out + "…"
+}
+
+// ── Raw mode ──────────────────────────────────────────────────
+
+var savedTermios = termios()
+var rawModeActive = false
+
+enum RawMode {
+    static func enable() {
+        guard !rawModeActive, isatty(STDIN_FILENO) == 1 else { return }
+        tcgetattr(STDIN_FILENO, &savedTermios)
+        var t = savedTermios
+        t.c_lflag &= ~tcflag_t(ECHO | ICANON | ISIG | IEXTEN)
+        t.c_iflag &= ~tcflag_t(IXON | ICRNL)
+        // OPOST stays on, so "\n" still returns to the start of the line
+        withUnsafeMutableBytes(of: &t.c_cc) { cc in
+            cc[Int(VMIN)] = 1
+            cc[Int(VTIME)] = 0
+        }
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &t)
+        rawModeActive = true
+        Out.shared.write("\u{1B}[?2004h")          // bracketed paste
+        installSignalHandlers()
+    }
+
+    static func disable() {
+        guard rawModeActive else { return }
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &savedTermios)
+        rawModeActive = false
+        Out.shared.write("\u{1B}[?2004l\u{1B}[?25h")
+    }
+
+    private static func installSignalHandlers() {
+        for sig in [SIGTERM, SIGHUP, SIGQUIT] {
+            signal(sig) { _ in
+                if rawModeActive { tcsetattr(STDIN_FILENO, TCSAFLUSH, &savedTermios) }
+                let reset = "\u{1B}[?2004l\u{1B}[?25h\n"
+                _ = reset.withCString { write(STDOUT_FILENO, $0, strlen($0)) }
+                _exit(1)
+            }
+        }
+    }
+}
+
+// ── Keys ──────────────────────────────────────────────────────
+
+enum Key: Equatable {
+    case char(Character)
+    case paste(String)
+    case enter, newline, backspace, delete, tab, esc
+    case left, right, up, down, home, end, wordLeft, wordRight, wordBackspace
+    case ctrlA, ctrlC, ctrlD, ctrlE, ctrlK, ctrlL, ctrlU, ctrlW, ctrlO
+    case cancelled, unknown
+}
+
+final class KeyQueue: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer: [Key] = []
+    private var waiter: CheckedContinuation<Key, Never>?
+
+    func push(_ key: Key) {
+        lock.lock()
+        if let w = waiter {
+            waiter = nil
+            lock.unlock()
+            w.resume(returning: key)
+        } else {
+            buffer.append(key)
+            lock.unlock()
+        }
+    }
+
+    // Next key; a cancelled task gets .cancelled
+    func next() async -> Key {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (c: CheckedContinuation<Key, Never>) in
+                lock.lock()
+                if Task.isCancelled {
+                    lock.unlock()
+                    c.resume(returning: .cancelled)
+                } else if !buffer.isEmpty {
+                    let k = buffer.removeFirst()
+                    lock.unlock()
+                    c.resume(returning: k)
+                } else {
+                    waiter = c
+                    lock.unlock()
+                }
+            }
+        } onCancel: {
+            lock.lock()
+            let w = waiter
+            waiter = nil
+            lock.unlock()
+            w?.resume(returning: .cancelled)
+        }
+    }
+
+    func clear() {
+        lock.lock()
+        buffer.removeAll()
+        lock.unlock()
+    }
+}
+
+// Reads stdin on its own thread and turns bytes into keys
+final class KeyReader: @unchecked Sendable {
+    let queue: KeyQueue
+    private var pending: [UInt8] = []
+
+    init(queue: KeyQueue) { self.queue = queue }
+
+    func start() {
+        let thread = Thread { [self] in loop() }
+        thread.stackSize = 1 << 20
+        thread.start()
+    }
+
+    private func readByte(timeoutMs: Int32 = -1) -> UInt8? {
+        if !pending.isEmpty { return pending.removeFirst() }
+        if timeoutMs >= 0 {
+            var fds = pollfd(fd: STDIN_FILENO, events: Int16(POLLIN), revents: 0)
+            if poll(&fds, 1, timeoutMs) <= 0 { return nil }
+        }
+        var buf = [UInt8](repeating: 0, count: 256)
+        let n = read(STDIN_FILENO, &buf, 256)
+        if n <= 0 { return nil }
+        pending.append(contentsOf: buf[0..<n])
+        return pending.removeFirst()
+    }
+
+    private func loop() {
+        while true {
+            guard let b = readByte() else {
+                queue.push(.ctrlD)
+                return
+            }
+            queue.push(decode(b))
+        }
+    }
+
+    private func decode(_ b: UInt8) -> Key {
+        switch b {
+        case 1: return .ctrlA
+        case 3: return .ctrlC
+        case 4: return .ctrlD
+        case 5: return .ctrlE
+        case 9: return .tab
+        case 10: return .newline
+        case 11: return .ctrlK
+        case 12: return .ctrlL
+        case 13: return .enter
+        case 15: return .ctrlO
+        case 21: return .ctrlU
+        case 23: return .ctrlW
+        case 127, 8: return .backspace
+        case 27: return escape()
+        case 0..<32: return .unknown
+        default: return utf8(b)
+        }
+    }
+
+    private func utf8(_ first: UInt8) -> Key {
+        var bytes = [first]
+        let count = first >= 0xF0 ? 4 : first >= 0xE0 ? 3 : first >= 0xC0 ? 2 : 1
+        while bytes.count < count, let b = readByte(timeoutMs: 50) { bytes.append(b) }
+        if let s = String(bytes: bytes, encoding: .utf8), let ch = s.first { return .char(ch) }
+        return .unknown
+    }
+
+    private func escape() -> Key {
+        guard let b = readByte(timeoutMs: 40) else { return .esc }
+        switch b {
+        case UInt8(ascii: "["):
+            var params = ""
+            while let c = readByte(timeoutMs: 40) {
+                if c >= 0x40 && c <= 0x7E {
+                    return csi(params, Character(UnicodeScalar(c)))
+                }
+                params.append(Character(UnicodeScalar(c)))
+            }
+            return .esc
+        case UInt8(ascii: "O"):
+            switch readByte(timeoutMs: 40) {
+            case UInt8(ascii: "A"): return .up
+            case UInt8(ascii: "B"): return .down
+            case UInt8(ascii: "C"): return .right
+            case UInt8(ascii: "D"): return .left
+            case UInt8(ascii: "H"): return .home
+            case UInt8(ascii: "F"): return .end
+            default: return .unknown
+            }
+        case 13, 10: return .newline                 // Option+Enter
+        case 127, 8: return .wordBackspace
+        case UInt8(ascii: "b"): return .wordLeft
+        case UInt8(ascii: "f"): return .wordRight
+        case 27: return .esc
+        default: return .unknown
+        }
+    }
+
+    private func csi(_ params: String, _ final: Character) -> Key {
+        switch final {
+        case "A": return .up
+        case "B": return .down
+        case "C": return params.contains(";3") || params.contains(";5") ? .wordRight : .right
+        case "D": return params.contains(";3") || params.contains(";5") ? .wordLeft : .left
+        case "H": return .home
+        case "F": return .end
+        case "~":
+            switch params {
+            case "3": return .delete
+            case "1", "7": return .home
+            case "4", "8": return .end
+            case "200": return .paste(readPaste())
+            default: return .unknown
+            }
+        default: return .unknown
+        }
+    }
+
+    private func readPaste() -> String {
+        var bytes: [UInt8] = []
+        let end: [UInt8] = Array("\u{1B}[201~".utf8)
+        while let b = readByte(timeoutMs: 2000) {
+            bytes.append(b)
+            if bytes.count >= end.count, Array(bytes.suffix(end.count)) == end {
+                bytes.removeLast(end.count)
+                break
+            }
+        }
+        let text = String(decoding: bytes, as: UTF8.self)
+        return text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+    }
+}
+
+// ── Spinner ───────────────────────────────────────────────────
+
+final class Spinner: @unchecked Sendable {
+    static let shared = Spinner()
+    private let lock = NSLock()
+    private var timer: DispatchSourceTimer?
+    private var label = ""
+    private var started = Date()
+    private var frame = 0
+    private let frames = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"]
+    var hint = "esc to stop"
+
+    func start(_ text: String) {
+        guard Term.isTTY else { return }
+        lock.lock()
+        label = text
+        if timer == nil {
+            started = Date()
+            let t = DispatchSource.makeTimerSource(queue: .global(qos: .userInteractive))
+            t.schedule(deadline: .now(), repeating: .milliseconds(110))
+            t.setEventHandler { [weak self] in self?.tick() }
+            timer = t
+            lock.unlock()
+            Out.shared.write("\u{1B}[?25l")
+            t.resume()
+        } else {
+            lock.unlock()
+        }
+    }
+
+    func setLabel(_ text: String) {
+        lock.lock()
+        label = text
+        lock.unlock()
+    }
+
+    private func tick() {
+        lock.lock()
+        guard timer != nil else { lock.unlock(); return }
+        frame += 1
+        let secs = Int(Date().timeIntervalSince(started))
+        let glyph = frames[frame % frames.count]
+        let line = "\r\u{1B}[2K\(Style.logo)\(glyph)\(Style.reset) \(Style.logo)\(label)…\(Style.reset) \(Style.dim)(\(secs)s · \(hint))\(Style.reset)"
+        Out.shared.write(line)
+        lock.unlock()
+    }
+
+    func stop() {
+        lock.lock()
+        guard let t = timer else { lock.unlock(); return }
+        timer = nil
+        t.cancel()
+        Out.shared.write("\r\u{1B}[2K\u{1B}[?25h")
+        lock.unlock()
+    }
+}
+
+// ── Watchdog ──────────────────────────────────────────────────
+// Runs work that may stop making progress (the on-device model sometimes stalls).
+// Returns as soon as the work is done, stalls, or the calling task is cancelled.
+
+enum Watchdog {
+    struct Stalled: Error {}
+
+    final class Progress: @unchecked Sendable {
+        private let lock = NSLock()
+        private var last = Date()
+        private var busy = 0
+        func tick() { lock.lock(); last = Date(); lock.unlock() }
+        func begin() { lock.lock(); busy += 1; lock.unlock() }
+        func end() { lock.lock(); busy -= 1; last = Date(); lock.unlock() }
+        func reset() { lock.lock(); last = Date(); busy = 0; lock.unlock() }
+        var idle: TimeInterval {
+            lock.lock(); defer { lock.unlock() }
+            return busy > 0 ? 0 : Date().timeIntervalSince(last)
+        }
+    }
+
+    private final class Once<T>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cont: CheckedContinuation<T, Error>?
+        init(_ c: CheckedContinuation<T, Error>) { cont = c }
+        var done: Bool { lock.lock(); defer { lock.unlock() }; return cont == nil }
+        func finish(_ r: Result<T, Error>) {
+            lock.lock()
+            let c = cont
+            cont = nil
+            lock.unlock()
+            c?.resume(with: r)
+        }
+    }
+
+    private final class Control<T>: @unchecked Sendable {
+        let lock = NSLock()
+        var work: Task<Void, Never>?
+        var once: Once<T>?
+        var cancelled = false
+    }
+
+    static func run<T>(idle: TimeInterval, shared: Progress? = nil, _ op: @escaping @Sendable (Progress) async throws -> T) async throws -> T {
+        let progress = shared ?? Progress()
+        progress.reset()
+        let ctl = Control<T>()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (c: CheckedContinuation<T, Error>) in
+                let once = Once(c)
+                ctl.lock.lock()
+                ctl.once = once
+                if ctl.cancelled {
+                    ctl.lock.unlock()
+                    once.finish(.failure(CancellationError()))
+                    return
+                }
+                let work = Task {
+                    do { once.finish(.success(try await op(progress))) } catch { once.finish(.failure(error)) }
+                }
+                ctl.work = work
+                ctl.lock.unlock()
+                Task {
+                    while !once.done {
+                        try? await Task.sleep(nanoseconds: 400_000_000)
+                        if progress.idle > idle {
+                            work.cancel()
+                            once.finish(.failure(Stalled()))
+                        }
+                    }
+                }
+            }
+        } onCancel: {
+            ctl.lock.lock()
+            ctl.cancelled = true
+            let w = ctl.work, o = ctl.once
+            ctl.lock.unlock()
+            w?.cancel()
+            o?.finish(.failure(CancellationError()))
+        }
+    }
+}

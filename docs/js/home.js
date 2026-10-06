@@ -114,9 +114,10 @@
     }
   }
   typeScene($('.ai-term'), [
-    ['p', '% /ai what is a symlink?', 45],
-    ['a', 'A symlink is a file that points to another', 12],
-    ['a', 'file or folder, like a shortcut.', 12],
+    ['p', '> make hello.py and run it', 45],
+    ['a', '● Write(hello.py)  ⎿ created', 0],
+    ['a', '● Run(python3 hello.py)', 0],
+    ['a', '  Hello from Lotus!', 0],
   ]);
   typeScene($('.app-term'), [
     ['p', '% /app spotfy', 70],
