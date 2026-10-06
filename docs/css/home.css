@@ -357,3 +357,5 @@ header, section { position: relative; z-index: 2; }
 .output { display: none; margin: 0; }
 .screen.out .output { display: block; }
 .screen.out .startscreen { display: none; }
+.install-shortcut { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 14px; margin-top: 22px; color: var(--muted); font-size: 14px; }
+.install-shortcut a:not(.btn) { color: var(--ink-accent); }

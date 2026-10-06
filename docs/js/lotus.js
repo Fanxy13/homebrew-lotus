@@ -29,7 +29,7 @@ const Lotus = (() => {
   const cache = {};
   async function tsv(name) {
     if (!cache[name]) {
-      cache[name] = fetch(`data/${name}.tsv`).then((r) => r.text()).then((t) =>
+      cache[name] = fetch(`data/${name}.tsv`, { cache: 'no-cache' }).then((r) => r.text()).then((t) =>
         t.split('\n').filter((l) => l.trim() && !l.startsWith('#')).map((l) => l.split('\t')));
     }
     return cache[name];
@@ -172,6 +172,9 @@ const Lotus = (() => {
     document.querySelectorAll('[data-link]').forEach((a) => {
       const key = a.dataset.link;
       a.href = key === 'repo' ? `https://github.com/${p.repo}` : (p[key] || a.href);
+      // Links that only exist once set in project.tsv (e.g. shortcut_url) start hidden
+      const box = a.closest('[data-link-box]') || a;
+      if (box.hidden && p[key]) box.hidden = false;
     });
   }
 

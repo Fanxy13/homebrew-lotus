@@ -172,6 +172,7 @@ h3 { margin: 0 0 6px; font-size: 17px; font-weight: 600; }
 .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
 .btn.primary:hover { transform: translateY(-1px); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+[hidden] { display: none !important; }
 
 .copy {
   flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 34px; height: 34px; padding: 0 9px;

@@ -11,15 +11,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.0.0">
-  <link rel="stylesheet" href="css/home.css?v=2.0.0">
+  <link rel="stylesheet" href="css/lotus.css?v=2.0.1">
+  <link rel="stylesheet" href="css/home.css?v=2.0.1">
   <script type="importmap">
     { "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
         "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
     } }
   </script>
-  <script src="js/lotus.js?v=2.0.0"></script>
+  <script src="js/lotus.js?v=2.0.1"></script>
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
@@ -63,6 +63,7 @@
 
     <section class="new">
       <div class="new-list reveal">
+        <a href="shortcuts.html#apple"><code>⌃⌥L</code> Apple Shortcut</a>
         <a href="commands.html#apps"><code>/app</code> open any app</a>
         <a href="apps.html"><code>/install</code> app catalog</a>
         <a href="commands.html#homebrew"><code>/brew</code> Homebrew search</a>
@@ -148,13 +149,14 @@
         </button>
       </div>
       <p class="install-note reveal">A short setup asks for your name, theme and language. <a href="docs.html">Documentation</a></p>
+      <p class="install-shortcut" data-link-box hidden>Open Lotus with a key combination: <a class="btn" data-link="shortcut_url" target="_blank" rel="noopener">Add the Apple Shortcut</a> <a href="shortcuts.html#apple">How it works</a></p>
     </section>
   </main>
 
   <lotus-footer></lotus-footer>
 
-  <script type="module" src="js/lotus3d.js?v=2.0.0"></script>
-  <script src="js/demo.js?v=2.0.0" defer></script>
-  <script src="js/home.js?v=2.0.0" defer></script>
+  <script type="module" src="js/lotus3d.js?v=2.0.1"></script>
+  <script src="js/demo.js?v=2.0.1" defer></script>
+  <script src="js/home.js?v=2.0.1" defer></script>
 </body>
 </html>
