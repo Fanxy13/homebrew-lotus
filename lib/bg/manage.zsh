@@ -127,7 +127,7 @@ lotus_bg_install() {
   local -a stages=()
   (( rt )) && stages+=("python|$LOTUS_L[bg_s_python]" "packages|$LOTUS_L[bg_s_packages]")
   (( md )) && stages+=("download|${LOTUS_L[bg_s_download]//\%s/$REPLY}" "verify|$LOTUS_L[bg_s_verify]")
-  stages+=("load_model|$LOTUS_L[bg_s_test_load]" "segment|$LOTUS_L[bg_s_test]")
+  stages+=("load_model|$LOTUS_L[bg_s_test_load]" "segment|$LOTUS_L[bg_s_test]|$LOTUS_L[bg_ss_test]")
   typeset -ga BG_ERR=()
   bg_session_new
   trap _bg_interrupt INT TERM HUP

@@ -162,7 +162,7 @@ bg_install_runtime() {
   fi
   py=$reply[1]
   lotus_log INFO bg "Runtime: Python $reply[2] from $py"
-  bg_ui_info python "$reply[2]"
+  bg_ui_info python "Python $reply[2]"
   rm -rf $BG_RUNTIME
   zf_mkdir -p ${BG_RUNTIME:h}
   local -a run=($py)

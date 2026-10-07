@@ -220,7 +220,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/log.zsh` | The log (levels, rotation, masking) – the AI and Remove BG write to the same file |
 | `lib/cmd/*.zsh` | One module per feature (app, brew, weather, ai, ios, bg, log, …) |
 | `lib/ai/*.swift` | The AI terminal (Claude, Apple Intelligence, Ollama, OpenAI-compatible), built once on first use |
-| `lib/bg/` | Remove BG: runtime and model installer, progress screen, the Python worker (models, matting), the Swift editor |
+| `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (`bloom.txt` from `scripts/make-bloom.py`), the Python worker (models, matting), the Swift editor |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |
 | `logos/` | Built-in logos (`scripts/make-logos.py` derives them from the classic lotus) |

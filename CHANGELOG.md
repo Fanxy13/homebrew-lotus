@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.1
+
+- Remove BG has a new progress screen: a lotus that blooms from bud to full flower as the steps finish (and with real download progress), on a lily pad with water ripples and rising pollen, in the colors of your theme
+- A clean single-column layout that fits the standard 80 × 24 window: nothing runs through the drawing any more; small windows leave the flower out
+- All steps in one line (Model, Image, Subject, Edges, PNG), model, backend, size and time below
+
 ## 2.2.0 – Remove BG, features and the log
 
 ### Remove BG

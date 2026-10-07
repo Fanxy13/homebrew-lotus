@@ -97,4 +97,7 @@ LOTUS_L+=(
   bg_ed_brush 'Pincel'  bg_ed_eraser 'Borrador'  bg_ed_size 'Tamaño'  bg_ed_undo 'Deshacer'  bg_ed_redo 'Rehacer'
   bg_ed_clear 'Vaciar'  bg_ed_reset 'Restablecer'  bg_ed_invert 'Invertir'  bg_ed_preview 'Vista previa'
   bg_ed_apply 'Aplicar'  bg_ed_cancel 'Cancelar'
+  bg_done 'Listo'  bg_ss_load_model 'Modelo'  bg_ss_load_image 'Imagen'  bg_ss_segment 'Motivo'  bg_ss_refine 'Bordes'
+  bg_ss_write 'PNG'  bg_ss_python 'Python'  bg_ss_packages 'Paquetes'  bg_ss_download 'Descarga'  bg_ss_verify 'Control'
+  bg_ss_test 'Prueba'  bg_ss_marks 'Marcas'
 )

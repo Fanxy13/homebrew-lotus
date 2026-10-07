@@ -159,7 +159,8 @@ bg_worker() {
         stage) bg_ui_stage $f[2] ;;
         info)  BG_INFO[$f[2]]=$f[3]
                [[ $f[2] == (model|backend|resolution) ]] && bg_ui_info $f[2] $f[3] ;;
-        image) if (( f[3] > 1 )); then bg_ui_sub "$f[2] / $f[3] · ${f[4]:t}"; bg_ui_reset_from load_image; fi
+        image) bg_ui_batch $f[2] $f[3]
+               if (( f[3] > 1 )); then bg_ui_sub "$f[2] / $f[3] · ${f[4]:t}"; bg_ui_reset_from load_image; fi
                bg_ui_info image ${f[4]:t} ;;
         done)  BG_DONE+=("$f[2]" "$f[3]" "$f[4]") ;;
         skip)  BG_SKIP+=("$f[2]" "$f[4]") ;;
@@ -438,7 +439,7 @@ bg_refine() {
     return 1
   fi
   lotus_log INFO bg "KEEP marks applied"
-  bg_ui_begin $LOTUS_L[bg_title] "load_image|$LOTUS_L[bg_s_image]" "refine|$LOTUS_L[bg_s_marks]" "write|$LOTUS_L[bg_s_write]"
+  bg_ui_begin $LOTUS_L[bg_title] "load_image|$LOTUS_L[bg_s_image]" "refine|$LOTUS_L[bg_s_marks]|$LOTUS_L[bg_ss_marks]" "write|$LOTUS_L[bg_s_write]"
   local ok=1
   bg_worker refine --session $BG_SESSION --keep $BG_SESSION/keep.png || ok=0
   (( ok )) && bg_ui_complete
