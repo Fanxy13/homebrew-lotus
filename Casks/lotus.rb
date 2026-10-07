@@ -1,6 +1,6 @@
 cask "lotus" do
-  version "2.1.1"
-  sha256 "3130cffedb161a75686129c01f96764bbe827acabd48cf724b34ef30527f7679"
+  version "2.2.0"
+  sha256 "788a50d8268fb89db914a3b0014bac655cdf9c25f911a4cdb7e6887cf38957bb"
 
   url "https://github.com/Fanxy13/homebrew-lotus/archive/refs/tags/v#{version}.tar.gz"
   name "lotus"
