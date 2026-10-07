@@ -1,6 +1,7 @@
 #!/bin/zsh
 # lotus – start screen and command center for the macOS terminal
 setopt extendedglob
+typeset -gF _lotus_t0=$EPOCHREALTIME
 # Homebrew runs install steps with a temporary $HOME – use the real one
 if [[ $LOTUS_FOR_USER == [[:alnum:]._-]## ]]; then
   _home=${~:-~$LOTUS_FOR_USER}
@@ -12,6 +13,13 @@ source $LOTUS_ROOT/lib/fuzzy.zsh
 
 LOTUS_RC=${ZDOTDIR:-$HOME}/.zshrc
 
+# Whatever happens (ctrl-c, an error), the cursor comes back. Traps never start other programs:
+# a signal can arrive in the middle of output, and a program started from there could hang.
+if [[ -t 1 ]]; then
+  trap 'print -n "\e[?25h"' EXIT
+  trap 'exit 130' INT
+fi
+
 # Window size, in case the script did not inherit it
 if [[ -t 1 ]]; then
   _size=(${=$(stty size < /dev/tty 2>/dev/null)})
@@ -22,11 +30,15 @@ fi
 typeset -A LOTUS_MODULES=(
   setup system  update system  upgrade system  doctor system  uninstall system  unhook system
   help help  -h help  --help help  cheatsheet help  themes help  suggest help
-  web web  github web  goat web  browse web  google web  search web  open web
+  web web  github web  goat web  who web  browse web  google web  search web  open web
   app app  brew brew  install install  audio audio  weather weather  ai ai
   ios ios  minecraft minecraft  mc minecraft  convert convert  visual visual
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
+  bg bg  log log  features setup
 )
+
+# -V / --verbose: every log line is printed while the command runs
+if [[ $1 == (-V|--verbose) ]]; then export LOTUS_VERBOSE=1; shift; fi
 
 lotus_load
 cmd=${1:-show}
@@ -37,19 +49,33 @@ case $cmd in
     if (( ! LOTUS_CONFIGURED )) && [[ -t 0 && -t 1 ]]; then
       source $LOTUS_ROOT/lib/cmd/setup.zsh; lotus_cmd_setup_wizard
     fi
-    lotus_render ;;
+    lotus_render
+    lotus_startup_details ;;
   settings|config)
+    lotus_log DEBUG cli "Settings opened"
     source $LOTUS_ROOT/lib/settings.zsh; lotus_settings_ui; exit $? ;;
   version|-v|--version)
     print -r -- $LOTUS_VERSION ;;
   *)
     module=$LOTUS_MODULES[$cmd]
     if [[ -z $module ]]; then
+      lotus_log INFO cli "Unknown command: $cmd"
       source $LOTUS_ROOT/lib/cmd/help.zsh
       lotus_cmd_suggest $cmd "$@"
       exit 1
     fi
+    # A feature that is turned off explains itself instead of running
+    lotus_features
+    feature=${LOTUS_FEATURE_OF[$cmd]:-core}
+    if ! lotus_feature_on $feature; then
+      lotus_log DEBUG cli "$cmd: the feature \"$feature\" is turned off"
+      lotus_feature_off_screen $feature && exec $LOTUS_ROOT/bin/lotus $cmd "$@"
+      exit 3
+    fi
+    lotus_log DEBUG cli "Command: $cmd${LOTUS_VERBOSE:+${*:+ $*}}"
     source $LOTUS_ROOT/lib/cmd/$module.zsh
     lotus_cmd_$module $cmd "$@"
-    exit $? ;;
+    rc=$?
+    (( rc && rc != 130 )) && lotus_log DEBUG cli "$cmd ended with status $rc"
+    exit $rc ;;
 esac

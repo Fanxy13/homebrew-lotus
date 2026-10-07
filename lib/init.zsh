@@ -1,6 +1,8 @@
 # lotus – shell integration. Loaded from ~/.zshrc (see: lotus setup).
 [[ -o interactive ]] || return 0
 
+zmodload zsh/datetime
+typeset -gF _lotus_t0=$EPOCHREALTIME
 source ${${(%):-%x}:A:h}/core.zsh
 lotus_load
 zmodload zsh/zselect 2>/dev/null
@@ -80,8 +82,10 @@ _lotus_prompt() {
 
 lotus_show() {
   _lotus_live_stop
+  _lotus_t0=$EPOCHREALTIME
   print -n $'\e[H\e[2J'
   lotus_render live
+  lotus_startup_details
 }
 
 # ── Slash commands, shortcuts and the Enter key ───────────────
@@ -112,6 +116,7 @@ _lotus_aliases() {
 
 # Enter: a few friendly extras before zsh runs the line
 #   pasted link → open it · "open Spotify" (no such file) → /app · unknown /word → suggestion
+#   Only for features that are turned on; the goat question always gets its answer.
 _lotus_accept_line() {
   setopt localoptions extendedglob
   local line=${BUFFER##[[:space:]]#}
@@ -119,9 +124,9 @@ _lotus_accept_line() {
   local -a w=(${(z)line})
   if [[ ${(L)line} == who\ is\ the\ goat(\?|) ]]; then
     BUFFER="lotus goat"
-  elif (( ${#w} == 1 )) && [[ $line == (#i)https#://[^[:space:]]## ]]; then
+  elif (( ${#w} == 1 )) && [[ $line == (#i)https#://[^[:space:]]## ]] && lotus_feature_on web; then
     BUFFER="lotus open ${(q)line}"
-  elif [[ $w[1] == open ]] && (( ${#w} >= 2 )) && [[ $w[2] != -* ]]; then
+  elif [[ $w[1] == open ]] && (( ${#w} >= 2 )) && [[ $w[2] != -* ]] && lotus_feature_on apps; then
     local target=${(Q)${(j: :)w[2,-1]}}
     [[ -e ${target/#\~/$HOME} || $target == *:* || $target == *.* ]] || BUFFER="lotus app ${(q)target}"
   elif [[ $w[1] == /[[:alpha:]][[:alnum:]_-]# && -z ${aliases[$w[1]]} && ! -e $w[1] ]]; then
@@ -174,7 +179,7 @@ function lotus {
       (( rc )) && return rc
       lotus_load; _lotus_prompt; _lotus_aliases
       lotus_show ;;
-    setup)
+    setup|features)
       command lotus "$@"; rc=$?
       lotus_load; _lotus_prompt; _lotus_aliases
       return rc ;;
@@ -208,4 +213,5 @@ _lotus_prompt
 if (( ! LOTUS_CONFIGURED )) && [[ -t 0 && -t 1 ]]; then
   command lotus setup --tty && lotus_load && _lotus_prompt
 fi
-(( LOTUS_STARTUP )) && [[ -t 1 ]] && lotus_render live
+lotus_log DEBUG startup "Shell ready (Lotus $LOTUS_VERSION, $LOTUS_ROOT)"
+(( LOTUS_STARTUP )) && [[ -t 1 ]] && lotus_render live && lotus_startup_details

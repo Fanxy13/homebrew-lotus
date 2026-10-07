@@ -31,33 +31,30 @@ lotus_cmd_ai() {
 
 # ── The AI program ────────────────────────────────────────────
 
+typeset -g LOTUS_LOG_COMP=ai
+
 # Path of the built program; the name changes whenever the source changes
 lotus_ai_helper() {
   local sum=$(cat $LOTUS_ROOT/lib/ai/*.swift(N) | cksum)
   REPLY=$LOTUS_CACHE/bin/lotus-ai-${sum%% *}
 }
 
-_ai_can_build() { xcode-select -p >/dev/null 2>&1 && xcrun --find swiftc >/dev/null 2>&1 }
+_ai_can_build() { lotus_can_swift }
 
 # Builds the program once (about 15 seconds)
 _ai_build() {
   lotus_ai_helper
-  local bin=$REPLY
-  [[ -x $bin ]] && return 0
+  [[ -x $REPLY ]] && return 0
   if ! _ai_can_build; then
     ui_error "The AI terminal needs Apple's Command Line Tools once" "They contain the compiler Lotus uses to set up the AI." \
       "Install them with: xcode-select --install" "Then run /ai again." >&2
     return 1
   fi
-  zf_mkdir -p ${bin:h}
   ui_step "Setting up the AI terminal (one time, about 15 seconds) …" >&2
-  if ! xcrun swiftc -Onone -parse-as-library -swift-version 5 -o $bin.tmp $LOTUS_ROOT/lib/ai/*.swift >/dev/null 2>$LOTUS_CACHE/ai-build.log; then
-    rm -f $bin.tmp
-    ui_error "Could not set up the AI terminal" "The Swift compiler reported an error." "Details: $LOTUS_CACHE/ai-build.log" >&2
+  if ! lotus_swift_build lotus-ai $LOTUS_ROOT/lib/ai/*.swift; then
+    ui_error "Could not set up the AI terminal" "The Swift compiler reported an error." "Details: $LOTUS_CACHE/lotus-ai-build.log" >&2
     return 1
   fi
-  zf_mv -f $bin.tmp $bin
-  rm -f ${bin:h}/lotus-ai-^${bin:t:s/lotus-ai-/}(N)
 }
 
 # ── Providers ─────────────────────────────────────────────────
@@ -148,6 +145,7 @@ lotus_ai_run() {
     lotus_ai_provider || return 1
   fi
   local provider=$REPLY model=$LOTUS_AI_MODEL
+  lotus_log INFO ai "AI ${mode#--} with $provider (thinking: ${LOTUS_AI_EFFORT:-high})"
   case $provider in
     claude) [[ $model == claude-* ]] || model= ;;
     ollama) _ai_ollama_model; model=$REPLY ;;
@@ -169,8 +167,12 @@ lotus_ai_run() {
     _ai_claude_key && export LOTUS_AI_CLAUDE_KEY=$REPLY
     _ai_openai_key && export LOTUS_AI_OPENAI_KEY=$REPLY
     [[ -n $LOTUS_AI_INSTRUCTIONS ]] && export LOTUS_AI_INSTRUCTIONS
+    export LOTUS_LOG LOTUS_LOG_LEVEL LOTUS_VERBOSE
     exec $bin $mode "$@"
   )
+  local -i rc=$?
+  (( rc && rc != 130 )) && lotus_log WARN ai "The AI program ended with status $rc"
+  return rc
 }
 
 # Without the Command Line Tools: one answer through curl, no memory, no tools
@@ -359,6 +361,7 @@ lotus_ai_login() {
     [[ $LOTUS_AI_MODEL == claude-* ]] || LOTUS_AI_MODEL=
     lotus_save
   fi
+  lotus_log INFO ai "Claude connected (key in the Keychain)"
   ui_success "Claude is connected"
   ui_dim "Type /ai to start. Inside, /model switches between Opus, Sonnet and Haiku."
   ui_blank

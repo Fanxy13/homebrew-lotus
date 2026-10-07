@@ -11,15 +11,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.1.0">
-  <link rel="stylesheet" href="css/home.css?v=2.1.0">
+  <link rel="stylesheet" href="css/lotus.css?v=2.2.0">
+  <link rel="stylesheet" href="css/home.css?v=2.2.0">
   <script type="importmap">
     { "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
         "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
     } }
   </script>
-  <script src="js/lotus.js?v=2.1.0"></script>
+  <script src="js/lotus.js?v=2.2.0"></script>
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
@@ -63,6 +63,9 @@
 
     <section class="new">
       <div class="new-list reveal">
+        <a href="docs.html#bg"><code>/bg remove</code> background removal</a>
+        <a href="docs.html#features"><code>lotus features</code> choose features</a>
+        <a href="docs.html#log"><code>/lotus log</code> diagnostics</a>
         <a href="shortcuts.html#apple"><code>⌃⌥L</code> Apple Shortcut</a>
         <a href="commands.html#apps"><code>/app</code> open any app</a>
         <a href="apps.html"><code>/install</code> app catalog</a>
@@ -132,6 +135,16 @@
           <div class="vbars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
           <h3>Audio visualizer, 8 modes <em>/lotus visual</em></h3>
         </article>
+
+        <article class="tile tile-bg reveal">
+          <div class="mini-term bg-term"></div>
+          <h3>Background removal, on your Mac <em>/bg remove</em></h3>
+        </article>
+
+        <article class="tile tile-log reveal">
+          <div class="mini-term log-term"></div>
+          <h3>Everything Lotus did, in one place <em>/lotus log</em></h3>
+        </article>
       </div>
     </section>
 
@@ -155,8 +168,8 @@
 
   <lotus-footer></lotus-footer>
 
-  <script type="module" src="js/lotus3d.js?v=2.1.0"></script>
-  <script src="js/demo.js?v=2.1.0" defer></script>
-  <script src="js/home.js?v=2.1.0" defer></script>
+  <script type="module" src="js/lotus3d.js?v=2.2.0"></script>
+  <script src="js/demo.js?v=2.2.0" defer></script>
+  <script src="js/home.js?v=2.2.0" defer></script>
 </body>
 </html>

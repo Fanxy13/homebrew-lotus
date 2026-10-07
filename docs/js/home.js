@@ -124,6 +124,18 @@
     ['a', '  Did you mean "Spotify"? [Y/n] yes', 0],
     ['a', '  › Opening Spotify', 0],
   ]);
+  typeScene($('.bg-term'), [
+    ['p', '% /bg remove portrait.jpg', 55],
+    ['a', '  ✓ Finding the subject     1.3s', 0],
+    ['a', '  ✓ Transparent PNG created · MPS', 0],
+    ['a', '  o open   f Finder   r refine by hand', 0],
+  ]);
+  typeScene($('.log-term'), [
+    ['p', '% /lotus log', 70],
+    ['a', '09:31:04  INFO   bg   BiRefNet ready on MPS', 0],
+    ['a', '09:31:06  INFO   bg   Done in 2.16s', 0],
+    ['a', '09:32:10  INFO   ai   Tool write_file index.html', 0],
+  ]);
 
   // ── Tiles tilt, light follows the pointer ───────────────────
   if (!reduce && matchMedia('(hover: hover)').matches) {

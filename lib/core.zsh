@@ -1,14 +1,16 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.1.1
+typeset -g LOTUS_VERSION=2.2.0
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
+typeset -g LOTUS_DATA=${XDG_DATA_HOME:-$HOME/.local/share}/lotus     # downloaded runtimes and models
 typeset -g LOTUS_FF=${commands[fastfetch]:-$LOTUS_ROOT/vendor/fastfetch}
 
 zmodload zsh/datetime
 zmodload -F zsh/stat b:zstat
 zmodload -F zsh/files b:zf_mv b:zf_mkdir
+source $LOTUS_ROOT/lib/log.zsh
 
 # ── Settings ──────────────────────────────────────────────────
 
@@ -19,6 +21,9 @@ typeset -ga LOTUS_KEYS=(
   LOTUS_LIVE LOTUS_INTERVAL
   LOTUS_WEATHER_LOCATION LOTUS_WEATHER_UNITS LOTUS_SEARCH_ENGINE LOTUS_VISUAL_MODE
   LOTUS_AI_PROVIDER LOTUS_AI_MODEL LOTUS_AI_URL LOTUS_AI_EFFORT
+  LOTUS_FEATURES_OFF
+  LOTUS_BG_READY LOTUS_BG_MODEL LOTUS_BG_BACKEND LOTUS_BG_OUTPUT LOTUS_BG_REFINE LOTUS_BG_PREVIEW
+  LOTUS_LOG_LEVEL LOTUS_LOG_RETENTION LOTUS_LOG_STARTUP
   LOTUS_CONFIGURED LOTUS_CONFIG_VERSION
 )
 
@@ -29,6 +34,10 @@ lotus_defaults() {
   typeset -g LOTUS_LIVE=1 LOTUS_INTERVAL=2
   typeset -g LOTUS_WEATHER_LOCATION= LOTUS_WEATHER_UNITS=metric LOTUS_SEARCH_ENGINE=google
   typeset -g LOTUS_VISUAL_MODE=bars LOTUS_AI_PROVIDER=auto LOTUS_AI_MODEL= LOTUS_AI_URL= LOTUS_AI_EFFORT=high
+  typeset -g LOTUS_FEATURES_OFF=
+  typeset -g LOTUS_BG_READY=0 LOTUS_BG_MODEL=auto LOTUS_BG_BACKEND=auto LOTUS_BG_REFINE=ask LOTUS_BG_PREVIEW=0
+  typeset -g LOTUS_BG_OUTPUT='~/Pictures/Lotus/Background Removed'
+  typeset -g LOTUS_LOG_LEVEL=info LOTUS_LOG_RETENTION=7 LOTUS_LOG_STARTUP=0
   typeset -g LOTUS_CONFIGURED=0 LOTUS_CONFIG_VERSION=0
   typeset -gA LOTUS_SHORTCUTS=()
 }
@@ -44,19 +53,32 @@ lotus_load() {
     (( ${#full[1]} > 1 )) && LOTUS_NAME=$full[1] || LOTUS_NAME=${(C)${USER:-${LOGNAME:-$(id -un)}}}
   fi
   [[ $LOTUS_INTERVAL == <1-60> ]] || LOTUS_INTERVAL=2
+  [[ -n ${LOTUS_LOG_RANK[$LOTUS_LOG_LEVEL]} ]] || LOTUS_LOG_LEVEL=info
+  _lotus_log_max=-1
+  # Now playing needs the Music feature as well as its start screen section
+  (( LOTUS_SHOW_MUSIC )) && lotus_feature_on music && LOTUS_NP_ON=1 || LOTUS_NP_ON=0
   lotus_project
   lotus_lang
   lotus_colors
+  lotus_snapshot
 }
 
-# Settings written by Lotus 1.x keep working; 2.0 drops the bottom greeting
+# Settings written by older versions keep working. Every key that is missing gets its default,
+# nothing the user chose is changed.
+#   1.x → 2.0  the bottom greeting is off, the wizard is not shown again
+#   2.x → 2.2  features, Remove BG and logging start with their defaults (all features on)
 lotus_migrate() {
   [[ $LOTUS_LOGO == heart ]] && LOTUS_LOGO=lotus   # older versions called the lotus "heart"
-  (( LOTUS_CONFIG_VERSION >= 2 )) && return
-  LOTUS_SALUTE=off
-  LOTUS_CONFIGURED=1          # an existing user does not need the first-time wizard
-  LOTUS_CONFIG_VERSION=2
-  [[ -w $LOTUS_CONF/settings.zsh ]] && lotus_save
+  (( LOTUS_CONFIG_VERSION >= 3 )) && return
+  local from=$LOTUS_CONFIG_VERSION
+  if (( LOTUS_CONFIG_VERSION < 2 )); then
+    LOTUS_SALUTE=off
+    LOTUS_CONFIGURED=1          # an existing user does not need the first-time wizard
+  fi
+  LOTUS_CONFIG_VERSION=3
+  [[ -w $LOTUS_CONF/settings.zsh ]] || return
+  lotus_save quiet
+  lotus_log INFO settings "Settings migrated from version $from to 3 (Lotus $LOTUS_VERSION)"
 }
 
 # Project constants (website, GitHub, …) from data/project.tsv → LOTUS_P[key]
@@ -73,20 +95,110 @@ lotus_project() {
 # Loads the UI texts: English first, then the chosen language on top
 lotus_lang() {
   typeset -gA LOTUS_L=()
+  typeset -ga _lotus_lang_groups=()
   source $LOTUS_ROOT/lib/lang/en.zsh
   [[ $LOTUS_LANG != en && -r $LOTUS_ROOT/lib/lang/$LOTUS_LANG.zsh ]] && source $LOTUS_ROOT/lib/lang/$LOTUS_LANG.zsh
 }
 
+# Texts of a bigger screen (setup, bg, log), loaded only when it opens: lotus_lang_group bg
+lotus_lang_group() {
+  (( ${_lotus_lang_groups[(Ie)$1]} )) && return
+  _lotus_lang_groups+=($1)
+  source $LOTUS_ROOT/lib/lang/$1.en.zsh
+  [[ $LOTUS_LANG != en && -r $LOTUS_ROOT/lib/lang/$1.$LOTUS_LANG.zsh ]] && source $LOTUS_ROOT/lib/lang/$1.$LOTUS_LANG.zsh
+}
+
+# Writes the settings file. Changed keys are logged (personal values only as "changed").
 lotus_save() {
   zf_mkdir -p $LOTUS_CONF
   local k out="# lotus – settings (easier: lotus settings)"$'\n'
-  for k in $LOTUS_KEYS; do out+="$k=${(qq)${(P)k}}"$'\n'; done
+  local -a changed=()
+  for k in $LOTUS_KEYS; do
+    out+="$k=${(qq)${(P)k}}"$'\n'
+    [[ ${+_lotus_saved} == 1 && ${_lotus_saved[$k]-} != ${(P)k} ]] && changed+=($k)
+  done
   if (( ${#LOTUS_SHORTCUTS} )); then
     out+="typeset -gA LOTUS_SHORTCUTS=(${(@qqkv)LOTUS_SHORTCUTS})"$'\n'
   else
     out+="typeset -gA LOTUS_SHORTCUTS=()"$'\n'
   fi
   print -rn -- $out >| $LOTUS_CONF/settings.zsh
+  if [[ $1 != quiet ]] && (( ${#changed} )); then
+    lotus_log INFO settings "Changed: ${changed#LOTUS_}"
+    for k in $changed; do
+      [[ $k == (LOTUS_NAME|LOTUS_WEATHER_LOCATION|LOTUS_BG_OUTPUT|LOTUS_AI_URL) ]] && continue
+      lotus_log DEBUG settings "${k#LOTUS_} = ${(P)k}"
+    done
+  fi
+  lotus_snapshot
+}
+
+# Remembers the saved values, so the next save can tell what changed
+lotus_snapshot() {
+  typeset -gA _lotus_saved=()
+  local k
+  for k in $LOTUS_KEYS; do _lotus_saved[$k]=${(P)k}; done
+}
+
+# ── Features ──────────────────────────────────────────────────
+
+# Is a feature turned on?  lotus_feature_on bg   (data/features.tsv lists them)
+lotus_feature_on() { [[ " $LOTUS_FEATURES_OFF " != *" $1 "* ]] }
+
+# data/features.tsv → LOTUS_FEATURE_IDS (in order), LOTUS_FEATURE_ROW[id]=line, LOTUS_FEATURE_OF[command]=id
+lotus_features() {
+  (( ${+LOTUS_FEATURE_IDS} )) && return
+  typeset -ga LOTUS_FEATURE_IDS=()
+  typeset -gA LOTUS_FEATURE_ROW=() LOTUS_FEATURE_OF=()
+  local line c
+  local -a f
+  for line in "${(@f)$(<$LOTUS_ROOT/data/features.tsv)}"; do
+    [[ $line == \#* || -z $line ]] && continue
+    f=("${(@ps:\t:)line}")
+    LOTUS_FEATURE_IDS+=($f[1])
+    LOTUS_FEATURE_ROW[$f[1]]=$line
+    for c in ${=f[3]}; do LOTUS_FEATURE_OF[$c]=$f[1]; done
+  done
+}
+
+# Feature name in the interface language → REPLY
+lotus_feature_label() {
+  lotus_features
+  local -a f=("${(@ps:\t:)LOTUS_FEATURE_ROW[$1]}")
+  REPLY=${LOTUS_L[feat_$1]:-$f[2]}
+}
+
+lotus_feature_set() {   # <id> <0|1>
+  local -a off=(${=LOTUS_FEATURES_OFF})
+  off=(${off:#$1})
+  (( $2 )) || off+=($1)
+  LOTUS_FEATURES_OFF=${(j: :)${(ou)off}}
+  lotus_log INFO features "$1 turned ${${(M)2:#1}:+on}${${2:#1}:+off}"
+}
+
+# ── Swift helpers ─────────────────────────────────────────────
+
+lotus_can_swift() { xcode-select -p >/dev/null 2>&1 && xcrun --find swiftc >/dev/null 2>&1 }
+
+# Builds a small Swift program once and keeps it in the cache; the name changes with the source.
+#   lotus_swift_build <name> <source files…>   → REPLY = program path (status 1 when it cannot be built)
+lotus_swift_build() {
+  local name=$1; shift
+  local sum=$(cat "$@" | cksum)
+  REPLY=$LOTUS_CACHE/bin/$name-${sum%% *}
+  [[ -x $REPLY ]] && return 0
+  lotus_can_swift || { lotus_log WARN swift "$name: no Command Line Tools"; return 1 }
+  local bin=$REPLY
+  zf_mkdir -p ${bin:h}
+  lotus_log INFO swift "Building $name"
+  if ! xcrun swiftc -Onone -parse-as-library -swift-version 5 -o $bin.tmp "$@" >/dev/null 2>$LOTUS_CACHE/$name-build.log; then
+    rm -f $bin.tmp
+    lotus_log ERROR swift "$name: the Swift compiler failed, see ${LOTUS_CACHE}/$name-build.log"
+    return 1
+  fi
+  zf_mv -f $bin.tmp $bin
+  rm -f ${bin:h}/$name-^${${bin:t}#$name-}(N)    # older builds of the same program
+  REPLY=$bin
 }
 
 # ── Colors ────────────────────────────────────────────────────
@@ -265,7 +377,7 @@ lotus_build() {
   if [[ $LOTUS_SALUTE != off ]]; then
     m+=('{ "type": "custom", "format": "@@LOTUS_SALUTE@@" }' '"break"'); n+=2
   fi
-  if (( LOTUS_SHOW_MUSIC )); then
+  if (( LOTUS_NP_ON )); then
     m+=('{ "type": "custom", "format": "@@LOTUS_NP1@@" }' '{ "type": "custom", "format": "@@LOTUS_NP2@@" }'); n+=2
   fi
   [[ ${m[-1]} == '"break"' ]] && { m[-1]=(); n=n-1 }
@@ -372,6 +484,17 @@ lotus_np_get() {
 
 # ── Start screen ──────────────────────────────────────────────
 
+# Optional dim line under the start screen (/settings → Diagnostics → Show startup details)
+lotus_startup_details() {
+  (( LOTUS_LOG_STARTUP )) || return 0
+  lotus_features
+  local -i on=0 ms=$(( (EPOCHREALTIME - ${_lotus_t0:-$EPOCHREALTIME}) * 1000 ))
+  local id
+  for id in $LOTUS_FEATURE_IDS; do lotus_feature_on $id && (( on++ )); done
+  print -r -- "  "$'\e['"$LOTUS_C[dim]mlotus $LOTUS_VERSION · ${ms} ms · $on/${#LOTUS_FEATURE_IDS} ${LOTUS_L[features_word]:-features} · log: $LOTUS_LOG_LEVEL · /lotus log"$'\e[0m'
+  lotus_log DEBUG startup "Start screen in ${ms} ms, $on of ${#LOTUS_FEATURE_IDS} features on"
+}
+
 # Current cursor row in REPLY (keys typed ahead are kept)
 lotus_cursor_row() {
   local state resp
@@ -414,7 +537,7 @@ lotus_render() {
 
   # Fetch the song in parallel to the main run
   local -i np_pid=0
-  if (( LOTUS_SHOW_MUSIC )); then
+  if (( LOTUS_NP_ON )); then
     local -a st
     local f=$LOTUS_CACHE/np-$LOTUS_MODE-$LOTUS_LANG
     if ! { [[ -r $f ]] && zstat -A st +mtime $f && (( EPOCHSECONDS - st[1] < LOTUS_INTERVAL )) }; then
@@ -430,7 +553,7 @@ lotus_render() {
 
   lotus_hello;  out=${out//@@LOTUS_HELLO@@/$REPLY}
   lotus_salute; out=${out//@@LOTUS_SALUTE@@/$REPLY}
-  if (( LOTUS_SHOW_MUSIC )); then
+  if (( LOTUS_NP_ON )); then
     lotus_np_get
     LOTUS_NP_LAST=${(F)reply}
     for (( i = 1; i <= ${#lines}; i++ )); do
@@ -449,7 +572,7 @@ lotus_render() {
   print -r -- $out
   print -n $'\e[?7h'
 
-  if [[ $1 == live ]] && (( LOTUS_SHOW_MUSIC && LOTUS_LIVE && LOTUS_NP_IDX )) && lotus_cursor_row; then
+  if [[ $1 == live ]] && (( LOTUS_NP_ON && LOTUS_LIVE && LOTUS_NP_IDX )) && lotus_cursor_row; then
     LOTUS_NP_ROW=$(( REPLY - ${#lines} + LOTUS_NP_IDX - 1 ))
     LOTUS_NP_CURSOR=$REPLY
     (( LOTUS_NP_ROW >= 1 )) || LOTUS_NP_ROW=0

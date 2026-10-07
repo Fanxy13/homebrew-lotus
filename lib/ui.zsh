@@ -18,13 +18,14 @@ ui_dim()   { print -r -- "  "$'\e['"$LOTUS_C[dim]m$*"$_UI_R }
 ui_blank() { print -r -- "" }
 
 ui_success() { print -r -- "  "$'\e[1;'"$LOTUS_C[key]m✓${_UI_R} $*" }
-ui_warn()    { print -r -- "  "$'\e[1;'"$LOTUS_C[key2]m!${_UI_R} $*" }
+ui_warn()    { print -r -- "  "$'\e[1;'"$LOTUS_C[key2]m!${_UI_R} $*"; lotus_log WARN ${LOTUS_LOG_COMP:-ui} "$*" }
 ui_info()    { print -r -- "  "$'\e['"$LOTUS_C[accent]m›${_UI_R} $*" }
 ui_step()    { print -r -- "  "$'\e['"$LOTUS_C[dim]m…${_UI_R} $*" }
 
-# Error screen: title, message, then optional hint lines
+# Error screen: title, message, then optional hint lines (also written to the log)
 ui_error() {
   local title=$1 msg=$2; shift $(( $# < 2 ? $# : 2 ))
+  lotus_log ERROR ${LOTUS_LOG_COMP:-ui} "$title${msg:+ – $msg}"
   print -r -- ""
   print -r -- "  "$'\e[1;38;5;203m'"✗ $title$_UI_R"
   [[ -n $msg ]] && print -r -- "    $msg"
@@ -150,4 +151,216 @@ ui_choose() {
   done
   print -n $'\r\e[K\e[?25h\n'
   REPLY=$sel
+}
+
+# ── Larger screens: setup, features, Remove BG, the log ──────
+
+# A page title:   ◇ lotus / Remove BG     (optional dim line below)
+ui_hero() {
+  local a=$'\e['"$LOTUS_C[accent]m" d=$'\e['"$LOTUS_C[dim]m"
+  print -r -- ""
+  print -r -- "    ${a}◇${_UI_R} ${_UI_B}lotus${_UI_R}${d} / ${_UI_R}${_UI_B}$1${_UI_R}"
+  [[ -n $2 ]] && { print -r -- ""; print -r -- "    ${d}$2${_UI_R}" }
+  print -r -- ""
+}
+
+# Section label inside a page (small caps style, dim)
+ui_section() { print -r -- "    "$'\e['"$LOTUS_C[dim]m${(U)1}"$_UI_R }
+
+# Key/value row:  ui_kv Model BiRefNet
+ui_kv() {
+  local -i w=$(( ${#1} >= 12 ? ${#1} + 2 : 12 ))
+  print -r -- "    "$'\e['"$LOTUS_C[dim]m${(r:w:)1}"$_UI_R"$2"
+}
+
+# Path for display: ~ for the home folder, shortened in the middle when too long → REPLY
+ui_path() {
+  local p=$1
+  local -i cols=${COLUMNS:-80}
+  (( cols > 0 )) || cols=100     # no terminal (pipes): COLUMNS is 0
+  local -i max=${2:-$(( cols - 18 ))}
+  [[ -n $HOME && $p == $HOME(/*|) ]] && p="~${p#$HOME}"
+  (( max < 20 )) && max=20
+  if (( ${#p} > max )); then
+    local -i keep=$(( (max - 1) / 2 ))
+    p="${p[1,keep]}…${p[-(max - keep - 1),-1]}"
+  fi
+  REPLY=$p
+}
+
+# One key, with more names than ui_key → REPLY:
+#   up down left right home end pgup pgdn enter space tab back esc, or the character
+ui_keyx() {
+  local k c rest=
+  read -rsk1 k < /dev/tty || { REPLY=esc; return }
+  if [[ $k == $'\e' ]]; then
+    while read -rsk1 -t 0.02 c < /dev/tty; do rest+=$c; [[ $c == [A-Za-z~] ]] && break; done
+    k+=$rest
+  fi
+  case $k in
+    $'\e[A'|$'\eOA') REPLY=up ;;      $'\e[B'|$'\eOB') REPLY=down ;;
+    $'\e[C'|$'\eOC') REPLY=right ;;   $'\e[D'|$'\eOD') REPLY=left ;;
+    $'\e[H'|$'\e[1~') REPLY=home ;;   $'\e[F'|$'\e[4~') REPLY=end ;;
+    $'\e[5~') REPLY=pgup ;;           $'\e[6~') REPLY=pgdn ;;
+    $'\n'|$'\r') REPLY=enter ;;       ' ') REPLY=space ;;
+    $'\t') REPLY=tab ;;               $'\x7f'|$'\b') REPLY=back ;;
+    $'\e') REPLY=esc ;;
+    $'\e'*) REPLY=ignore ;;
+    *) REPLY=$k ;;
+  esac
+}
+
+# Radio list with a short description per entry. Enter picks, Esc goes back.
+#   ui_select <default index> "Label|Description" …   → REPLY = index; status 1 = back/cancel
+ui_select() {
+  local -i sel=${1:-1} n i; shift
+  local -a opts=("$@")
+  n=${#opts}
+  (( sel < 1 || sel > n )) && sel=1
+  if ! ui_has_tty; then REPLY=$sel; return 0; fi
+  local a=$'\e['"$LOTUS_C[accent]m" k=$'\e[1;'"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" lbl desc
+  local -i rows=0 W=${COLUMNS:-80}
+  print -n $'\e[?25l'
+  while :; do
+    (( rows )) && print -n "\e[${rows}A"
+    rows=0
+    for (( i = 1; i <= n; i++ )); do
+      lbl=${opts[i]%%|*} desc=${opts[i]#*|}
+      [[ $desc == $opts[i] ]] && desc=
+      if (( i == sel )); then
+        print -r -- $'\r\e[K'"    ${k}●${_UI_R} ${_UI_B}$lbl${_UI_R}${desc:+${d}  ${desc[1,W-${#lbl}-12]}${_UI_R}}"
+      else
+        print -r -- $'\r\e[K'"    ${d}○${_UI_R} $lbl${desc:+${d}  ${desc[1,W-${#lbl}-12]}${_UI_R}}"
+      fi
+      (( rows++ ))
+    done
+    print -r -- $'\r\e[K'
+    print -rn -- $'\r\e[K'"    ${d}${LOTUS_L[ui_select_hint]:-↑↓ choose   ⏎ continue   esc back}${_UI_R}"
+    (( rows++ ))
+    ui_keyx
+    case $REPLY in
+      up)    (( sel = sel > 1 ? sel - 1 : n )) ;;
+      down|tab) (( sel = sel < n ? sel + 1 : 1 )) ;;
+      enter|space|right) break ;;
+      esc|left|q) print -n $'\r\e[K\e[?25h\n'; return 1 ;;
+      <1-9>) (( REPLY <= n )) && sel=$REPLY ;;
+    esac
+    print -n $'\r'
+  done
+  print -n $'\r\e[K\e[?25h\n'
+  REPLY=$sel
+}
+
+# Checklist: Space turns entries on and off, Enter continues, Esc goes back.
+#   ui_toggles "Label|Description|locked" …   with the states in the array LOTUS_TOGGLES (1/0, changed in place)
+ui_toggles() {
+  local -a opts=("$@")
+  local -i n=${#opts} sel=1 i rows=0 top=1 h W=${COLUMNS:-80}
+  (( h = ${LINES:-24} - 12, h = h < 4 ? 4 : h, h = h > n ? n : h ))
+  if ! ui_has_tty; then return 0; fi
+  local k=$'\e[1;'"$LOTUS_C[key]m" a=$'\e['"$LOTUS_C[accent]m" d=$'\e['"$LOTUS_C[dim]m" lbl desc mark lock
+  local -a f
+  print -n $'\e[?25l'
+  while :; do
+    (( sel < top )) && top=sel
+    (( sel > top + h - 1 )) && (( top = sel - h + 1 ))
+    (( rows )) && print -n "\e[${rows}A"
+    rows=0
+    for (( i = top; i < top + h; i++ )); do
+      f=("${(@s:|:)opts[i]}")
+      lbl=$f[1] desc=$f[2] lock=$f[3]
+      if [[ -n $lock ]]; then mark="${d}◉${_UI_R}"
+      elif (( LOTUS_TOGGLES[i] )); then mark="${k}◉${_UI_R}"
+      else mark="${d}○${_UI_R}"; fi
+      if (( i == sel )); then
+        print -r -- $'\r\e[K'"  ${a}›${_UI_R} $mark ${_UI_B}${(r:20:)lbl}${_UI_R} ${d}${desc[1,W-30]}${_UI_R}"
+      else
+        print -r -- $'\r\e[K'"    $mark ${(r:20:)lbl} ${d}${desc[1,W-30]}${_UI_R}"
+      fi
+      (( rows++ ))
+    done
+    print -r -- $'\r\e[K'
+    print -rn -- $'\r\e[K'"    ${d}${LOTUS_L[ui_toggle_hint]:-↑↓ move   space on/off   ⏎ continue   esc back}${${(M)n:#<$((h+1))->}:+   $sel/$n}${_UI_R}"
+    (( rows++ ))
+    ui_keyx
+    case $REPLY in
+      up)    (( sel = sel > 1 ? sel - 1 : n )) ;;
+      down|tab) (( sel = sel < n ? sel + 1 : 1 )) ;;
+      space|right|left|x)
+        f=("${(@s:|:)opts[sel]}")
+        [[ -z $f[3] ]] && (( LOTUS_TOGGLES[sel] = ! LOTUS_TOGGLES[sel] )) ;;
+      a) for (( i = 1; i <= n; i++ )); do LOTUS_TOGGLES[i]=1; done ;;
+      enter) break ;;
+      esc|q) print -n $'\r\e[K\e[?25h\n'; return 1 ;;
+    esac
+    print -n $'\r'
+  done
+  print -n $'\r\e[K\e[?25h\n'
+  return 0
+}
+
+# A row of buttons:  [ Back ]   [ Finish ]   ← → choose, Enter presses → REPLY = index
+ui_buttons() {
+  local -i sel=${1:-1} n i; shift
+  local -a b=("$@")
+  n=${#b}
+  if ! ui_has_tty; then REPLY=$sel; return 0; fi
+  local k=$'\e[1;'"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" out
+  print -n $'\e[?25l'
+  while :; do
+    out=$'\r\e[K    '
+    for (( i = 1; i <= n; i++ )); do
+      if (( i == sel )); then out+="${k}[ ${b[i]} ]${_UI_R}     "; else out+="${d}[ ${b[i]} ]${_UI_R}     "; fi
+    done
+    print -rn -- $out
+    ui_keyx
+    case $REPLY in
+      left|up)  (( sel = sel > 1 ? sel - 1 : n )) ;;
+      right|down|tab) (( sel = sel < n ? sel + 1 : 1 )) ;;
+      enter|space) break ;;
+      esc|q) print -n $'\e[?25h\n'; return 1 ;;
+    esac
+  done
+  print -n $'\e[?25h\n'
+  REPLY=$sel
+}
+
+# Shown when a command belongs to a feature that is turned off. Status 0 = turned on just now.
+lotus_feature_off_screen() {
+  local id=$1
+  lotus_feature_label $id
+  local name=$REPLY
+  ui_hero $name
+  ui_text "${LOTUS_L[feat_is_off]//\%s/$name}"
+  ui_blank
+  ui_dim "${LOTUS_L[feat_turn_on]:-Turn it on in /settings → Features, or with: lotus features}"
+  ui_blank
+  [[ -t 1 ]] && ui_has_tty || return 1
+  ui_confirm "${LOTUS_L[feat_on_now]:-Turn it on now?}" n || { ui_blank; return 1 }
+  lotus_feature_set $id 1
+  lotus_save
+  ui_success "${LOTUS_L[feat_now_on]//\%s/$name}"
+  ui_blank
+  return 0
+}
+
+# One line of text with a default; Enter accepts, Esc goes back (status 1).  ui_line "Name" "Gabriel" → REPLY
+ui_line() {
+  local label=$1 text=$2 d=$'\e['"$LOTUS_C[dim]m" a=$'\e['"$LOTUS_C[accent]m"
+  if ! ui_has_tty; then REPLY=$text; return 0; fi
+  print -n $'\e[?25h'
+  while :; do
+    print -rn -- $'\r\e[K'"    ${d}${label}${_UI_R}  ${a}›${_UI_R} $text"
+    ui_keyx
+    case $REPLY in
+      enter) break ;;
+      esc)   print; return 1 ;;
+      back)  text=${text[1,-2]} ;;
+      up|down|left|right|home|end|pgup|pgdn|tab|ignore|space)
+             [[ $REPLY == space ]] && text+=' ' ;;
+      *)     [[ $REPLY == [[:print:]] ]] && (( ${#text} < 60 )) && text+=$REPLY ;;
+    esac
+  done
+  print
+  REPLY=$text
 }

@@ -11,11 +11,16 @@ lotus_settings_ui() {
   local msg= key rest
   local -a items
 
-  # type|variable|label|values (value=label;…) – rebuilt when the language changes
+  # type|variable|label|values (value=label;…) – rebuilt when the language or a feature changes.
+  # Sections of features that are turned off are left out.
   _ls_items() {
     local n themes= logos=
+    local -a feats=()
+    lotus_features
     for n in $LOTUS_THEME_NAMES; do themes+="$n=$LOTUS_THEME_LABELS[$n];"; done
     for n in lotus minimal large terminal custom none; do logos+="$n=$LOTUS_LOGO_LABELS[$n];"; done
+    for n in ${LOTUS_FEATURE_IDS:#core}; do lotus_feature_label $n; feats+=("feature|$n|$REPLY|"); done
+    _on() { lotus_feature_on $1 }
     items=(
       "head||$LOTUS_L[head_general]|"
       "text|LOTUS_NAME|$LOTUS_L[name]|"
@@ -26,6 +31,8 @@ lotus_settings_ui() {
       "choice|LOTUS_THEME|$LOTUS_L[theme]|${themes%;}"
       "bool|LOTUS_PROMPT|$LOTUS_L[prompt]|"
       "bool|LOTUS_HUSH|$LOTUS_L[hush]|"
+      "head||$LOTUS_L[head_features]|"
+      $feats
       "head||$LOTUS_L[head_greeting]|"
       "choice|LOTUS_GREETING|$LOTUS_L[greet_top]|rotate=$LOTUS_L[rotate];random=$LOTUS_L[random];off=$LOTUS_L[off]"
       "choice|LOTUS_SALUTE|$LOTUS_L[greet_bottom]|off=$LOTUS_L[off];fr=$LOTUS_L[sal_fr];de=$LOTUS_L[sal_de];en=$LOTUS_L[sal_en];es=$LOTUS_L[sal_es]"
@@ -33,22 +40,42 @@ lotus_settings_ui() {
       "bool|LOTUS_SHOW_HARDWARE|$LOTUS_L[sec_hw]|"
       "bool|LOTUS_SHOW_SESSION|$LOTUS_L[sec_session]|"
       "bool|LOTUS_SHOW_TIME|$LOTUS_L[sec_time]|"
+    )
+    _on music && items+=(
       "bool|LOTUS_SHOW_MUSIC|$LOTUS_L[sec_music]|"
       "head||$LOTUS_L[head_np]|"
       "bool|LOTUS_LIVE|$LOTUS_L[live]|"
-      "choice|LOTUS_INTERVAL|$LOTUS_L[interval]|1=$LOTUS_L[sec1];2=2 $LOTUS_L[secs];3=3 $LOTUS_L[secs];5=5 $LOTUS_L[secs]"
-      "choice|LOTUS_COLORS|$LOTUS_L[colors]|auto=$LOTUS_L[col_auto];truecolor=$LOTUS_L[col_tc];256=$LOTUS_L[col_256]"
-      "choice|LOTUS_VISUAL_MODE|$LOTUS_L[visual_mode]|bars=Bars;wave=Wave;spectrum=Spectrum;particles=Particles;minimal=Minimal;circular=Circular;retro=Retro terminal;matrix=Matrix"
-      "head||$LOTUS_L[head_weather]|"
-      "text|LOTUS_WEATHER_LOCATION|$LOTUS_L[weather_city]|"
-      "choice|LOTUS_WEATHER_UNITS|$LOTUS_L[units]|metric=°C, km/h;imperial=°F, mph"
-      "choice|LOTUS_SEARCH_ENGINE|$LOTUS_L[search_engine]|google=Google;duckduckgo=DuckDuckGo;bing=Bing;ecosia=Ecosia;brave=Brave Search"
+      "choice|LOTUS_INTERVAL|$LOTUS_L[interval]|1=$LOTUS_L[sec1];2=2 $LOTUS_L[secs];3=3 $LOTUS_L[secs];5=5 $LOTUS_L[secs]")
+    items+=("choice|LOTUS_COLORS|$LOTUS_L[colors]|auto=$LOTUS_L[col_auto];truecolor=$LOTUS_L[col_tc];256=$LOTUS_L[col_256]")
+    _on visualizer && items+=("choice|LOTUS_VISUAL_MODE|$LOTUS_L[visual_mode]|bars=Bars;wave=Wave;spectrum=Spectrum;particles=Particles;minimal=Minimal;circular=Circular;retro=Retro terminal;matrix=Matrix")
+    if _on weather || _on web; then
+      items+=("head||$LOTUS_L[head_weather]|")
+      _on weather && items+=(
+        "text|LOTUS_WEATHER_LOCATION|$LOTUS_L[weather_city]|"
+        "choice|LOTUS_WEATHER_UNITS|$LOTUS_L[units]|metric=°C, km/h;imperial=°F, mph")
+      _on web && items+=("choice|LOTUS_SEARCH_ENGINE|$LOTUS_L[search_engine]|google=Google;duckduckgo=DuckDuckGo;bing=Bing;ecosia=Ecosia;brave=Brave Search")
+    fi
+    _on ai && items+=(
       "head||$LOTUS_L[head_ai]|"
       "choice|LOTUS_AI_PROVIDER|$LOTUS_L[ai_provider]|auto=$LOTUS_L[col_auto];claude=Claude;apple=Apple Intelligence;ollama=Ollama;openai=OpenAI-compatible"
       "choice|LOTUS_AI_EFFORT|$LOTUS_L[ai_effort]|low=$LOTUS_L[effort_low];medium=$LOTUS_L[effort_medium];high=$LOTUS_L[effort_high];max=$LOTUS_L[effort_max]"
       "text|LOTUS_AI_MODEL|$LOTUS_L[ai_model]|"
       "text|LOTUS_AI_URL|$LOTUS_L[ai_url]|"
-      "action|aikey|$LOTUS_L[ai_key]|"
+      "action|aikey|$LOTUS_L[ai_key]|")
+    _on bg && items+=(
+      "head||$LOTUS_L[head_bg]|"
+      "choice|LOTUS_BG_MODEL|$LOTUS_L[bg_model]|auto=$LOTUS_L[col_auto];birefnet=BiRefNet;birefnet-lite=BiRefNet Lite;inspyrenet=InSPyReNet"
+      "choice|LOTUS_BG_BACKEND|$LOTUS_L[bg_backend]|auto=$LOTUS_L[col_auto];mps=$LOTUS_L[bg_mps];cpu=CPU"
+      "path|LOTUS_BG_OUTPUT|$LOTUS_L[bg_output]|bgout"
+      "choice|LOTUS_BG_REFINE|$LOTUS_L[bg_refine]|ask=$LOTUS_L[bg_refine_ask];always=$LOTUS_L[bg_refine_always];never=$LOTUS_L[bg_refine_never]"
+      "bool|LOTUS_BG_PREVIEW|$LOTUS_L[bg_preview]|"
+      "action|bgmodels|$LOTUS_L[bg_cache]|")
+    items+=(
+      "head||$LOTUS_L[head_diag]|"
+      "choice|LOTUS_LOG_LEVEL|$LOTUS_L[log_level]|off=$LOTUS_L[log_off];warn=$LOTUS_L[log_warn];info=$LOTUS_L[log_info];debug=$LOTUS_L[log_debug];trace=$LOTUS_L[log_trace]"
+      "choice|LOTUS_LOG_RETENTION|$LOTUS_L[log_keep]|1=1 $LOTUS_L[day];7=7 $LOTUS_L[days];30=30 $LOTUS_L[days];90=90 $LOTUS_L[days]"
+      "bool|LOTUS_LOG_STARTUP|$LOTUS_L[log_startup]|"
+      "action|log|$LOTUS_L[log_open]|"
       "head||$LOTUS_L[head_lotus]|"
       "action|shortcuts|$LOTUS_L[shortcuts_action]|"
       "action|setup|$LOTUS_L[setup_again]|"
@@ -80,8 +107,12 @@ lotus_settings_ui() {
         rows+=("  "$'\e['"${dim}m${label:u}"$'\e[0m')
         continue
       fi
-      v=${(P)k}
+      [[ -n $k && $t != (feature|action) ]] && v=${(P)k} || v=
       case $t in
+        feature) lotus_feature_on $k && shown=$'\e['"${LOTUS_C[key]}m● $LOTUS_L[on]"$'\e[0m' \
+                        || shown=$'\e['"${dim}m○ ${(L)LOTUS_L[off]}"$'\e[0m' ;;
+        path)   ui_path "${v/#\~/$HOME}" $(( ${COLUMNS:-80} - 42 )); shown=$REPLY
+                (( i == sel )) && shown+=$'\e['"${dim}m  $LOTUS_L[edit]"$'\e[0m' ;;
         bool)   (( v )) && shown=$'\e['"${LOTUS_C[key]}m● $LOTUS_L[on]"$'\e[0m' \
                         || shown=$'\e['"${dim}m○ ${(L)LOTUS_L[off]}"$'\e[0m' ;;
         choice) vals=(${(s:;:)reply[4]}); keys=(${vals%%=*})
@@ -122,15 +153,22 @@ lotus_settings_ui() {
     return yes
   }
 
-  # Runs a bigger screen (logos, shortcuts, …), then comes back to the menu
+  # Runs a bigger screen (logos, shortcuts, …), then comes back to the menu.
+  # Full-screen tools (the log) return on their own, the others wait for a key.
   _ls_run() {
     print -n $'\e[H\e[2J\e[?25h'
     source $LOTUS_ROOT/lib/cmd/$1.zsh
     lotus_cmd_$1 "${@[2,-1]}"
     lotus_load; _ls_items
     print -n $'\e[?25l'
-    ui_dim "$LOTUS_L[back]"; ui_key
+    if [[ $1 != log ]]; then ui_dim "$LOTUS_L[back]"; ui_key; fi
     print -n $'\e[2J'
+  }
+
+  # After the list changed (a feature was turned on or off): select the same row again
+  _ls_reselect() {
+    local -i j
+    for (( j = 1; j <= ${#items}; j++ )); do [[ ${items[j]} == "$1|"* ]] && { sel=j; return } done
   }
 
   _ls_change() {
@@ -141,6 +179,14 @@ lotus_settings_ui() {
     case $t in
       bool)
         (( ${(P)k} )) && typeset -g $k=0 || typeset -g $k=1 ;;
+      feature)
+        lotus_feature_on $k && lotus_feature_set $k 0 || lotus_feature_set $k 1
+        lotus_save; lotus_load; _ls_items; _ls_reselect "feature|$k"
+        msg=$'\e['"${LOTUS_C[key]}m$LOTUS_L[saved]"$'\e[0m'
+        return ;;
+      path)
+        _ls_run bg bg output
+        return ;;
       choice)
         vals=(${(s:;:)reply[4]}); keys=(${vals%%=*})
         j=${keys[(i)${(P)k}]}
@@ -160,6 +206,8 @@ lotus_settings_ui() {
           shortcuts) _ls_run shortcuts shortcuts ;;
           setup)     _ls_run setup setup ;;
           aikey)     _ls_run ai ai key ;;
+          bgmodels)  _ls_run bg bg models ;;
+          log)       _ls_run log log ;;
         esac
         return ;;
     esac
@@ -171,6 +219,7 @@ lotus_settings_ui() {
       fi
     else
       lotus_save
+      _lotus_log_max=-1
       lotus_lang
       lotus_colors
       [[ $k == LOTUS_LANG ]] && _ls_items
@@ -201,12 +250,13 @@ lotus_settings_ui() {
       $'\e[A'|k)                  _ls_move -1 ;;
       $'\e[B'|j)                  _ls_move 1 ;;
       $'\e[C'|l|' '|$'\n'|$'\r')  _ls_change 1 ;;
-      $'\e[D'|h)                  _ls_field $sel; [[ $reply[1] == (text|action) ]] || _ls_change -1 ;;
+      $'\e[D'|h)                  _ls_field $sel; [[ $reply[1] == (text|action|path) ]] || _ls_change -1 ;;
       v|p)                        _ls_preview ;;
-      r)  if _ls_ask "Reset all settings (name, language and shortcuts stay)? [y/N] "; then
-            local name=$LOTUS_NAME lang=$LOTUS_LANG
+      r)  if _ls_ask "$LOTUS_L[confirm_reset] "; then
+            local name=$LOTUS_NAME lang=$LOTUS_LANG off=$LOTUS_FEATURES_OFF bg=$LOTUS_BG_READY
             local -A shortcuts=("${(@kv)LOTUS_SHORTCUTS}")
-            lotus_defaults; LOTUS_NAME=$name LOTUS_LANG=$lang LOTUS_CONFIGURED=1 LOTUS_CONFIG_VERSION=2
+            lotus_defaults; LOTUS_NAME=$name LOTUS_LANG=$lang LOTUS_CONFIGURED=1 LOTUS_CONFIG_VERSION=3
+            LOTUS_FEATURES_OFF=$off LOTUS_BG_READY=$bg
             LOTUS_SHORTCUTS=("${(@kv)shortcuts}")
             lotus_save; lotus_lang; lotus_colors; _ls_items
             msg=$'\e['"${LOTUS_C[key]}m$LOTUS_L[reset_done]"$'\e[0m'
@@ -215,7 +265,7 @@ lotus_settings_ui() {
     esac
   done
 
-  unfunction _ls_items _ls_field _ls_move _ls_draw _ls_ask _ls_run _ls_change _ls_preview
+  unfunction _ls_items _ls_field _ls_move _ls_draw _ls_ask _ls_run _ls_change _ls_preview _ls_reselect _on
   if (( rc == 10 )); then
     print -n $'\e[?1049l\e[?25h'
     source $LOTUS_ROOT/lib/cmd/system.zsh

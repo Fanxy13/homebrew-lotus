@@ -7,3 +7,6 @@ docs/CHANGELOG.md
 
 # Local promo video workspace (Remotion project, renders, voice files)
 promo/
+
+# Python bytecode (Remove BG worker)
+__pycache__/

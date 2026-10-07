@@ -6,6 +6,8 @@ Core	-	cheatsheet	/lotus cheatsheet	Show every Lotus command	/lotus cheatsheet	0
 Core	-	update	lotus update	Update Lotus, settings stay as they are	lotus update	0
 Core	-	uninstall	lotus uninstall	Remove Lotus completely	lotus uninstall	0
 Core	-	version	lotus version	Print the installed version	lotus version	0
+Core	-	features	lotus features	Turn Lotus features on or off	lotus features	0
+Core	-	features	lotus features <name> on|off	Switch one feature, e.g. for scripts	lotus features minecraft off	0
 Core	-	goat	who is the goat?	-	who is the goat?	1
 Apps	/app	app	/app <name>	Open an installed app, typos are fine	/app Spotfy	0
 Apps	-	app	open <name>	Same as /app	open Discord	0
@@ -44,6 +46,14 @@ Device tools	/ios	ios	/ios	iOS tools: AirCard, Nugget, Sideloadly, Dopamine	/ios
 Device tools	-	ios devices	/ios devices	Show connected iPhones and iPads	/ios devices	0
 Media	/convert	convert	/convert <link>	Save a video as MP3 or MP4 with yt-dlp	/convert https://youtube.com/watch?v=…	0
 Media	-	visual	/lotus visual	Animated audio visualizer, 8 modes	/lotus visual	0
+Images	/bg	bg	/bg remove <image>	Remove the background on this Mac, save a transparent PNG	/bg remove ~/Pictures/photo.jpg	0
+Images	-	bg remove	/bg remove	Drag an image from the Finder into the window	/bg remove	0
+Images	-	bg remove	/bg remove <folder>	Every image in a folder, one model load for all	/bg remove ~/Desktop/shoot	0
+Images	-	bg remove	/bg remove --edit <image>	Paint what to keep right after the AI (Draw what you want to keep)	/bg remove --edit portrait.jpg	0
+Images	-	bg remove	/bg remove --cpu <image>	Run on the CPU instead of the Apple GPU	/bg remove --cpu photo.png	0
+Images	-	bg models	/bg models	Models on this Mac: download, check, remove	/bg models	0
+Images	-	bg output	/bg output	Change where the PNGs go	/bg output	0
+Images	-	bg	/bg help	Help for Remove BG	/bg help	0
 Shortcuts	-	shortcuts	/lotus shortcuts	View and manage your own commands	/lotus shortcuts	0
 Shortcuts	-	shortcut add	lotus shortcut add <name> <target>	Add a shortcut to a link, app or folder	lotus shortcut add yt https://youtube.com	0
 Shortcuts	-	shortcut rm	lotus shortcut rm <name>	Delete a shortcut	lotus shortcut rm yt	0
@@ -51,5 +61,10 @@ Settings	/settings	settings	/settings	Open the settings menu	/settings	0
 Settings	-	logo	lotus logo import	Paste your own ASCII logo	lotus logo import	0
 Settings	-	themes	/lotus themes	Preview every theme	/lotus themes	0
 Developer tools	-	doctor	lotus doctor	Check the installation	lotus doctor	0
+Developer tools	-	log	/lotus log	What Lotus did: filter, search, details	/lotus log	0
+Developer tools	-	log live	/lotus log live	Follow new log entries as they happen	/lotus log live	0
+Developer tools	-	log level	/lotus log level <level>	How much is logged: off, warn, info, debug, trace	/lotus log level debug	0
+Developer tools	-	log clear	/lotus log clear	Delete the log	/lotus log clear	0
+Developer tools	-	-V	lotus -V <command>	Run a command and print every log line while it runs	lotus -V bg remove photo.jpg	0
 Developer tools	/minecraft	minecraft	/minecraft	Minecraft server setup assistant	/minecraft	0
 Developer tools	/mc	minecraft	/mc	Short for /minecraft	/mc	0

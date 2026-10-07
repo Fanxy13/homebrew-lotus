@@ -334,6 +334,7 @@ final class Renderer: @unchecked Sendable {
     }
 
     func error(_ title: String, _ detail: String = "") {
+        Log.write("ERROR", detail.isEmpty ? title : "\(title) – \(detail)")
         endBlock()
         emit("\(Style.red)●\(Style.reset) \(Style.bold)\(title)\(Style.reset)\n")
         if !detail.isEmpty {

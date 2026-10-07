@@ -1,0 +1,13 @@
+# Remove BG runtime for Apple silicon (Python 3.10 – 3.14). Installed into Lotus' own environment,
+# never into the system Python. transparent-background (InSPyReNet's official package) is added
+# separately without its extras – Lotus only uses its model code.
+torch==2.14.1
+torchvision==0.29.1
+numpy>=1.26,<3
+pillow>=10,<13
+opencv-python-headless==5.0.0.93
+timm==1.0.30
+kornia==0.8.3; python_version >= "3.11"
+kornia==0.7.4; python_version < "3.11"
+einops==0.8.2
+safetensors==0.8.0

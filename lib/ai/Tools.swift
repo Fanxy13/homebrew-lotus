@@ -241,6 +241,10 @@ final class ToolRunner: @unchecked Sendable {
 
     private func execute(_ name: String, _ args: [String: Any]) async -> ToolOutcome {
         Spinner.shared.stop()
+        let target = str(args, "path") ?? str(args, "pattern") ?? ""
+        Log.write(name == "run_command" || name == "write_file" || name == "edit_file" ? "INFO" : "DEBUG",
+                  "Tool \(name)\(target.isEmpty ? "" : " " + target)")
+        if name == "run_command" { Log.write("DEBUG", "Command: \(str(args, "command") ?? "")") }
         switch name {
         case "list_directory": return listDirectory(str(args, "path") ?? ".")
         case "read_file":

@@ -1,0 +1,11 @@
+# Remove BG runtime for Intel Macs (Python 3.10 – 3.12). PyTorch 2.2 is the last release with
+# Intel Mac builds, so the rest is pinned to versions that work with it. Processing runs on the CPU.
+torch==2.2.2
+torchvision==0.17.2
+numpy>=1.26,<2
+pillow>=10,<11
+opencv-python-headless==4.10.0.84
+timm==1.0.9
+kornia==0.7.3
+einops==0.8.0
+safetensors==0.4.5

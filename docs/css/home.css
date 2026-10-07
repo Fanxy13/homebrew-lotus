@@ -336,7 +336,7 @@ header, section { position: relative; z-index: 2; }
 .new-list code { background: none; padding: 0; color: var(--ink-key); font-weight: 600; }
 
 /* ── 2.0 tiles ─────────────────────────────────────────────────── */
-.tile-ai, .tile-weather, .tile-apps, .tile-visual { grid-column: span 3; }
+.tile-ai, .tile-weather, .tile-apps, .tile-visual, .tile-bg, .tile-log { grid-column: span 3; }
 .mini-term { position: absolute; left: 22px; right: 22px; top: 24px; font: 13px/1.6 var(--mono); color: var(--text); white-space: pre-wrap; }
 .mini-term .p { color: var(--ink-accent); }
 .mini-term .a { color: var(--muted); }
@@ -351,7 +351,7 @@ header, section { position: relative; z-index: 2; }
 .theme-grid { position: absolute; inset: 22px 22px 64px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-content: center; justify-items: center; }
 .theme-grid .orb { width: 30px; }
 .theme-grid .orb span { display: none; }
-@media (max-width: 900px) { .tile-ai, .tile-weather, .tile-apps, .tile-visual { grid-column: span 2; } }
+@media (max-width: 900px) { .tile-ai, .tile-weather, .tile-apps, .tile-visual, .tile-bg, .tile-log { grid-column: span 2; } }
 
 /* demo: output of /weather and /app */
 .output { display: none; margin: 0; }

@@ -22,3 +22,23 @@ LOTUS_L+=(
   up_to_date 'lotus está al día'
   playing '▶ sonando'  paused '‖ en pausa'  stopped '■ detenido'  nothing 'No suena nada'
 )
+
+# Lotus 2.2
+LOTUS_L+=(
+  head_features 'Funciones'  head_bg 'Quitar fondo'  head_diag 'Diagnóstico'
+  bg_model 'Modelo'  bg_backend 'Cálculo'  bg_mps 'MPS (GPU de Apple)'  bg_output 'Carpeta de salida'
+  bg_refine 'Retoque a mano'  bg_refine_ask 'ofrecer tras cada imagen'  bg_refine_always 'abrir siempre el editor'  bg_refine_never 'nunca'
+  bg_preview 'Vista previa al terminar'  bg_cache 'Modelos en este Mac'
+  log_level 'Registro'  log_off 'No'  log_warn 'Errores y avisos'  log_info 'Normal'  log_debug 'Detallado'  log_trace 'Todo'
+  log_keep 'Guardar el registro'  day 'día'  days 'días'  log_startup 'Detalles al iniciar'  log_open 'Abrir el registro'
+  confirm_reset '¿Restablecer todos los ajustes (nombre, idioma, funciones y atajos se quedan)? [y/N]'
+  ui_select_hint '↑↓ elegir   ⏎ seguir   esc atrás'
+  ui_toggle_hint '↑↓ mover   espacio sí/no   ⏎ seguir   esc atrás'
+  features_word 'funciones'
+  feat_is_off '%s está desactivado.'
+  feat_turn_on 'Actívalo en /settings → Funciones, o con: lotus features'
+  feat_on_now '¿Activarlo ahora?'  feat_now_on '%s está activado.'
+  feat_core 'Base'  feat_apps 'Abrir apps'  feat_homebrew 'Homebrew'  feat_web 'Búsqueda web'  feat_weather 'Tiempo'
+  feat_ai 'Terminal IA'  feat_music 'Música'  feat_visualizer 'Visualizador'  feat_media 'Descargas de vídeo'
+  feat_ios 'Herramientas iOS'  feat_minecraft 'Minecraft'  feat_bg 'Quitar fondo'
+)

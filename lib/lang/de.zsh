@@ -24,3 +24,23 @@ LOTUS_L+=(
   up_to_date 'lotus ist aktuell'
   playing '▶ läuft'  paused '‖ pausiert'  stopped '■ gestoppt'  nothing 'Gerade läuft nichts'
 )
+
+# Lotus 2.2
+LOTUS_L+=(
+  head_features 'Funktionen'  head_bg 'Hintergrund entfernen'  head_diag 'Diagnose'
+  bg_model 'Modell'  bg_backend 'Backend'  bg_mps 'MPS (Apple-GPU)'  bg_output 'Zielordner'
+  bg_refine 'Von Hand verfeinern'  bg_refine_ask 'nach jedem Bild anbieten'  bg_refine_always 'immer den Editor öffnen'  bg_refine_never 'nie'
+  bg_preview 'Vorschau nach dem Freistellen'  bg_cache 'Modelle auf diesem Mac'
+  log_level 'Protokoll'  log_off 'Aus'  log_warn 'Fehler und Warnungen'  log_info 'Normal'  log_debug 'Ausführlich'  log_trace 'Alles'
+  log_keep 'Protokoll behalten'  day 'Tag'  days 'Tage'  log_startup 'Startdetails anzeigen'  log_open 'Protokoll öffnen'
+  confirm_reset 'Alle Einstellungen zurücksetzen (Name, Sprache, Funktionen und Shortcuts bleiben)? [y/N]'
+  ui_select_hint '↑↓ wählen   ⏎ weiter   esc zurück'
+  ui_toggle_hint '↑↓ bewegen   Leertaste an/aus   ⏎ weiter   esc zurück'
+  features_word 'Funktionen'
+  feat_is_off '%s ist ausgeschaltet.'
+  feat_turn_on 'Einschalten unter /settings → Funktionen oder mit: lotus features'
+  feat_on_now 'Jetzt einschalten?'  feat_now_on '%s ist eingeschaltet.'
+  feat_core 'Basis'  feat_apps 'Apps öffnen'  feat_homebrew 'Homebrew'  feat_web 'Websuche'  feat_weather 'Wetter'
+  feat_ai 'KI-Terminal'  feat_music 'Musik'  feat_visualizer 'Visualizer'  feat_media 'Video-Downloads'
+  feat_ios 'iOS-Tools'  feat_minecraft 'Minecraft'  feat_bg 'Hintergrund entfernen'
+)

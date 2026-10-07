@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Documentation — Lotus</title>
-  <meta name="description" content="Install, set up and configure Lotus. Settings, AI providers, updates, privacy and the changelog.">
+  <meta name="description" content="Install, set up and configure Lotus. Settings, features, Remove BG, the log, AI providers, updates, privacy and the changelog.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.1.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.1.0">
-  <script src="js/lotus.js?v=2.1.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.2.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.2.0">
+  <script src="js/lotus.js?v=2.2.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -18,12 +18,12 @@
     <header class="page-head">
       <p class="eyebrow">Documentation</p>
       <h1>How Lotus <span>works</span></h1>
-      <p class="lead">Lotus 2.0 is a start screen and command center for the macOS terminal. Everything below in one place.</p>
+      <p class="lead">Lotus 2.2 is a start screen and command center for the macOS terminal. Everything below in one place.</p>
     </header>
 
     <nav class="toc card">
       <a href="#install">Install</a><a href="#setup">First start</a><a href="#use">Using Lotus</a><a href="#settings">Settings</a>
-      <a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#update">Update and uninstall</a>
+      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
       <a href="#privacy">Privacy and security</a><a href="#trouble">Troubleshooting</a><a href="#changelog">Changelog</a>
     </nav>
 
@@ -42,19 +42,20 @@
         <tr><td>macOS 11 or newer</td><td>Apple silicon and Intel. Terminal.app shows all colors from macOS 26 on, older versions use 256 colors automatically.</td></tr>
         <tr><td>zsh</td><td>The default shell since macOS 10.15.</td></tr>
         <tr><td>fastfetch</td><td>Installed automatically – it reads the system information.</td></tr>
-        <tr><td>Optional</td><td>Homebrew for <code>/brew</code> and <code>/install</code>, yt-dlp and ffmpeg for <code>/convert</code>, Java for <code>/minecraft</code>. Lotus offers to set them up when you need them. <code>lotus doctor</code> shows what is there.</td></tr>
+        <tr><td>Optional</td><td>Homebrew for <code>/brew</code> and <code>/install</code>, yt-dlp and ffmpeg for <code>/convert</code>, Java for <code>/minecraft</code>, Python 3.10–3.14 for <code>/bg remove</code>. Lotus offers to set them up when you need them. <code>lotus doctor</code> shows what is there.</td></tr>
       </table>
     </div>
 
     <h2 class="section" id="setup">First start</h2>
-    <p>The first time Lotus runs, a short setup asks four things – you can change all of them later:</p>
+    <p>The first time Lotus runs, a short setup walks through five pages – <kbd>esc</kbd> goes back, nothing is saved before Finish, and everything can be changed later:</p>
     <ol class="steps">
-      <li><h3>Your name</h3><p>Used in the greeting.</p></li>
-      <li><h3>A theme</h3><p>13 color themes with a preview.</p></li>
-      <li><h3>Auto-start</h3><p>Show Lotus every time Terminal opens, or only when you type <code>lotus</code>.</p></li>
-      <li><h3>Interface language</h3><p>English, Deutsch, Français or Español.</p></li>
+      <li><h3>Welcome</h3><p>The interface language: English, Deutsch, Français or Español.</p></li>
+      <li><h3>You</h3><p>Your name, one of 13 themes, and whether Lotus shows up in every new Terminal window.</p></li>
+      <li><h3>Features</h3><p>Which parts of Lotus to turn on – app launcher, Homebrew, web search, weather, AI terminal, music, visualizer, video downloads, iOS tools, Minecraft, Remove BG.</p></li>
+      <li><h3>Setup</h3><p>Only for what you turned on: your weather city, connecting Claude, the Remove BG model and output folder.</p></li>
+      <li><h3>Review</h3><p>Everything at a glance, then Back or Finish.</p></li>
     </ol>
-    <p class="muted">Run it again any time with <code>lotus setup</code>. Updating from Lotus 1.x keeps your settings and skips the setup.</p>
+    <p class="muted">Run it again any time with <code>lotus setup</code>. Updating from Lotus 1.x or 2.x keeps your settings and skips the setup.</p>
 
     <h2 class="section" id="use">Using Lotus</h2>
     <p>Commands start with a slash and work in every Terminal window. The full list is on the <a href="commands.html">commands page</a> and in the terminal with <code>/lotus cheatsheet</code>.</p>
@@ -77,10 +78,21 @@
         <tr><td>Greeting</td><td>Top: 15 languages in order or at random. Bottom (by time of day): off by default.</td></tr>
         <tr><td>Sections</td><td>Hardware, session, uptime and date, now playing</td></tr>
         <tr><td>Now playing</td><td>Live updates, interval (1–5 s), color mode, visualizer mode</td></tr>
+        <tr><td>Features</td><td>Each part of Lotus on or off – its settings below disappear while it is off</td></tr>
         <tr><td>Weather and web</td><td>Default city, units (°C or °F), search engine (Google, DuckDuckGo, Bing, Ecosia, Brave)</td></tr>
-        <tr><td>AI</td><td>Provider (automatic, Apple Intelligence, Ollama, OpenAI-compatible), model, API URL, API key in the Keychain</td></tr>
+        <tr><td>AI</td><td>Provider (automatic, Claude, Apple Intelligence, Ollama, OpenAI-compatible), how hard it thinks, model, API URL, API keys in the Keychain</td></tr>
+        <tr><td>Remove BG</td><td>Model (Auto, BiRefNet, BiRefNet Lite, InSPyReNet), backend (Auto, MPS, CPU), output folder, manual refinement (offer, always, never), preview after processing, model cache</td></tr>
+        <tr><td>Diagnostics</td><td>Log level (off, errors and warnings, normal, detailed, everything), keep logs for 1–90 days, startup details, open the log</td></tr>
         <tr><td>Lotus</td><td>Manage shortcuts, run the setup again, uninstall</td></tr>
       </table>
+    </div>
+
+    <h2 class="section" id="features">Features</h2>
+    <p>Lotus is made of features you can turn on or off – in the setup, in <code>/settings</code> → Features, or with <code>lotus features</code>. The list comes from <code>data/features.tsv</code>, the same file the website reads.</p>
+    <div class="grid">
+      <div class="card"><h3>Off means off</h3><p class="muted">A feature that is off has no command, its settings are hidden, it downloads nothing and it adds nothing to the start of Lotus. Turning off Music also removes now playing from the start screen.</p></div>
+      <div class="card"><h3>Easy to bring back</h3><p class="muted">Its commands say that it is off and how to turn it on – or turn it on right there. The cheatsheet only shows what is on.</p></div>
+      <div class="card"><h3>Scriptable</h3><p class="muted"><code>lotus features minecraft off</code>, <code>lotus features bg on</code>. Without a terminal, <code>lotus features</code> prints the list.</p></div>
     </div>
 
     <h2 class="section" id="config">Configuration file</h2>
@@ -122,13 +134,61 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     </div>
     <p class="muted">The AI terminal is a small Swift program that Lotus builds once on your Mac (about 15 seconds; needs the Command Line Tools: <code>xcode-select --install</code>). Keys come from the Keychain or <code>$ANTHROPIC_API_KEY</code> / <code>$LOTUS_AI_KEY</code> and are never written to a file. <code>/ai command</code> only suggests a command – it never runs it.</p>
 
+    <h2 class="section" id="bg">Remove BG</h2>
+    <p><code>/bg remove photo.jpg</code> removes the background and saves a transparent PNG. It runs on your Mac: no cloud, no upload, no account – after the one-time download it works offline. <code>/bg remove</code> without a path lets you drag images from the Finder into the window; a folder processes every image in it.</p>
+    <div class="term"><div class="term-bar"><i></i><i></i><i></i><span>zsh</span></div><pre><span class="t-dim">$</span> /bg remove ~/Pictures/portrait.jpg
+
+    <span class="t-acc">◇</span> lotus / Background removed
+
+    <span class="t-dim">Input       </span>~/Pictures/portrait.jpg
+    <span class="t-dim">Output      </span>~/Pictures/Lotus/Background Removed/portrait_no_bg.png
+
+    <span class="t-dim">Model       </span>BiRefNet
+    <span class="t-dim">Backend     </span>MPS
+    <span class="t-dim">Resolution  </span>1916 × 2608
+    <span class="t-dim">Time        </span>2.16s
+
+  <span class="t-acc">✓</span> Transparent PNG created
+
+    <span class="t-acc">o</span> open   <span class="t-acc">f</span> show in Finder   <span class="t-acc">r</span> refine by hand   <span class="t-acc">d</span> discard   <span class="t-acc">q</span> done</pre></div>
+    <div class="table-wrap" style="margin-top:18px">
+      <table class="docs">
+        <tr><th>Model</th><th>Size</th><th>Good for</th></tr>
+        <tr><td>BiRefNet</td><td>445 MB</td><td>Best quality: hair, fur, thin and fine edges</td></tr>
+        <tr><td>BiRefNet Lite</td><td>178 MB</td><td>Fast and light – Auto uses it on Intel Macs and Macs with less than 8 GB</td></tr>
+        <tr><td>InSPyReNet</td><td>368 MB</td><td>Large photos – keeps the aspect ratio on the GPU</td></tr>
+      </table>
+    </div>
+    <div class="grid" style="margin-top:18px">
+      <div class="card"><h3>Auto</h3><p class="muted">BiRefNet on Apple silicon, BiRefNet Lite on Intel – and a model that is already downloaded always wins, so Auto never downloads a second one on its own. Apple silicon runs on the GPU (PyTorch MPS), with the CPU as fallback.</p></div>
+      <div class="card"><h3>Installed when you use it</h3><p class="muted">The first <code>/bg remove</code> shows what it needs – a Python environment with PyTorch (about 1 GB, once) and the model – and downloads only after a yes, into <code>~/.local/share/lotus</code>. Every file is pinned and checked with SHA-256.</p></div>
+      <div class="card"><h3>Never overwrites</h3><p class="muted"><code>photo.jpg</code> becomes <code>photo_no_bg.png</code>, then <code>_2</code>, <code>_3</code> … in your output folder: a Lotus folder in Pictures, next to the original, or any folder (<code>/bg output</code>). Full resolution, color profile kept.</p></div>
+      <div class="card"><h3>Draw what you want to keep</h3><p class="muted">Press <kbd>r</kbd> after the AI, or use <code>--edit</code>: a small window with brush, eraser, size, undo, redo, clear, reset, invert and preview. Painted areas always stay; their edges snap to the object.</p></div>
+      <div class="card"><h3>Clean edges</h3><p class="muted">The model's mask is refined along the edges of the photo, faint specks are removed, and edge colors are rebuilt without the old background – no halos around hair.</p></div>
+      <div class="card"><h3>Clear errors</h3><p class="muted">If something fails you see what happened, why and what to try, with an error ID such as <code>BG-004</code>. The details are in <code>/lotus log</code>. A failing GPU or model comes with an offer to use the CPU or another model.</p></div>
+    </div>
+    <p class="muted">Formats: PNG, JPG, WebP, HEIC, AVIF, TIFF, BMP, GIF. <code>/bg models</code> downloads, checks and removes models. BiRefNet (Peng Zheng et al.) and InSPyReNet (Taehun Kim et al.) are MIT licensed – see <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/THIRD_PARTY.md">THIRD_PARTY.md</a>.</p>
+
+    <h2 class="section" id="log">Log</h2>
+    <p><code>/lotus log</code> shows what Lotus did – commands, settings changes, downloads, installs, the AI's tool use, Remove BG stages and every error – with the time and the part of Lotus it came from.</p>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr><td><code>/lotus log</code></td><td>The viewer: <kbd>f</kbd> filter by level, <kbd>/</kbd> search, <kbd>⏎</kbd> details, <kbd>l</kbd> live, <kbd>y</kbd> copy, <kbd>c</kbd> clear</td></tr>
+        <tr><td><code>/lotus log level debug</code></td><td>How much is written: off, warn, info (normal), debug (detailed), trace (everything)</td></tr>
+        <tr><td><code>/lotus log live</code> · <code>lotus -V &lt;command&gt;</code></td><td>Follow new lines · print the log while one command runs</td></tr>
+        <tr><td><code>/lotus log clear</code> · <code>/lotus log path</code></td><td>Delete the log · where the file is</td></tr>
+      </table>
+    </div>
+    <p class="muted">The file is <code>~/.local/state/lotus/lotus.log</code>, rotated at 1 MB and trimmed after the retention time (7 days by default). Keys, tokens and passwords are masked, your home folder is written as <code>~</code>, and nothing leaves your Mac.</p>
+
     <h2 class="section" id="update">Update and uninstall</h2>
     <div class="table-wrap">
       <table class="docs">
         <tr><th>Command</th><th>What happens</th></tr>
         <tr><td><code>lotus update</code></td><td>Shows the installed and the newest version, then updates. Settings stay untouched.</td></tr>
-        <tr><td><code>lotus doctor</code></td><td>Checks macOS, zsh, fastfetch, colors, ~/.zshrc and the optional tools.</td></tr>
-        <tr><td><code>lotus uninstall</code></td><td>Asks first, then removes Lotus, its settings, AI memory and saved AI keys, cache and the lines in ~/.zshrc. Also in <code>/settings</code>.</td></tr>
+        <tr><td><code>lotus doctor</code></td><td>Checks macOS, zsh, fastfetch, colors, ~/.zshrc, the optional tools, Remove BG (Python, PyTorch, MPS, models, output folder, editor), the log and the features.</td></tr>
+        <tr><td><code>lotus uninstall</code></td><td>Asks first, then removes Lotus, its settings, AI memory and saved AI keys, the log, the Remove BG models, cache and the lines in ~/.zshrc. Also in <code>/settings</code>.</td></tr>
         <tr><td><code>brew uninstall lotus</code></td><td>For Homebrew installs. Keeps your settings; add <code>--zap</code> to remove them too.</td></tr>
       </table>
     </div>
@@ -138,7 +198,8 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>No accounts, no tracking</h3><p class="muted">Lotus has no server. It only goes online for what you ask: weather (Open-Meteo), updates (GitHub), downloads you confirm.</p></div>
       <div class="card"><h3>Nothing runs behind your back</h3><p class="muted">Installs, downloads and deletions are shown first and need a yes – the AI's file changes and commands too. Lotus never runs <code>sudo</code> and never stores passwords or Apple ID details.</p></div>
       <div class="card"><h3>Checked input</h3><p class="muted">Links must be http or https, package names and city names are validated, and shortcuts cannot run shell commands.</p></div>
-      <div class="card"><h3>Trusted sources</h3><p class="muted">Apps come from Homebrew Cask, Minecraft servers from Mojang or PaperMC (checksums verified), iOS tools from their official releases.</p></div>
+      <div class="card"><h3>Trusted sources</h3><p class="muted">Apps come from Homebrew Cask, Minecraft servers from Mojang or PaperMC (checksums verified), iOS tools from their official releases, Remove BG models from their authors – pinned and checked with SHA-256.</p></div>
+      <div class="card"><h3>Images stay on your Mac</h3><p class="muted">Remove BG reads and writes local files only. No cloud API, no upload; dropped paths are never run as commands.</p></div>
     </div>
 
     <h2 class="section" id="trouble">Troubleshooting</h2>
@@ -149,7 +210,9 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
         <tr><td>Wrong colors</td><td><code>/settings</code> → Color mode → 256 colors.</td></tr>
         <tr><td>No logo</td><td>The window is too narrow – Lotus switches to the minimal logo, then none. Make the window wider.</td></tr>
         <tr><td><code>/skip</code> does nothing</td><td>Spotify and Music work directly. Other players need your terminal app in System Settings → Privacy &amp; Security → Accessibility.</td></tr>
-        <tr><td>Anything else</td><td>Run <code>lotus doctor</code> and open an issue on <a data-link="repo" href="https://github.com/Fanxy13/homebrew-lotus">GitHub</a>.</td></tr>
+        <tr><td>A command says its feature is off</td><td><code>lotus features</code> or <code>/settings</code> → Features.</td></tr>
+        <tr><td>Remove BG fails</td><td>The error screen shows an ID and what to try. Details: <code>/lotus log</code>. Checks: <code>lotus doctor</code>.</td></tr>
+        <tr><td>Anything else</td><td>Run <code>lotus doctor</code>, look at <code>/lotus log</code>, and open an issue on <a data-link="repo" href="https://github.com/Fanxy13/homebrew-lotus">GitHub</a>.</td></tr>
       </table>
     </div>
 

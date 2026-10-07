@@ -16,16 +16,22 @@ lotus_registry() {
   LOTUS_CMDS=(${LOTUS_CMDS:#\#*})
 }
 
+# Is the command of a registry line part of a feature that is turned on?
+_lotus_cmd_on() { lotus_feature_on ${LOTUS_FEATURE_OF[${1%% *}]:-core} }
+
 lotus_cheatsheet() {
   lotus_registry
-  local line cat last= d=$'\e['"$LOTUS_C[dim]m" r=$'\e[0m' k=$'\e['"$LOTUS_C[key]m"
-  local -a f
+  lotus_features
+  local line cat last= d=$'\e['"$LOTUS_C[dim]m" r=$'\e[0m' k=$'\e['"$LOTUS_C[key]m" id
+  local -a f off=()
   local -i wide=$(( ${COLUMNS:-100} >= 118 ))
+  for id in $LOTUS_FEATURE_IDS; do lotus_feature_on $id || { lotus_feature_label $id; off+=($REPLY) }; done
   {
     ui_header Cheatsheet "every command, with an example"
     for line in $LOTUS_CMDS; do
       f=("${(@ps:\t:)line}")
       [[ $f[7] == 1 ]] && continue
+      _lotus_cmd_on $f[3] || continue
       if [[ $f[1] != $last ]]; then
         [[ -n $last ]] && print
         ui_category $f[1]
@@ -46,6 +52,7 @@ lotus_cheatsheet() {
       done
     fi
     print
+    (( ${#off} )) && { ui_dim "Turned off: ${(j:, :)off} – lotus features"; print }
     ui_dim "Typos are fine: Lotus suggests the closest command. Website: $LOTUS_P[website]"
     print
   } | if [[ -t 1 ]] && (( ${COLUMNS:-0} )); then less -RFX; else cat; fi
@@ -55,6 +62,7 @@ lotus_cheatsheet() {
 #   lotus_cmd_suggest <typed word without slash> [args…]
 lotus_cmd_suggest() {
   lotus_registry
+  lotus_features
   local typed=${1#/}; shift
   local line name
   local -a f names targets
@@ -62,6 +70,7 @@ lotus_cmd_suggest() {
   for line in $LOTUS_CMDS; do
     f=("${(@ps:\t:)line}")
     [[ $f[7] == 1 ]] && continue
+    _lotus_cmd_on $f[3] || continue
     if [[ $f[2] != - ]]; then name=$f[2]; else name=${f[4]%% *}; [[ $name == lotus || $name == /lotus ]] && name="/lotus ${${f[4]#* }%% *}"; fi
     [[ -n $target_of[$name] ]] && continue
     target_of[$name]=$f[3]

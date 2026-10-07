@@ -7,7 +7,7 @@ lotus_cmd_system() {
   case $cmd in
     setup)            lotus_setup "$@" ;;
     update|upgrade)   lotus_update ;;
-    doctor)           lotus_doctor ;;
+    doctor)           lotus_doctor "$@" ;;
     uninstall)        lotus_uninstall "$@" ;;
     unhook)           lotus_unhook ;;
   esac
@@ -69,14 +69,17 @@ lotus_unhook() {
 lotus_uninstall() {
   if [[ $1 != --yes ]]; then
     ui_header Uninstall
-    ui_text "Removes Lotus, its settings, shortcuts, AI memory and keys, cache and the lines in ~/.zshrc."
+    ui_text "Removes Lotus, its settings, shortcuts, AI memory and keys, the log, the Remove BG models, cache and the lines in ~/.zshrc."
     ui_blank
     ui_confirm "Uninstall Lotus completely?" n || { ui_info $LOTUS_L[cancelled]; return 1 }
   fi
 
   lotus_unhook
   [[ -e $LOTUS_CONF/hushlogin-by-lotus ]] && rm -f $HOME/.hushlogin
-  rm -rf $LOTUS_CONF $LOTUS_CACHE
+  rm -rf $LOTUS_CONF $LOTUS_CACHE $LOTUS_STATE
+  # Remove BG: its Python environment and the downloaded models
+  rm -rf $LOTUS_DATA/runtime $LOTUS_DATA/models
+  [[ $LOTUS_DATA != $LOTUS_ROOT ]] && rmdir $LOTUS_DATA 2>/dev/null
   local item
   for item in lotus-ai lotus-ai-claude; do security delete-generic-password -s $item >/dev/null 2>&1; done
 
@@ -170,4 +173,24 @@ lotus_doctor() {
   { [[ -n $ANTHROPIC_API_KEY ]] || security find-generic-password -s lotus-ai-claude >/dev/null 2>&1 } && _row $ok Claude "API key in the Keychain  (/ai)" || _row $opt Claude "optional AI provider: lotus ai login"
   (( $+commands[ollama] )) && _row $ok Ollama "$commands[ollama]  (/ai)" || _row $opt Ollama "optional AI provider for /ai"
   ui_blank
+  # Remove BG: when the feature is on, or on request (lotus doctor --bg)
+  if lotus_feature_on bg || [[ $1 == (--bg|--all) ]]; then
+    ui_dim "Remove BG"
+    source $LOTUS_ROOT/lib/cmd/bg.zsh
+    bg_doctor_rows
+    ui_blank
+  fi
+  ui_dim "Diagnostics"
+  local -a lst
+  local size=0
+  zstat -A lst +size $LOTUS_LOG 2>/dev/null && size=$(( lst[1] / 1024 ))
+  ui_path $LOTUS_LOG 60
+  _row $ok Log "$REPLY ($size KB, level: $LOTUS_LOG_LEVEL)"
+  lotus_features
+  local -a off=()
+  local id
+  for id in $LOTUS_FEATURE_IDS; do lotus_feature_on $id || off+=($id); done
+  _row $ok Features "$(( ${#LOTUS_FEATURE_IDS} - ${#off} )) of ${#LOTUS_FEATURE_IDS} on${off:+ (off: ${(j:, :)off})}"
+  ui_blank
+  lotus_log DEBUG doctor "Doctor run"
 }
