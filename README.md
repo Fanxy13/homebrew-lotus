@@ -77,7 +77,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over.
 | Web | `/google mac shortcuts`, `/search …` | Search with your engine of choice |
 | | `/web github lotus`, `/web youtube.com` | Open a site or search it; pasting a link opens it too |
 | | `/lotus web`, `/lotus github` | The Lotus website and GitHub |
-| Weather | `/weather`, `/weather Zurich` | ASCII art and a 3-day forecast, no API key |
+| Weather | `/weather`, `/weather Tokyo` | ASCII art and a 3-day forecast, no API key |
 | AI | `/ai` | The AI terminal: chat, write code, create and change files, run commands – it asks before every change |
 | | `/ai what is a symlink?`, `/ai new` | One question (it remembers the conversation for an hour) · start fresh |
 | | `lotus ai login` or `/login` | Connect Claude in a minute; also Apple Intelligence, Ollama or an OpenAI-compatible API |
@@ -220,7 +220,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/log.zsh` | The log (levels, rotation, masking) – the AI and Remove BG write to the same file |
 | `lib/cmd/*.zsh` | One module per feature (app, brew, weather, ai, ios, bg, log, …) |
 | `lib/ai/*.swift` | The AI terminal (Claude, Apple Intelligence, Ollama, OpenAI-compatible), built once on first use |
-| `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (`bloom.txt` from `scripts/make-bloom.py`), the Python worker (models, matting), the Swift editor |
+| `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |
 | `logos/` | Built-in logos (`scripts/make-logos.py` derives them from the classic lotus) |

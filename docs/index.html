@@ -11,15 +11,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.2.0">
-  <link rel="stylesheet" href="css/home.css?v=2.2.0">
+  <link rel="stylesheet" href="css/lotus.css?v=2.2.2">
+  <link rel="stylesheet" href="css/home.css?v=2.2.2">
   <script type="importmap">
     { "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
         "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
     } }
   </script>
-  <script src="js/lotus.js?v=2.2.0"></script>
+  <script src="js/lotus.js?v=2.2.2"></script>
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
@@ -57,6 +57,8 @@
         <span class="step" data-step="live"><kbd>lotus</kbd> start screen</span>
         <span class="step" data-step="weather"><kbd>/weather</kbd> ASCII forecast</span>
         <span class="step" data-step="app"><kbd>/app</kbd> typos are fine</span>
+        <span class="step" data-step="bg"><kbd>/bg remove</kbd> backgrounds, on your Mac</span>
+        <span class="step" data-step="log"><kbd>/lotus log</kbd> what happened</span>
         <span class="step" data-step="settings"><kbd>/settings</kbd> make it yours</span>
       </div>
     </section>
@@ -117,13 +119,13 @@
         </article>
 
         <article class="tile tile-weather reveal">
-          <div class="temp">21°<small>Zurich · clear sky</small></div>
+          <div class="temp">21°<small>Tokyo · clear sky</small></div>
           <pre class="sun">  \   /
    .-.
 - (   ) -
    `-'
   /   \</pre>
-          <h3>ASCII weather <em>/weather Zurich</em></h3>
+          <h3>ASCII weather <em>/weather Tokyo</em></h3>
         </article>
 
         <article class="tile tile-apps reveal">
@@ -168,8 +170,8 @@
 
   <lotus-footer></lotus-footer>
 
-  <script type="module" src="js/lotus3d.js?v=2.2.0"></script>
-  <script src="js/demo.js?v=2.2.0" defer></script>
-  <script src="js/home.js?v=2.2.0" defer></script>
+  <script type="module" src="js/lotus3d.js?v=2.2.2"></script>
+  <script src="js/demo.js?v=2.2.2" defer></script>
+  <script src="js/home.js?v=2.2.2" defer></script>
 </body>
 </html>

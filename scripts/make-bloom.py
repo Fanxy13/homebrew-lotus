@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the blooming lotus of the Remove BG progress screen: lib/bg/bloom.txt.
+"""Builds the blooming lotus of the Remove BG progress screen: data/bloom.txt.
 
 The flower is drawn as small pixel art for half-block characters (two pixels per terminal cell),
 from a closed bud to full bloom. Pixels store shades, not colors – Lotus maps them to the colors
@@ -124,11 +124,11 @@ def main():
     if "--png" in sys.argv:
         png(sys.argv[sys.argv.index("--png") + 1], frames)
         return
-    with open("lib/bg/bloom.txt", "w", encoding="utf-8") as out:
+    with open("data/bloom.txt", "w", encoding="utf-8") as out:
         out.write(f"# Lotus bloom: {FRAMES} frames of {W}x{H} pixels (half blocks), made by scripts/make-bloom.py\n")
         for f in frames:
             out.write("\n".join(f) + "\n%\n")
-    print(f"lib/bg/bloom.txt: {FRAMES} frames")
+    print(f"data/bloom.txt: {FRAMES} frames")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 // Lotus website – animated terminal demo (pure DOM, pauses when off screen).
-// The logo is read from logos/lotus.txt and the themes from data/themes.tsv – the same files Lotus uses.
+// The logo is read from logos/lotus.txt, the themes from data/themes.tsv and the blooming lotus of
+// /bg remove from data/bloom.txt – the same files Lotus uses.
 (() => {
   const term = document.getElementById('terminal');
   if (!term) return;
@@ -14,7 +15,7 @@
   const HELLOS = ['Bonjour', 'こんにちは', 'Hello', 'Grüezi', '你好', 'Hola', 'Ciao', '안녕하세요', 'Olá', 'Hej', 'नमस्ते', 'Aloha', 'Γειά σου', 'Xin chào', 'Allillanchu'];
   const TRACKS = [['Midnight Bloom', 'Koi Pond', 214], ['Neon Petals', 'Lumen', 187], ['Still Water', 'Aster', 241], ['Paper Lanterns', 'Mori', 199]];
   const NAME = 'Alex';
-  let LOGO = [], THEMES = [];
+  let LOGO = [], THEMES = [], BLOOM = [], VERSION = '2';
 
   const esc = Lotus.esc;
   const S = (cls, txt) => `<span class="${cls}">${esc(txt)}</span>`;
@@ -105,7 +106,7 @@
     '',
     '  ' + S('c-bold c-accent', 'lotus') + S('c-dim', ' / ') + S('c-bold', 'Weather'),
     '',
-    '  ' + S('c-key2', '    \\   /      ') + '   ' + S('c-bold', 'Zurich') + S('c-dim', ', Switzerland'),
+    '  ' + S('c-key2', '    \\   /      ') + '   ' + S('c-bold', 'Tokyo') + S('c-dim', ', Japan'),
     '  ' + S('c-key2', '     .-.       ') + '   ' + S('c-bold', '21°C') + '  Clear sky',
     '  ' + S('c-key2', '  - (   ) -    ') + '   ' + S('c-key', 'Feels like') + '  19°C',
     '  ' + S('c-key2', "     `-'       ") + '   ' + S('c-key', 'Humidity  ') + '  49%',
@@ -134,7 +135,7 @@
 
   function renderSettings(msg = '') {
     const L = T[lang];
-    let out = '  ' + S('c-accent c-bold', 'lotus') + S('c-dim', ` / ${L.title} · v2.0.0`) + '\n\n';
+    let out = '  ' + S('c-accent c-bold', 'lotus') + S('c-dim', ` / ${L.title} · v${VERSION}`) + '\n\n';
     L.rows.forEach(([label, val, type], i) => {
       if (i in HEAD_AT) out += (i ? '\n' : '') + '  ' + S('c-dim', L.heads[HEAD_AT[i]]) + '\n';
       let v = val === 'theme' ? (THEMES[themeIdx]?.label || 'Matcha') : val;
@@ -168,6 +169,159 @@
     lang = 'en'; renderSettings(saved()); await sleep(800);
     screen.classList.remove('alt');
     inSettings = false;
+  }
+
+  // ── /bg remove: the drop zone, then the lotus that blooms, then the result ──
+  const cols = () => (term.classList.contains('narrow') ? 66 : 112);
+  const center = (plain, html = esc(plain)) => ' '.repeat(Math.max(0, Math.floor((cols() - [...plain].length) / 2))) + html;
+  const hero = (title, right = '') => {
+    const left = '    ' + S('c-accent', '◇') + ' ' + S('c-bold', 'lotus') + S('c-dim', ' / ') + S('c-bold', title);
+    const gap = cols() - 4 - 2 - 7 - [...title].length - [...right].length - 4;
+    return left + (right ? ' '.repeat(Math.max(2, gap)) + S('c-dim', right) : '');
+  };
+
+  // Heavy line glyphs may come from a fallback font with another width: one cell each, exactly 1ch
+  const cell = (ch) => `<span class="c-key cell">${ch}</span>`;
+  function dropZone() {
+    const w = cols() > 70 ? 58 : 46, inner = w - 2;
+    const row = (plain, html = esc(plain)) => {
+      const l = Math.floor((inner - [...plain].length) / 2);
+      return '    ' + S('c-border', '┆') + ' '.repeat(l) + html + ' '.repeat(inner - l - [...plain].length) + S('c-border', '┆');
+    };
+    return ['', hero('Remove BG'), '', '    ' + S('c-dim', 'Remove image backgrounds locally. Nothing leaves your Mac.'), '',
+      '    ' + S('c-border', '╭' + '╌'.repeat(inner) + '╮'), row(''),
+      row('  ┃  ', '  ' + cell('┃') + '  '), row('━━╋━━', [...'━━╋━━'].map(cell).join('')), row('  ┃  ', '  ' + cell('┃') + '  '),
+      row(''), row('Drop images here', S('c-bold', 'Drop images here')), row('PNG · JPG · WebP · HEIC · whole folders', S('c-dim', 'PNG · JPG · WebP · HEIC · whole folders')),
+      row(''), '    ' + S('c-border', '╰' + '╌'.repeat(inner) + '╯'),
+      '    ' + S('c-dim', 'drag from the Finder or type a path · ⏎ start · empty line cancels'), ''];
+  }
+
+  // Theme color → shade (0 … 1): the same ramp as lib/bg/progress.zsh
+  const rgbOf = (css) => (css.match(/\d+/g) || [200, 200, 200]).slice(0, 3).map(Number);
+  function ramp(rgb, k) {
+    const m = (rgb[0] + rgb[1] + rgb[2]) / 3;
+    const deep = rgb.map((c) => Math.max(0, Math.min(255, c * 0.58 - (m - c) * 0.7)));
+    const tip = rgb.map((c) => c + (255 - c) * 0.62);
+    const [a, b, f] = k < 0.6 ? [deep, rgb, k / 0.6] : [rgb, tip, (k - 0.6) / 0.4];
+    return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * f)).join(',')})`;
+  }
+  function palette() {
+    const c = (THEMES[themeIdx] || THEMES[0]).colors;
+    const p = {}, logo = rgbOf(c.logo), key = rgbOf(c.key), key2 = rgbOf(c.key2);
+    for (let n = 0; n <= 9; n++) p[n] = ramp(logo, n / 9);
+    Object.assign(p, { y: ramp(key2, 0.45), Y: ramp(key2, 0.8), g: ramp(key, 0.25), G: ramp(key, 0.55), pollen: ramp(key2, 0.7) });
+    return p;
+  }
+  // One frame on a canvas: one pixel is half a terminal cell, like the half blocks in the terminal
+  function drawBloom(canvas, f, pollen) {
+    const ctx = canvas.getContext('2d'), pal = palette(), px = BLOOM[f] || [];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    px.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') { ctx.fillStyle = pal[ch]; ctx.fillRect(x, y, 1, 1); } }));
+    ctx.fillStyle = pal.pollen;
+    for (const p of pollen) if ((px[Math.floor(p.y)] || '')[Math.floor(p.x)] === '.') ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 1, 1);
+  }
+
+  const BG_STEPS = [['load_model', 'Loading BiRefNet', 'Model', 1300], ['load_image', 'Reading the image', 'Image', 300],
+    ['segment', 'Finding the subject', 'Subject', 2300], ['refine', 'Refining edges', 'Edges', 800], ['write', 'Writing the PNG', 'PNG', 800]];
+
+  async function bgDemo() {
+    // the drop zone, then a dragged file and Enter
+    screen.classList.add('cleared', 'out');
+    outEl.innerHTML = S('c-accent', 'alex@MacBook ~ % ') + '/bg remove\n' + dropZone().join('\n') + '\n    ' + S('c-accent', '›') + ' <span class="drop-in"></span><span class="cursor"></span>';
+    promptEl.innerHTML = '';
+    await sleep(1600);
+    outEl.querySelector('.drop-in').textContent = '~/Pictures/portrait.jpg';
+    await sleep(1100);
+
+    // the progress screen
+    screen.classList.add('alt');
+    const W = cols(), aw = BLOOM[0] ? BLOOM[0][0].length : 41, ah = BLOOM[0] ? BLOOM[0].length / 2 : 10;
+    let bloom = 0, frame = 0, stage = 0, stageStart = Date.now();
+    const start = Date.now(), pollen = [];
+    const render = (done) => {
+      frame++;
+      const spin = ['◇', '◈', '◆', '◈'][Math.floor(frame / 3) % 4];
+      const [, label] = BG_STEPS[Math.min(stage, BG_STEPS.length - 1)];
+      let water = '';
+      const t = Date.now() / 1000, reach = Math.floor(6 + 13 * bloom);
+      for (let c = 0; c < aw; c++) {
+        const v = Math.sin(c * 0.55 - t * 2.6) + 0.6 * Math.sin(c * 0.21 + t * 1.3);
+        water += Math.abs(c - aw / 2) > reach + 2 ? ' ' : v > 1.05 ? S('c-accent', '~') : v > 0.55 ? S('c-dim', '~') : ' ';
+      }
+      const bw = 36, pos = (() => { const span = bw - 6, p = frame % (2 * span); return p > span ? 2 * span - p : p; })();
+      let bar = '';
+      for (let i = 0; i < bw; i++) bar += done ? S('c-key', '━') : i >= pos && i < pos + 6 ? S('c-key', '━') : i === pos - 1 || i === pos + 6 ? S('c-accent', '━') : S('c-dim', '━');
+      const strip = BG_STEPS.map(([, , short], i) => (done || i < stage ? S('c-key', '✓') + ' ' + esc(short) : i === stage ? S('c-accent', '◆') + ' ' + S('c-bold', short) : S('c-dim', '· ' + short))).join('   ');
+      const stripPlain = BG_STEPS.map(([, , short]) => 'x ' + short).join('   ');
+      const secs = ((Date.now() - start) / 1000).toFixed(1) + 's';
+      const info = 'BiRefNet · MPS' + (stage >= 2 || done ? ' · 1916 × 2608' : '') + ' · ' + secs;
+      const head = done ? S('c-key', '✓') + ' ' + S('c-bold', 'Done') : S('c-accent', spin) + ' ' + S('c-bold', label);
+      const headPlain = done ? '✓ Done' : spin + ' ' + label;
+      settingsEl.innerHTML = '\n' + hero('Remove BG', 'portrait.jpg') + '\n\n' +
+        `<canvas class="bloom" width="${aw}" height="${ah * 2}" style="margin-left:${Math.floor((W - aw) / 2)}ch;width:${aw}ch;height:calc(var(--fs) * 1.4 * ${ah})"></canvas>\n` +
+        ' '.repeat(Math.floor((W - aw) / 2)) + water + '\n\n' +
+        center(headPlain, head) + '\n' + center('x'.repeat(bw), bar) + '\n\n\n' +
+        center(stripPlain, strip) + '\n\n' + center(info, S('c-dim', info)) + '\n\n' + center('ctrl-c cancels', S('c-dim', 'ctrl-c cancels'));
+      if (bloom > 0.4 && Math.random() < 0.3) pollen.push({ x: aw / 2 + (Math.random() - 0.5) * 18 * bloom, y: ah * 2 * (0.55 - 0.3 * bloom), v: (Math.random() - 0.5) * 0.35, l: 0 });
+      if (done && frame % 5 === 0) for (let i = 0; i < 5; i++) pollen.push({ x: aw / 2 + (Math.random() - 0.5) * 18, y: ah * 0.6, v: (Math.random() - 0.5) * 0.5, l: 0 });
+      for (const p of pollen) { p.x += p.v; p.y -= 0.3; p.l++; }
+      while (pollen.length && (pollen[0].l > 26 || pollen[0].y < 0)) pollen.shift();
+      drawBloom(settingsEl.querySelector('canvas'), Math.round(bloom * (BLOOM.length - 1)), pollen);
+    };
+    while (stage < BG_STEPS.length) {
+      const within = Math.min(0.5, (Date.now() - stageStart) / BG_STEPS[stage][3] * 0.5);
+      const target = (stage + within) / BG_STEPS.length;
+      bloom += Math.max(0, target - bloom) * 0.12;
+      render(false);
+      await sleep(80);
+      if (Date.now() - stageStart > BG_STEPS[stage][3]) { stage++; stageStart = Date.now(); }
+    }
+    for (let i = 0; i < 18; i++) { bloom += (1 - bloom) * 0.3; render(true); await sleep(80); }
+
+    // the result screen, then back to the shell
+    const res = (k, v) => '    ' + S('c-dim', k.padEnd(12)) + esc(v);
+    settingsEl.innerHTML = ['', hero('Background removed'), '', res('Input', '~/Pictures/portrait.jpg'), res('Output', '~/Pictures/Lotus/Background Removed/portrait_no_bg.png'), '',
+      res('Model', 'BiRefNet'), res('Backend', 'MPS'), res('Resolution', '1916 × 2608'), res('Time', '2.16s'), '',
+      '  ' + S('c-key', '✓') + ' Transparent PNG created', '',
+      '    ' + ['o open', 'f show in Finder', 'r refine by hand', 'd discard', 'q done'].map((k) => S('c-key', k[0]) + k.slice(1)).join('   ')].join('\n');
+    await sleep(2600);
+    screen.classList.remove('alt');
+    outEl.innerHTML = S('c-accent', 'alex@MacBook ~ % ') + '/bg remove\n  ' + S('c-key', '✓') + ' Transparent PNG created  ' + S('c-dim', 'BiRefNet · MPS · 2.16s') +
+      '\n    ' + S('c-dim', '~/Pictures/Lotus/Background Removed/portrait_no_bg.png') + '\n';
+    prompt();
+  }
+
+  // ── /lotus log ──────────────────────────────────────────────
+  const LOG = [['09:31:02', 'INFO', 'bg', 'Remove BG requested for 1 image(s)'], ['09:31:03', 'INFO', 'bg', 'BiRefNet ready on MPS in 1.3s'],
+    ['09:31:05', 'INFO', 'bg', 'Done in 2.16s: ~/Pictures/Lotus/Background Removed/portrait_no_bg.png'], ['09:32:40', 'INFO', 'ai', 'AI tui with claude (thinking: high)'],
+    ['09:32:51', 'INFO', 'ai', 'Tool write_file index.html'], ['09:33:10', 'WARN', 'convert', 'yt-dlp 2026.03.17 is 204 days old'],
+    ['09:33:24', 'INFO', 'convert', 'yt-dlp updated: 2026.03.17 → 2026.08.19'], ['09:34:02', 'INFO', 'settings', 'Changed: THEME']];
+  function renderLog(sel, filter) {
+    const rows = LOG.filter((e) => !filter || e[1] === 'WARN');
+    const room = cols() - 34;
+    const lvl = (l) => (l === 'WARN' ? S('c-key2', l.padEnd(6)) : S('c-accent', l.padEnd(6)));
+    const lines = ['', hero('Log'), '', '    ' + S('c-dim', `Today · 09:31 – 09:34 · ${LOG.length} entries · Log level: Normal`),
+      '    ' + S('c-dim', 'Showing: ') + (filter ? 'WARN+' : 'everything'), '', '    ' + S('c-dim', '── Today ──')];
+    rows.forEach((e, i) => {
+      const msg = e[3].length > room ? e[3].slice(0, room - 1) + '…' : e[3];
+      const pre = i === sel ? '  ' + S('c-accent', '›') + ' ' : '    ';
+      lines.push(pre + S('c-dim', e[0]) + '  ' + lvl(e[1]) + ' ' + S('c-dim', e[2].padEnd(10)) + esc(msg));
+    });
+    lines.push('', '    ' + S('c-dim', '↑↓ scroll   ⏎ details   f filter   / search   l live   y copy   c clear   q quit'));
+    settingsEl.innerHTML = lines.join('\n');
+  }
+  async function logDemo() {
+    screen.classList.add('alt');
+    let sel = LOG.length - 1;
+    renderLog(sel, false);
+    await sleep(1200);
+    for (let i = 0; i < 4; i++) { renderLog(--sel, false); await sleep(330); }
+    await sleep(700);
+    renderLog(0, true);
+    await sleep(1800);
+    renderLog(LOG.length - 1, false);
+    await sleep(900);
+    screen.classList.remove('alt');
   }
 
   // ── Live bits: clock, song progress, greeting scramble ──────
@@ -218,9 +372,12 @@
 
   // ── The script ──────────────────────────────────────────────
   (async function main() {
-    const [logo, themes] = await Promise.all([Lotus.text('logos/lotus.txt'), Lotus.loadThemes()]);
+    const [logo, themes, bloomText, changelog] = await Promise.all([Lotus.text('logos/lotus.txt'), Lotus.loadThemes(),
+      Lotus.text('data/bloom.txt').catch(() => ''), Lotus.text('CHANGELOG.md').catch(() => '')]);
     LOGO = logo.replace(/\s+$/, '').split('\n').map((l) => l.replace(/\s+$/, ''));
     THEMES = themes;
+    BLOOM = bloomText.split('\n%').map((f) => f.split('\n').filter((l) => l && !l.startsWith('#') && l !== '%')).filter((f) => f.length);
+    VERSION = (changelog.match(/^## (\d+\.\d+\.\d+)/m) || [, '2'])[1];
     themeIdx = Math.max(0, THEMES.findIndex((t) => t.name === document.documentElement.dataset.theme));
     await sleep(400);
     for (;;) {
@@ -228,8 +385,8 @@
       await bloom();
       await sleep(5500);
       step('weather');
-      await type('/weather Zurich');
-      await output(WEATHER(), '/weather Zurich');
+      await type('/weather Tokyo');
+      await output(WEATHER(), '/weather Tokyo');
       await sleep(4200);
       await type('clear'); await clear();
       step('app');
@@ -238,6 +395,18 @@
       await sleep(1300);
       outEl.innerHTML = outEl.innerHTML.replace('[Y/n]</span>', '[Y/n]</span> yes') + '  ' + S('c-accent', '›') + ' Opening Spotify\n';
       await sleep(2400);
+      if (BLOOM.length) {
+        await type('clear'); await clear();
+        step('bg');
+        await type('/bg remove');
+        await bgDemo();
+        await sleep(2200);
+      }
+      step('log');
+      await type('/lotus log');
+      await logDemo();
+      prompt();
+      await sleep(500);
       step('settings');
       await type('/settings');
       await settingsDemo();

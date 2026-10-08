@@ -31,7 +31,7 @@ Audio	/repeat	audio repeat	/repeat	Toggle repeat (Spotify, Music)	/repeat	0
 Audio	/mute	audio mute	/mute	Mute or unmute the Mac	/mute	0
 Audio	/vu	audio up	/vu	Volume up	/vu	0
 Audio	/vd	audio down	/vd	Volume down	/vd	0
-Weather	/weather	weather	/weather [city]	Weather with ASCII art and a 3-day forecast	/weather Zurich	0
+Weather	/weather	weather	/weather [city]	Weather with ASCII art and a 3-day forecast	/weather Tokyo	0
 AI	/ai	ai	/ai	Open the AI terminal: chat, code, create and change files – it asks before every change	/ai	0
 AI	-	ai	/ai <question>	One question; the AI remembers the conversation for an hour	/ai what is a symlink?	0
 AI	-	ai new	/ai new	Start a new conversation, forget the last one	/ai new	0

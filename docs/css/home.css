@@ -109,6 +109,8 @@ header, section { position: relative; z-index: 2; }
 .settings { position: absolute; inset: 18px 22px; background: transparent; display: none; }
 .screen.alt .startscreen, .screen.alt .promptline, .screen.alt .output { visibility: hidden; }
 .screen.alt .settings { display: block; }
+.settings canvas.bloom { display: block; image-rendering: pixelated; }
+.screen .cell { display: inline-block; width: 1ch; text-align: center; overflow: visible; }
 .promptline { color: var(--accent); }
 .cursor { display: inline-block; width: .6em; height: 1.15em; vertical-align: -.2em; background: var(--text); animation: blink 1.05s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }

@@ -15,7 +15,7 @@
 #
 # The flower opens with the steps that are really done (and with real download bytes); while
 # a step runs it only drifts a little further and pollen rises – never a made-up percentage.
-# The pixels come from lib/bg/bloom.txt (scripts/make-bloom.py) and take the theme's colors.
+# The pixels come from data/bloom.txt (scripts/make-bloom.py) and take the theme's colors.
 # One centered column, every line placed by cursor position and line wrap off, so nothing can
 # run through the drawing. Without a terminal (pipes, scripts, -V) it prints one plain line per step.
 
@@ -140,11 +140,11 @@ _bgu_shade() {   # <code> <r;g;b> <k> – one pixel color as foreground and back
   BGU_BG[$1]="48${REPLY#38}"
 }
 
-# Frames from lib/bg/bloom.txt and the theme palette (once per run)
+# Frames from data/bloom.txt and the theme palette (once per run)
 _bgu_load() {
   (( ${#BGU_PIX} )) && return
   local line cur=
-  for line in "${(@f)$(<$LOTUS_ROOT/lib/bg/bloom.txt)}"; do
+  for line in "${(@f)$(<$LOTUS_ROOT/data/bloom.txt)}"; do
     [[ $line == \#* ]] && continue
     if [[ $line == % ]]; then BGU_PIX+=("${cur%$'\n'}"); cur=
     else cur+="$line"$'\n'; fi
