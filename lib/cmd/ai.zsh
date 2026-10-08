@@ -460,39 +460,184 @@ lotus_ai_local() {
 _llm_have() { [[ -n $1 && -r $LLM_MODELS/$1/config.json ]] }
 _llm_size() { REPLY=$(du -sh $LLM_MODELS/$1 2>/dev/null | cut -f1); REPLY=${REPLY:-0} }
 
-# Every model of the list, and the ones you added yourself, with what they are and whether they are here
+# A bar of <width> cells: <part> of <whole> filled → REPLY (colored: fits, tight, too big)
+_llm_bar() {   # <part> <whole> <width> [color]
+  local -F part=$1 whole=$2
+  local -i w=$3 n
+  (( whole > 0 )) || whole=1
+  (( n = part / whole * w + 0.5, n = n > w ? w : n, n = n < 0 ? 0 : n ))
+  local c=${4:-$LOTUS_C[key]}
+  REPLY=$'\e['"${c}m${(l:n::━:)}"$'\e['"$LOTUS_C[dim]m${(l:w-n::─:)}"$'\e[39m'
+}
+
+# The Hugging Face token (optional: faster downloads, higher limits) – from $HF_TOKEN or the Keychain
+_llm_token() { REPLY=${HF_TOKEN:-$(security find-generic-password -s lotus-hf -w 2>/dev/null)}; [[ -n $REPLY ]] }
+
+# Connect or remove the token: the page opens, the token is pasted hidden, checked and kept in the Keychain
+_llm_token_flow() {
+  print -n $'\e[H\e[2J'
+  ui_hero "AI on this Mac · Faster downloads" "A free Hugging Face account gives faster downloads and higher limits. Optional – downloads work without it."
+  if _llm_token; then
+    ui_text "A token is connected (Keychain item lotus-hf)."
+    ui_blank
+    ui_confirm "Remove it?" n || return 0
+    security delete-generic-password -s lotus-hf >/dev/null 2>&1
+    ui_success "Removed – downloads continue without an account"
+    return 0
+  fi
+  ui_text "1  Sign in at huggingface.co (or create a free account)."
+  ui_text "2  Create a token with the type \"Read\" and copy it."
+  ui_text "3  Paste it here – Lotus checks it and keeps it in your Keychain."
+  ui_blank
+  ui_confirm "Open the token page now?" y && open "https://huggingface.co/settings/tokens"
+  ui_blank
+  local tok name
+  print -rn -- "  Paste the token "$'\e['"$LOTUS_C[dim]m(hidden, Enter when done)"$'\e[0m'": "
+  read -rs tok < /dev/tty || return 1
+  print
+  tok=${tok//[[:space:]]/}
+  [[ -n $tok ]] || { ui_info $LOTUS_L[cancelled]; return 0 }
+  [[ $tok == hf_[A-Za-z0-9]## ]] || { ui_warn "That is not a Hugging Face token – they start with hf_"; return 1 }
+  ui_step "Checking it with Hugging Face …"
+  name=$(print -r -- "header = \"Authorization: Bearer $tok\"" | curl -fsS -m 15 -K - https://huggingface.co/api/whoami-v2 2>/dev/null | lotus_jq -r '.name // empty' 2>/dev/null)
+  [[ -n $name ]] || { ui_warn "Hugging Face did not accept this token – copy all of it and try again."; return 1 }
+  print -r -- "add-generic-password -U -s lotus-hf -a ${USER:-lotus} -w $tok" | security -i >/dev/null 2>&1
+  _llm_token || { ui_error "The token could not be saved in the Keychain"; return 1 }
+  lotus_log INFO ai "Hugging Face token connected (Keychain)"
+  ui_success "Connected as $name – downloads are faster now"
+}
+
+# Downloads a model with Lotus' own progress line (no Hugging Face output on screen):
+#   ━━━━━━━━━━━━━━━━━━──────────  62 %
+#   7.5 of 12.1 GB · 31 MB/s · 2 min left
+# esc or Ctrl-C stops it; the next start continues where it stopped.
+_llm_fetch() {   # <repo> <revision> <id> <label> <GB>
+  local repo=$1 rev=$2 dir=$LLM_MODELS/$3 label=$4 log=$LOTUS_CACHE/llm/download.log tok=
+  local -F total=0 got=0 last=0 speed=0 t0=$EPOCHREALTIME tl=$EPOCHREALTIME now
+  local -i pid rc left tty=0 drawn=0
+  total=$(curl -fsS -m 10 "https://huggingface.co/api/models/$repo?blobs=true" 2>/dev/null | lotus_jq '[.siblings[].size // 0] | add' 2>/dev/null)
+  (( total > 0 )) || total=$(( ${5:-0} * 1e9 ))
+  _llm_token && tok=$REPLY
+  zf_mkdir -p $dir ${log:h}
+  (
+    export HF_HUB_DISABLE_TELEMETRY=1 HF_HUB_DISABLE_PROGRESS_BARS=1 HF_HUB_VERBOSITY=error
+    [[ -n $tok ]] && export HF_TOKEN=$tok
+    exec $LLM_RUNTIME/bin/python -c 'import sys; from huggingface_hub import snapshot_download as d; d(repo_id=sys.argv[1], revision=sys.argv[2], local_dir=sys.argv[3])' $repo $rev $dir
+  ) >| $log 2>&1 &
+  pid=$!
+  LLM_PID=$pid    # if Lotus ends, the download ends too (bin/lotus' EXIT trap); it continues next time
+  lotus_log INFO ai "Downloading $repo@$rev${tok:+ (with a Hugging Face token)}"
+  [[ -t 1 ]] && ui_has_tty && tty=1
+  local B=$'\e[1m' R0=$'\e[0m' D=$'\e['"$LOTUS_C[dim]m"
+  print
+  ui_text "${B}Downloading $label${R0}${tok:+  ${D}with your Hugging Face account${R0}}"
+  UI_INT=0
+  (( tty )) && { TRAPINT() { UI_INT=1; return 0 }; print -n $'\e[?25l' }
+  while kill -0 $pid 2>/dev/null; do
+    got=$(( $(du -sk $dir 2>/dev/null | cut -f1) * 1024.0 ))
+    now=$EPOCHREALTIME
+    if (( now - tl >= 1.5 )); then
+      (( speed = speed > 0 ? speed * 0.6 + (got - last) / (now - tl) * 0.4 : (got - last) / (now - tl), last = got, tl = now ))
+    fi
+    if (( tty )); then
+      _llm_bar $got $total 36
+      local -i pct
+      (( pct = total > 0 ? got * 100 / total : 0 ))
+      (( pct > 99 )) && pct=99
+      local info="$(printf '%.1f' $(( got / 1e9 ))) of $(printf '%.1f' $(( total / 1e9 ))) GB"
+      if (( speed >= 1e6 )); then info+=" · $(printf '%.0f' $(( speed / 1e6 ))) MB/s"
+      elif (( speed >= 1e3 )); then info+=" · $(printf '%.0f' $(( speed / 1e3 ))) KB/s"; fi
+      # a time only once the speed is known and steady
+      if (( speed > 5e4 && total > got && now - t0 > 4 )); then
+        (( left = (total - got) / speed ))
+        if (( left >= 3600 )); then info+=" · about $(( left / 3600 )) h $(( left % 3600 / 60 )) min left"
+        elif (( left >= 60 )); then info+=" · about $(( (left + 59) / 60 )) min left"
+        else info+=" · less than a minute"; fi
+      fi
+      (( drawn )) && print -n $'\e[2A'
+      print -r -- $'\r\e[K'"    $REPLY  "$'\e[1m'"$pct %"$'\e[0m'
+      print -r -- $'\r\e[K'"    "$'\e['"$LOTUS_C[dim]m$info · esc stops – it continues next time"$'\e[0m'
+      drawn=1
+      ui_keyx 0.5
+      [[ $REPLY == (esc|interrupt) ]] && { kill $pid 2>/dev/null; break }
+    else
+      zselect -t 100 2>/dev/null || sleep 1
+    fi
+  done
+  wait $pid 2>/dev/null; rc=$?
+  LLM_PID=0
+  (( tty )) && { unfunction TRAPINT 2>/dev/null; [[ -t 1 ]] && trap 'exit 130' INT; print -n $'\e[?25h' }
+  if (( rc == 0 )) && [[ -r $dir/config.json ]]; then
+    local -i secs=$(( EPOCHREALTIME - t0 ))
+    (( drawn )) && print -n $'\e[2A'
+    _llm_bar 1 1 36
+    print -r -- $'\r\e[K'"    $REPLY  "$'\e[1m'"100 %"$'\e[0m'
+    print -r -- $'\r\e[K'"    "$'\e['"$LOTUS_C[dim]m$(printf '%.1f' $(( total / 1e9 ))) GB in $(( secs / 60 )) min $(( secs % 60 )) s"$'\e[0m'
+    return 0
+  fi
+  lotus_log WARN ai "Download stopped: $repo (${$(tail -1 $log 2>/dev/null)[1,200]})"
+  return 1
+}
+
+# Every model with how much memory it needs (the bar: green fits, yellow tight, red too big),
+# whether it is here, the settings and the token
 _llm_screen() {
   local -i sel=1 ram n
-  local line st
+  local line st badge fit
   local -a ids opts f
   if ! { [[ -t 1 ]] && ui_has_tty }; then
     for line in $LLM_MODELS/*(/N); do _llm_size ${line:t}; print -r -- "${line:t}  $REPLY${${(M)${line:t}:#$LOTUS_AI_LOCAL}:+  (in use)}"; done
     return 0
   fi
   _llm_ram; ram=$REPLY
-  local -A th=(low "quick, no thinking" medium balanced high thorough max maximum)
+  local -A th=(low "quick" medium balanced high thorough max maximum)
+  local g=$'\e['"$LOTUS_C[key]m" y=$'\e['"$LOTUS_C[key2]m" r=$'\e[38;5;203m' d=$'\e['"$LOTUS_C[dim]m" x=$'\e[39m'
   while :; do
     print -n $'\e[H\e[2J'
-    ui_hero "AI on this Mac" "$ram GB memory · Apple's MLX, no Ollama · ${$(du -sh $LLM_MODELS 2>/dev/null | cut -f1):-nothing} downloaded"
+    ui_hero "AI on this Mac" "Apple's MLX · no Ollama · nothing leaves your Mac"
+    _llm_bar $(( ram * 0.7 )) $ram 24
+    print -r -- "    ${d}Memory${x}   $REPLY  ${d}$ram GB · about $(( ram * 7 / 10 )) GB for a model${x}"
+    bg_free_gb 2>/dev/null || { (( ${+functions[bg_free_gb]} )) || source $LOTUS_ROOT/lib/bg/runtime.zsh; bg_free_gb }
+    print -r -- "    ${d}Disk${x}     ${d}${$(du -sh $LLM_MODELS 2>/dev/null | cut -f1):-nothing} in models · $REPLY GB free${x}"
+    _llm_token && print -r -- "    ${d}Account${x}  ${g}✓${x} ${d}Hugging Face token – fast downloads${x}"
+    ui_blank
     ids=() opts=()
+    local -i dw=$(( ${COLUMNS:-100} - 52 ))
+    (( dw < 10 )) && dw=10
     for line in "${(@f)$(<$LOTUS_ROOT/data/llm-models.tsv)}"; do
       [[ $line == \#* || -z $line ]] && continue
       f=("${(@ps:\t:)line}")
-      if [[ $f[1] == $LOTUS_AI_LOCAL ]] && _llm_have $f[1]; then st="✓ in use"
-      elif _llm_have $f[1]; then st="✓ downloaded"
-      else st="$f[5] GB to download"; (( f[6] > ram )) && st+=", needs $f[6] GB memory"; fi
-      ids+=($f[1]) opts+=("$f[2]|$st · ${f[7]%% – *}")
+      # needs: download size plus room for the context
+      local -F need=$(( f[5] * 1.15 ))
+      if (( need <= ram * 0.62 )); then fit=$LOTUS_C[key]
+      elif (( need <= ram * 0.85 )); then fit=$LOTUS_C[key2]
+      else fit="38;5;203"; fi
+      _llm_bar $need $(( ram * 0.85 )) 8 $fit
+      badge=$REPLY
+      if [[ $f[1] == $LOTUS_AI_LOCAL ]] && _llm_have $f[1]; then st="${g}${(r:10:):-● in use}${x}"
+      elif _llm_have $f[1]; then st="${g}${(r:10:):-✓ here}${x}"
+      else st="${d}${(r:10:):-↓ ${f[5]} GB}${x}"; fi
+      ids+=($f[1])
+      opts+=("${(r:18:)f[2]}  $badge  $st  $d${${f[7]%% – *}[1,dw]}$x")
     done
     for line in $LLM_MODELS/*--*(/N); do
-      ids+=(${line:t}) opts+=("${${line:t}#*--}|✓ ${${(M)${line:t}:#$LOTUS_AI_LOCAL}:+in use}${${${line:t}:#$LOTUS_AI_LOCAL}:+downloaded} · ${${line:t}//--//}")
+      _llm_have ${line:t} || continue      # a download that stopped half way is not listed
+      ids+=(${line:t})
+      st="✓ here"; [[ ${line:t} == $LOTUS_AI_LOCAL ]] && st="● in use"
+      opts+=("${(r:18:)${${line:t}#*--}[1,18]}  ${d}········${x}  ${g}${(r:10:)st}${x}  $d${${${line:t}//--//}[1,dw]}$x")
     done
-    opts+=("Settings|thinking ${th[${LOTUS_AI_EFFORT:-high}]} · context $(( ${LOTUS_AI_CONTEXT:-32768} / 1024 ))K · answers up to $(( ${LOTUS_AI_MAXTOKENS:-8192} / 1024 ))K")
+    local -i ow=$(( ${COLUMNS:-100} - 30 ))
+    local sd="thinking ${th[${LOTUS_AI_EFFORT:-high}]} · context $(( ${LOTUS_AI_CONTEXT:-32768} / 1024 ))K · answers up to $(( ${LOTUS_AI_MAXTOKENS:-8192} / 1024 ))K · creativity ${LOTUS_AI_TEMP:-0.6}"
+    opts+=("${(r:18:):-Settings}  $d${sd[1,ow]}$x")
+    if _llm_token; then opts+=("${(r:18:):-Faster downloads}  $d${${:-Hugging Face token connected – remove it}[1,ow]}$x")
+    else opts+=("${(r:18:):-Faster downloads}  $d${${:-connect a free Hugging Face account (optional)}[1,ow]}$x"); fi
     n=0; for line in $ids; do _llm_have $line && (( n++ )); done
-    (( n )) && opts+=("Remove everything|all $n model(s) and the MLX environment")
+    (( n )) && opts+=("${(r:18:):-Remove everything}  $d${${:-all $n model(s) and the MLX environment}[1,ow]}$x")
     ui_select $sel "${opts[@]}" || break
     sel=$REPLY
     if (( sel <= ${#ids} )); then _llm_model ${ids[sel]}
     elif (( sel == ${#ids} + 1 )); then _llm_settings
+    elif (( sel == ${#ids} + 2 )); then _llm_token_flow; ui_dim "  $LOTUS_L[back]"; ui_key
     else _llm_remove all; ui_dim "  $LOTUS_L[back]"; ui_key; fi
   done
   print -n $'\e[H\e[2J'
@@ -587,6 +732,10 @@ _llm_install() {
   local id=$reply[1] label=$reply[2] repo=$reply[3] rev=$reply[4] gb=$reply[5] need=$reply[6]
   [[ $repo == [A-Za-z0-9_.-]##/[A-Za-z0-9_.-]## && $rev == [A-Za-z0-9_.-]## ]] || { ui_error "Not a Hugging Face repository" "$repo"; return 1 }
   id=${id//\//--}
+  if [[ $gb == '?' ]]; then   # a model from Hugging Face: ask how big it is
+    local -F bytes=$(curl -fsS -m 10 "https://huggingface.co/api/models/$repo?blobs=true" 2>/dev/null | lotus_jq '[.siblings[].size // 0] | add' 2>/dev/null)
+    (( bytes > 0 )) && gb=$(printf '%.1f' $(( bytes / 1e9 )))
+  fi
   (( need > ram )) && ui_warn "$label wants about $need GB of memory – this Mac has $ram GB."
   local -i fresh=0
   [[ -x $LLM_RUNTIME/bin/mlx_lm.server ]] || fresh=1
@@ -607,10 +756,8 @@ _llm_install() {
     lotus_log INFO ai "Local AI environment: $LLM_MLX"
   fi
   if [[ ! -r $LLM_MODELS/$id/config.json ]]; then
-    ui_step "Downloading $label ($gb GB) …"
     zf_mkdir -p $LLM_MODELS
-    HF_HUB_DISABLE_TELEMETRY=1 $LLM_RUNTIME/bin/python -c 'import sys; from huggingface_hub import snapshot_download as d; d(repo_id=sys.argv[1], revision=sys.argv[2], local_dir=sys.argv[3])' \
-      $repo $rev $LLM_MODELS/$id || { ui_error "The download stopped" "$repo" "Run lotus ai local $want again – it continues where it stopped"; return 1 }
+    _llm_fetch $repo $rev $id $label $gb || { ui_error "The download stopped" "$repo" "Run lotus ai local $want again – it continues where it stopped"; return 1 }
     lotus_log INFO ai "Local model downloaded: $repo@$rev"
   fi
   LOTUS_AI_LOCAL=$id LOTUS_AI_PROVIDER=local

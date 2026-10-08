@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.4.3
+
+- Fixed: gpt-oss on this Mac showed its raw output (<|channel|>analysis … <|channel|>final …) – `/ai` now shows only the answer. Thoughts of local models (gpt-oss channels, Qwen's <think>) are kept apart from the answer
+- Fixed: after such an answer the next question failed ("You have passed a message containing <|channel|> tags") – saved conversations are cleaned before they go back to the model
+- Thinking is quiet in `/ai`: while the AI thinks your pet's face is the spinner, afterwards one short line says how long it thought – then only the answer
+- The model manager (`lotus ai local`) looks better: memory and disk at the top, and every model with a small bar of how much memory it needs – green fits, yellow is tight, red is too big – its size, whether it is downloaded or in use, and what it is good at, in clean columns
+- Downloads have Lotus' own progress bar with percent, speed and time left instead of Hugging Face's output; esc stops one, the next start continues where it stopped. If Lotus ends, the download ends with it
+- "Faster downloads": connect a free Hugging Face account in the manager – the token page opens, you paste the token (hidden), Lotus checks it and keeps it in the Keychain. Downloads use it from then on, and the "unauthenticated requests" notice is gone either way
+- Models from Hugging Face show their size before the download
+
 ## 2.4.2
 
 - Fixed: with a model on this Mac, `/ai` said "The AI service is not reachable" – the model was stopped again right after it had loaded. It now stays while `/ai` runs and still leaves the memory when `/ai` ends, also after Ctrl-C

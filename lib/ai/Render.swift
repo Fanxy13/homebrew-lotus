@@ -266,16 +266,16 @@ final class Renderer: @unchecked Sendable {
         text?.feed(s)
     }
 
+    // Thinking stays out of the way: the spinner (the pet's face) says "Thinking", afterwards one
+    // short line says for how long – only the answer is shown
     func thinkingDelta(_ s: String) {
         guard !s.isEmpty, !quiet else { return }
         lock.lock(); defer { lock.unlock() }
-        closeText()
-        if thinking == nil {
+        if thinkingStarted == nil {
+            closeText()
             thinkingStarted = Date()
-            emit("\(Style.dim)✻ Thinking\(Style.reset)\n")
-            thinking = MarkdownStream(bullet: "  ", style: Style.dim + Style.italic, maxLines: 8)
+            Spinner.shared.start("Thinking")
         }
-        thinking?.feed(s)
     }
 
     private func closeText() {
@@ -287,11 +287,11 @@ final class Renderer: @unchecked Sendable {
     }
 
     private func closeThinking() {
-        if let t = thinking {
-            t.finish()
+        if let started = thinkingStarted {
             thinking = nil
-            let secs = Int(Date().timeIntervalSince(thinkingStarted ?? Date()))
-            emit("  \(Style.dim)thought for \(max(1, secs))s\(Style.reset)\n\n")
+            thinkingStarted = nil
+            let secs = Int(Date().timeIntervalSince(started))
+            emit("\(Style.dim)✻ thought for \(max(1, secs))s\(Style.reset)\n")
         }
     }
 

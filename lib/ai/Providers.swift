@@ -459,7 +459,9 @@ final class OllamaProvider: Provider {
 
     func reset(system: String, history: [Turn]) {
         messages = [["role": "system", "content": system]]
-        for t in history where !t.text.isEmpty { messages.append(["role": t.role, "content": t.text]) }
+        for t in history where !t.text.isEmpty {
+            messages.append(["role": t.role, "content": t.role == "assistant" ? ChannelSplit.answer(t.text) : t.text])
+        }
         lastTokens = (system.count + history.reduce(0) { $0 + $1.text.count }) / 4
     }
 
@@ -584,7 +586,9 @@ final class OpenAIProvider: Provider {
 
     func reset(system: String, history: [Turn]) {
         messages = [["role": "system", "content": system]]
-        for t in history where !t.text.isEmpty { messages.append(["role": t.role, "content": t.text]) }
+        for t in history where !t.text.isEmpty {
+            messages.append(["role": t.role, "content": t.role == "assistant" ? ChannelSplit.answer(t.text) : t.text])
+        }
     }
 
     private struct Reply {
@@ -622,6 +626,13 @@ final class OpenAIProvider: Provider {
             }
             var reply = Reply()
             var parts: [Int: (id: String, name: String, args: String)] = [:]
+            let split = ChannelSplit()
+            func take(_ pieces: [(Bool, String)]) {
+                for (think, piece) in pieces {
+                    if think { if render { Renderer.shared.thinkingDelta(piece) } }
+                    else { reply.text += piece; if render { Renderer.shared.textDelta(piece) } }
+                }
+            }
             for try await line in bytes.lines {
                 guard line.hasPrefix("data:") else { continue }
                 let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
@@ -629,10 +640,7 @@ final class OpenAIProvider: Provider {
                 guard let j = HTTP.parse(payload), let choice = (j["choices"] as? [[String: Any]])?.first,
                       let d = choice["delta"] as? [String: Any] else { continue }
                 if let r = (d["reasoning_content"] ?? d["reasoning"]) as? String, !r.isEmpty, render { Renderer.shared.thinkingDelta(r) }
-                if let t = d["content"] as? String, !t.isEmpty {
-                    reply.text += t
-                    if render { Renderer.shared.textDelta(t) }
-                }
+                if let t = d["content"] as? String, !t.isEmpty { take(split.feed(t)) }
                 for tc in d["tool_calls"] as? [[String: Any]] ?? [] {
                     let i = tc["index"] as? Int ?? 0
                     var p = parts[i] ?? (id: "", name: "", args: "")
@@ -644,6 +652,7 @@ final class OpenAIProvider: Provider {
                     parts[i] = p
                 }
             }
+            take(split.flush())
             if Task.isCancelled { throw CancellationError() }
             for i in parts.keys.sorted() {
                 let p = parts[i]!
@@ -679,5 +688,61 @@ final class OpenAIProvider: Provider {
     func complete(system: String, prompt: String) async throws -> String {
         let msgs: [[String: Any]] = [["role": "system", "content": system], ["role": "user", "content": prompt]]
         return try await stream(msgs, tools: false, render: false).text
+    }
+}
+
+// Models on this Mac write their thoughts into the answer: gpt-oss in its channels
+// (<|channel|>analysis<|message|>… then <|channel|>final<|message|>…), Qwen in <think>…</think>.
+// This splits the stream into thinking and the answer, also when a marker comes in pieces.
+final class ChannelSplit {
+    private var buf = ""
+    private var thinking = false
+    private var channel: String?          // the name after <|channel|>, until <|message|>
+    private let marks = ["<think>", "</think>", "<|start|>", "<|end|>", "<|return|>", "<|channel|>",
+                         "<|message|>", "<|constrain|>", "<|call|>"]
+
+    func feed(_ s: String) -> [(Bool, String)] {
+        buf += s
+        var out: [(Bool, String)] = []
+        func text(_ t: String) {
+            guard !t.isEmpty else { return }
+            if channel != nil { channel! += t } else { out.append((thinking, t)) }
+        }
+        while !buf.isEmpty {
+            guard let lt = buf.firstIndex(of: "<") else { text(buf); buf = ""; break }
+            text(String(buf[..<lt]))
+            let rest = String(buf[lt...])
+            if let m = marks.first(where: { rest.hasPrefix($0) }) {
+                switch m {
+                case "<think>": thinking = true
+                case "</think>": thinking = false
+                case "<|channel|>": channel = ""
+                case "<|message|>":
+                    if let name = channel { thinking = !name.trimmingCharacters(in: .whitespaces).hasPrefix("final"); channel = nil }
+                default: break        // <|start|>assistant, <|end|> …: only structure
+                }
+                buf = String(rest.dropFirst(m.count))
+                continue
+            }
+            // the start of a marker that is not complete yet: wait for the next piece
+            if marks.contains(where: { $0.hasPrefix(rest) }) { buf = rest; break }
+            text("<")
+            buf = String(rest.dropFirst())
+        }
+        return out
+    }
+
+    func flush() -> [(Bool, String)] {
+        defer { buf = "" }
+        return buf.isEmpty || channel != nil ? [] : [(thinking, buf)]
+    }
+
+    // Only the answer of a saved message (older versions kept the markers – a model refuses them)
+    static func answer(_ text: String) -> String {
+        guard text.contains("<|") || text.contains("<think>") else { return text }
+        let s = ChannelSplit()
+        let parts = s.feed(text) + s.flush()
+        let out = parts.filter { !$0.0 }.map { $0.1 }.joined().trimmingCharacters(in: .whitespacesAndNewlines)
+        return out.isEmpty ? "…" : out
     }
 }
