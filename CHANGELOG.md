@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.1
+
+- The pets are little pixel sprites now: block characters, two by two pixels each, with one-pixel eyes – a cat with pointed ears and a curly tail, and a dog seen from the side with a floppy ear, a snout and a wagging tail. They blink, talk, chew, wag and sleep (`scripts/make-pets.py` draws them)
+- Your pet comes along into `/ai`: it sits in the welcome box next to "Lotus AI", and while the AI thinks its face is the spinner and blinks now and then
+- Your own pets may be drawn with the same block characters (the prompt on the Pets page asks for them); everything else is still left out of a drawing
+
 ## 2.3.0 – Pets
 
 ### Pets that live in your terminal

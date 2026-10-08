@@ -1,4 +1,4 @@
-# lotus – pets: little ASCII friends that live in your terminal (feature "pets", up to 3).
+# lotus – pets: little pixel friends that live in your terminal (feature "pets", up to 3).
 #
 #   /pets                     adopt, talk, feed, rename, personality, settings
 #   <name> [message]          type a pet's name in the shell to talk to it (→ lotus pet <name> …)
@@ -7,7 +7,7 @@
 #   lotus pets add [file]     add your own kind of pet from the prompt on the website (default: clipboard)
 #
 # Kinds of pets are plain text files: data/pets/*.pet (cat, dog) and your own in ~/.config/lotus/pets/.
-# They are read as data, never run, and their drawings are plain ASCII. Adopted pets live in
+# They are read as data, never run; their drawings are ASCII and block pixels (▀ … ▟) only. Adopted pets live in
 # ~/.config/lotus/pets.tsv, hunger and what they remember in ~/.local/state/lotus/.
 # Pets think with Apple Intelligence on this Mac (or the AI of /ai, or not at all).
 
@@ -42,8 +42,8 @@ _pet_species() {
   return 0
 }
 
-# Reads one .pet file – as data, nothing in it is run. Drawings keep plain ASCII only, other
-# values lose control characters. → REPLY = the kind (status 1: REPLY = what is wrong)
+# Reads one .pet file – as data, nothing in it is run. Drawings keep plain ASCII and the block
+# characters ▀ … ▟ (pixel sprites, two by two pixels each) only; other values lose control characters. → REPLY = the kind (status 1: REPLY = what is wrong)
 _pet_parse() {
   setopt localoptions extendedglob
   local file=$1 line frame= key val sp
@@ -64,7 +64,7 @@ _pet_parse() {
       key=${line%%:*} val=${line#*:}
       info[$key]=${${${val//[[:cntrl:]]/}##[[:space:]]#}%%[[:space:]]#}
     else
-      art[$frame]+=${${line//[^ -~]/}%%[[:space:]]#}$'\n'
+      art[$frame]+=${${line//[^ -~▀-▟]/}%%[[:space:]]#}$'\n'
     fi
   done
   sp=${(L)info[species]}
@@ -688,7 +688,7 @@ lotus_pet_react_now() {   # <typo|done>
           text="$PET_N[idx]: $LOTUS_L[$key]" ;;
     *)    return 0 ;;
   esac
-  face=${face//[^ -~]/}
+  face=${face//[^ -~▀-▟]/}
   print -r -- "  $c${face[1,12]}$r $text"
 }
 

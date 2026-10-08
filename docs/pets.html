@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pets — Lotus</title>
-  <meta name="description" content="Little ASCII pets that live in your terminal: they talk with Apple Intelligence, help with /help and get hungry. Make your own with a prompt.">
+  <meta name="description" content="Little pixel pets that live in your terminal: they talk with Apple Intelligence, help with /help and get hungry. Make your own with a prompt.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.3.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.3.0">
-  <script src="js/lotus.js?v=2.3.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.3.1">
+  <link rel="stylesheet" href="css/pages.css?v=2.3.1">
+  <script src="js/lotus.js?v=2.3.1"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -18,7 +18,7 @@
     <header class="page-head">
       <p class="eyebrow">Pets</p>
       <h1>Friends that live in your <span>terminal</span></h1>
-      <p class="lead">Up to three little ASCII pets keep you company in the macOS terminal. Type a name and your pet answers – it thinks with Apple Intelligence, right on your Mac. It greets you, helps you find the right command and gets hungry now and then.</p>
+      <p class="lead">Up to three little pixel pets keep you company in the macOS terminal. Type a name and your pet answers – it thinks with Apple Intelligence, right on your Mac. It greets you, helps you find the right command and gets hungry now and then.</p>
     </header>
 
     <div class="pet-stage" id="pet-stage">
@@ -28,7 +28,7 @@
     <h2 class="section" id="how">How pets work</h2>
     <div class="grid">
       <div class="card"><h3>Call them by name</h3><div class="codeblock small"><code>mochi</code></div><p class="muted small">Just the name starts a little chat. With words after it, the pet answers once: <code>mochi how was your day?</code></p></div>
-      <div class="card"><h3>They really talk</h3><p class="muted small">Pets think with Apple Intelligence on your Mac (macOS 26 and later, Apple silicon). Each one has its own personality, remembers the last few things you said and answers in your language. Without Apple Intelligence they still say hi – in short phrases.</p></div>
+      <div class="card"><h3>They really talk</h3><p class="muted small">Pets think with Apple Intelligence on your Mac (macOS 26 and later, Apple silicon). In <code>/ai</code> your pet sits in the welcome box and its face is the spinner while the AI thinks. Each one has its own personality, remembers the last few things you said and answers in your language. Without Apple Intelligence they still say hi – in short phrases.</p></div>
       <div class="card"><h3>Ask for help</h3><div class="codeblock small"><code>/help</code></div><p class="muted small">Your pet asks where you need help, finds the right commands and shows them. Press 1, 2 or 3 and the command is ready on your command line. <code>/help all</code> lists every command.</p></div>
       <div class="card"><h3>Feed them</h3><div class="codeblock small"><code>/feed mochi</code></div><p class="muted small">After half a day without food a pet gets hungry and tells you on the start screen. It never gets ill – it is just happier after a snack.</p></div>
       <div class="card"><h3>Greetings and tips</h3><p class="muted small">One of your pets says hi below the start screen, a different one every day – with a tip about a Lotus command now and then. At night it sleeps.</p></div>
@@ -65,8 +65,8 @@
 My pet is a [animal, e.g. fox] called [name]. Its personality: [a few words, e.g. clever, a little cheeky, loves autumn leaves].
 
 Reply with only the file below in one code block, nothing else. Rules:
-- Plain ASCII characters only: no emoji, no accents, no Unicode lines or blocks.
-- Every drawing is at most 8 lines high and 24 characters wide.
+- Draw it like a tiny pixel sprite with the block characters ▀ ▄ █ ▌ ▐ ▖ ▗ ▘ ▝ ▙ ▚ ▛ ▜ ▞ ▟ (each one is two by two pixels; eyes are small gaps), or with plain ASCII. Nothing else: no emoji, no accents, no other Unicode.
+- Every drawing is at most 8 lines high and 24 characters wide – about 10 wide and 4 high looks best.
 - All drawings show the same animal at the same size and position, so they can be swapped like frames of an animation. Only the eyes, mouth, tail or ears change.
 - species is one lowercase word with letters only.
 
@@ -99,10 +99,10 @@ personality: [its personality in one sentence]
     </div>
 
     <h3 style="margin-top:34px">The pet file</h3>
-    <p class="muted small">Every pet is a plain text file – Lotus' own cat and dog too (<code>data/pets/cat.pet</code>). Lines with <code>key: value</code> describe it, <code>[idle]</code>, <code>[blink]</code>, <code>[wag]</code>, <code>[talk]</code>, <code>[happy]</code>, <code>[eat]</code> and <code>[sleep]</code> start the drawings; only <code>[idle]</code> is required. Your own pets are kept in <code>~/.config/lotus/pets/</code>.</p>
-    <div class="callout" style="margin-top:14px"><p>A pet file is only data: Lotus reads it, it never runs anything in it. Drawings keep plain ASCII and lose everything else, so a pet cannot change your terminal. What your pets say and remember stays on your Mac – Apple Intelligence runs on the device, and Lotus sends nothing anywhere.</p></div>
+    <p class="muted small">Every pet is a plain text file – Lotus' own cat and dog too (<code>data/pets/cat.pet</code>), little pixel sprites drawn with block characters, two by two pixels each. Lines with <code>key: value</code> describe it, <code>[idle]</code>, <code>[blink]</code>, <code>[wag]</code>, <code>[talk]</code>, <code>[happy]</code>, <code>[eat]</code> and <code>[sleep]</code> start the drawings; only <code>[idle]</code> is required. Your own pets are kept in <code>~/.config/lotus/pets/</code>.</p>
+    <div class="callout" style="margin-top:14px"><p>A pet file is only data: Lotus reads it, it never runs anything in it. Drawings keep plain ASCII and block characters and lose everything else, so a pet cannot change your terminal. What your pets say and remember stays on your Mac – Apple Intelligence runs on the device, and Lotus sends nothing anywhere.</p></div>
   </main>
   <lotus-footer></lotus-footer>
-  <script src="js/pets.js?v=2.3.0" defer></script>
+  <script src="js/pets.js?v=2.3.1" defer></script>
 </body>
 </html>

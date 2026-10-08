@@ -366,7 +366,7 @@ header, section { position: relative; z-index: 2; }
 .tile-pets { grid-column: 1 / -1; }
 .pets-row { position: absolute; left: 30px; right: 30px; top: 40px; display: flex; flex-wrap: wrap; gap: 18px 48px; align-items: center; color: inherit; text-decoration: none; }
 .pets-row .pet { display: flex; align-items: center; gap: 16px; }
-.pets-row pre { margin: 0; font: 600 17px/1.25 var(--mono); color: var(--ink-logo); }
+.pets-row pre { margin: 0; font: 20px/1 var(--mono); color: var(--ink-logo); }
 .pets-row .dog pre { color: var(--ink-key); }
 .pets-row .say { position: relative; padding: 9px 13px; border: 1px solid var(--line-strong); border-radius: 12px; font: 13px var(--mono); color: var(--text); background: var(--glass); }
 @media (max-width: 900px) { .tile-pets { grid-column: span 2; } .pets-row .dog { display: none; } }

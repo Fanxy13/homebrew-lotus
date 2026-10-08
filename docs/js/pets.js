@@ -3,7 +3,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
 
-  // Same rules as lib/cmd/pets.zsh: "key: value" lines, then [frame] drawings (plain ASCII)
+  // Same rules as lib/cmd/pets.zsh: "key: value" lines, then [frame] drawings (ASCII and block pixels)
   function parse(text) {
     const info = {}, art = {};
     let frame = null;
@@ -15,7 +15,7 @@
         const kv = line.trim().match(/^([a-z_]+):\s*(.*)$/);
         if (kv) info[kv[1]] = kv[2].trim();
       } else {
-        art[frame].push(line.replace(/[^ -~]/g, '').replace(/\s+$/, ''));
+        art[frame].push(line.replace(/[^ -~\u2580-\u259F]/g, '').replace(/\s+$/, ''));
       }
     }
     for (const f of Object.keys(art)) while (art[f].length && !art[f][art[f].length - 1]) art[f].pop();

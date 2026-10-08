@@ -1,5 +1,6 @@
 # Lotus pet: a dog. Own pets use the same format – see lotus pets add, or the Pets page on the website.
-# Lines "key: value" describe the pet; [frame] starts a drawing (plain ASCII, up to 8 lines, 24 wide).
+# Lines "key: value" describe the pet; [frame] starts a drawing (ASCII or block pixels ▀ … ▟, up to 8 lines, 24 wide).
+# The drawings are made by scripts/make-pets.py.
 # Only [idle] is needed; a frame that is missing uses idle.
 species: dog
 label: Dog
@@ -15,46 +16,48 @@ food_de: Knochen
 food_fr: biscuit
 food_es: hueso
 snack: o==o
-face: U(o.o)U
-face_happy: U(^.^)U
 about: loyal, cheerful, always excited
 about_de: treu, fröhlich, immer begeistert
 about_fr: fidèle, joyeux, toujours enthousiaste
 about_es: leal, alegre, siempre entusiasmado
 names: Bruno, Bella, Pixel, Rocky, Lucky, Kiwi
 personality: loyal, cheerful and always excited, loves walks, sticks and the person who feeds him, wags his tail at everything
+mini: ▟▜▙▄▄▄▄▄▙
+mini_blink: ▟█▙▄▄▄▄▄▙
+face: ▟▜▙▄▄▄▄▄▙
+face_happy: ▟█▙▄▄▄▄▄▙
 [idle]
-  __      _
-o'')}____//
- `_/      )
- (_(_/-(_/
+ ▄▖     ▖
+▟▜▙▄▄▄▄▄▙
+▀████████
+ ▝▛▛▀▀▀▛▌
 [blink]
-  __      _
-o--)}____//
- `_/      )
- (_(_/-(_/
+ ▄▖     ▖
+▟█▙▄▄▄▄▄▙
+▀████████
+ ▝▛▛▀▀▀▛▌
 [wag]
-  __
-o'')}____\\
- `_/      )
- (_(_/-(_/
+ ▄▖     ▗
+▟▜▙▄▄▄▄▄▙
+▀████████
+ ▝▛▛▀▀▀▛▌
 [talk]
-  __      _
-o'')}____//
- `o/      )
- (_(_/-(_/
+ ▄▖     ▖
+▟▜▙▄▄▄▄▄▙
+▘████████
+ ▝▛▛▀▀▀▛▌
 [happy]
-  __
-o^^)}____\\
- `o/      )
- (_(_/-(_/
+ ▄▖     ▗
+▟█▙▄▄▄▄▄▙
+▀████████
+ ▝▛▛▀▀▀▛▌
 [eat]
-  __      _
-o^^)}____//
- `w/      )
- (_(_/-(_/
+ ▄▖     ▖
+▟▜▙▄▄▄▄▄▙
+ ████████
+ ▝▛▛▀▀▀▛▌
 [sleep]
-  __        z
-o--)}____ Z
- `_/      )__
- (_(_/-(_/
+ ▄▖     ▖  z
+▟█▙▄▄▄▄▄▙  Z
+▀████████
+ ▝▀▀▀▀▀▀▘

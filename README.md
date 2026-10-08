@@ -54,9 +54,10 @@ when a command needs them – nothing is installed without asking.
 
 ## Lotus 2.3 – Pets
 
-- **Pets that live in your terminal** – adopt up to three: a cat, a dog or your own kind.
+- **Pets that live in your terminal** – adopt up to three little pixel pets: a cat, a dog or your own kind.
   Type a pet's name and it answers – it thinks with Apple Intelligence on your Mac, has its
-  own personality and remembers the last few things you said.
+  own personality and remembers the last few things you said. In `/ai` it sits in the welcome
+  box, and its face is the spinner while the AI thinks.
 - **`/help` with a pet** – your pet asks where you need help, finds the right commands and puts
   the one you pick on your command line.
 - **`/feed mochi`** – pets get hungry after half a day (they never get ill). They greet you

@@ -24,6 +24,32 @@ enum Style {
     static let green = "\u{1B}[38;5;114m"
 }
 
+// The user's pet (lib/cmd/pets.zsh, set by lib/cmd/ai.zsh): it sits in the welcome box and its
+// face is the spinner. Only plain ASCII and block pixels (▀ … ▟) get through.
+struct Pet {
+    let name: String
+    let art: [String]
+    let mini: String
+    let miniBlink: String
+    let color: String
+
+    static let current: Pet? = {
+        let e = ProcessInfo.processInfo.environment
+        func clean(_ s: String) -> String {
+            String(String.UnicodeScalarView(s.unicodeScalars.filter { ($0.value >= 0x20 && $0.value < 0x7F) || ($0.value >= 0x2580 && $0.value <= 0x259F) }))
+        }
+        let name = clean(e["LOTUS_AI_PET_NAME"] ?? "")
+        let art = (e["LOTUS_AI_PET_ART"] ?? "").split(separator: "\n", omittingEmptySubsequences: false).map { clean(String($0)) }
+        guard !name.isEmpty, art.contains(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }), art.count <= 8 else { return nil }
+        let color = e["LOTUS_AI_PET_COLOR"] ?? ""
+        let valid = color.allSatisfy { $0.isNumber || $0 == ";" }
+        return Pet(name: String(name.prefix(16)), art: art.map { String($0.prefix(24)) },
+                   mini: String(clean(e["LOTUS_AI_PET_MINI"] ?? "").prefix(12)),
+                   miniBlink: String(clean(e["LOTUS_AI_PET_MINI_BLINK"] ?? "").prefix(12)),
+                   color: "\u{1B}[" + (valid && !color.isEmpty ? color : "38;5;218") + "m")
+    }()
+}
+
 // All output goes through one lock so the spinner never cuts into other text
 final class Out: @unchecked Sendable {
     static let shared = Out()
@@ -347,6 +373,12 @@ final class Spinner: @unchecked Sendable {
     private var started = Date()
     private var frame = 0
     private let frames = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"]
+    // With a pet: its face, blinking now and then
+    private let petFrames: [String]? = {
+        guard let p = Pet.current, !p.mini.isEmpty else { return nil }
+        let shut = p.miniBlink.isEmpty ? p.mini : p.miniBlink
+        return Array(repeating: p.mini, count: 16) + [shut] + Array(repeating: p.mini, count: 6) + [shut, shut]
+    }()
     var hint = "esc to stop"
 
     func start(_ text: String) {
@@ -378,8 +410,10 @@ final class Spinner: @unchecked Sendable {
         guard timer != nil else { lock.unlock(); return }
         frame += 1
         let secs = Int(Date().timeIntervalSince(started))
-        let glyph = frames[frame % frames.count]
-        let line = "\r\u{1B}[2K\(Style.logo)\(glyph)\(Style.reset) \(Style.logo)\(label)…\(Style.reset) \(Style.dim)(\(secs)s · \(hint))\(Style.reset)"
+        let glyph: String
+        if let pet = petFrames, let p = Pet.current { glyph = p.color + pet[frame % pet.count] }
+        else { glyph = Style.logo + frames[frame % frames.count] }
+        let line = "\r\u{1B}[2K\(glyph)\(Style.reset) \(Style.logo)\(label)…\(Style.reset) \(Style.dim)(\(secs)s · \(hint))\(Style.reset)"
         Out.shared.write(line)
         lock.unlock()
     }

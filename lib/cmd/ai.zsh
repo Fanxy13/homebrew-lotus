@@ -168,11 +168,29 @@ lotus_ai_run() {
     _ai_openai_key && export LOTUS_AI_OPENAI_KEY=$REPLY
     [[ -n $LOTUS_AI_INSTRUCTIONS ]] && export LOTUS_AI_INSTRUCTIONS
     export LOTUS_LOG LOTUS_LOG_LEVEL LOTUS_VERBOSE
+    [[ $mode == (--tui|--once) ]] && _ai_pet
     exec $bin $mode "$@"
   )
   local -i rc=$?
   (( rc && rc != 130 )) && lotus_log WARN ai "The AI program ended with status $rc"
   return rc
+}
+
+# The pet of the day comes along into the AI terminal: the welcome box shows it, its face is the
+# spinner (environment only – the AI program draws it)
+_ai_pet() {
+  lotus_feature_on pets && [[ -s $LOTUS_CONF/pets.tsv ]] || return 0
+  (( ${+functions[_pet_load]} )) || source $LOTUS_ROOT/lib/cmd/pets.zsh
+  _pet_load; _pet_species
+  (( ${#PET_N} )) || return 0
+  local -i day idx
+  strftime -s day %j $EPOCHSECONDS
+  (( idx = day % ${#PET_N} + 1 ))
+  _pet_kind $idx
+  local kind=$REPLY
+  _pet_color $idx
+  export LOTUS_AI_PET_NAME=$PET_N[idx] LOTUS_AI_PET_COLOR=$REPLY LOTUS_AI_PET_ART=${PET_ART[$kind,idle]}
+  export LOTUS_AI_PET_MINI=${PET_INFO[$kind,mini]:-${PET_INFO[$kind,face]}} LOTUS_AI_PET_MINI_BLINK=$PET_INFO[$kind,mini_blink]
 }
 
 # Without the Command Line Tools: one answer through curl, no memory, no tools

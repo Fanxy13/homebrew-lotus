@@ -42,5 +42,5 @@ LOTUS_L+=(
   sw_pet_sub 'Un petit ami qui vit dans votre terminal : il vous salue, parle avec Apple Intelligence, aide avec /help et a faim. Plus dans /pets.'
   sw_pet_none 'Pas maintenant'  sw_pet_none_d 'plus tard avec /pets'
   sw_petname_q 'Comment s’appelle votre %s ?'  sw_petname_sub 'Vous l’appelez en tapant son nom.'
-  featd_pets 'Des animaux en ASCII qui parlent, aident avec /help et ont faim'
+  featd_pets 'Des animaux en pixels qui parlent, aident avec /help et ont faim'
 )

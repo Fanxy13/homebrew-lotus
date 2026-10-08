@@ -137,15 +137,15 @@
     ['a', '09:32:10  INFO   ai   Tool write_file index.html', 0],
   ]);
 
-  // ── Pets tile: the cat blinks, the dog wags ─────────────────
+  // ── Pets tile: the cat blinks, the dog wags (the drawings of data/pets) ──
   const cat = $('.tile-pets .cat pre'), dog = $('.tile-pets .dog pre');
   if (cat && dog) {
-    const c0 = cat.textContent, d0 = dog.textContent;
+    const CAT = [cat.textContent, " \u2597\u2599   \u259f\u2596\n \u2590\u2588\u2588\u2588\u2588\u2588\u258c\n \u2590\u2588\u2588\u2588\u2588\u2588\u258c\u259f\n \u259d\u259b\u259b\u2580\u259c\u259c\u2598\u2598"], DOG = [dog.textContent, " \u2584\u2596     \u2597\n\u259f\u259c\u2599\u2584\u2584\u2584\u2584\u2584\u2599\n\u2580\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\n \u259d\u259b\u259b\u2580\u2580\u2580\u259b\u258c"];
     let t = 0;
     setInterval(() => {
       t++;
-      cat.textContent = t % 9 === 0 ? c0.replace('o.o', '-.-') : c0;
-      dog.textContent = t % 4 < 2 ? d0 : d0.replace('  __      _\n', '  __\n').replace('____//', '____\\\\');
+      cat.textContent = CAT[t % 9 === 0 ? 1 : 0];
+      dog.textContent = DOG[t % 4 < 2 ? 0 : 1];
     }, 380);
   }
 

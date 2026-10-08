@@ -354,12 +354,32 @@ enum TUI {
         let width = min(max(40, Term.width - 1), 76)
         let home = NSHomeDirectory()
         let path = agent.cwd.path.hasPrefix(home) ? "~" + agent.cwd.path.dropFirst(home.count) : agent.cwd.path
-        let rows = [
-            "\(Style.logo)✻\(Style.reset) \(Style.bold)Lotus AI\(Style.reset)",
-            "",
-            "  \(agent.provider.label) \(Style.dim)· thinks \(effortNames[agent.config.effort] ?? agent.config.effort)\(Style.reset)",
-            "  \(Style.dim)\(clip(String(path), width - 8))\(Style.reset)",
-        ]
+        let thinks = "\(agent.provider.label) \(Style.dim)· thinks \(effortNames[agent.config.effort] ?? agent.config.effort)\(Style.reset)"
+        var rows: [String]
+        if let pet = Pet.current {
+            // the pet sits on the left, like a little mascot
+            let artWidth = pet.art.map { cellWidth($0) }.max() ?? 0
+            let text = [
+                "\(Style.bold)Lotus AI\(Style.reset)",
+                thinks,
+                "\(Style.dim)\(clip(String(path), max(10, width - artWidth - 12)))\(Style.reset)",
+                "\(Style.dim)\(pet.name) keeps you company\(Style.reset)",
+            ]
+            rows = [""]
+            for i in 0..<max(pet.art.count, text.count) {
+                let a = i < pet.art.count ? pet.art[i] : ""
+                let pad = String(repeating: " ", count: max(0, artWidth - cellWidth(a)))
+                rows.append(" " + pet.color + a + Style.reset + pad + "   " + (i < text.count ? text[i] : ""))
+            }
+            rows.append("")
+        } else {
+            rows = [
+                "\(Style.logo)✻\(Style.reset) \(Style.bold)Lotus AI\(Style.reset)",
+                "",
+                "  " + thinks,
+                "  \(Style.dim)\(clip(String(path), width - 8))\(Style.reset)",
+            ]
+        }
         var out = "\n" + frame(rows, width: width)
         out += "  \(Style.dim)Ask anything, or let me work in this folder: create files, change code, run commands.\(Style.reset)\n"
         out += "  \(Style.dim)I ask before I change anything. /help shows what else you can do.\(Style.reset)\n"

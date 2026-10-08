@@ -58,5 +58,5 @@ LOTUS_L+=(
   sw_pet_none_d   'later with /pets'
   sw_petname_q    'What is your %s called?'
   sw_petname_sub  'You call it by typing its name.'
-  featd_pets      'ASCII pets that talk, help with /help and get hungry'
+  featd_pets      'Pixel pets that talk, help with /help and get hungry'
 )
