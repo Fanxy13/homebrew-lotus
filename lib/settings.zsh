@@ -58,7 +58,11 @@ lotus_settings_ui() {
     _on ai && items+=(
       "head||$LOTUS_L[head_ai]|"
       "choice|LOTUS_AI_PROVIDER|$LOTUS_L[ai_provider]|auto=$LOTUS_L[col_auto];claude=Claude;local=${LOTUS_L[ai_local]:-On this Mac (MLX)};apple=Apple Intelligence;ollama=Ollama;openai=OpenAI-compatible"
-      "action|aillm|${LOTUS_L[ai_local_get]:-Get a model for this Mac}|"
+      "action|aillm|${LOTUS_L[ai_local_get]:-Models on this Mac}|"
+      "choice|LOTUS_AI_CONTEXT|${LOTUS_L[ai_ctx]:-Context window}|8192=8K;16384=16K;32768=32K;65536=64K;131072=128K"
+      "choice|LOTUS_AI_MAXTOKENS|${LOTUS_L[ai_len]:-Answer length}|2048=2K;4096=4K;8192=8K;16384=16K;32768=32K"
+      "choice|LOTUS_AI_TEMP|${LOTUS_L[ai_temp]:-Creativity}|0.2=${LOTUS_L[ai_temp_p]:-precise};0.6=${LOTUS_L[ai_temp_b]:-balanced};1.0=${LOTUS_L[ai_temp_c]:-creative}"
+      "choice|LOTUS_AI_KVBITS|${LOTUS_L[ai_kv]:-Memory saver}|0=$LOTUS_L[off];8=$LOTUS_L[on]"
       "choice|LOTUS_AI_EFFORT|$LOTUS_L[ai_effort]|low=$LOTUS_L[effort_low];medium=$LOTUS_L[effort_medium];high=$LOTUS_L[effort_high];max=$LOTUS_L[effort_max]"
       "text|LOTUS_AI_MODEL|$LOTUS_L[ai_model]|"
       "text|LOTUS_AI_URL|$LOTUS_L[ai_url]|"

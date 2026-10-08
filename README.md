@@ -96,7 +96,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | AI | `/ai` | The AI terminal: chat, write code, create and change files, run commands – it asks before every change |
 | | `/ai what is a symlink?`, `/ai new` | One question (it remembers the conversation for an hour) · start fresh |
 | | `lotus ai login` or `/login` | Connect Claude in a minute; also Apple Intelligence, Ollama or an OpenAI-compatible API |
-| | `lotus ai local` | A model that runs on this Mac with Apple's MLX – no Ollama; recommends what fits your memory |
+| | `lotus ai local` | Models that run on this Mac with Apple's MLX – no Ollama: download, switch, remove; thinking, context window, answer length, creativity |
 | | `/ai explain`, `summarize`, `write`, `command` | Explain an error, summarize a file, draft text, suggest a command |
 | Audio | `/np`, `/play`, `/pause`, `/skip`, `/back` | What is playing, play, pause, next, previous |
 | | `/repeat`, `/mute`, `/vu`, `/vd` | Repeat, mute, volume up and down |

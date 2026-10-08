@@ -573,10 +573,14 @@ final class OpenAIProvider: Provider {
         self.key = key
     }
 
-    var label: String { "\(model) · \(URL(string: base)?.host ?? base)" }
-    var budget: Int { 100_000 }
+    // A model on this Mac (lotus ai local) brings its own name and context window
+    var label: String {
+        if let l = ProcessInfo.processInfo.environment["LOTUS_AI_LABEL"], !l.isEmpty { return l }
+        return "\(model) · \(URL(string: base)?.host ?? base)"
+    }
+    var budget: Int { Int(ProcessInfo.processInfo.environment["LOTUS_AI_CONTEXT"] ?? "").map { max(4096, $0) } ?? 100_000 }
     var usedTokens: Int { messages.reduce(0) { $0 + "\($1["content"] ?? "")".count } / 4 }
-    var isSmall: Bool { false }
+    var isSmall: Bool { budget <= 16_384 }
 
     func reset(system: String, history: [Turn]) {
         messages = [["role": "system", "content": system]]

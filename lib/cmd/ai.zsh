@@ -153,6 +153,8 @@ lotus_ai_run() {
     # the model on this Mac speaks the OpenAI API while /ai runs, then it leaves the memory again
     _llm_start || return 1
     provider=openai url=$REPLY model=$LLM_MODELS/$LOTUS_AI_LOCAL key=local
+    _llm_row $LOTUS_AI_LOCAL
+    local llm_label="$reply[2] · on this Mac"
   fi
   case $provider in
     claude) [[ $model == claude-* ]] || model= ;;
@@ -170,6 +172,7 @@ lotus_ai_run() {
     export LOTUS_AI_PROVIDER=$provider LOTUS_AI_MODEL=$model LOTUS_AI_EFFORT=${LOTUS_AI_EFFORT:-high}
     export LOTUS_AI_STATE=$LOTUS_CACHE/ai LOTUS_AI_URL=$url LOTUS_AI_AVAILABLE=${(j:,:)avail}
     export LOTUS_NAME LOTUS_ROOT LOTUS_VERSION
+    [[ -n $llm_label ]] && export LOTUS_AI_LABEL=$llm_label LOTUS_AI_CONTEXT=${LOTUS_AI_CONTEXT:-32768}
     export LOTUS_AI_C_LOGO=$LOTUS_C[logo] LOTUS_AI_C_KEY=$LOTUS_C[key] LOTUS_AI_C_ACCENT=$LOTUS_C[accent]
     export LOTUS_AI_C_BORDER=$LOTUS_C[border] LOTUS_AI_C_DIM=$LOTUS_C[dim] LOTUS_AI_C_MUSIC=$LOTUS_C[music]
     _ai_claude_key && export LOTUS_AI_CLAUDE_KEY=$REPLY
@@ -407,9 +410,10 @@ lotus_ai_logout() {
 }
 
 # ── A model on this Mac: Apple's MLX, without Ollama ──────────
-# lotus ai local              pick a model that fits this Mac (data/llm-models.tsv), download it, use it
-# lotus ai local <id|owner/repo>   a model from the list, or any MLX model on Hugging Face
-# lotus ai local remove       delete the downloaded models and the environment
+# lotus ai local                   your models: download, use, remove – and the settings
+# lotus ai local <id|owner/repo>   download and use a model from the list, or any MLX model on Hugging Face
+# lotus ai local use|remove <id>   switch to a downloaded model · delete one (remove all: everything)
+# lotus ai local settings          thinking, context window, answer length, creativity, memory saver
 # The model runs in Lotus' own Python environment (mlx-lm, pinned) and is started only while /ai
 # runs – it listens on 127.0.0.1 only and leaves the memory when /ai ends.
 
@@ -444,33 +448,141 @@ _llm_python() {
 
 lotus_ai_local() {
   [[ $(uname -m) == arm64 ]] || { ui_error "Local models need Apple silicon" "" "On this Mac: Ollama, or an OpenAI-compatible API (/settings)"; return 1 }
-  local want=$1 line
-  local -a ids=() labels=() f
-  _llm_ram; local -i ram=$REPLY
-  if [[ $want == remove ]]; then
-    ui_confirm "Delete the local models and their environment ($(du -sh $LLM_MODELS 2>/dev/null | cut -f1))?" n || return 0
-    rm -rf $LLM_MODELS $LLM_RUNTIME
-    [[ $LOTUS_AI_PROVIDER == local ]] && LOTUS_AI_PROVIDER=auto
-    LOTUS_AI_LOCAL=; lotus_save
-    ui_success "Removed"; return 0
+  case $1 in
+    ''|list)  _llm_screen ;;
+    settings) _llm_settings ;;
+    use)      _llm_use "$2" ;;
+    remove)   _llm_remove "${2:-all}" ;;
+    *)        _llm_install "$1" ;;
+  esac
+}
+
+_llm_have() { [[ -n $1 && -r $LLM_MODELS/$1/config.json ]] }
+_llm_size() { REPLY=$(du -sh $LLM_MODELS/$1 2>/dev/null | cut -f1); REPLY=${REPLY:-0} }
+
+# Every model of the list, and the ones you added yourself, with what they are and whether they are here
+_llm_screen() {
+  local -i sel=1 ram n
+  local line st
+  local -a ids opts f
+  if ! { [[ -t 1 ]] && ui_has_tty }; then
+    for line in $LLM_MODELS/*(/N); do _llm_size ${line:t}; print -r -- "${line:t}  $REPLY${${(M)${line:t}:#$LOTUS_AI_LOCAL}:+  (in use)}"; done
+    return 0
   fi
-  if [[ -z $want ]]; then
-    ui_header "AI on this Mac" "$ram GB memory · runs with Apple's MLX, no Ollama, nothing leaves the Mac"
+  _llm_ram; ram=$REPLY
+  local -A th=(low "quick, no thinking" medium balanced high thorough max maximum)
+  while :; do
+    print -n $'\e[H\e[2J'
+    ui_hero "AI on this Mac" "$ram GB memory · Apple's MLX, no Ollama · ${$(du -sh $LLM_MODELS 2>/dev/null | cut -f1):-nothing} downloaded"
+    ids=() opts=()
     for line in "${(@f)$(<$LOTUS_ROOT/data/llm-models.tsv)}"; do
       [[ $line == \#* || -z $line ]] && continue
       f=("${(@ps:\t:)line}")
-      ids+=($f[1])
-      local mark=
-      [[ -r $LLM_MODELS/$f[1]/config.json ]] && mark="  ✓ downloaded"
-      [[ $f[1] == $LOTUS_AI_LOCAL ]] && mark="  ✓ in use"
-      (( f[6] > ram )) && mark+="  ! needs $f[6] GB memory"
-      labels+=("${(r:17:)f[2]} ${(l:5:)f[5]} GB  ${f[7]}$mark")
+      if [[ $f[1] == $LOTUS_AI_LOCAL ]] && _llm_have $f[1]; then st="✓ in use"
+      elif _llm_have $f[1]; then st="✓ downloaded"
+      else st="$f[5] GB to download"; (( f[6] > ram )) && st+=", needs $f[6] GB memory"; fi
+      ids+=($f[1]) opts+=("$f[2]|$st · ${f[7]%% – *}")
     done
-    ui_dim "All five run on Apple silicon; the first one is the best fit for most people. Downloads go to ~/.local/share/lotus/llm."
-    ui_blank
-    ui_choose "Which model?" "${labels[@]}" || return 0
-    want=$ids[REPLY]
+    for line in $LLM_MODELS/*--*(/N); do
+      ids+=(${line:t}) opts+=("${${line:t}#*--}|✓ ${${(M)${line:t}:#$LOTUS_AI_LOCAL}:+in use}${${${line:t}:#$LOTUS_AI_LOCAL}:+downloaded} · ${${line:t}//--//}")
+    done
+    opts+=("Settings|thinking ${th[${LOTUS_AI_EFFORT:-high}]} · context $(( ${LOTUS_AI_CONTEXT:-32768} / 1024 ))K · answers up to $(( ${LOTUS_AI_MAXTOKENS:-8192} / 1024 ))K")
+    n=0; for line in $ids; do _llm_have $line && (( n++ )); done
+    (( n )) && opts+=("Remove everything|all $n model(s) and the MLX environment")
+    ui_select $sel "${opts[@]}" || break
+    sel=$REPLY
+    if (( sel <= ${#ids} )); then _llm_model ${ids[sel]}
+    elif (( sel == ${#ids} + 1 )); then _llm_settings
+    else _llm_remove all; ui_dim "  $LOTUS_L[back]"; ui_key; fi
+  done
+  print -n $'\e[H\e[2J'
+}
+
+# One model: use it or remove it – or download it
+_llm_model() {
+  local id=$1
+  if ! _llm_have $id; then
+    print -n $'\e[H\e[2J'
+    _llm_install $id
+    ui_dim "  $LOTUS_L[back]"; ui_key
+    return
   fi
+  _llm_row $id; local label=$reply[2]
+  _llm_size $id; local size=$REPLY
+  print -n $'\e[H\e[2J'
+  ui_hero "AI on this Mac · $label" "$size on disk${${(M)id:#$LOTUS_AI_LOCAL}:+ · in use}"
+  ui_select 1 "Use it|/ai answers with $label" "Remove it|deletes it and frees $size" "Back|" || return 0
+  case $REPLY in
+    1) _llm_use $id; ui_dim "  $LOTUS_L[back]"; ui_key ;;
+    2) _llm_remove $id; ui_dim "  $LOTUS_L[back]"; ui_key ;;
+  esac
+}
+
+_llm_use() {
+  local id=${1//\//--}
+  _llm_have $id || { ui_error "Not downloaded" "$1" "Download it first: lotus ai local $1"; return 1 }
+  LOTUS_AI_LOCAL=$id LOTUS_AI_PROVIDER=local
+  lotus_save
+  _llm_row $id
+  ui_success "/ai uses $reply[2] now"
+}
+
+# Removes one model (or "all": every model and the MLX environment) – after a yes
+_llm_remove() {
+  local id=${1//\//--} what
+  if [[ $id == all ]]; then
+    ui_confirm "Remove all local models and the MLX environment ($(du -shc $LLM_MODELS $LLM_RUNTIME 2>/dev/null | tail -1 | cut -f1))?" n || return 0
+    rm -rf -- "${LLM_MODELS:?}" "${LLM_RUNTIME:?}"
+    LOTUS_AI_LOCAL=
+  else
+    [[ $id == [A-Za-z0-9._-]## ]] && _llm_have $id || { ui_error "Not downloaded" "$1"; return 1 }
+    _llm_row $id; what=$reply[2]
+    _llm_size $id
+    ui_confirm "Remove $what ($REPLY)?" n || return 0
+    rm -rf -- "${LLM_MODELS:?}/${id:?}"
+    [[ $id == $LOTUS_AI_LOCAL ]] && LOTUS_AI_LOCAL=
+  fi
+  [[ -z $LOTUS_AI_LOCAL && $LOTUS_AI_PROVIDER == local ]] && LOTUS_AI_PROVIDER=auto
+  lotus_save
+  lotus_log INFO ai "Local model removed: $id"
+  ui_success "Removed"
+}
+
+# Thinking, context window, answer length, creativity, memory saver – Enter changes a value
+_llm_cycle() {   # <value> <values…> → REPLY = the next one
+  local v=$1; shift
+  local -i i=${@[(ie)$v]}
+  (( i >= $# )) && i=0
+  REPLY=${@[i+1]}
+}
+_llm_settings() {
+  local -i sel=1
+  local -A th=(low "quick – no thinking" medium balanced high thorough max maximum) tp=(0.2 precise 0.6 balanced 1.0 creative)
+  while :; do
+    print -n $'\e[H\e[2J'
+    ui_hero "AI on this Mac · Settings" "Used when /ai starts a model on this Mac. Thinking counts for Claude and Ollama too."
+    ui_select $sel \
+      "Thinking|${th[${LOTUS_AI_EFFORT:-high}]} – how long it thinks before it answers" \
+      "Context window|$(( ${LOTUS_AI_CONTEXT:-32768} / 1024 ))K tokens – how much of the conversation it keeps; more needs more memory" \
+      "Answer length|up to $(( ${LOTUS_AI_MAXTOKENS:-8192} / 1024 ))K tokens per answer, thinking included" \
+      "Creativity|${tp[${LOTUS_AI_TEMP:-0.6}]:-$LOTUS_AI_TEMP} – precise for code, creative for texts" \
+      "Memory saver|${${LOTUS_AI_KVBITS:#0}:+on – the context takes half the memory, slightly less exact}${${(M)LOTUS_AI_KVBITS:#0}:+off}" || break
+    sel=$REPLY
+    case $sel in
+      1) _llm_cycle ${LOTUS_AI_EFFORT:-high} low medium high max; LOTUS_AI_EFFORT=$REPLY ;;
+      2) _llm_cycle ${LOTUS_AI_CONTEXT:-32768} 8192 16384 32768 65536 131072; LOTUS_AI_CONTEXT=$REPLY ;;
+      3) _llm_cycle ${LOTUS_AI_MAXTOKENS:-8192} 2048 4096 8192 16384 32768; LOTUS_AI_MAXTOKENS=$REPLY ;;
+      4) _llm_cycle ${LOTUS_AI_TEMP:-0.6} 0.2 0.6 1.0; LOTUS_AI_TEMP=$REPLY ;;
+      5) (( LOTUS_AI_KVBITS )) && LOTUS_AI_KVBITS=0 || LOTUS_AI_KVBITS=8 ;;
+    esac
+    lotus_save
+  done
+}
+
+# Downloads <id> (from the list, or owner/repo) after a yes, and uses it
+_llm_install() {
+  local want=$1 line
+  _llm_ram; local -i ram=$REPLY
   if ! _llm_row $want; then ui_error "Unknown model" "$want" "Choose from: lotus ai local   or name a Hugging Face repository: owner/model"; return 1; fi
   local id=$reply[1] label=$reply[2] repo=$reply[3] rev=$reply[4] gb=$reply[5] need=$reply[6]
   [[ $repo == [A-Za-z0-9_.-]##/[A-Za-z0-9_.-]## && $rev == [A-Za-z0-9_.-]## ]] || { ui_error "Not a Hugging Face repository" "$repo"; return 1 }
@@ -489,9 +601,9 @@ lotus_ai_local() {
   if (( fresh )); then
     _llm_python || { ui_error "Python 3.11 or newer is missing" "" "Install it with: brew install python@3.13"; return 1 }
     ui_step "Setting up the environment …"
-    rm -rf $LLM_RUNTIME
+    rm -rf -- "${LLM_RUNTIME:?}"
     { $REPLY -m venv $LLM_RUNTIME && $LLM_RUNTIME/bin/python -m pip --disable-pip-version-check --no-input -q install $LLM_MLX } 2>&1 | tail -3
-    [[ -x $LLM_RUNTIME/bin/mlx_lm.server ]] || { rm -rf $LLM_RUNTIME; ui_error "mlx-lm could not be installed" "" "Details above – try again later"; return 1 }
+    [[ -x $LLM_RUNTIME/bin/mlx_lm.server ]] || { rm -rf -- "${LLM_RUNTIME:?}"; ui_error "mlx-lm could not be installed" "" "Details above – try again later"; return 1 }
     lotus_log INFO ai "Local AI environment: $LLM_MLX"
   fi
   if [[ ! -r $LLM_MODELS/$id/config.json ]]; then
@@ -513,7 +625,13 @@ _llm_start() {
   curl -fsS -m 1 $url/models >/dev/null 2>&1 && { REPLY=$url; return 0 }
   _llm_row $LOTUS_AI_LOCAL
   zf_mkdir -p ${log:h}
-  $LLM_RUNTIME/bin/mlx_lm.server --model $LLM_MODELS/$LOTUS_AI_LOCAL --host 127.0.0.1 --port $LLM_PORT --max-tokens 8192 >| $log 2>&1 &!
+  local effort=${LOTUS_AI_EFFORT:-high} think=true
+  [[ $effort == low ]] && think=false
+  [[ $effort == max ]] && effort=high
+  local -a opts=(--max-tokens ${LOTUS_AI_MAXTOKENS:-8192} --temp ${LOTUS_AI_TEMP:-0.6} --top-p 0.95
+    --chat-template-args "{\"enable_thinking\": $think, \"reasoning_effort\": \"$effort\"}")
+  (( LOTUS_AI_KVBITS )) && opts+=(--kv-bits $LOTUS_AI_KVBITS)
+  $LLM_RUNTIME/bin/mlx_lm.server --model $LLM_MODELS/$LOTUS_AI_LOCAL --host 127.0.0.1 --port $LLM_PORT $opts >| $log 2>&1 &!
   LLM_PID=$!
   # whatever ends Lotus, the model leaves the memory (kill is built in – no program started)
   [[ -t 1 ]] && trap 'print -n "\e[?25h"; (( LLM_PID )) && kill $LLM_PID 2>/dev/null' EXIT

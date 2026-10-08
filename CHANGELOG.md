@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.1
+
+- `lotus ai local` is a manager now: all five models with size, what they are good at and whether they are downloaded or in use – pick one to download it, switch to it or remove it; "Remove everything" deletes all models and the MLX environment. Also as commands: `lotus ai local use <model>`, `lotus ai local remove <model|all>`
+- Settings for the models on this Mac (in the manager, `lotus ai local settings` and `/settings` → AI): thinking (quick without thinking, balanced, thorough, maximum), context window (8K–128K – longer conversations are summarized when they reach it), answer length (2K–32K), creativity (precise, balanced, creative) and a memory saver (the context in 8 bits)
+- `/ai` shows the model's name ("gpt-oss 20B · on this Mac") instead of a folder path
+
 ## 2.4.0 – AI on your Mac
 
 - `lotus ai local` puts an AI model on your Mac – no Ollama, no account: five models to choose from – gpt-oss 20B (thinks, best fit for 24 GB), Qwen3.6 27B (thinks, strongest coder), Qwen3-Coder 30B (fast coder), Devstral Small 2 (coding agent), Qwen3 14B (thinks, light) – with size, what each is good at and whether it fits your memory, sets up Apple's MLX in Lotus' own environment and downloads the model you pick, pinned to one revision. Any MLX model from Hugging Face works too: `lotus ai local mlx-community/<model>`
