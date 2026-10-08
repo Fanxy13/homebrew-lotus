@@ -1,7 +1,8 @@
 # lotus – /bg remove: remove image backgrounds on this Mac (BiRefNet or InSPyReNet, local only).
 #   /bg remove <image|folder>…     cut out, then: open, show in Finder, refine by hand
 #   /bg remove --edit <image>      open "Draw what you want to keep" right after the AI
-#   /bg remove                     drop an image into the window
+#   /bg remove                     drop an image into the window (an empty ⏎ takes the clipboard)
+#   /bg paste                      the image or files in the clipboard (also: /bg remove --clipboard)
 #   /bg models · /bg output · /bg setup · /bg help
 # Images are read and written locally. Nothing is uploaded; models are downloaded once, after a yes.
 
@@ -22,6 +23,7 @@ lotus_cmd_bg() {
     ''|help|-h|--help)  bg_help ;;
     remove|rm|cut)      shift; bg_remove "$@" ;;
     edit)               shift; bg_remove --edit "$@" ;;
+    paste|clipboard)    shift; bg_remove --clipboard "$@" ;;
     setup|install)      lotus_bg_first_use ;;
     models|model|cache) bg_models_screen ;;
     output|folder)      ui_hero $LOTUS_L[bg_title] $LOTUS_L[bg_q_output]; lotus_bg_pick_output && lotus_save && ui_success $LOTUS_L[saved] ;;
@@ -39,6 +41,7 @@ bg_help() {
     "/bg remove <folder>|$LOTUS_L[bg_h_folder]"
     "/bg remove --edit <image>|$LOTUS_L[bg_h_edit]"
     "/bg remove|$LOTUS_L[bg_h_drop]"
+    "/bg paste|$LOTUS_L[bg_h_paste]"
     "/bg models|$LOTUS_L[bg_h_models]"
     "/bg output|$LOTUS_L[bg_h_output]")
   for r in $rows; do print -r -- "    ${k}${(r:28:)${r%%|*}}${_UI_R}${r#*|}"; done
@@ -120,16 +123,50 @@ bg_ask_paths() {
     ui_text $LOTUS_L[bg_drop]
     ui_dim "  $LOTUS_L[bg_drop_hint]"
   fi
+  # an image or files in the clipboard: an empty line takes them
+  bg_clipboard_peek
+  local clip=$REPLY
+  if [[ $clip == image\ * ]]; then
+    print -r -- "    "$'\e['"$LOTUS_C[key]m✓"$_UI_R" ${LOTUS_L[bg_clip_image]//\%s/${${clip#image }/x/ × }}"
+  elif [[ $clip == files\ * ]]; then
+    print -r -- "    "$'\e['"$LOTUS_C[key]m✓"$_UI_R" ${LOTUS_L[bg_clip_files]//\%s/${clip#files }}"
+  fi
   # the keys above the prompt, so a long dropped path has room to wrap below
-  ui_dim "  $LOTUS_L[bg_drop_keys]"
+  if [[ $clip == none ]]; then ui_dim "  $LOTUS_L[bg_drop_keys]"; else ui_dim "  $LOTUS_L[bg_drop_keys_clip]"; fi
   ui_blank
   print -rn -- "    "$'\e['"$LOTUS_C[accent]m›"$_UI_R" "
   local line
   read -r line < /dev/tty || return 1
-  [[ -z ${line//[[:space:]]/} ]] && return 1
+  if [[ -z ${line//[[:space:]]/} || ${(L)line} == (v|paste|clipboard) ]]; then
+    [[ $clip == none ]] && return 1
+    bg_clipboard_take
+    return
+  fi
   # (z) splits like the shell would, (Q) removes the quotes and backslashes – no expansion, no commands
   reply=(${(Q)${(z)line}})
   (( ${#reply} ))
+}
+
+# ── Clipboard ─────────────────────────────────────────────────
+# Read with macOS' own JavaScript for Automation (lib/bg/clipboard.js) – no extra tools.
+
+# What the clipboard holds → REPLY: "files <n>", "image <w>x<h>" or "none"
+bg_clipboard_peek() {
+  REPLY=$(osascript -l JavaScript $LOTUS_ROOT/lib/bg/clipboard.js peek 2>/dev/null)
+  [[ -n $REPLY ]] || REPLY=none
+}
+
+# The clipboard as input → reply (paths): copied files as they are, an image saved as PNG
+# in ~/.cache/lotus/bg/clipboard (removed after a day). Status 1 when there is nothing to use.
+bg_clipboard_take() {
+  local dir=$LOTUS_CACHE/bg/clipboard stamp
+  zf_mkdir -p $dir && chmod 700 $dir
+  rm -f $dir/*(N.mh+24)
+  strftime -s stamp '%Y-%m-%d %H.%M.%S' $EPOCHSECONDS
+  reply=(${(f)"$(osascript -l JavaScript $LOTUS_ROOT/lib/bg/clipboard.js save "$dir/Clipboard $stamp.png" 2>/dev/null)"})
+  reply=(${reply:#})
+  (( ${#reply} )) || return 1
+  lotus_log INFO bg "From the clipboard: ${#reply} item(s)"
 }
 
 # The dashed frame with a plus in the middle.  _bg_drop_zone <width>
@@ -303,7 +340,7 @@ bg_fallback() {
 
 bg_remove() {
   local model= backend=$LOTUS_BG_BACKEND out=
-  local -i edit=0 next=0
+  local -i edit=0 next=0 clip=0
   local -a args=()
   while (( $# )); do
     case $1 in
@@ -316,6 +353,7 @@ bg_remove() {
       -o|--out)       out=$2; shift ;;
       --out=*)        out=${1#*=} ;;
       --next-to-source|--here) next=1 ;;
+      -c|--clipboard|--paste) clip=1 ;;
       -h|--help)      bg_help; return 0 ;;
       --)             shift; args+=("$@"); break ;;
       *)              args+=("$1") ;;
@@ -325,8 +363,11 @@ bg_remove() {
   [[ -n $model ]] && { bg_registry; [[ $model == auto || -n ${BG_MODEL_ROW[$model]} ]] || { ui_error "$LOTUS_L[bg_bad_model]" "$model" "auto · ${(j: · :)BG_MODEL_IDS}"; return 1 } }
   [[ $backend == (auto|mps|cpu) ]] || { ui_error "$LOTUS_L[bg_bad_backend]" "$backend" "auto · mps · cpu"; return 1 }
 
-  if (( ! ${#args} )); then
-    if ! { [[ -t 1 ]] && ui_has_tty }; then ui_error $LOTUS_L[bg_which] "" "/bg remove <image>"; return 1; fi
+  if (( clip )); then
+    bg_clipboard_take || { ui_error $LOTUS_L[bg_clip_none] "" "$LOTUS_L[bg_clip_none_hint]"; return 1 }
+    args+=("${reply[@]}")
+  elif (( ! ${#args} )); then
+    if ! { [[ -t 1 ]] && ui_has_tty }; then ui_error $LOTUS_L[bg_which] "" "/bg remove <image>   ·   /bg paste"; return 1; fi
     bg_ask_paths || { ui_info $LOTUS_L[cancelled]; return 1 }
     args=("${reply[@]}")
   fi
@@ -353,10 +394,14 @@ bg_remove() {
 
   # Where the PNGs go
   local -a dest=()
-  if (( next )) || [[ -z $out && $LOTUS_BG_OUTPUT == @source ]]; then
+  local -i only_clip=1
+  for m in $images; do [[ $m == $LOTUS_CACHE/bg/clipboard/* ]] || only_clip=0; done
+  if (( ! only_clip )) && { (( next )) || [[ -z $out && $LOTUS_BG_OUTPUT == @source ]] }; then
     dest=(--next-to-source)
   else
+    # an image from the clipboard has no folder of its own: it goes to the Lotus folder in Pictures
     local dir=${out:-$LOTUS_BG_OUTPUT}
+    [[ $dir == @source ]] && dir='~/Pictures/Lotus/Background Removed'
     bg_clean_path ${dir/#\~/$HOME}; dir=$REPLY
     if ! zf_mkdir -p $dir 2>/dev/null || [[ ! -w $dir ]]; then
       bg_error_screen BG-006 "$LOTUS_L[bg_o_nowrite]" "$dir"; return 1
@@ -411,7 +456,9 @@ bg_result() {
   while :; do
     print -n $'\e[H\e[2J'
     ui_hero $LOTUS_L[bg_removed_title]
-    ui_path $input;  ui_kv $LOTUS_L[bg_i_input] $REPLY
+    ui_path $input
+    [[ $input == $LOTUS_CACHE/bg/clipboard/* ]] && REPLY=$LOTUS_L[bg_clip_input]
+    ui_kv $LOTUS_L[bg_i_input] $REPLY
     if [[ -e $output ]]; then ui_path $output; ui_kv $LOTUS_L[bg_i_output] $REPLY
     else ui_kv $LOTUS_L[bg_i_output] "${d}$LOTUS_L[bg_discarded]${_UI_R}"; fi
     ui_blank

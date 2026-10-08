@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.3
+
+- `/bg paste` removes the background of the image in the clipboard: a screenshot (⌃⇧⌘4), "Copy Image" in a browser or Preview, or images copied in the Finder (then the originals are used)
+- The drop zone of `/bg remove` shows when there is an image in the clipboard – press ⏎ to use it
+- Images from the clipboard are saved to `~/Pictures/Lotus/Background Removed` when the output is set to "next to the original"; the clipboard is read on your Mac, nothing is uploaded
+
 ## 2.2.2
 
 - `/bg remove` without a path shows a drop zone: a dashed frame in your theme colors with a plus in the middle – drag images or folders from the Finder into it

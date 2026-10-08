@@ -47,7 +47,8 @@ Device tools	-	ios devices	/ios devices	Show connected iPhones and iPads	/ios de
 Media	/convert	convert	/convert <link>	Save a video as MP3 or MP4 with yt-dlp	/convert https://youtube.com/watch?v=…	0
 Media	-	visual	/lotus visual	Animated audio visualizer, 8 modes	/lotus visual	0
 Images	/bg	bg	/bg remove <image>	Remove the background on this Mac, save a transparent PNG	/bg remove ~/Pictures/photo.jpg	0
-Images	-	bg remove	/bg remove	Drag an image from the Finder into the window	/bg remove	0
+Images	-	bg remove	/bg remove	Drag an image from the Finder into the window – or ⏎ for the clipboard	/bg remove	0
+Images	-	bg paste	/bg paste	The image in the clipboard: a screenshot, "Copy Image", or files copied in the Finder	/bg paste	0
 Images	-	bg remove	/bg remove <folder>	Every image in a folder, one model load for all	/bg remove ~/Desktop/shoot	0
 Images	-	bg remove	/bg remove --edit <image>	Paint what to keep right after the AI (Draw what you want to keep)	/bg remove --edit portrait.jpg	0
 Images	-	bg remove	/bg remove --cpu <image>	Run on the CPU instead of the Apple GPU	/bg remove --cpu photo.png	0

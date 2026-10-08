@@ -90,6 +90,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over.
 | Minecraft | `/minecraft` | Create and start a server, port forwarding guide |
 | Images | `/bg remove <image>` | Remove the background on this Mac, save a transparent PNG |
 | | `/bg remove`, `/bg remove <folder>` | Drop images into the window · a whole folder with one model load |
+| | `/bg paste` | The image in the clipboard – a screenshot, "Copy Image", or files copied in the Finder |
 | | `/bg remove --edit <image>` | Paint what to keep right after the AI |
 | | `/bg models`, `/bg output` | Models on this Mac (download, check, remove) · output folder |
 | Shortcuts | `lotus shortcut add yt https://youtube.com` | Your own `/yt`, `/work`, `/gh` … |
@@ -121,6 +122,7 @@ lotus shortcut add yt "https://www.youtube.com/results?search_query={q}"
 /bg remove ~/Pictures/photo.jpg
 /bg remove "~/Desktop/My Photos/beach.heic"
 /bg remove                      # then drag one or more images from the Finder into the window
+/bg paste                       # the image in the clipboard (⌘C, "Copy Image", a screenshot with ⌃⇧⌘4)
 /bg remove --edit portrait.jpg  # open "Draw what you want to keep" right after the AI
 ```
 
@@ -147,6 +149,11 @@ is pinned to one upstream revision and checked against its SHA-256 before use; w
 load without running code (`safetensors`, `torch.load(weights_only=True)`). Python 3.10–3.14
 is needed (Homebrew's `python@3.13` works well). `/bg models` downloads, checks and removes
 models; turning the feature off in `lotus features` means nothing is ever downloaded.
+
+**Clipboard.** `/bg paste` (or ⏎ on an empty line in the drop zone) takes what you copied:
+image data such as a screenshot or "Copy Image" from a browser, saved as PNG first, or files
+copied in the Finder, used as they are. Lotus reads the clipboard with macOS' own scripting –
+nothing extra to install.
 
 **Output.** A new file next to nothing else: `photo.jpg` → `photo_no_bg.png`, then
 `photo_no_bg_2.png` … The original is never changed. Full resolution, transparent PNG,

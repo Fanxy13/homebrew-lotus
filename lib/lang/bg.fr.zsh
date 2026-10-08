@@ -102,4 +102,11 @@ LOTUS_L+=(
   bg_ss_test 'Essai'  bg_ss_marks 'Marques'
   bg_drop_here 'Déposez vos images ici'  bg_drop_types 'PNG · JPG · WebP · HEIC · dossiers entiers'
   bg_drop_keys 'glissez depuis le Finder ou tapez un chemin · ⏎ lancer · ligne vide pour annuler'
+  bg_h_paste 'L’image (ou les fichiers) du presse-papiers'
+  bg_clip_image 'Image dans le presse-papiers (%s) – ⏎ pour l’utiliser'
+  bg_clip_files '%s fichier(s) dans le presse-papiers – ⏎ pour les utiliser'
+  bg_clip_none 'Aucune image dans le presse-papiers'
+  bg_clip_none_hint 'Copiez d’abord une image : ⌘C dans Aperçu ou le Finder, « Copier l’image » dans un navigateur, ou une capture avec ⌃⇧⌘4'
+  bg_clip_input 'Image du presse-papiers'
+  bg_drop_keys_clip 'ou glissez depuis le Finder, ou tapez un chemin'
 )

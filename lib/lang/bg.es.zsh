@@ -102,4 +102,11 @@ LOTUS_L+=(
   bg_ss_test 'Prueba'  bg_ss_marks 'Marcas'
   bg_drop_here 'Suelta las imágenes aquí'  bg_drop_types 'PNG · JPG · WebP · HEIC · carpetas enteras'
   bg_drop_keys 'arrastra desde el Finder o escribe una ruta · ⏎ empezar · línea vacía cancela'
+  bg_h_paste 'La imagen (o los archivos) del portapapeles'
+  bg_clip_image 'Imagen en el portapapeles (%s) – ⏎ la usa'
+  bg_clip_files '%s archivo(s) en el portapapeles – ⏎ los usa'
+  bg_clip_none 'No hay ninguna imagen en el portapapeles'
+  bg_clip_none_hint 'Copia primero una imagen: ⌘C en Vista Previa o el Finder, «Copiar imagen» en un navegador o una captura con ⌃⇧⌘4'
+  bg_clip_input 'Imagen del portapapeles'
+  bg_drop_keys_clip 'o arrastra desde el Finder, o escribe una ruta'
 )

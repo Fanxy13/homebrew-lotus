@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.2.2">
-  <link rel="stylesheet" href="css/pages.css?v=2.2.2">
-  <script src="js/lotus.js?v=2.2.2"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.2.3">
+  <link rel="stylesheet" href="css/pages.css?v=2.2.3">
+  <script src="js/lotus.js?v=2.2.3"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -135,7 +135,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     <p class="muted">The AI terminal is a small Swift program that Lotus builds once on your Mac (about 15 seconds; needs the Command Line Tools: <code>xcode-select --install</code>). Keys come from the Keychain or <code>$ANTHROPIC_API_KEY</code> / <code>$LOTUS_AI_KEY</code> and are never written to a file. <code>/ai command</code> only suggests a command – it never runs it.</p>
 
     <h2 class="section" id="bg">Remove BG</h2>
-    <p><code>/bg remove photo.jpg</code> removes the background and saves a transparent PNG. It runs on your Mac: no cloud, no upload, no account – after the one-time download it works offline. <code>/bg remove</code> without a path lets you drag images from the Finder into the window; a folder processes every image in it.</p>
+    <p><code>/bg remove photo.jpg</code> removes the background and saves a transparent PNG. It runs on your Mac: no cloud, no upload, no account – after the one-time download it works offline. <code>/bg remove</code> without a path shows a drop zone: drag images from the Finder into it, or press <kbd>⏎</kbd> to take the image in the clipboard. <code>/bg paste</code> does that directly – a screenshot, “Copy Image” from a browser, or files copied in the Finder. A folder processes every image in it.</p>
     <div class="term"><div class="term-bar"><i></i><i></i><i></i><span>zsh</span></div><pre><span class="t-dim">$</span> /bg remove ~/Pictures/portrait.jpg
 
     <span class="t-acc">◇</span> lotus / Background removed

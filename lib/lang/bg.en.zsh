@@ -190,4 +190,11 @@ LOTUS_L+=(
   bg_drop_here      'Drop images here'
   bg_drop_types     'PNG · JPG · WebP · HEIC · whole folders'
   bg_drop_keys      'drag from the Finder or type a path · ⏎ start · empty line cancels'
+  bg_h_paste        'The image (or files) in the clipboard'
+  bg_clip_image     'Image in the clipboard (%s) – ⏎ uses it'
+  bg_clip_files     '%s file(s) in the clipboard – ⏎ uses them'
+  bg_clip_none      'There is no image in the clipboard'
+  bg_clip_none_hint 'Copy an image first: ⌘C in Preview or the Finder, "Copy Image" in a browser, or a screenshot with ⌃⇧⌘4'
+  bg_clip_input     'Image from the clipboard'
+  bg_drop_keys_clip 'or drag from the Finder, or type a path'
 )

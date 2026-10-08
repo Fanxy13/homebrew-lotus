@@ -102,4 +102,11 @@ LOTUS_L+=(
   bg_ss_test 'Test'  bg_ss_marks 'Markierungen'
   bg_drop_here 'Bilder hierher ziehen'  bg_drop_types 'PNG · JPG · WebP · HEIC · ganze Ordner'
   bg_drop_keys 'aus dem Finder ziehen oder Pfad tippen · ⏎ starten · leere Zeile bricht ab'
+  bg_h_paste 'Das Bild (oder die Dateien) aus der Zwischenablage'
+  bg_clip_image 'Bild in der Zwischenablage (%s) – ⏎ nimmt es'
+  bg_clip_files '%s Datei(en) in der Zwischenablage – ⏎ nimmt sie'
+  bg_clip_none 'In der Zwischenablage ist kein Bild'
+  bg_clip_none_hint 'Erst ein Bild kopieren: ⌘C in Vorschau oder im Finder, „Bild kopieren“ im Browser oder ein Screenshot mit ⌃⇧⌘4'
+  bg_clip_input 'Bild aus der Zwischenablage'
+  bg_drop_keys_clip 'oder aus dem Finder ziehen oder einen Pfad tippen'
 )
