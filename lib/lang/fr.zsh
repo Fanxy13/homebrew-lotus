@@ -44,4 +44,5 @@ LOTUS_L+=(
   head_pets 'Animaux'  pet_start 'Animal sur l’écran d’accueil'  pet_help '/help demande à votre animal'
   pet_react 'Les animaux réagissent'  pet_brain 'Les animaux pensent avec'
   pet_brain_ai 'l’IA de /ai'  pet_brain_off 'rien (phrases courtes)'  pet_manage 'Vos animaux'  feat_pets 'Animaux'
+  ai_local 'Sur ce Mac (MLX)'  ai_local_get 'Un modèle pour ce Mac'
 )

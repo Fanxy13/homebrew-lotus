@@ -1,0 +1,7 @@
+# Local AI models for /ai – run on this Mac with Apple's MLX (lotus ai local). Downloaded once, pinned to one revision.
+# id	label	repository (Hugging Face)	revision	download GB	RAM GB needed	what it is
+gpt-oss-20b	gpt-oss 20B	mlx-community/gpt-oss-20b-MXFP4-Q8	773a7da77e569019bb0fd17a554b263738d669a3	12.1	16	thinks · strong all-rounder, good at code and tools · best fit for 24 GB
+qwen3.6-27b	Qwen3.6 27B	mlx-community/Qwen3.6-27B-4bit	c000ac2c2057d94be3fa931000c31723aac53282	16.1	24	thinks · the strongest coder that fits 24 GB – slower on a MacBook Air, keep other apps closed
+qwen3-coder-30b	Qwen3-Coder 30B	mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit	6e302ea604ad9ab206367e2c501d1571023e7b6d	17.2	24	codes fast (3B active per word) – tight on 24 GB, close other apps
+devstral-small-2	Devstral Small 2	mlx-community/Devstral-Small-2-24B-Instruct-2512-4bit	97228558fcbdd1adefd39d515155db3a894b37f7	15.1	24	a coding agent from Mistral
+qwen3-14b	Qwen3 14B	mlx-community/Qwen3-14B-4bit	a4d9b2df59d2c150bef02fcbe0d91046b7ca33a4	8.3	16	thinks · light and quick, good for smaller Macs

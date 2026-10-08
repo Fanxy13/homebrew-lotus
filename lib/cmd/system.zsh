@@ -78,7 +78,7 @@ lotus_uninstall() {
   [[ -e $LOTUS_CONF/hushlogin-by-lotus ]] && rm -f $HOME/.hushlogin
   rm -rf $LOTUS_CONF $LOTUS_CACHE $LOTUS_STATE
   # Remove BG: its Python environment and the downloaded models
-  rm -rf $LOTUS_DATA/runtime $LOTUS_DATA/models
+  rm -rf $LOTUS_DATA/runtime $LOTUS_DATA/models $LOTUS_DATA/llm
   [[ $LOTUS_DATA != $LOTUS_ROOT ]] && rmdir $LOTUS_DATA 2>/dev/null
   local item
   for item in lotus-ai lotus-ai-claude; do security delete-generic-password -s $item >/dev/null 2>&1; done

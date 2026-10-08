@@ -5,6 +5,7 @@
 #   apple   Apple Intelligence on this Mac (macOS 26+, Apple silicon)
 #   ollama  local models through Ollama (http://localhost:11434)
 #   openai  any OpenAI-compatible API: LOTUS_AI_URL + key from $LOTUS_AI_KEY or the Keychain item "lotus-ai"
+#   local   a model on this Mac with Apple's MLX, set up by lotus ai local (no Ollama needed)
 # Lotus never writes API keys to files; they reach the AI program only through its environment.
 
 lotus_cmd_ai() {
@@ -12,6 +13,7 @@ lotus_cmd_ai() {
   local sub=$1
   case $sub in
     status)    lotus_ai_status ;;
+    local)     shift; lotus_ai_local "$@" ;;
     login|connect) lotus_ai_login ;;
     logout)    lotus_ai_logout ;;
     key|keys)  shift; lotus_ai_key "$@" ;;
@@ -97,14 +99,15 @@ _ai_ollama_model() {
   if [[ -n $LOTUS_AI_MODEL && ${reply[(Ie)$LOTUS_AI_MODEL]} -gt 0 ]]; then REPLY=$LOTUS_AI_MODEL; else REPLY=$reply[1]; fi
 }
 
-# Picks the provider → REPLY (claude|apple|ollama|openai), status 1 when none works
+# Picks the provider → REPLY (claude|local|apple|ollama|openai), status 1 when none works
 lotus_ai_provider() {
   local want=${LOTUS_AI_PROVIDER:-auto} p
-  local -a order=(claude apple ollama openai)
+  local -a order=(claude local apple ollama openai)
   [[ $want != auto ]] && order=($want)
   for p in $order; do
     case $p in
       claude) _ai_claude_key && { REPLY=claude; return 0 } ;;
+      local)  _llm_ok && { REPLY=local; return 0 } ;;
       apple)  _ai_apple_ok build && { REPLY=apple; return 0 } ;;
       ollama) _ai_ollama_model && { REPLY=ollama; return 0 } ;;
       openai) _ai_openai_ok && { REPLY=openai; return 0 } ;;
@@ -144,8 +147,13 @@ lotus_ai_run() {
     lotus_ai_none || return 1
     lotus_ai_provider || return 1
   fi
-  local provider=$REPLY model=$LOTUS_AI_MODEL
+  local provider=$REPLY model=$LOTUS_AI_MODEL url=$LOTUS_AI_URL key=
   lotus_log INFO ai "AI ${mode#--} with $provider (thinking: ${LOTUS_AI_EFFORT:-high})"
+  if [[ $provider == local ]]; then
+    # the model on this Mac speaks the OpenAI API while /ai runs, then it leaves the memory again
+    _llm_start || return 1
+    provider=openai url=$REPLY model=$LLM_MODELS/$LOTUS_AI_LOCAL key=local
+  fi
   case $provider in
     claude) [[ $model == claude-* ]] || model= ;;
     ollama) _ai_ollama_model; model=$REPLY ;;
@@ -160,18 +168,19 @@ lotus_ai_run() {
   zf_mkdir -p $LOTUS_CACHE/ai && chmod 700 $LOTUS_CACHE/ai
   (
     export LOTUS_AI_PROVIDER=$provider LOTUS_AI_MODEL=$model LOTUS_AI_EFFORT=${LOTUS_AI_EFFORT:-high}
-    export LOTUS_AI_STATE=$LOTUS_CACHE/ai LOTUS_AI_URL=$LOTUS_AI_URL LOTUS_AI_AVAILABLE=${(j:,:)avail}
+    export LOTUS_AI_STATE=$LOTUS_CACHE/ai LOTUS_AI_URL=$url LOTUS_AI_AVAILABLE=${(j:,:)avail}
     export LOTUS_NAME LOTUS_ROOT LOTUS_VERSION
     export LOTUS_AI_C_LOGO=$LOTUS_C[logo] LOTUS_AI_C_KEY=$LOTUS_C[key] LOTUS_AI_C_ACCENT=$LOTUS_C[accent]
     export LOTUS_AI_C_BORDER=$LOTUS_C[border] LOTUS_AI_C_DIM=$LOTUS_C[dim] LOTUS_AI_C_MUSIC=$LOTUS_C[music]
     _ai_claude_key && export LOTUS_AI_CLAUDE_KEY=$REPLY
-    _ai_openai_key && export LOTUS_AI_OPENAI_KEY=$REPLY
+    if [[ -n $key ]]; then export LOTUS_AI_OPENAI_KEY=$key; else _ai_openai_key && export LOTUS_AI_OPENAI_KEY=$REPLY; fi
     [[ -n $LOTUS_AI_INSTRUCTIONS ]] && export LOTUS_AI_INSTRUCTIONS
     export LOTUS_LOG LOTUS_LOG_LEVEL LOTUS_VERBOSE
     [[ $mode == (--tui|--once) ]] && _ai_pet
     exec $bin $mode "$@"
   )
   local -i rc=$?
+  _llm_stop
   (( rc && rc != 130 )) && lotus_log WARN ai "The AI program ended with status $rc"
   return rc
 }
@@ -295,6 +304,8 @@ lotus_ai_status() {
   if _ai_ollama_model; then print -r -- "  $ok Ollama              ${#reply} model(s), e.g. $REPLY"
   elif (( $+commands[ollama] )); then print -r -- "  $no Ollama              installed, but not running – open the Ollama app"
   else print -r -- "  $no Ollama              not installed"; fi
+  if _llm_ok; then _llm_row $LOTUS_AI_LOCAL; print -r -- "  $ok On this Mac         $reply[2] (MLX)  · lotus ai local"
+  else print -r -- "  $no On this Mac         a model that runs here, without Ollama: lotus ai local"; fi
   if _ai_openai_ok; then print -r -- "  $ok OpenAI-compatible   $LOTUS_AI_URL"
   else print -r -- "  $no OpenAI-compatible   set a URL in /settings and a key with: lotus ai key openai"; fi
   ui_blank
@@ -394,3 +405,129 @@ lotus_ai_logout() {
   security delete-generic-password -s lotus-ai-claude >/dev/null 2>&1 && ui_success "Claude is disconnected"
   [[ $LOTUS_AI_PROVIDER == claude ]] && { LOTUS_AI_PROVIDER=auto; lotus_save }
 }
+
+# ── A model on this Mac: Apple's MLX, without Ollama ──────────
+# lotus ai local              pick a model that fits this Mac (data/llm-models.tsv), download it, use it
+# lotus ai local <id|owner/repo>   a model from the list, or any MLX model on Hugging Face
+# lotus ai local remove       delete the downloaded models and the environment
+# The model runs in Lotus' own Python environment (mlx-lm, pinned) and is started only while /ai
+# runs – it listens on 127.0.0.1 only and leaves the memory when /ai ends.
+
+typeset -g LLM_RUNTIME=$LOTUS_DATA/runtime/llm LLM_MODELS=$LOTUS_DATA/llm LLM_MLX=mlx-lm==0.32.0
+typeset -gi LLM_PORT=18765 LLM_PID=0
+
+_llm_row() {   # <id> → reply (id label repo revision GB RAM text)
+  local line
+  for line in "${(@f)$(<$LOTUS_ROOT/data/llm-models.tsv)}"; do
+    [[ $line == \#* || -z $line ]] && continue
+    [[ ${line%%$'\t'*} == $1 ]] && { reply=("${(@ps:\t:)line}"); return 0 }
+  done
+  reply=($1 ${1#*/} $1 main '?' 16 'a model from Hugging Face')
+  [[ $1 == */* ]]
+}
+
+_llm_ok() { [[ -n $LOTUS_AI_LOCAL && -x $LLM_RUNTIME/bin/mlx_lm.server && -r $LLM_MODELS/$LOTUS_AI_LOCAL/config.json ]] }
+
+_llm_ram() { REPLY=$(( $(sysctl -n hw.memsize 2>/dev/null || print 0) / 1073741824 )) }
+
+# Python 3.11–3.14 for arm64 → REPLY
+_llm_python() {
+  local p v
+  for p in /opt/homebrew/bin/python3.1{3,2,4,1} /usr/local/bin/python3.1{3,2,4,1} $commands[python3] /usr/bin/python3; do
+    [[ -x $p ]] || continue
+    [[ $p == /usr/bin/python3 ]] && ! xcode-select -p >/dev/null 2>&1 && continue
+    v=$(arch -arm64 $p -c 'import sys, venv, platform; print("%d.%d %s" % (sys.version_info[:2] + (platform.machine(),)))' 2>/dev/null) || continue
+    [[ $v == 3.1[1-4]\ arm64 ]] && { REPLY=$p; return 0 }
+  done
+  return 1
+}
+
+lotus_ai_local() {
+  [[ $(uname -m) == arm64 ]] || { ui_error "Local models need Apple silicon" "" "On this Mac: Ollama, or an OpenAI-compatible API (/settings)"; return 1 }
+  local want=$1 line
+  local -a ids=() labels=() f
+  _llm_ram; local -i ram=$REPLY
+  if [[ $want == remove ]]; then
+    ui_confirm "Delete the local models and their environment ($(du -sh $LLM_MODELS 2>/dev/null | cut -f1))?" n || return 0
+    rm -rf $LLM_MODELS $LLM_RUNTIME
+    [[ $LOTUS_AI_PROVIDER == local ]] && LOTUS_AI_PROVIDER=auto
+    LOTUS_AI_LOCAL=; lotus_save
+    ui_success "Removed"; return 0
+  fi
+  if [[ -z $want ]]; then
+    ui_header "AI on this Mac" "$ram GB memory · runs with Apple's MLX, no Ollama, nothing leaves the Mac"
+    for line in "${(@f)$(<$LOTUS_ROOT/data/llm-models.tsv)}"; do
+      [[ $line == \#* || -z $line ]] && continue
+      f=("${(@ps:\t:)line}")
+      ids+=($f[1])
+      local mark=
+      [[ -r $LLM_MODELS/$f[1]/config.json ]] && mark="  ✓ downloaded"
+      [[ $f[1] == $LOTUS_AI_LOCAL ]] && mark="  ✓ in use"
+      (( f[6] > ram )) && mark+="  ! needs $f[6] GB memory"
+      labels+=("${(r:17:)f[2]} ${(l:5:)f[5]} GB  ${f[7]}$mark")
+    done
+    ui_dim "All five run on Apple silicon; the first one is the best fit for most people. Downloads go to ~/.local/share/lotus/llm."
+    ui_blank
+    ui_choose "Which model?" "${labels[@]}" || return 0
+    want=$ids[REPLY]
+  fi
+  if ! _llm_row $want; then ui_error "Unknown model" "$want" "Choose from: lotus ai local   or name a Hugging Face repository: owner/model"; return 1; fi
+  local id=$reply[1] label=$reply[2] repo=$reply[3] rev=$reply[4] gb=$reply[5] need=$reply[6]
+  [[ $repo == [A-Za-z0-9_.-]##/[A-Za-z0-9_.-]## && $rev == [A-Za-z0-9_.-]## ]] || { ui_error "Not a Hugging Face repository" "$repo"; return 1 }
+  id=${id//\//--}
+  (( need > ram )) && ui_warn "$label wants about $need GB of memory – this Mac has $ram GB."
+  local -i fresh=0
+  [[ -x $LLM_RUNTIME/bin/mlx_lm.server ]] || fresh=1
+  if [[ ! -r $LLM_MODELS/$id/config.json ]] || (( fresh )); then
+    ui_blank
+    ui_kv Model "$label · $repo"
+    ui_kv Download "${${(M)fresh:#1}:+about 0.3 GB for the environment (mlx-lm) + }$gb GB for the model"
+    ui_kv Where "~/.local/share/lotus"
+    ui_blank
+    ui_confirm "Download now?" y || return 0
+  fi
+  if (( fresh )); then
+    _llm_python || { ui_error "Python 3.11 or newer is missing" "" "Install it with: brew install python@3.13"; return 1 }
+    ui_step "Setting up the environment …"
+    rm -rf $LLM_RUNTIME
+    { $REPLY -m venv $LLM_RUNTIME && $LLM_RUNTIME/bin/python -m pip --disable-pip-version-check --no-input -q install $LLM_MLX } 2>&1 | tail -3
+    [[ -x $LLM_RUNTIME/bin/mlx_lm.server ]] || { rm -rf $LLM_RUNTIME; ui_error "mlx-lm could not be installed" "" "Details above – try again later"; return 1 }
+    lotus_log INFO ai "Local AI environment: $LLM_MLX"
+  fi
+  if [[ ! -r $LLM_MODELS/$id/config.json ]]; then
+    ui_step "Downloading $label ($gb GB) …"
+    zf_mkdir -p $LLM_MODELS
+    HF_HUB_DISABLE_TELEMETRY=1 $LLM_RUNTIME/bin/python -c 'import sys; from huggingface_hub import snapshot_download as d; d(repo_id=sys.argv[1], revision=sys.argv[2], local_dir=sys.argv[3])' \
+      $repo $rev $LLM_MODELS/$id || { ui_error "The download stopped" "$repo" "Run lotus ai local $want again – it continues where it stopped"; return 1 }
+    lotus_log INFO ai "Local model downloaded: $repo@$rev"
+  fi
+  LOTUS_AI_LOCAL=$id LOTUS_AI_PROVIDER=local
+  lotus_save
+  ui_success "$label is ready – /ai uses it now (switch back in /settings → AI)"
+  ui_dim "  It loads when /ai starts (some seconds) and leaves the memory when /ai ends."
+}
+
+# Starts the model server (127.0.0.1 only) unless it runs → REPLY = API URL
+_llm_start() {
+  local url=http://127.0.0.1:$LLM_PORT/v1 log=$LOTUS_CACHE/llm/server.log
+  curl -fsS -m 1 $url/models >/dev/null 2>&1 && { REPLY=$url; return 0 }
+  _llm_row $LOTUS_AI_LOCAL
+  zf_mkdir -p ${log:h}
+  $LLM_RUNTIME/bin/mlx_lm.server --model $LLM_MODELS/$LOTUS_AI_LOCAL --host 127.0.0.1 --port $LLM_PORT --max-tokens 8192 >| $log 2>&1 &!
+  LLM_PID=$!
+  # whatever ends Lotus, the model leaves the memory (kill is built in – no program started)
+  [[ -t 1 ]] && trap 'print -n "\e[?25h"; (( LLM_PID )) && kill $LLM_PID 2>/dev/null' EXIT
+  local -i i
+  for (( i = 0; i < 360; i++ )); do
+    print -rn -- $'\r\e[K'"  "$'\e['"$LOTUS_C[dim]m… Loading $reply[2] into memory ($(( i / 2 ))s)"$'\e[0m' >&2
+    curl -fsS -m 1 $url/models >/dev/null 2>&1 && { print -rn -- $'\r\e[K' >&2; REPLY=$url; return 0 }
+    kill -0 $LLM_PID 2>/dev/null || break
+    zselect -t 50 2>/dev/null || sleep 0.5
+  done
+  print -rn -- $'\r\e[K' >&2
+  _llm_stop
+  ui_error "The local model did not start" "$reply[2]" "${(f)$(tail -3 $log 2>/dev/null)}" "Details: $log" >&2
+  return 1
+}
+
+_llm_stop() { (( LLM_PID )) && kill $LLM_PID 2>/dev/null; LLM_PID=0; return 0 }

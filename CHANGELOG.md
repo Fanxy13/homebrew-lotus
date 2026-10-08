@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.0 – AI on your Mac
+
+- `lotus ai local` puts an AI model on your Mac – no Ollama, no account: five models to choose from – gpt-oss 20B (thinks, best fit for 24 GB), Qwen3.6 27B (thinks, strongest coder), Qwen3-Coder 30B (fast coder), Devstral Small 2 (coding agent), Qwen3 14B (thinks, light) – with size, what each is good at and whether it fits your memory, sets up Apple's MLX in Lotus' own environment and downloads the model you pick, pinned to one revision. Any MLX model from Hugging Face works too: `lotus ai local mlx-community/<model>`
+- `/ai` starts the model when it opens (a few seconds) and closes it when it ends, so the memory is free again. It only listens on 127.0.0.1; thinking models show their thoughts
+- New AI provider "On this Mac (MLX)" in `/settings` → AI, `lotus ai status` shows it, `lotus ai local remove` deletes the models, `lotus uninstall` too
+
 ## 2.3.1
 
 - The pets are little pixel sprites now: block characters, two by two pixels each, with one-pixel eyes – a cat with pointed ears and a curly tail, and a dog seen from the side with a floppy ear, a snout and a wagging tail. They blink, talk, chew, wag and sleep (`scripts/make-pets.py` draws them)

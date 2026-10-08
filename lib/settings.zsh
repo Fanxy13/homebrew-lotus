@@ -57,7 +57,8 @@ lotus_settings_ui() {
     fi
     _on ai && items+=(
       "head||$LOTUS_L[head_ai]|"
-      "choice|LOTUS_AI_PROVIDER|$LOTUS_L[ai_provider]|auto=$LOTUS_L[col_auto];claude=Claude;apple=Apple Intelligence;ollama=Ollama;openai=OpenAI-compatible"
+      "choice|LOTUS_AI_PROVIDER|$LOTUS_L[ai_provider]|auto=$LOTUS_L[col_auto];claude=Claude;local=${LOTUS_L[ai_local]:-On this Mac (MLX)};apple=Apple Intelligence;ollama=Ollama;openai=OpenAI-compatible"
+      "action|aillm|${LOTUS_L[ai_local_get]:-Get a model for this Mac}|"
       "choice|LOTUS_AI_EFFORT|$LOTUS_L[ai_effort]|low=$LOTUS_L[effort_low];medium=$LOTUS_L[effort_medium];high=$LOTUS_L[effort_high];max=$LOTUS_L[effort_max]"
       "text|LOTUS_AI_MODEL|$LOTUS_L[ai_model]|"
       "text|LOTUS_AI_URL|$LOTUS_L[ai_url]|"
@@ -213,6 +214,7 @@ lotus_settings_ui() {
           shortcuts) _ls_run shortcuts shortcuts ;;
           setup)     _ls_run setup setup ;;
           aikey)     _ls_run ai ai key ;;
+          aillm)     _ls_run ai ai local ;;
           bgmodels)  _ls_run bg bg models ;;
           log)       _ls_run log log ;;
           pets)      _ls_run pets pets ;;

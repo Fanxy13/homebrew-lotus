@@ -137,4 +137,5 @@ LOTUS_L+=(
   feat_turn_on    'Turn it on in /settings → Features, or with: lotus features'
   feat_on_now     'Turn it on now?'
   feat_now_on     '%s is on.'
+  ai_local 'On this Mac (MLX)'  ai_local_get 'Get a model for this Mac'
 )
