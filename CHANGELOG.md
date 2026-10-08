@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.5
+
+- Fixed: `/model` in `/ai` did not list the model on this Mac (`lotus ai local`) – only Apple Intelligence and Claude. It does now: pick it and Lotus starts the model, `/ai` opens again with it and the conversation continues. The choice is kept for the next `/ai`
+
 ## 2.4.4
 
 - Fixed: while the AI thinks, `/ai` showed only the line with your pet's eyes. Now your whole pet is the spinner, with ears, body and tail, blinking and wagging next to "Thinking…". In a window too small for it you still get the one-line face

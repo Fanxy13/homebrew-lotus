@@ -20,6 +20,7 @@ struct Config {
     let openaiURL: String
     let stateDir: URL
     let available: [String]
+    let localLabel: String      // the model on this Mac (lotus ai local), if there is one
     let name: String
     let root: String
     let version: String
@@ -39,6 +40,7 @@ struct Config {
             openaiURL: e["LOTUS_AI_URL"] ?? "",
             stateDir: state,
             available: (e["LOTUS_AI_AVAILABLE"] ?? "").split(separator: ",").map(String.init),
+            localLabel: e["LOTUS_AI_LOCAL_LABEL"] ?? "",
             name: e["LOTUS_NAME"] ?? "",
             root: e["LOTUS_ROOT"] ?? "",
             version: e["LOTUS_VERSION"] ?? "")
@@ -109,6 +111,7 @@ final class Agent {
     let cwd: URL
     let usesTools: Bool
     var lastAnswer = ""
+    var restartForLocal = false      // /model chose the model on this Mac: Lotus starts it, then /ai opens again
 
     init(config: Config, keys: KeyQueue?, memory: Bool, tools: Bool = true) throws {
         self.config = config
@@ -338,7 +341,7 @@ final class Agent {
 enum TUI {
     static let commands = [
         SlashCommand(name: "/help", help: "what you can do here"),
-        SlashCommand(name: "/model", help: "choose the AI (Apple, Claude, Ollama …)"),
+        SlashCommand(name: "/model", help: "choose the AI (Apple, Claude, this Mac, Ollama …)"),
         SlashCommand(name: "/login", help: "connect Claude with an API key"),
         SlashCommand(name: "/effort", help: "how hard the AI thinks"),
         SlashCommand(name: "/clear", help: "start a new conversation"),
@@ -429,6 +432,10 @@ enum TUI {
             await agent.ask(line)
             keys.clear()
         }
+        if agent.restartForLocal {
+            Out.shared.write("  \(Style.dim)Starting the model on this Mac – this conversation continues there.\(Style.reset)\n")
+            return 75
+        }
         Out.shared.write("  \(Style.dim)See you. /ai brings me back – I remember this conversation for an hour.\(Style.reset)\n")
         return 0
     }
@@ -494,6 +501,7 @@ enum TUI {
             }
         case "/model", "/models", "/provider":
             await chooseModel(agent, keys)
+            return agent.restartForLocal
         case "/login", "/connect", "/key":
             await login(agent, keys)
         default:
@@ -622,6 +630,11 @@ enum TUI {
             options.append(("Apple Intelligence – on this Mac, private, free", "apple", ""))
         }
         #endif
+        // The model on this Mac (lotus ai local) runs as a server that Lotus starts before /ai opens
+        if have.contains("local") {
+            let name = agent.config.localLabel.isEmpty ? "Model on this Mac" : agent.config.localLabel
+            options.append(("\(name) – on this Mac, private, free", "local", ""))
+        }
         if !agent.config.claudeKey.isEmpty {
             options.append(("Claude Opus 5.5 – the best for most work", "claude", "claude-opus-5-5"))
             options.append(("Claude Sonnet 5.5 – fast and strong", "claude", "claude-sonnet-5-5"))
@@ -643,11 +656,25 @@ enum TUI {
             emit("\n")
             return
         }
-        let current = options.firstIndex { $0.kind == agent.config.provider && ($0.model == agent.config.model || $0.kind == "apple") } ?? 0
+        // while the model on this Mac answers, /ai talks to its server as an OpenAI-compatible AI
+        let onThisMac = agent.config.provider == "openai" && !(ProcessInfo.processInfo.environment["LOTUS_AI_LABEL"] ?? "").isEmpty
+        let current = options.firstIndex {
+            onThisMac ? $0.kind == "local" : $0.kind == agent.config.provider && ($0.model == agent.config.model || $0.kind == "apple")
+        } ?? 0
         guard let i = await menu("Which AI should answer?", options.map(\.label), selected: current, keys: keys) else { return }
         let o = options[i]
         if o.kind == "login" {
             await login(agent, keys)
+            return
+        }
+        if o.kind == "local" {
+            if onThisMac {
+                Renderer.shared.info("Already answering: \(agent.provider.label).")
+                emit("\n")
+                return
+            }
+            agent.saveSetting("LOTUS_AI_PROVIDER", "local")
+            agent.restartForLocal = true
             return
         }
         do {

@@ -165,12 +165,14 @@ lotus_ai_run() {
   _ai_claude_key && avail+=claude
   [[ -d /System/Library/Frameworks/FoundationModels.framework ]] && avail+=apple
   _ai_openai_ok && avail+=openai
+  local mac_label=
+  if _llm_ok; then avail+=local; _llm_row $LOTUS_AI_LOCAL; mac_label="$reply[2]"; fi
   lotus_ai_helper
   local bin=$REPLY
   zf_mkdir -p $LOTUS_CACHE/ai && chmod 700 $LOTUS_CACHE/ai
   (
     export LOTUS_AI_PROVIDER=$provider LOTUS_AI_MODEL=$model LOTUS_AI_EFFORT=${LOTUS_AI_EFFORT:-high}
-    export LOTUS_AI_STATE=$LOTUS_CACHE/ai LOTUS_AI_URL=$url LOTUS_AI_AVAILABLE=${(j:,:)avail}
+    export LOTUS_AI_STATE=$LOTUS_CACHE/ai LOTUS_AI_URL=$url LOTUS_AI_AVAILABLE=${(j:,:)avail} LOTUS_AI_LOCAL_LABEL=$mac_label
     export LOTUS_NAME LOTUS_ROOT LOTUS_VERSION
     [[ -n $llm_label ]] && export LOTUS_AI_LABEL=$llm_label LOTUS_AI_CONTEXT=${LOTUS_AI_CONTEXT:-32768}
     export LOTUS_AI_C_LOGO=$LOTUS_C[logo] LOTUS_AI_C_KEY=$LOTUS_C[key] LOTUS_AI_C_ACCENT=$LOTUS_C[accent]
@@ -184,6 +186,12 @@ lotus_ai_run() {
   )
   local -i rc=$?
   _llm_stop
+  if (( rc == 75 )); then
+    # /model chose the model on this Mac: the choice is saved, so start again with it
+    lotus_load
+    lotus_ai_run $mode "$@"
+    return
+  fi
   (( rc && rc != 130 )) && lotus_log WARN ai "The AI program ended with status $rc"
   return rc
 }
