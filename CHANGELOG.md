@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.5
+
+- The setup looks the same in every language: the answers start on the same line on every page, with the same spacing – in German the welcome page used to lose its spacing and everything moved
+- Descriptions are no longer cut off: they sit in their own column and continue on the next line (for example "Automatic" for the Remove BG model)
+- A bit wider pages, the description of a feature may take two lines, the review shows the whole output folder
+
 ## 2.2.4
 
 - A new `lotus setup`: simpler pages in the Matcha colors, with a small pixel-art lotus that opens a little more with every step – a bud on Welcome, the full flower on Review – and five bars that show where you are

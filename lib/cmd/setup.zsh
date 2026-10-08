@@ -72,13 +72,13 @@ _sw_layout() {
   local -i W=${COLUMNS:-80} H=${LINES:-24} top=1
   SW_LH=$H SW_LW=$W
   (( W < 20 )) && W=80; (( H < 12 )) && H=24
-  SW_CW=$(( W - 8 > 64 ? 64 : W - 8 ))
+  SW_CW=$(( W - 8 > 72 ? 72 : W - 8 ))
   (( SW_CW < 30 )) && SW_CW=$(( W - 2 ))
   SW_X=$(( (W - SW_CW) / 2 + 1 ))
   SW_ART_ON=$(( H >= 22 && W >= 34 ))
   # Designed for 80 x 24; bigger windows get the same picture, a little above the middle
   (( H > 24 )) && top=$(( (H - 24) * 2 / 5 + 1 ))
-  SW_FOOT=$(( top + 22 < H - 1 ? top + 22 : H - 1 ))
+  SW_FOOT=$(( top + 23 < H ? top + 23 : H ))
   if (( SW_ART_ON )); then SW_AY=$top SW_PY=$(( top + 8 )); else SW_PY=$(( top + 1 )); fi
   SW_QY=$(( SW_PY + 2 ))
 }
@@ -166,10 +166,19 @@ _sw_hint() {
   _sw_put $SW_FOOT $(( (${COLUMNS:-80} - ${#h}) / 2 + 1 )) $'\e['"$SW_C[dim]m$h"$'\e[0m'
 }
 
-_sw_detail() {   # the line above the hints (the description of what is highlighted)
+# The description of what is highlighted, above the hints (two lines when it needs them)
+typeset -gi SW_DL=1
+_sw_detail() {
   SW_DETAIL=$1
+  local -a l=()
+  local -i i
+  [[ -n $1 ]] && { _sw_wrap "$1" $SW_CW; l=("${(@)reply[1,2]}") }
+  (( SW_DL > 1 || ${#l} > 1 )) && _sw_put $(( SW_FOOT - 2 )) 1 $'\e[2K'
   _sw_put $(( SW_FOOT - 1 )) 1 $'\e[2K'
-  [[ -n $1 ]] && _sw_put $(( SW_FOOT - 1 )) $SW_X $'\e['"$SW_C[dim]m${1[1,SW_CW]}"$'\e[0m'
+  for (( i = 1; i <= ${#l}; i++ )); do
+    _sw_put $(( SW_FOOT - ${#l} + i - 1 )) $SW_X $'\e['"$SW_C[dim]m${l[i]}"$'\e[0m'
+  done
+  SW_DL=${#l}
 }
 
 # The whole page: flower, steps, question and explanation; SW_Y = first row for the answer
@@ -179,13 +188,16 @@ _sw_frame() {
   _sw_art
   _sw_progress
   _sw_put $SW_QY $SW_X $'\e[1m'"${SW_Q[1,SW_CW]}"$'\e[0m'
-  local -i y=$(( SW_QY + 1 ))
+  local -i y=$(( SW_QY + 1 )) n=0
   local l
   if [[ -n $SW_SUB ]]; then
     _sw_wrap "$SW_SUB" $SW_CW
-    for l in $reply; do _sw_put $y $SW_X $'\e['"$SW_C[dim]m$l"$'\e[0m'; (( y++ )); done
+    for l in $reply; do _sw_put $y $SW_X $'\e['"$SW_C[dim]m$l"$'\e[0m'; (( y++, n++ )); done
   fi
-  SW_Y=$(( y + 1 ))
+  # The answer starts on the same row on every page and in every language (two lines are kept
+  # for the explanation – all of them fit in two at 80 columns); small windows use what is there
+  (( SW_ART_ON && n < 2 )) && n=2
+  SW_Y=$(( SW_QY + n + 2 ))
   _sw_hint
   _sw_detail "$SW_DETAIL"
   [[ -n $SW_PAINT ]] && $SW_PAINT
@@ -197,28 +209,51 @@ _sw_room() { REPLY=$(( SW_FOOT - 2 - SW_Y + 1 )) }
 
 # ── Answers ───────────────────────────────────────────────────
 
-# A list, "Label|Description" per entry. ⏎ picks, esc goes back.  → REPLY = index, status 1 = back
+# A list, "Label|Description" per entry: the labels in one column, the descriptions wrapped in the
+# next. ⏎ picks, esc goes back.  → REPLY = index, status 1 = back
 # SW_ON_MOVE (a function) hears about the highlighted entry; it may change the page texts.
 _sw_select() {
-  local -i sel=${1:-1} n i redraw=1 gap y was; shift
-  local -a opts=("$@")
+  local -i sel=${1:-1} n i j redraw=1 gap lw dw total y was room; shift
+  local -a opts=("$@") descs=() cnt=() dl
   n=${#opts}
   (( sel < 1 || sel > n )) && sel=1
-  local p=$'\e['"$SW_C[pink]m" g=$'\e[1;'"$SW_C[green]m" d=$'\e['"$SW_C[dim]m" r=$'\e[0m' lbl desc
+  local p=$'\e['"$SW_C[pink]m" g=$'\e[1;'"$SW_C[green]m" d=$'\e['"$SW_C[dim]m" r=$'\e[0m' lbl desc pad
   print -n $'\e[?25l'
   while :; do
     if (( redraw )); then
       SW_HINT=${LOTUS_L[ui_select_hint]:-↑↓ choose   ⏎ continue   esc back} SW_DETAIL=
       _sw_frame; redraw=0
-      _sw_room; (( gap = 2 * n - 1 <= REPLY ? 2 : 1 ))
+      lw=0
+      for (( i = 1; i <= n; i++ )); do lbl=${opts[i]%%|*}; (( ${#lbl} > lw )) && lw=${#lbl}; done
+      (( dw = SW_CW - 4 - lw, total = 0 ))
+      descs=() cnt=()
+      for (( i = 1; i <= n; i++ )); do
+        desc=${opts[i]#*|}
+        [[ $desc == $opts[i] ]] && desc=
+        if [[ -n $desc ]] && (( dw >= 16 )); then _sw_wrap "$desc" $dw; else reply=("$desc"); fi
+        descs+=("${(pj:\n:)reply}") cnt+=(${#reply})
+        (( total += ${#reply} ))
+      done
+      _sw_room; room=$REPLY
+      (( gap = total + n - 1 <= room ? 1 : 0 ))
+      if (( total + gap * (n - 1) > room )); then
+        # no room for whole descriptions: one line each, cut
+        for (( i = 1; i <= n; i++ )); do
+          dl=("${(@f)descs[i]}")
+          (( cnt[i] > 1 )) && descs[i]="${dl[1][1,dw-1]}…"
+          cnt[i]=1
+        done
+        (( gap = 2 * n - 1 <= room ? 1 : 0 ))
+      fi
+      pad=${(l:lw+4:)}
     fi
+    y=$SW_Y
     for (( i = 1; i <= n; i++ )); do
-      lbl=${opts[i]%%|*} desc=${opts[i]#*|}
-      [[ $desc == $opts[i] ]] && desc=
-      (( ${#desc} > SW_CW - ${#lbl} - 6 )) && desc="${desc[1,SW_CW-${#lbl}-7]}…"
-      (( y = SW_Y + (i - 1) * gap ))
-      if (( i == sel )); then _sw_put $y $SW_X $'\e[K'"${p}❯${r} ${g}${lbl}${r}${desc:+  ${d}${desc}${r}}"
-      else _sw_put $y $SW_X $'\e[K'"  ${lbl}${desc:+  ${d}${desc}${r}}"; fi
+      lbl=${opts[i]%%|*} dl=("${(@f)descs[i]}")
+      if (( i == sel )); then _sw_put $y $SW_X $'\e[K'"${p}❯${r} ${g}${(r:lw:)lbl}${r}  ${d}${dl[1]}${r}"
+      else _sw_put $y $SW_X $'\e[K'"  ${(r:lw:)lbl}  ${d}${dl[1]}${r}"; fi
+      for (( j = 2; j <= cnt[i]; j++ )); do _sw_put $(( y + j - 1 )) $SW_X $'\e[K'"${pad}${d}${dl[j]}${r}"; done
+      (( y += cnt[i] + gap ))
     done
     was=$sel
     ui_keyx 0.3
@@ -496,15 +531,17 @@ _sw_review_paint() {
   local feat=${${LOTUS_L[sw_feat_sum]//\%s/${#on}}/\%t/$total}
   (( ${#off} )) && feat+=" · $LOTUS_L[sw_disabled]: ${(j:, :)off}"
   rows+=("$LOTUS_L[sw_s3]|$feat")
-  if lotus_feature_on bg; then
-    lotus_bg_model_label $LOTUS_BG_MODEL; local model=$REPLY
-    ui_path "${LOTUS_BG_OUTPUT/#\~/$HOME}" 30; [[ $LOTUS_BG_OUTPUT == @source ]] && REPLY=$LOTUS_L[bg_out_source]
-    rows+=("$LOTUS_L[head_bg]|$model · $REPLY")
-  fi
   lotus_feature_on weather && [[ -n $LOTUS_WEATHER_LOCATION ]] && rows+=("$LOTUS_L[sw_city]|$LOTUS_WEATHER_LOCATION")
   if lotus_feature_on ai && (( sw_claude )); then lotus_feature_label ai; rows+=("$REPLY|$LOTUS_L[sw_ai_claude]"); fi
+  lotus_feature_on bg && rows[6,5]=("$LOTUS_L[head_bg]|")       # filled in below, when the width is known
   _sw_room; room=$(( REPLY - 1 ))
   for row in "${(@)rows[1,room]}"; do (( ${#row%%|*} > lw )) && lw=${#row%%|*}; done
+  if lotus_feature_on bg; then
+    lotus_bg_model_label $LOTUS_BG_MODEL; local model=$REPLY
+    ui_path "${LOTUS_BG_OUTPUT/#\~/$HOME}" $(( SW_CW - lw - 3 - ${#model} - 3 ))
+    [[ $LOTUS_BG_OUTPUT == @source ]] && REPLY=$LOTUS_L[bg_out_source]
+    rows[6]="$LOTUS_L[head_bg]|$model · $REPLY"
+  fi
   i=0
   for row in "${(@)rows[1,room]}"; do
     local v=${row#*|}
