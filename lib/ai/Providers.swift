@@ -479,6 +479,8 @@ final class OllamaProvider: Provider {
 
     private struct Reply {
         var text = ""
+        var thoughts = ""
+        var finish = ""
         var calls: [[String: Any]] = []
     }
 
@@ -512,7 +514,10 @@ final class OllamaProvider: Provider {
                 guard let j = HTTP.parse(line) else { continue }
                 if let e = j["error"] as? String { throw AIError(title: "Ollama stopped with an error", detail: e) }
                 if let m = j["message"] as? [String: Any] {
-                    if let t = m["thinking"] as? String, !t.isEmpty, render { Renderer.shared.thinkingDelta(t) }
+                    if let t = m["thinking"] as? String, !t.isEmpty {
+                        reply.thoughts += t
+                        if render { Renderer.shared.thinkingDelta(t) }
+                    }
                     if let t = m["content"] as? String, !t.isEmpty {
                         reply.text += t
                         if render { Renderer.shared.textDelta(t) }
@@ -521,6 +526,7 @@ final class OllamaProvider: Provider {
                 }
                 if j["done"] as? Bool == true {
                     lastTokens = (j["prompt_eval_count"] as? Int ?? 0) + (j["eval_count"] as? Int ?? 0)
+                    reply.finish = j["done_reason"] as? String ?? ""
                 }
             }
             if Task.isCancelled { throw CancellationError() }
@@ -531,8 +537,16 @@ final class OllamaProvider: Provider {
     func send(_ text: String, tools: ToolRunner?) async throws -> String {
         messages.append(["role": "user", "content": text])
         var answer: [String] = []
-        for _ in 0..<40 {
-            let reply = try await stream(messages, tools: tools != nil, think: true, render: true)
+        for step in 0..<40 {
+            var reply = try await stream(messages, tools: tools != nil, think: true, render: true)
+            if reply.text.isEmpty && reply.calls.isEmpty {
+                do {
+                    reply.text = try EmptyReply.handle(finish: reply.finish, thoughts: reply.thoughts, said: step > 0 || !answer.isEmpty)
+                } catch {
+                    messages.removeLast()        // the question that got no answer
+                    throw error
+                }
+            }
             var assistant: [String: Any] = ["role": "assistant", "content": reply.text]
             if !reply.calls.isEmpty { assistant["tool_calls"] = reply.calls }
             messages.append(assistant)
@@ -593,6 +607,8 @@ final class OpenAIProvider: Provider {
 
     private struct Reply {
         var text = ""
+        var thoughts = ""
+        var finish = ""
         var calls: [PendingCall] = []
         var rawCalls: [[String: Any]] = []
     }
@@ -629,7 +645,7 @@ final class OpenAIProvider: Provider {
             let split = ChannelSplit()
             func take(_ pieces: [(Bool, String)]) {
                 for (think, piece) in pieces {
-                    if think { if render { Renderer.shared.thinkingDelta(piece) } }
+                    if think { reply.thoughts += piece; if render { Renderer.shared.thinkingDelta(piece) } }
                     else { reply.text += piece; if render { Renderer.shared.textDelta(piece) } }
                 }
             }
@@ -637,9 +653,13 @@ final class OpenAIProvider: Provider {
                 guard line.hasPrefix("data:") else { continue }
                 let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
                 if payload == "[DONE]" { break }
-                guard let j = HTTP.parse(payload), let choice = (j["choices"] as? [[String: Any]])?.first,
-                      let d = choice["delta"] as? [String: Any] else { continue }
-                if let r = (d["reasoning_content"] ?? d["reasoning"]) as? String, !r.isEmpty, render { Renderer.shared.thinkingDelta(r) }
+                guard let j = HTTP.parse(payload), let choice = (j["choices"] as? [[String: Any]])?.first else { continue }
+                if let f = choice["finish_reason"] as? String { reply.finish = f }
+                guard let d = choice["delta"] as? [String: Any] else { continue }
+                if let r = (d["reasoning_content"] ?? d["reasoning"]) as? String, !r.isEmpty {
+                    reply.thoughts += r
+                    if render { Renderer.shared.thinkingDelta(r) }
+                }
                 if let t = d["content"] as? String, !t.isEmpty { take(split.feed(t)) }
                 for tc in d["tool_calls"] as? [[String: Any]] ?? [] {
                     let i = tc["index"] as? Int ?? 0
@@ -668,8 +688,16 @@ final class OpenAIProvider: Provider {
     func send(_ text: String, tools: ToolRunner?) async throws -> String {
         messages.append(["role": "user", "content": text])
         var answer: [String] = []
-        for _ in 0..<40 {
-            let reply = try await stream(messages, tools: tools != nil, render: true)
+        for step in 0..<40 {
+            var reply = try await stream(messages, tools: tools != nil, render: true)
+            if reply.text.isEmpty && reply.calls.isEmpty {
+                do {
+                    reply.text = try EmptyReply.handle(finish: reply.finish, thoughts: reply.thoughts, said: step > 0 || !answer.isEmpty)
+                } catch {
+                    messages.removeLast()        // the question that got no answer
+                    throw error
+                }
+            }
             var assistant: [String: Any] = ["role": "assistant", "content": reply.text]
             if !reply.rawCalls.isEmpty { assistant["tool_calls"] = reply.rawCalls }
             messages.append(assistant)
@@ -688,6 +716,32 @@ final class OpenAIProvider: Provider {
     func complete(system: String, prompt: String) async throws -> String {
         let msgs: [[String: Any]] = [["role": "system", "content": system], ["role": "user", "content": prompt]]
         return try await stream(msgs, tools: false, render: false).text
+    }
+}
+
+// A reply with neither an answer nor a tool call must not end in silence: say what happened
+enum EmptyReply {
+    // → the text to show instead (what the model wrote as thoughts), or "" when the turn already
+    // said something; throws what went wrong when the turn would otherwise stay empty
+    static func handle(finish: String, thoughts: String, said: Bool) throws -> String {
+        let ranOut = finish == "length"
+        let thought = thoughts.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !ranOut && !thought.isEmpty {
+            Renderer.shared.info("The AI wrote only its thoughts and no answer. Here they are:")
+            Renderer.shared.textDelta(thoughts)
+            return thoughts
+        }
+        if said {
+            if ranOut { Renderer.shared.info("The AI ran out of room before it could say more. Ask it to go on.") }
+            return ""
+        }
+        if ranOut {
+            throw AIError(title: "The AI ran out of room while it was thinking",
+                          detail: "It used up its whole answer length for thinking and never got to write an answer.\n"
+                              + "Make it think less with /effort, or raise the answer length: lotus ai local settings (then start /ai again).")
+        }
+        throw AIError(title: "The AI did not send an answer",
+                      detail: "It stopped with: \(finish.isEmpty ? "no reason" : finish).\nTry again, or choose another AI with /model.")
     }
 }
 

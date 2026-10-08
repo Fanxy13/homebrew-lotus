@@ -3,6 +3,7 @@
 ## 2.4.4
 
 - Fixed: while the AI thinks, `/ai` showed only the line with your pet's eyes. Now your whole pet is the spinner, with ears, body and tail, blinking and wagging next to "Thinking…". In a window too small for it you still get the one-line face
+- Fixed: a model that thinks and then never answers (it used its whole answer length for thinking) left `/ai` silent. Now `/ai` says what happened and how to fix it, or shows the thoughts if the model wrote nothing else
 
 ## 2.4.3
 
