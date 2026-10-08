@@ -86,6 +86,7 @@ lotus_show() {
   print -n $'\e[H\e[2J'
   lotus_render live
   lotus_startup_details
+  lotus_pet_start
 }
 
 # ── Slash commands, shortcuts and the Enter key ───────────────
@@ -114,8 +115,20 @@ _lotus_aliases() {
   done
 }
 
+# The names of your pets (typing one calls the pet) – lowercase, from ~/.config/lotus/pets.tsv
+_lotus_pets() {
+  typeset -ga _lotus_pet_names=()
+  lotus_feature_on pets && [[ -r $LOTUS_CONF/pets.tsv ]] || return 0
+  local line
+  for line in "${(@f)$(<$LOTUS_CONF/pets.tsv)}"; do
+    [[ $line == \#* || -z $line ]] && continue
+    _lotus_pet_names+=(${(L)line%%$'\t'*})
+  done
+}
+
 # Enter: a few friendly extras before zsh runs the line
 #   pasted link → open it · "open Spotify" (no such file) → /app · unknown /word → suggestion
+#   a pet's name (when nothing else has that name) → the pet answers
 #   Only for features that are turned on; the goat question always gets its answer.
 _lotus_accept_line() {
   setopt localoptions extendedglob
@@ -131,6 +144,15 @@ _lotus_accept_line() {
     [[ -e ${target/#\~/$HOME} || $target == *:* || $target == *.* ]] || BUFFER="lotus app ${(q)target}"
   elif [[ $w[1] == /[[:alpha:]][[:alnum:]_-]# && -z ${aliases[$w[1]]} && ! -e $w[1] ]]; then
     BUFFER="lotus suggest ${(q)w[1]} ${(j: :)w[2,-1]}"
+  elif (( ${#_lotus_pet_names} )); then
+    # "Mochi", "mochi how are you?", "Mochi, sit!" – unless a command, alias or function has that name
+    local first=${w[1]%%[,:!?.]#} name
+    name=${(L)first}
+    if (( ${_lotus_pet_names[(Ie)$name]} )) && ! (( $+commands[$first] || $+aliases[$first] || $+functions[$first] || $+builtins[$first] )); then
+      local rest=${line#${(b)w[1]}}
+      rest=${rest##[[:space:],:!?.]#}
+      BUFFER="lotus pet $name${rest:+ ${(qq)rest}}"
+    fi
   fi
   zle _lotus_orig_accept_line
 }
@@ -166,6 +188,13 @@ _lotus_fix_root() {
   [[ -d $root/lib ]] && LOTUS_ROOT=$root
 }
 
+# A command Lotus prepared (/ai command, /help) goes onto the command line – it is never run
+_lotus_take_prompt() {
+  [[ -r $LOTUS_CACHE/ai-prompt ]] || return 0
+  print -z -- "$(<$LOTUS_CACHE/ai-prompt)"
+  rm -f $LOTUS_CACHE/ai-prompt
+}
+
 # "function" keeps the lotus alias (noglob) from touching this definition when re-sourced
 function lotus {
   local -i rc
@@ -177,11 +206,18 @@ function lotus {
       command lotus settings; rc=$?
       if (( rc == 10 )); then _lotus_unload; return 0; fi
       (( rc )) && return rc
-      lotus_load; _lotus_prompt; _lotus_aliases
+      lotus_load; _lotus_prompt; _lotus_aliases; _lotus_pets
       lotus_show ;;
-    setup|features)
+    setup|features|pets|pet|feed)
+      rm -f $LOTUS_CACHE/ai-prompt
       command lotus "$@"; rc=$?
-      lotus_load; _lotus_prompt; _lotus_aliases
+      lotus_load; _lotus_prompt; _lotus_aliases; _lotus_pets
+      _lotus_take_prompt
+      return rc ;;
+    help|cheatsheet)
+      rm -f $LOTUS_CACHE/ai-prompt
+      command lotus "$@"; rc=$?
+      _lotus_take_prompt
       return rc ;;
     uninstall)
       command lotus uninstall && _lotus_unload ;;
@@ -192,8 +228,7 @@ function lotus {
     ai)
       rm -f $LOTUS_CACHE/ai-prompt
       command lotus "$@"; rc=$?
-      # /ai command: the suggestion goes onto the command line, it is never run
-      [[ -r $LOTUS_CACHE/ai-prompt ]] && { print -z -- "$(<$LOTUS_CACHE/ai-prompt)"; rm -f $LOTUS_CACHE/ai-prompt }
+      _lotus_take_prompt
       return rc ;;
     *)
       command lotus "$@" ;;
@@ -208,10 +243,11 @@ add-zsh-hook precmd _lotus_precmd
 add-zsh-hook zshexit _lotus_live_stop
 
 _lotus_aliases
+_lotus_pets
 _lotus_widget
 _lotus_prompt
 if (( ! LOTUS_CONFIGURED )) && [[ -t 0 && -t 1 ]]; then
-  command lotus setup --tty && lotus_load && _lotus_prompt
+  command lotus setup --tty && lotus_load && _lotus_prompt && _lotus_pets
 fi
 lotus_log DEBUG startup "Shell ready (Lotus $LOTUS_VERSION, $LOTUS_ROOT)"
-(( LOTUS_STARTUP )) && [[ -t 1 ]] && lotus_render live && lotus_startup_details
+(( LOTUS_STARTUP )) && [[ -t 1 ]] && lotus_render live && lotus_startup_details && lotus_pet_start

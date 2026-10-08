@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.2.6">
-  <link rel="stylesheet" href="css/pages.css?v=2.2.6">
-  <script src="js/lotus.js?v=2.2.6"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.3.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.3.0">
+  <script src="js/lotus.js?v=2.3.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -18,12 +18,12 @@
     <header class="page-head">
       <p class="eyebrow">Documentation</p>
       <h1>How Lotus <span>works</span></h1>
-      <p class="lead">Lotus 2.2 is a start screen and command center for the macOS terminal. Everything below in one place.</p>
+      <p class="lead">Lotus 2.3 is a start screen and command center for the macOS terminal. Everything below in one place.</p>
     </header>
 
     <nav class="toc card">
       <a href="#install">Install</a><a href="#setup">First start</a><a href="#use">Using Lotus</a><a href="#settings">Settings</a>
-      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
+      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#pets">Pets</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
       <a href="#privacy">Privacy and security</a><a href="#trouble">Troubleshooting</a><a href="#changelog">Changelog</a>
     </nav>
 
@@ -82,6 +82,7 @@
         <tr><td>Weather and web</td><td>Default city, units (°C or °F), search engine (Google, DuckDuckGo, Bing, Ecosia, Brave)</td></tr>
         <tr><td>AI</td><td>Provider (automatic, Claude, Apple Intelligence, Ollama, OpenAI-compatible), how hard it thinks, model, API URL, API keys in the Keychain</td></tr>
         <tr><td>Remove BG</td><td>Model (Auto, BiRefNet, BiRefNet Lite, InSPyReNet), backend (Auto, MPS, CPU), output folder, manual refinement (offer, always, never), preview after processing, model cache</td></tr>
+        <tr><td>Pets</td><td>Your pets (adopt, talk, feed, rename, personality), the pet on the start screen, <code>/help</code> with a pet, reactions to typos and finished work, what pets think with (Apple Intelligence, the AI of <code>/ai</code>, nothing)</td></tr>
         <tr><td>Diagnostics</td><td>Log level (off, errors and warnings, normal, detailed, everything), keep logs for 1–90 days, startup details, open the log</td></tr>
         <tr><td>Lotus</td><td>Manage shortcuts, run the setup again, uninstall</td></tr>
       </table>
@@ -169,6 +170,20 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     </div>
     <p class="muted">Formats: PNG, JPG, WebP, HEIC, AVIF, TIFF, BMP, GIF. <code>/bg models</code> downloads, checks and removes models. BiRefNet (Peng Zheng et al.) and InSPyReNet (Taehun Kim et al.) are MIT licensed – see <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/THIRD_PARTY.md">THIRD_PARTY.md</a>.</p>
 
+    <h2 class="section" id="pets">Pets</h2>
+    <p>Up to three little ASCII pets live in your terminal. Type a pet's name and it answers – with Apple Intelligence on your Mac, in your language and with its own personality. <code>/pets</code> adopts, renames and feeds them; <code>/help</code> lets your pet find the right command. Everything about them – and the prompt to make your own – is on the <a href="pets.html">Pets page</a>.</p>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr><td><code>/pets</code></td><td>Your pets: adopt, talk, feed, rename, personality, say goodbye, settings</td></tr>
+        <tr><td><code>mochi</code> · <code>mochi how was your day?</code></td><td>A chat with a pet (⏎ on an empty line ends it) · one answer</td></tr>
+        <tr><td><code>/feed mochi</code></td><td>Feed a pet – they get hungry after half a day</td></tr>
+        <tr><td><code>/help</code> · <code>/help all</code></td><td>Your pet asks what you need and shows the commands · every command</td></tr>
+        <tr><td><code>lotus pets add [file]</code></td><td>Add your own kind of pet (from the clipboard or a file)</td></tr>
+      </table>
+    </div>
+    <p class="muted">Adopted pets are in <code>~/.config/lotus/pets.tsv</code>, your own kinds in <code>~/.config/lotus/pets/</code>, hunger and what they remember in <code>~/.local/state/lotus/</code>. A pet's name only calls it when no command, alias or function has that name.</p>
+
     <h2 class="section" id="log">Log</h2>
     <p><code>/lotus log</code> shows what Lotus did – commands, settings changes, downloads, installs, the AI's tool use, Remove BG stages and every error – with the time and the part of Lotus it came from.</p>
     <div class="table-wrap">
@@ -200,6 +215,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Checked input</h3><p class="muted">Links must be http or https, package names and city names are validated, and shortcuts cannot run shell commands.</p></div>
       <div class="card"><h3>Trusted sources</h3><p class="muted">Apps come from Homebrew Cask, Minecraft servers from Mojang or PaperMC (checksums verified), iOS tools from their official releases, Remove BG models from their authors – pinned and checked with SHA-256.</p></div>
       <div class="card"><h3>Images stay on your Mac</h3><p class="muted">Remove BG reads and writes local files only. No cloud API, no upload; dropped paths are never run as commands.</p></div>
+      <div class="card"><h3>Pets talk on your Mac</h3><p class="muted">Pets think with Apple Intelligence on the device; what you tell them and what they remember stays in <code>~/.local/state/lotus</code>. A pet file is only read as data – its drawings keep plain ASCII.</p></div>
     </div>
 
     <h2 class="section" id="trouble">Troubleshooting</h2>

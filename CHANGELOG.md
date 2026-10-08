@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.3.0 – Pets
+
+### Pets that live in your terminal
+- Adopt up to three little ASCII pets: a cat and a dog come with Lotus, and you can add your own kind. The setup offers a pet, `/pets` adopts, renames, feeds and says goodbye
+- Type a pet's name in the shell to talk to it: the name alone starts a little chat, with words after it the pet answers once (`mochi how was your day?`). The words appear while its mouth moves
+- Pets think with Apple Intelligence on your Mac: each one has its own personality (change it in `/pets`), remembers the last few things you said and answers in your language. Without Apple Intelligence they still say hi in short phrases; they can also use the AI of `/ai`, or nothing at all
+- `/help` with a pet: it asks where you need help, picks the right commands and shows them – press 1, 2 or 3 and the command is ready on your command line. `/help all` lists every command
+- `/feed <name>`: pets get hungry after half a day (they never get ill), the snack flies in, they chew and say thanks
+- A pet says hi below the start screen – a different one every day, with a tip about a Lotus command now and then, and asleep at night. It only shows up when there is room, so nothing scrolls away
+- Pets tilt their head at a typo in a command and cheer when Remove BG or a download is done
+- Your own pet: copy the prompt from the new Pets page on the website, let any AI draw your pet, then `lotus pets add` reads the answer from the clipboard, checks it and saves it. Pet files are only read as data; drawings keep plain ASCII
+- Settings in `/pets` → Settings and `/settings` → Pets; the whole feature can be turned off with `lotus features pets off`. `lotus doctor` shows your pets and how they think
+
+### Also
+- `/help` exists now (with or without pets) and opens the cheatsheet when you have no pet
+- Text fields react to Ctrl-C right away
+
 ## 2.2.6
 
 - When the setup is finished, the lotus opens all the way and its pollen flies up and writes "Hello" in big dots – Hallo, Bonjour or Hola in the other languages – and, a little smaller, your name, centered above the flower; then the dots twinkle for a moment (any key skips it)

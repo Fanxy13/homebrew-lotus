@@ -38,7 +38,7 @@ _lotus_swatch() {
 typeset -gA SW_C=() SW_PF=() SW_ROW=()
 typeset -ga SW_ART=()
 typeset -gi SW_STEP=1 SW_STAGE=1 SW_Y=0 SW_X=0 SW_CW=0 SW_FOOT=0 SW_AY=0 SW_PY=0 SW_QY=0 SW_ART_ON=0
-typeset -g SW_Q= SW_SUB= SW_HINT= SW_DETAIL= SW_ART_THEME=matcha SW_ON_MOVE= SW_PAINT=
+typeset -g SW_Q= SW_SUB= SW_HINT= SW_DETAIL= SW_ART_THEME=matcha SW_ON_MOVE= SW_PAINT= SW_ART_FN=
 
 _sw_put() { print -rn -- $'\e['"$1;$2H$3" }
 
@@ -145,7 +145,11 @@ _sw_art_at() {   # <top row> <stage> <theme>
   for (( r = 1; r <= 7; r++ )); do _sw_art_row $2 $r $3; _sw_put $(( $1 + r - 1 )) $x $REPLY; done
 }
 
-_sw_art() { (( SW_ART_ON )) && _sw_art_at $SW_AY $SW_STAGE $SW_ART_THEME }
+_sw_art() {
+  (( SW_ART_ON )) || return 0
+  [[ -n $SW_ART_FN ]] && { $SW_ART_FN; return 0 }
+  _sw_art_at $SW_AY $SW_STAGE $SW_ART_THEME
+}
 
 # The five steps: done in green, the current one in pink, the rest thin and dim
 _sw_progress() {
@@ -511,6 +515,64 @@ _sw_bgwhen()  {
   return 0
 }
 
+# A pet moves in (when Pets is on and there is none yet): which kind, then its name.
+# The lotus makes room for the pet you point at.
+_sw_pet_draw() {
+  local kind=$SW_PET_SHOW
+  if [[ -z $kind ]]; then _sw_art_at $SW_AY $SW_STAGE matcha; return; fi
+  local -a rows=("${(@f)PET_ART[$kind,idle]}")
+  local -i w=$PET_AW[$kind] h=${#rows} r x=$(( (${COLUMNS:-80} - PET_AW[$kind]) / 2 + 1 )) y
+  for (( r = 0; r < 7; r++ )); do _sw_put $(( SW_AY + r )) 1 $'\e[2K'; done
+  (( y = SW_AY + (7 - h) / 2 ))
+  for (( r = 1; r <= h; r++ )); do _sw_put $(( y + r - 1 )) $x $'\e['"$SW_C[pink]m${rows[r]}"$'\e[0m'; done
+}
+
+_sw_pet() {
+  SW_STEP=4 SW_STAGE=4 SW_Q=$LOTUS_L[sw_pet_q] SW_SUB=$LOTUS_L[sw_pet_sub]
+  local -a kinds=(${PET_KINDS[1,4]}) opts=()
+  local k
+  for k in $kinds; do
+    _pet_kind_label $k
+    local lbl=$REPLY
+    _pet_kind_about $k
+    opts+=("$lbl|$REPLY")
+  done
+  opts+=("$LOTUS_L[sw_pet_none]|$LOTUS_L[sw_pet_none_d]")
+  local -i def=$(( ${kinds[(i)$sw_pet_kind]} ))
+  (( def > ${#kinds} )) && def=$(( ${#kinds} + 1 ))
+  [[ -z $sw_pet_kind && -z $sw_pet_seen ]] && def=1
+  _sw_pet_move() { SW_PET_SHOW=${kinds[$1]}; _sw_art }
+  SW_PET_SHOW=${kinds[def]} SW_ART_FN=_sw_pet_draw SW_ON_MOVE=_sw_pet_move
+  _sw_select $def "${opts[@]}"
+  local -i rc=$?
+  SW_ON_MOVE= SW_ART_FN=
+  (( rc )) && return 1
+  sw_pet_seen=1
+  if (( REPLY > ${#kinds} )); then sw_pet_kind=; else sw_pet_kind=$kinds[REPLY]; fi
+  return 0
+}
+
+_sw_petname() {
+  [[ -n $sw_pet_kind ]] || return 0
+  _pet_kind_label $sw_pet_kind
+  SW_STEP=4 SW_STAGE=4 SW_Q=${LOTUS_L[sw_petname_q]//\%s/${(L)REPLY}} SW_SUB=$LOTUS_L[sw_petname_sub]
+  local -a ideas=(${(s:, :)PET_INFO[$sw_pet_kind,names]})
+  local name=${sw_pet_name:-${ideas[1]:-Mochi}}
+  SW_PET_SHOW=$sw_pet_kind SW_ART_FN=_sw_pet_draw
+  while :; do
+    _sw_input "$LOTUS_L[pt_name]" "$name" || { SW_ART_FN= SW_DETAIL=; return 1 }
+    name=${${REPLY## #}%% #}
+    [[ -z $name ]] && name=${ideas[1]:-Mochi}
+    if ! _pet_name_ok "$name"; then SW_DETAIL=$LOTUS_L[pt_name_bad]
+    elif (( $+commands[$name] || $+commands[${(L)name}] || $+builtins[${(L)name}] )) || [[ ${(L)name} == (lotus|pet|pets|feed|help|ai|bg) ]]; then
+      SW_DETAIL=${LOTUS_L[pt_name_cmd]//\%s/$name}
+    else break; fi
+  done
+  SW_ART_FN= SW_DETAIL=
+  sw_pet_name=$name
+  return 0
+}
+
 # Review: everything at a glance, then Back or Finish
 _sw_review_paint() {
   local d=$'\e['"$SW_C[dim]m" r=$'\e[0m' id row
@@ -531,6 +593,10 @@ _sw_review_paint() {
   local feat=${${LOTUS_L[sw_feat_sum]//\%s/${#on}}/\%t/$total}
   (( ${#off} )) && feat+=" · $LOTUS_L[sw_disabled]: ${(j:, :)off}"
   rows+=("$LOTUS_L[sw_s3]|$feat")
+  if [[ -n $sw_pet_kind && -n $sw_pet_name ]] && lotus_feature_on pets; then
+    _pet_kind_label $sw_pet_kind
+    rows+=("$LOTUS_L[pt_title]|$sw_pet_name · $REPLY")
+  fi
   lotus_feature_on weather && [[ -n $LOTUS_WEATHER_LOCATION ]] && rows+=("$LOTUS_L[sw_city]|$LOTUS_WEATHER_LOCATION")
   if lotus_feature_on ai && (( sw_claude )); then lotus_feature_label ai; rows+=("$REPLY|$LOTUS_L[sw_ai_claude]"); fi
   lotus_feature_on bg && rows[6,5]=("$LOTUS_L[head_bg]|")       # filled in below, when the width is known
@@ -742,6 +808,7 @@ _sw_pages() {
     lotus_feature_on weather && pages+=(weather)
     lotus_feature_on ai && pages+=(ai)
     lotus_feature_on bg && pages+=(bgmodel bgout bgwhen)
+    lotus_feature_on pets && (( ! ${#PET_N} )) && pages+=(pet petname)
     pages+=(review)
     (( p > ${#pages} )) && return 0
     if (( p < 1 )); then
@@ -762,6 +829,10 @@ lotus_cmd_setup_wizard() {
   lotus_features
   lotus_log INFO setup "Setup wizard started"
   local -i sw_claude=0 sw_bg_now=0 rc
+  local sw_pet_kind= sw_pet_name= sw_pet_seen= SW_PET_SHOW=
+  source $LOTUS_ROOT/lib/cmd/pets.zsh
+  lotus_lang_group pets
+  _pet_load; _pet_species
   # The Remove BG pickers draw in the wizard's style
   local UI_SELECT_HOOK=_sw_select UI_LINE_HOOK=_sw_input
   # Keys pressed while the page draws are not echoed (no ^[[B on the screen); the terminal
@@ -799,6 +870,9 @@ lotus_cmd_setup_wizard() {
   ui_success $msg
   ui_dim "  $LOTUS_L[sw_done_hint]"
   ui_blank
+  if [[ -n $sw_pet_kind && -n $sw_pet_name ]] && lotus_feature_on pets && lotus_pets_adopt $sw_pet_kind "$sw_pet_name" quiet; then
+    lotus_pet_intro "$sw_pet_name"
+  fi
   if (( sw_claude )); then source $LOTUS_ROOT/lib/cmd/ai.zsh; lotus_ai_login; fi
   if (( sw_bg_now )) && lotus_feature_on bg; then lotus_bg_install || true; fi
   return 0

@@ -52,4 +52,11 @@ LOTUS_L+=(
   sw_feat_unknown 'Unknown feature'
   sw_feat_onoff   'Say on or off'
   sw_hello        'Hello'
+  sw_pet_q        'Adopt a pet?'
+  sw_pet_sub      'A little friend that lives in your terminal: it greets you, talks with Apple Intelligence, helps with /help and gets hungry. More in /pets.'
+  sw_pet_none     'Not now'
+  sw_pet_none_d   'later with /pets'
+  sw_petname_q    'What is your %s called?'
+  sw_petname_sub  'You call it by typing its name.'
+  featd_pets      'ASCII pets that talk, help with /help and get hungry'
 )

@@ -342,12 +342,18 @@ ui_line() {
   local label=$1 text=$2 d=$'\e['"$LOTUS_C[dim]m" a=$'\e['"$LOTUS_C[accent]m"
   if ! ui_has_tty; then REPLY=$text; return 0; fi
   print -n $'\e[?25h'
+  local shown=
+  local -i drawn=0
   while :; do
-    print -rn -- $'\r\e[K'"    ${d}${label}${_UI_R}  ${a}›${_UI_R} $text"
-    ui_keyx
+    if (( ! drawn )) || [[ $shown != $text ]]; then
+      print -rn -- $'\r\e[K'"    ${d}${label}${_UI_R}  ${a}›${_UI_R} $text"
+      shown=$text drawn=1
+    fi
+    ui_keyx 0.3
     case $REPLY in
+      timeout) continue ;;
       enter) break ;;
-      esc)   print; return 1 ;;
+      esc|interrupt) print; return 1 ;;
       back)  text=${text[1,-2]} ;;
       up|down|left|right|home|end|pgup|pgdn|tab|ignore|space)
              [[ $REPLY == space ]] && text+=' ' ;;

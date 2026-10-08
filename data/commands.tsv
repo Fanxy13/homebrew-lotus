@@ -3,6 +3,7 @@
 Core	/lotus	show	lotus	Show the start screen again, e.g. after clear	lotus	0
 Core	-	setup	lotus setup	Run the first-time setup wizard again	lotus setup	0
 Core	-	cheatsheet	/lotus cheatsheet	Show every Lotus command	/lotus cheatsheet	0
+Core	/help	help	/help	Help: your pet asks what you need and shows the commands (without pets: every command)	/help	0
 Core	-	update	lotus update	Update Lotus, settings stay as they are	lotus update	0
 Core	-	uninstall	lotus uninstall	Remove Lotus completely	lotus uninstall	0
 Core	-	version	lotus version	Print the installed version	lotus version	0
@@ -69,3 +70,7 @@ Developer tools	-	log clear	/lotus log clear	Delete the log	/lotus log clear	0
 Developer tools	-	-V	lotus -V <command>	Run a command and print every log line while it runs	lotus -V bg remove photo.jpg	0
 Developer tools	/minecraft	minecraft	/minecraft	Minecraft server setup assistant	/minecraft	0
 Developer tools	/mc	minecraft	/mc	Short for /minecraft	/mc	0
+Pets	/pets	pets	/pets	Your pets: adopt up to 3, talk, feed, rename, personality, settings	/pets	0
+Pets	-	pet	<name> [message]	Type a pet's name to talk to it – alone for a chat, or with a message	mochi how was your day?	0
+Pets	/feed	feed	/feed <name>	Feed a pet – pets get hungry after half a day	/feed mochi	0
+Pets	-	pets add	lotus pets add	Add your own pet from the prompt on the website (reads the clipboard)	lotus pets add	0

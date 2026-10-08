@@ -1,0 +1,60 @@
+# Lotus pet: a cat. Own pets use the same format – see lotus pets add, or the Pets page on the website.
+# Lines "key: value" describe the pet; [frame] starts a drawing (plain ASCII, up to 8 lines, 24 wide).
+# Only [idle] is needed; a frame that is missing uses idle.
+species: cat
+label: Cat
+label_de: Katze
+label_fr: Chat
+label_es: Gato
+sound: meow
+sound_de: miau
+sound_fr: miaou
+sound_es: miau
+food: fish
+food_de: Fisch
+food_fr: poisson
+food_es: pescado
+snack: <><
+face: (=o.o=)
+face_happy: (=^.^=)
+about: curious, a little proud, loves naps
+about_de: neugierig, ein bisschen stolz, liebt Nickerchen
+about_fr: curieux, un peu fier, adore les siestes
+about_es: curioso, un poco orgulloso, le encantan las siestas
+names: Mochi, Luna, Miso, Nala, Simba, Tofu
+personality: curious and a little proud, loves naps in the sun and boxes, purrs when someone is nice, sometimes pretends not to care
+[idle]
+  /\_/\
+ ( o.o )
+  > ^ <
+ (")_(")~
+[blink]
+  /\_/\
+ ( -.- )
+  > ^ <
+ (")_(")~
+[wag]
+  /\_/\
+ ( o.o )
+  > ^ <
+ (")_(")_/
+[talk]
+  /\_/\
+ ( o.o )
+  > o <
+ (")_(")~
+[happy]
+  /\_/\
+ ( ^.^ )
+  > ^ <
+ (")_(")_/
+[eat]
+  /\_/\
+ ( ^.^ )
+  > w <
+ (")_(")~
+[sleep]
+  /\_/\   z
+ ( -.- ) Z
+  > ^ <
+ (")_(")~

@@ -38,4 +38,9 @@ LOTUS_L+=(
   featd_minecraft 'Montar tu servidor de Minecraft paso a paso'
   featd_bg 'Quitar el fondo de imágenes en tu Mac, con BiRefNet o InSPyReNet'
   sw_hello 'Hola'
+  sw_pet_q '¿Adoptar una mascota?'
+  sw_pet_sub 'Un pequeño amigo que vive en tu terminal: te saluda, habla con Apple Intelligence, ayuda con /help y tiene hambre. Más en /pets.'
+  sw_pet_none 'Ahora no'  sw_pet_none_d 'más tarde con /pets'
+  sw_petname_q '¿Cómo se llama tu %s?'  sw_petname_sub 'Lo llamas escribiendo su nombre.'
+  featd_pets 'Mascotas en ASCII que hablan, ayudan con /help y tienen hambre'
 )

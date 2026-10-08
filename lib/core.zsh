@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.2.6
+typeset -g LOTUS_VERSION=2.3.0
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -24,6 +24,7 @@ typeset -ga LOTUS_KEYS=(
   LOTUS_FEATURES_OFF
   LOTUS_BG_READY LOTUS_BG_MODEL LOTUS_BG_BACKEND LOTUS_BG_OUTPUT LOTUS_BG_REFINE LOTUS_BG_PREVIEW
   LOTUS_LOG_LEVEL LOTUS_LOG_RETENTION LOTUS_LOG_STARTUP
+  LOTUS_PET_START LOTUS_PET_HELP LOTUS_PET_REACT LOTUS_PET_BRAIN
   LOTUS_CONFIGURED LOTUS_CONFIG_VERSION
 )
 
@@ -38,6 +39,7 @@ lotus_defaults() {
   typeset -g LOTUS_BG_READY=0 LOTUS_BG_MODEL=auto LOTUS_BG_BACKEND=auto LOTUS_BG_REFINE=ask LOTUS_BG_PREVIEW=0
   typeset -g LOTUS_BG_OUTPUT='~/Pictures/Lotus/Background Removed'
   typeset -g LOTUS_LOG_LEVEL=info LOTUS_LOG_RETENTION=7 LOTUS_LOG_STARTUP=0
+  typeset -g LOTUS_PET_START=1 LOTUS_PET_HELP=1 LOTUS_PET_REACT=1 LOTUS_PET_BRAIN=apple
   typeset -g LOTUS_CONFIGURED=0 LOTUS_CONFIG_VERSION=0
   typeset -gA LOTUS_SHORTCUTS=()
 }
@@ -495,6 +497,18 @@ lotus_startup_details() {
   for id in $LOTUS_FEATURE_IDS; do lotus_feature_on $id && (( on++ )); done
   print -r -- "  "$'\e['"$LOTUS_C[dim]mlotus $LOTUS_VERSION · ${ms} ms · $on/${#LOTUS_FEATURE_IDS} ${LOTUS_L[features_word]:-features} · log: $LOTUS_LOG_LEVEL · /lotus log"$'\e[0m'
   lotus_log DEBUG startup "Start screen in ${ms} ms, $on of ${#LOTUS_FEATURE_IDS} features on"
+}
+
+# Pets (lib/cmd/pets.zsh is only loaded when there is a pet to show)
+lotus_pet_start() {   # below the start screen
+  (( LOTUS_PET_START )) && [[ -t 1 ]] && lotus_feature_on pets || return 0
+  (( ${+functions[lotus_pet_greet]} )) || source $LOTUS_ROOT/lib/cmd/pets.zsh
+  lotus_pet_greet
+}
+lotus_pet_react() {   # <typo|done> – a pet comments on what just happened
+  (( LOTUS_PET_REACT )) && [[ -t 1 && -s $LOTUS_CONF/pets.tsv ]] && lotus_feature_on pets || return 0
+  (( ${+functions[lotus_pet_react_now]} )) || source $LOTUS_ROOT/lib/cmd/pets.zsh
+  lotus_pet_react_now "$@"
 }
 
 # Current cursor row in REPLY (keys typed ahead are kept)

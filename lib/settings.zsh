@@ -70,6 +70,13 @@ lotus_settings_ui() {
       "choice|LOTUS_BG_REFINE|$LOTUS_L[bg_refine]|ask=$LOTUS_L[bg_refine_ask];always=$LOTUS_L[bg_refine_always];never=$LOTUS_L[bg_refine_never]"
       "bool|LOTUS_BG_PREVIEW|$LOTUS_L[bg_preview]|"
       "action|bgmodels|$LOTUS_L[bg_cache]|")
+    _on pets && items+=(
+      "head||$LOTUS_L[head_pets]|"
+      "action|pets|$LOTUS_L[pet_manage]|"
+      "bool|LOTUS_PET_START|$LOTUS_L[pet_start]|"
+      "bool|LOTUS_PET_HELP|$LOTUS_L[pet_help]|"
+      "bool|LOTUS_PET_REACT|$LOTUS_L[pet_react]|"
+      "choice|LOTUS_PET_BRAIN|$LOTUS_L[pet_brain]|apple=Apple Intelligence;ai=$LOTUS_L[pet_brain_ai];off=$LOTUS_L[pet_brain_off]")
     items+=(
       "head||$LOTUS_L[head_diag]|"
       "choice|LOTUS_LOG_LEVEL|$LOTUS_L[log_level]|off=$LOTUS_L[log_off];warn=$LOTUS_L[log_warn];info=$LOTUS_L[log_info];debug=$LOTUS_L[log_debug];trace=$LOTUS_L[log_trace]"
@@ -161,7 +168,7 @@ lotus_settings_ui() {
     lotus_cmd_$1 "${@[2,-1]}"
     lotus_load; _ls_items
     print -n $'\e[?25l'
-    if [[ $1 != log ]]; then ui_dim "$LOTUS_L[back]"; ui_key; fi
+    if [[ $1 != (log|pets) ]]; then ui_dim "$LOTUS_L[back]"; ui_key; fi
     print -n $'\e[2J'
   }
 
@@ -208,6 +215,7 @@ lotus_settings_ui() {
           aikey)     _ls_run ai ai key ;;
           bgmodels)  _ls_run bg bg models ;;
           log)       _ls_run log log ;;
+          pets)      _ls_run pets pets ;;
         esac
         return ;;
     esac

@@ -34,7 +34,7 @@ typeset -A LOTUS_MODULES=(
   app app  brew brew  install install  audio audio  weather weather  ai ai
   ios ios  minecraft minecraft  mc minecraft  convert convert  visual visual
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
-  bg bg  log log  features setup
+  bg bg  log log  features setup  pets pets  pet pets  feed pets
 )
 
 # -V / --verbose: every log line is printed while the command runs
@@ -50,7 +50,8 @@ case $cmd in
       source $LOTUS_ROOT/lib/cmd/setup.zsh; lotus_cmd_setup_wizard
     fi
     lotus_render
-    lotus_startup_details ;;
+    lotus_startup_details
+    lotus_pet_start ;;
   settings|config)
     lotus_log DEBUG cli "Settings opened"
     source $LOTUS_ROOT/lib/settings.zsh; lotus_settings_ui; exit $? ;;

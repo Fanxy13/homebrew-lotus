@@ -83,6 +83,7 @@ lotus_cmd_convert() {
   [[ $ext == mp4 && -e $file ]] && lotus_convert_finish "$file" "$fps"
   ui_blank
   ui_success "Done: ${file/#$HOME/~}"
+  lotus_pet_react done
   ui_confirm "Show it in Finder?" y && open -R "$file"
 }
 

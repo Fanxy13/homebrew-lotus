@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pets — Lotus</title>
+  <meta name="description" content="Little ASCII pets that live in your terminal: they talk with Apple Intelligence, help with /help and get hungry. Make your own with a prompt.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.3.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.3.0">
+  <script src="js/lotus.js?v=2.3.0"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap article">
+    <header class="page-head">
+      <p class="eyebrow">Pets</p>
+      <h1>Friends that live in your <span>terminal</span></h1>
+      <p class="lead">Up to three little ASCII pets keep you company in the macOS terminal. Type a name and your pet answers – it thinks with Apple Intelligence, right on your Mac. It greets you, helps you find the right command and gets hungry now and then.</p>
+    </header>
+
+    <div class="pet-stage" id="pet-stage">
+      <!-- filled by js/pets.js from data/pets/*.pet, the same files the terminal reads -->
+    </div>
+
+    <h2 class="section" id="how">How pets work</h2>
+    <div class="grid">
+      <div class="card"><h3>Call them by name</h3><div class="codeblock small"><code>mochi</code></div><p class="muted small">Just the name starts a little chat. With words after it, the pet answers once: <code>mochi how was your day?</code></p></div>
+      <div class="card"><h3>They really talk</h3><p class="muted small">Pets think with Apple Intelligence on your Mac (macOS 26 and later, Apple silicon). Each one has its own personality, remembers the last few things you said and answers in your language. Without Apple Intelligence they still say hi – in short phrases.</p></div>
+      <div class="card"><h3>Ask for help</h3><div class="codeblock small"><code>/help</code></div><p class="muted small">Your pet asks where you need help, finds the right commands and shows them. Press 1, 2 or 3 and the command is ready on your command line. <code>/help all</code> lists every command.</p></div>
+      <div class="card"><h3>Feed them</h3><div class="codeblock small"><code>/feed mochi</code></div><p class="muted small">After half a day without food a pet gets hungry and tells you on the start screen. It never gets ill – it is just happier after a snack.</p></div>
+      <div class="card"><h3>Greetings and tips</h3><p class="muted small">One of your pets says hi below the start screen, a different one every day – with a tip about a Lotus command now and then. At night it sleeps.</p></div>
+      <div class="card"><h3>They notice things</h3><p class="muted small">A typo in a command makes your pet tilt its head; when Remove BG or a download is done, it cheers. Turn this off in the settings if you prefer quiet.</p></div>
+    </div>
+
+    <h2 class="section" id="pets">Adopt, rename, say goodbye</h2>
+    <p><code>/pets</code> shows your pets side by side. Adopt up to three (a cat, a dog or your own kind), talk to them, feed them, give them a new name or their own personality – a few words like <em>grumpy in the morning, loves rainy days</em> change how they talk. The first-time setup offers a pet too.</p>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr><td><code>/pets</code></td><td>Your pets: adopt, talk, feed, rename, personality, say goodbye, settings</td></tr>
+        <tr><td><code>&lt;name&gt; [message]</code></td><td>Talk to a pet – the name alone starts a chat (⏎ on an empty line ends it)</td></tr>
+        <tr><td><code>/feed &lt;name&gt;</code></td><td>Feed a pet</td></tr>
+        <tr><td><code>/help</code> · <code>/help all</code></td><td>Your pet helps you find a command · every command</td></tr>
+        <tr><td><code>lotus pets add [file]</code></td><td>Add your own kind of pet – from the clipboard, or from a file</td></tr>
+        <tr><td><code>lotus features pets off</code></td><td>Turn pets off completely (also in <code>/settings</code> → Features)</td></tr>
+      </table>
+    </div>
+    <p class="muted small" style="margin-top:12px">Settings live in <code>/pets</code> → Settings and in <code>/settings</code> → Pets: the pet on the start screen, whether <code>/help</code> asks your pet, the reactions to typos and finished work, and what pets think with – Apple Intelligence, the AI you use for <code>/ai</code>, or nothing at all.</p>
+
+    <h2 class="section" id="own">Make your own pet</h2>
+    <p>A fox, an axolotl, a tiny dragon – any AI chat can draw a pet for Lotus. Copy the prompt, fill in the three brackets in the first lines, and paste it into the AI you like.</p>
+    <div class="pet-make">
+      <ol class="steps compact">
+        <li><h3>Copy the prompt</h3><p>Fill in <strong>[animal]</strong>, <strong>[name]</strong> and <strong>[personality]</strong> – or leave them for the AI to choose.</p></li>
+        <li><h3>Ask an AI</h3><p>Paste it into Claude, ChatGPT or any other chat. The answer is a small text file: a few details and the drawings.</p></li>
+        <li><h3>Copy the answer</h3><p>Copy the whole answer, then run <code>lotus pets add</code>. Lotus reads it from the clipboard, checks it, shows it and saves it.</p></li>
+        <li><h3>Adopt it</h3><p>Lotus offers to adopt it right away – or later in <code>/pets</code>.</p></li>
+      </ol>
+      <div class="card pet-prompt-card">
+        <pre class="prompt" id="pet-prompt">Create a pet for Lotus, a start screen for the macOS terminal.
+
+My pet is a [animal, e.g. fox] called [name]. Its personality: [a few words, e.g. clever, a little cheeky, loves autumn leaves].
+
+Reply with only the file below in one code block, nothing else. Rules:
+- Plain ASCII characters only: no emoji, no accents, no Unicode lines or blocks.
+- Every drawing is at most 8 lines high and 24 characters wide.
+- All drawings show the same animal at the same size and position, so they can be swapped like frames of an animation. Only the eyes, mouth, tail or ears change.
+- species is one lowercase word with letters only.
+
+species: [the animal in lowercase, e.g. fox]
+label: [the animal, e.g. Fox]
+about: [3 to 6 words about it]
+sound: [the sound it makes, e.g. yip]
+food: [its favorite food, one word]
+snack: [that food as tiny ASCII art, at most 5 characters]
+face: [its face in one line, at most 9 characters, e.g. (o.o)]
+face_happy: [the same face, happy]
+names: [the name], [three more name ideas]
+personality: [its personality in one sentence]
+[idle]
+(the animal, looking at you)
+[blink]
+(the same drawing with closed eyes)
+[wag]
+(the same drawing with the tail or ears moved)
+[talk]
+(the same drawing with an open mouth)
+[happy]
+(the same drawing with happy eyes)
+[eat]
+(the same drawing, chewing)
+[sleep]
+(the same drawing, asleep, with a small z and Z next to it)</pre>
+        <div class="btn-row"><button class="btn primary" id="copy-pet-prompt">Copy prompt</button></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:34px">The pet file</h3>
+    <p class="muted small">Every pet is a plain text file – Lotus' own cat and dog too (<code>data/pets/cat.pet</code>). Lines with <code>key: value</code> describe it, <code>[idle]</code>, <code>[blink]</code>, <code>[wag]</code>, <code>[talk]</code>, <code>[happy]</code>, <code>[eat]</code> and <code>[sleep]</code> start the drawings; only <code>[idle]</code> is required. Your own pets are kept in <code>~/.config/lotus/pets/</code>.</p>
+    <div class="callout" style="margin-top:14px"><p>A pet file is only data: Lotus reads it, it never runs anything in it. Drawings keep plain ASCII and lose everything else, so a pet cannot change your terminal. What your pets say and remember stays on your Mac – Apple Intelligence runs on the device, and Lotus sends nothing anywhere.</p></div>
+  </main>
+  <lotus-footer></lotus-footer>
+  <script src="js/pets.js?v=2.3.0" defer></script>
+</body>
+</html>

@@ -4,6 +4,7 @@ const Lotus = (() => {
   const PAGES = [
     ['index.html', 'Home'],
     ['commands.html', 'Commands'],
+    ['pets.html', 'Pets'],
     ['themes.html', 'Themes'],
     ['ascii.html', 'ASCII Art'],
     ['apps.html', 'Apps'],

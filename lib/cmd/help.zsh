@@ -5,6 +5,14 @@ lotus_cmd_help() {
   case $cmd in
     themes)  lotus_themes_preview ;;
     suggest) lotus_cmd_suggest "$@" ;;
+    help|-h|--help)
+      # with a pet: it asks what you need (/help all shows every command)
+      if [[ $1 != (all|--all|-a) ]] && (( LOTUS_PET_HELP )) && lotus_feature_on pets && [[ -s $LOTUS_CONF/pets.tsv && -t 1 ]] && ui_has_tty; then
+        source $LOTUS_ROOT/lib/cmd/pets.zsh
+        lotus_lang_group pets
+        lotus_pet_help && return 0
+      fi
+      lotus_cheatsheet ;;
     *)       lotus_cheatsheet "$@" ;;
   esac
 }
@@ -90,6 +98,7 @@ lotus_cmd_suggest() {
   local -i best_score=${LOTUS_SCORES[1]:-0}
 
   ui_error "Command not found" "/$typed"
+  lotus_pet_react typo
   if (( ${#hits} )); then
     local best=$name_of[$hits[1]]
     print -r -- "  Did you mean:"

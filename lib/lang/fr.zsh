@@ -41,4 +41,7 @@ LOTUS_L+=(
   feat_core 'Base'  feat_apps 'Lanceur d’apps'  feat_homebrew 'Homebrew'  feat_web 'Recherche web'  feat_weather 'Météo'
   feat_ai 'Terminal IA'  feat_music 'Musique'  feat_visualizer 'Visualiseur'  feat_media 'Téléchargements vidéo'
   feat_ios 'Outils iOS'  feat_minecraft 'Minecraft'  feat_bg 'Suppression du fond'
+  head_pets 'Animaux'  pet_start 'Animal sur l’écran d’accueil'  pet_help '/help demande à votre animal'
+  pet_react 'Les animaux réagissent'  pet_brain 'Les animaux pensent avec'
+  pet_brain_ai 'l’IA de /ai'  pet_brain_off 'rien (phrases courtes)'  pet_manage 'Vos animaux'  feat_pets 'Animaux'
 )

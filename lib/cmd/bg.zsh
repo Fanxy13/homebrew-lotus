@@ -438,6 +438,7 @@ bg_remove() {
   else
     bg_batch_summary ${#images}
   fi
+  (( ${#BG_DONE} )) && lotus_pet_react done
   bg_session_end
   trap 'exit 130' INT; trap - TERM HUP
   return 0

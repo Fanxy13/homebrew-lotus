@@ -137,6 +137,18 @@
     ['a', '09:32:10  INFO   ai   Tool write_file index.html', 0],
   ]);
 
+  // ── Pets tile: the cat blinks, the dog wags ─────────────────
+  const cat = $('.tile-pets .cat pre'), dog = $('.tile-pets .dog pre');
+  if (cat && dog) {
+    const c0 = cat.textContent, d0 = dog.textContent;
+    let t = 0;
+    setInterval(() => {
+      t++;
+      cat.textContent = t % 9 === 0 ? c0.replace('o.o', '-.-') : c0;
+      dog.textContent = t % 4 < 2 ? d0 : d0.replace('  __      _\n', '  __\n').replace('____//', '____\\\\');
+    }, 380);
+  }
+
   // ── Tiles tilt, light follows the pointer ───────────────────
   if (!reduce && matchMedia('(hover: hover)').matches) {
     $$('.tile').forEach((tile) => {

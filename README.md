@@ -52,6 +52,19 @@ Needs macOS 11 or newer and zsh. [fastfetch](https://github.com/fastfetch-cli/fa
 is installed automatically. Optional tools (Homebrew, yt-dlp, Java, …) are offered
 when a command needs them – nothing is installed without asking.
 
+## Lotus 2.3 – Pets
+
+- **Pets that live in your terminal** – adopt up to three: a cat, a dog or your own kind.
+  Type a pet's name and it answers – it thinks with Apple Intelligence on your Mac, has its
+  own personality and remembers the last few things you said.
+- **`/help` with a pet** – your pet asks where you need help, finds the right commands and puts
+  the one you pick on your command line.
+- **`/feed mochi`** – pets get hungry after half a day (they never get ill). They greet you
+  below the start screen, share a tip now and then, sleep at night and react to typos and
+  finished work.
+- **Your own pet** – copy the prompt from the [Pets page](https://fanxy13.github.io/homebrew-lotus/pets.html),
+  let any AI draw your pet, then `lotus pets add`.
+
 ## Lotus 2.2
 
 - **Remove BG** – `/bg remove photo.jpg` cuts out the subject with BiRefNet or InSPyReNet,
@@ -62,7 +75,7 @@ when a command needs them – nothing is installed without asking.
 - **`/lotus log`** – one log for everything Lotus does, with levels, filters, search and a live view.
 - **A new setup** – spacious pages, a features page, setup for the features you picked, and a review.
 
-Everything from 2.0 and 2.1 stays, and your settings carry over.
+Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 to 2.3).
 
 ## Commands
 
@@ -94,6 +107,11 @@ Everything from 2.0 and 2.1 stays, and your settings carry over.
 | | `/bg paste` | The image in the clipboard – a screenshot, "Copy Image", or files copied in the Finder |
 | | `/bg remove --edit <image>` | Paint what to keep right after the AI |
 | | `/bg models`, `/bg output` | Models on this Mac (download, check, remove) · output folder |
+| Pets | `/pets` | Your pets: adopt up to 3, talk, feed, rename, personality, settings |
+| | `mochi`, `mochi how was your day?` | Type a pet's name to talk to it – alone for a chat, or with a message |
+| | `/feed mochi` | Feed a pet |
+| | `/help`, `/help all` | Your pet helps you find a command · every command |
+| | `lotus pets add` | Add your own kind of pet from the website prompt (reads the clipboard) |
 | Shortcuts | `lotus shortcut add yt https://youtube.com` | Your own `/yt`, `/work`, `/gh` … |
 | Features | `lotus features`, `lotus features minecraft off` | Turn parts of Lotus on or off |
 | Diagnostics | `/lotus log`, `/lotus log level debug` | What Lotus did, with filters and search · how much is logged |
@@ -186,6 +204,7 @@ manual refinement (offer, always, never), preview after processing, model cache.
 - Features: turn each part of Lotus on or off (its settings disappear while it is off)
 - Weather city and units, search engine, AI provider, model and how hard it thinks, visualizer mode
 - Remove BG: model, backend, output folder, manual refinement, preview, model cache
+- Pets: your pets, the pet on the start screen, `/help` with a pet, reactions, what pets think with (Apple Intelligence, the AI of `/ai`, nothing)
 - Diagnostics: log level (off, errors and warnings, normal, detailed, everything), how long logs are kept, startup details
 - Shortcuts, setup again, reset, **uninstall**
 

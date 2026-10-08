@@ -69,7 +69,7 @@ lotus_unhook() {
 lotus_uninstall() {
   if [[ $1 != --yes ]]; then
     ui_header Uninstall
-    ui_text "Removes Lotus, its settings, shortcuts, AI memory and keys, the log, the Remove BG models, cache and the lines in ~/.zshrc."
+    ui_text "Removes Lotus, its settings, pets, shortcuts, AI memory and keys, the log, the Remove BG models, cache and the lines in ~/.zshrc."
     ui_blank
     ui_confirm "Uninstall Lotus completely?" n || { ui_info $LOTUS_L[cancelled]; return 1 }
   fi
@@ -188,6 +188,26 @@ lotus_doctor() {
     ui_dim "Remove BG"
     source $LOTUS_ROOT/lib/cmd/bg.zsh
     bg_doctor_rows
+    ui_blank
+  fi
+  # Pets: how many, how they think
+  if lotus_feature_on pets; then
+    ui_dim "Pets"
+    source $LOTUS_ROOT/lib/cmd/pets.zsh
+    lotus_lang_group pets
+    _pet_load; _pet_species
+    local -i i
+    if (( ${#PET_N} )); then
+      for (( i = 1; i <= ${#PET_N}; i++ )); do _pet_status $i; _row $ok $PET_N[i] "$PET_K[i] · $REPLY"; done
+    else
+      _row $opt Pets "none adopted yet – /pets"
+    fi
+    _row $ok Kinds "${(j:, :)PET_KINDS}  (data/pets, ~/.config/lotus/pets)"
+    case ${LOTUS_PET_BRAIN:-apple} in
+      off) _row $opt Thinking "off – pets answer with short phrases" ;;
+      *)   if _pet_brain >/dev/null 2>&1; then _row $ok Thinking "${${(M)PET_BRAIN:#apple}:+Apple Intelligence on this Mac}${${(M)PET_BRAIN:#ai}:+the AI of /ai}"
+           else _row $opt Thinking "${LOTUS_L[pt_noai_hint]}"; fi ;;
+    esac
     ui_blank
   fi
   ui_dim "Diagnostics"
