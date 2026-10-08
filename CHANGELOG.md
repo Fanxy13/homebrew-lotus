@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.2
+
+- Fixed: with a model on this Mac, `/ai` said "The AI service is not reachable" – the model was stopped again right after it had loaded. It now stays while `/ai` runs and still leaves the memory when `/ai` ends, also after Ctrl-C
+
 ## 2.4.1
 
 - `lotus ai local` is a manager now: all five models with size, what they are good at and whether they are downloaded or in use – pick one to download it, switch to it or remove it; "Remove everything" deletes all models and the MLX environment. Also as commands: `lotus ai local use <model>`, `lotus ai local remove <model|all>`

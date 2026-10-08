@@ -15,9 +15,12 @@ LOTUS_RC=${ZDOTDIR:-$HOME}/.zshrc
 
 # Whatever happens (ctrl-c, an error), the cursor comes back. Traps never start other programs:
 # a signal can arrive in the middle of output, and a program started from there could hang.
+# A local AI model that /ai started (LLM_PID) leaves the memory with Lotus, whatever ends it.
 if [[ -t 1 ]]; then
-  trap 'print -n "\e[?25h"' EXIT
+  trap 'print -n "\e[?25h"; (( ${LLM_PID:-0} )) && kill $LLM_PID 2>/dev/null' EXIT
   trap 'exit 130' INT
+else
+  trap '(( ${LLM_PID:-0} )) && kill $LLM_PID 2>/dev/null' EXIT
 fi
 
 # Window size, in case the script did not inherit it

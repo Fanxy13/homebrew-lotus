@@ -632,9 +632,7 @@ _llm_start() {
     --chat-template-args "{\"enable_thinking\": $think, \"reasoning_effort\": \"$effort\"}")
   (( LOTUS_AI_KVBITS )) && opts+=(--kv-bits $LOTUS_AI_KVBITS)
   $LLM_RUNTIME/bin/mlx_lm.server --model $LLM_MODELS/$LOTUS_AI_LOCAL --host 127.0.0.1 --port $LLM_PORT $opts >| $log 2>&1 &!
-  LLM_PID=$!
-  # whatever ends Lotus, the model leaves the memory (kill is built in – no program started)
-  [[ -t 1 ]] && trap 'print -n "\e[?25h"; (( LLM_PID )) && kill $LLM_PID 2>/dev/null' EXIT
+  LLM_PID=$!   # bin/lotus' EXIT trap stops it too (Ctrl-C) – a trap set here would run when this function returns
   local -i i
   for (( i = 0; i < 360; i++ )); do
     print -rn -- $'\r\e[K'"  "$'\e['"$LOTUS_C[dim]m… Loading $reply[2] into memory ($(( i / 2 ))s)"$'\e[0m' >&2
