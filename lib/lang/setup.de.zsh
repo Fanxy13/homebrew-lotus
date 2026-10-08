@@ -37,4 +37,5 @@ LOTUS_L+=(
   featd_ios 'AirCard, Nugget, Sideloadly und Dopamine mit Kompatibilitätsprüfung'
   featd_minecraft 'Eigenen Minecraft-Server Schritt für Schritt einrichten'
   featd_bg 'Bildhintergründe auf deinem Mac entfernen, mit BiRefNet oder InSPyReNet'
+  sw_hello 'Hallo'
 )

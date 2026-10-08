@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.6
+
+- When the setup is finished, the lotus opens all the way and its pollen flies up and writes "Hello" in big dots – Hallo, Bonjour or Hola in the other languages – and, a little smaller, your name, centered above the flower; then the dots twinkle for a moment (any key skips it)
+- A new dot font for it (`data/dotfont.txt`) with upper and lower case, digits, umlauts and common accents; names it cannot draw are shown as plain text
+
 ## 2.2.5
 
 - The setup looks the same in every language: the answers start on the same line on every page, with the same spacing – in German the welcome page used to lose its spacing and everything moved

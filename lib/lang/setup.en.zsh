@@ -51,4 +51,5 @@ LOTUS_L+=(
   sw_feat_same    'Nothing changed.'
   sw_feat_unknown 'Unknown feature'
   sw_feat_onoff   'Say on or off'
+  sw_hello        'Hello'
 )

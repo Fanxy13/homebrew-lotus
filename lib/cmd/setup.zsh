@@ -567,46 +567,168 @@ _sw_quit() {
   (( REPLY == 2 ))
 }
 
-# Finish: the flower opens all the way, pollen rises, then back to the terminal (any key skips)
+# ── The end: pollen from the lotus writes "Hello" and your name ─────
+
+typeset -gA SW_FONT=()
+typeset -ga SW_DX=() SW_DY=() SW_BR=()
+# Accented letters the dot font does not have are drawn without the accent
+typeset -gA SW_PLAIN=(â a ã a å a ë e î i ì i ï i ô o ò o õ o û u ù u ý y ÿ y
+  À A Á A Â A Ã A Ä A Å A Ç C È E É E Ê E Ë E Ì I Í I Î I Ï I Ñ N Ò O Ó O Ô O Õ O Ö O Ù U Ú U Û U Ü U Ý Y)
+
+# data/dotfont.txt → SW_FONT (char → 8 rows), SW_BR (braille characters for the dot masks 1-255)
+_sw_font_load() {
+  (( ${#SW_FONT} )) && return
+  local line ch= rows=
+  for line in "${(@f)$(<$LOTUS_ROOT/data/dotfont.txt)}"; do
+    [[ $line == '# '* ]] && continue      # comments; a row of a letter is only . and #
+    if [[ $line == '= '* ]]; then
+      [[ -n $ch ]] && SW_FONT[$ch]=$rows
+      ch=${line#= } rows=
+    else rows+="${rows:+ }$line"; fi
+  done
+  [[ -n $ch ]] && SW_FONT[$ch]=$rows
+  local -i m
+  for (( m = 1; m < 256; m++ )); do SW_BR+=(${(#)$(( 0x2800 + m ))}); done
+}
+
+# The dots of a text: SW_DX/SW_DY (relative), REPLY = width in dots. Status 1: a letter is missing.
+#   _sw_dots <text> 1   dense, 8 dots high (2 rows)      _sw_dots <text> 2   every second dot, 4 rows
+_sw_dots() {
+  local text=$1 ch g row
+  local -i step=$2 x=0 i j c c0 c1
+  local -a rows
+  SW_DX=() SW_DY=()
+  for (( i = 1; i <= ${#text}; i++ )); do
+    ch=${text[i]}
+    [[ -n ${SW_PLAIN[$ch]} ]] && ch=${SW_PLAIN[$ch]}
+    if [[ $ch == ' ' ]]; then (( x += 3 * step )); continue; fi
+    g=${SW_FONT[$ch]}
+    [[ -z $g ]] && return 1
+    rows=(${=g}) c0=6 c1=0
+    for row in $rows; do
+      for (( j = 1; j <= 5; j++ )); do [[ ${row[j]} == '#' ]] && { (( j < c0 )) && c0=j; (( j > c1 )) && c1=j }; done
+    done
+    for (( j = 1; j <= 8; j++ )); do
+      row=${rows[j]}
+      for (( c = c0; c <= c1; c++ )); do
+        [[ ${row[c]} == '#' ]] && { SW_DX+=($(( x + (c - c0) * step ))); SW_DY+=($(( (j - 1) * step ))) }
+      done
+    done
+    (( x += (c1 - c0 + 2) * step ))
+  done
+  REPLY=$(( x - 2 * step + 1 ))
+  (( REPLY > 0 ))
+}
+
+# Finish: the lotus opens all the way, its pollen flies up and writes "Hello" (in big dots) and,
+# a little smaller, your name – then the dots twinkle for a moment. Any key skips it.
+# The dots are braille characters: two by four per cell, so they sit on a square grid.
 _sw_finale() {
   _sw_layout
-  local -i W=${COLUMNS:-80} H=${LINES:-24} ay i t n=14 cx
-  local msg=$LOTUS_L[sw_done]
-  if [[ -n $LOTUS_NAME ]]; then msg=${msg//\%s/$LOTUS_NAME}; else msg=${msg//, \%s/}; msg=${msg//\%s/}; fi
-  (( ay = (H - 10) / 2 + 1, ay = ay < 6 ? 6 : ay, cx = W / 2 ))
-  print -n $'\e[?25l\e[0m\e[2J'
-  if (( SW_ART_ON )); then
-    for i in 3 4 5; do _sw_art_at $ay $i matcha; ui_keyx 0.09; [[ $REPLY == timeout ]] || return 0; done
+  local -i W=${COLUMNS:-80} H=${LINES:-24} art=$SW_ART_ON words=1 hw=0 nw=0
+  local hello=${LOTUS_L[sw_hello]:-Hello} name=${${LOTUS_NAME## #}%% #} tip=$LOTUS_L[sw_done_hint]
+  local -a hx hy nx ny
+  _sw_font_load
+  [[ ${SW_BR[1]} == ⠁ ]] || words=0                      # no UTF-8 here: plain text
+  if (( words )) && _sw_dots "$hello" 2 && (( (REPLY + 1) / 2 + 4 <= W && H >= 14 )); then
+    hx=($SW_DX) hy=($SW_DY) hw=$REPLY
+  else words=0; fi
+  local plainname=
+  if [[ -n $name ]] && (( words )); then
+    if _sw_dots "$name" 1 && (( (REPLY + 1) / 2 + 4 <= W )); then nx=($SW_DX) ny=($SW_DY) nw=$REPLY
+    else plainname=$name; fi
   fi
-  _sw_put $(( ay + 8 )) $(( (W - ${#msg}) / 2 + 1 )) $'\e[1;'"$SW_C[green]m$msg"$'\e[0m'
-  _sw_put $(( ay + 9 )) $(( (W - ${#LOTUS_L[sw_done_hint]}) / 2 + 1 )) $'\e['"$SW_C[dim]m$LOTUS_L[sw_done_hint]"$'\e[0m'
-  (( SW_ART_ON )) || { ui_keyx 1.2; return 0 }
-  # pollen: x, row (fractions), speed, drift
-  local -a px=() py=() pv=() pd=()
-  local -F s
-  for (( i = 1; i <= n; i++ )); do
-    px+=($(( cx - 9 + RANDOM % 19 ))) py+=($(( ay + 1 + RANDOM % 3 ))) pv+=($(( 0.25 + (RANDOM % 30) / 100.0 ))) pd+=($(( (RANDOM % 3) - 1 )))
+  # Rows: Hello (4) · the name (2) · the lotus (7) · the tip. Centered as one block.
+  local -i hr nr below ar tr top
+  (( hr = 1, nr = hr + 5, below = ${#name} ? nr + 2 : hr + 4, ar = below + 2, tr = art ? ar + 8 : below + 1 ))
+  (( top = (H - tr) / 2, top = top < 0 ? 0 : top ))
+  (( hr += top, nr += top, ar += top, tr += top ))
+  print -n $'\e[?25l\e[0m\e[2J'
+  local pink=$SW_C[pink] green=$'\e[1;'"$SW_C[green]m" dim=$'\e['"$SW_C[dim]m" r0=$'\e[0m'
+  if (( ! words )); then
+    local msg="$hello${name:+, $name}"
+    (( art )) && _sw_art_at $ar 5 matcha
+    _sw_put $hr $(( (W - ${#msg}) / 2 + 1 )) "$green$msg$r0"
+    _sw_put $tr $(( (W - ${#tip}) / 2 + 1 )) "$dim$tip$r0"
+    ui_keyx 2
+    return 0
+  fi
+
+  # Every dot of the words is one grain of pollen: it starts just above the flower and flies to
+  # its place. Hello fills in from left to right, then the name.
+  local -a PX PY PDX PDY PW PD PG HG
+  local -i n=0 i lx ly sx sy sy0 cx=$W cmin cmax rmin rmax
+  local -F maxd=0 d
+  (( sy0 = art ? (ar - 1) * 4 - 2 : (tr - 1) * 4 - 6 ))
+  (( lx = (W - (hw + 1) / 2) / 2 * 2, ly = (hr - 1) * 4, cmin = lx < cx - 10 ? lx : cx - 10, cmax = lx + hw > cx + 10 ? lx + hw : cx + 10 ))
+  for (( i = 1; i <= ${#hx}; i++ )); do
+    (( sx = cx + RANDOM % 21 - 10, sy = sy0 - RANDOM % 3, d = 0.3 + 0.55 * hx[i] / hw + (RANDOM % 15) / 100.0 ))
+    PX+=($sx) PY+=($sy) PDX+=($(( lx + hx[i] - sx ))) PDY+=($(( ly + hy[i] - sy ))) PW+=($(( RANDOM % 13 - 6 ))) PD+=($d) PG+=(2)
+    (( d > maxd )) && maxd=$d
   done
-  local -a old=()
-  local ch col
-  for (( t = 0; t < 22; t++ )); do
-    for i in $old; do _sw_put ${i%,*} ${i#*,} ' '; done
-    old=()
-    for (( i = 1; i <= n; i++ )); do
-      (( t < i / 2 )) && continue
-      (( py[i] -= pv[i] ))
-      (( t % 4 == 0 )) && (( px[i] += pd[i] ))
-      (( py[i] < ay - 5 || py[i] < 1 )) && continue
-      (( int(py[i]) >= ay )) && continue
-      (( py[i] > ay - 2 )) && ch=• || ch=·
-      (( i % 3 )) && col=$SW_C[yellow] || col=$SW_C[pink]
-      _sw_put $(( int(py[i]) )) $px[i] $'\e['"${col}m$ch"$'\e[0m'
-      old+=("$(( int(py[i]) )),$px[i]")
+  # Hello in a soft gradient from the petal pink to peach
+  local -a c1=(${(s:;:)${=LOTUS_THEMES[matcha]}[1]}) c2=(${(s:;:)${=LOTUS_THEMES[matcha]}[5]})
+  local -i hc0=$(( lx / 2 )) hcs=$(( (hw + 1) / 2 )) c
+  for (( c = 0; c < hcs; c++ )); do
+    lotus_sgr "$(( c1[1] + (c2[1] - c1[1]) * c / (hcs > 1 ? hcs - 1 : 1) ));$(( c1[2] + (c2[2] - c1[2]) * c / (hcs > 1 ? hcs - 1 : 1) ));$(( c1[3] + (c2[3] - c1[3]) * c / (hcs > 1 ? hcs - 1 : 1) ))"
+    HG[hc0+c+1]=$REPLY
+  done
+  if (( nw )); then
+    (( lx = (W - (nw + 1) / 2) / 2 * 2, ly = (nr - 1) * 4 ))
+    (( lx < cmin )) && cmin=lx; (( lx + nw > cmax )) && cmax=lx+nw
+    for (( i = 1; i <= ${#nx}; i++ )); do
+      (( sx = cx + RANDOM % 21 - 10, sy = sy0 - RANDOM % 3, d = 0.8 + 0.45 * nx[i] / nw + (RANDOM % 15) / 100.0 ))
+      PX+=($sx) PY+=($sy) PDX+=($(( lx + nx[i] - sx ))) PDY+=($(( ly + ny[i] - sy ))) PW+=($(( RANDOM % 13 - 6 ))) PD+=($d) PG+=(3)
+      (( d > maxd )) && maxd=$d
     done
-    ui_keyx 0.07
+  fi
+  n=${#PX}
+  (( cmin = (cmin - 7) / 2, cmin = cmin < 0 ? 0 : cmin, cmax = (cmax + 7) / 2, cmax = cmax > W - 1 ? W - 1 : cmax ))
+  (( rmin = hr - 1, rmax = sy0 / 4 ))
+  [[ -n $plainname ]] && _sw_put $nr $(( (W - ${#plainname}) / 2 + 1 )) "$green$plainname$r0"
+
+  local -F t0=$EPOCHREALTIME t p e dur=0.8 tset tend
+  (( tset = maxd + dur, tend = tset + 1.6 ))
+  local -i x y k m row stage=2 hint=0
+  local -a M C BIT=(1 2 4 64 8 16 32 128)
+  local line cur sgr ycol=$SW_C[yellow] gcol="1;$SW_C[green]"
+  while :; do
+    (( t = EPOCHREALTIME - t0 ))
+    if (( art && stage < 5 && t >= (stage - 2) * 0.1 )); then (( stage++ )); _sw_art_at $ar $stage matcha; fi
+    M=() C=()
+    for (( i = 1; i <= n; i++ )); do
+      (( p = (t - PD[i]) / dur ))
+      (( p <= 0 )) && continue
+      if (( p >= 1 )); then
+        (( t > tset - 0.3 && RANDOM % 40 == 0 )) && continue          # landed dots twinkle
+        (( x = PX[i] + PDX[i], y = PY[i] + PDY[i] ))
+      else
+        (( e = 1 - (1 - p) * (1 - p) * (1 - p) ))
+        (( x = PX[i] + PDX[i] * e + PW[i] * sin(p * 3.14159), y = PY[i] + PDY[i] * e ))
+        (( x < 0 )) && x=0
+      fi
+      (( k = (y >> 2) * W + (x >> 1) + 1 ))
+      (( M[k] |= BIT[((x & 1) << 2) + (y & 3) + 1], C[k] = p < 0.8 ? 1 : PG[i] ))
+    done
+    print -n $'\e[?2026h'
+    for (( row = rmin; row <= rmax; row++ )); do
+      line= cur=
+      for (( c = cmin; c <= cmax; c++ )); do
+        (( k = row * W + c + 1, m = M[k] ))
+        if (( m )); then
+          case $C[k] in 1) sgr=$ycol ;; 2) sgr=${HG[c+1]:-$pink} ;; *) sgr=$gcol ;; esac
+          [[ $sgr != $cur ]] && { line+=$'\e[0;'"${sgr}m"; cur=$sgr }
+          line+=$SW_BR[m]
+        else line+=' '; fi
+      done
+      _sw_put $(( row + 1 )) $(( cmin + 1 )) "$line$r0"
+    done
+    if (( ! hint && t > tset )); then hint=1; _sw_put $tr $(( (W - ${#tip}) / 2 + 1 )) "$dim$tip$r0"; fi
+    print -n $'\e[?2026l'
+    (( t > tend )) && break
+    ui_keyx 0.03
     [[ $REPLY == timeout ]] || return 0
   done
-  ui_keyx 0.6
   return 0
 }
 
