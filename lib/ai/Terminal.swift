@@ -24,26 +24,39 @@ enum Style {
     static let green = "\u{1B}[38;5;114m"
 }
 
-// The user's pet (lib/cmd/pets.zsh, set by lib/cmd/ai.zsh): it sits in the welcome box and its
-// face is the spinner. Only plain ASCII and block pixels (▀ … ▟) get through.
+// The user's pet (lib/cmd/pets.zsh, set by lib/cmd/ai.zsh): it sits in the welcome box and it is
+// the spinner while the AI works. Only plain ASCII and block pixels (▀ … ▟) get through.
 struct Pet {
     let name: String
     let art: [String]
-    let mini: String
+    let blinkArt: [String]      // same height as art (art itself when the pet has no such drawing)
+    let wagArt: [String]
+    let mini: String            // just the face in one line, for windows with no room for the whole pet
     let miniBlink: String
     let color: String
+
+    var width: Int { (art + blinkArt + wagArt).map { cellWidth($0) }.max() ?? 0 }
 
     static let current: Pet? = {
         let e = ProcessInfo.processInfo.environment
         func clean(_ s: String) -> String {
             String(String.UnicodeScalarView(s.unicodeScalars.filter { ($0.value >= 0x20 && $0.value < 0x7F) || ($0.value >= 0x2580 && $0.value <= 0x259F) }))
         }
+        func drawing(_ key: String) -> [String] {
+            (e[key] ?? "").split(separator: "\n", omittingEmptySubsequences: false).map { String(clean(String($0)).prefix(24)) }
+        }
         let name = clean(e["LOTUS_AI_PET_NAME"] ?? "")
-        let art = (e["LOTUS_AI_PET_ART"] ?? "").split(separator: "\n", omittingEmptySubsequences: false).map { clean(String($0)) }
+        let art = drawing("LOTUS_AI_PET_ART")
         guard !name.isEmpty, art.contains(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }), art.count <= 8 else { return nil }
+        // A frame only counts when it is as high as the idle drawing, so the pet never changes height
+        func variant(_ key: String) -> [String] {
+            let f = drawing(key)
+            return f.count == art.count && f.contains(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ? f : art
+        }
         let color = e["LOTUS_AI_PET_COLOR"] ?? ""
         let valid = color.allSatisfy { $0.isNumber || $0 == ";" }
-        return Pet(name: String(name.prefix(16)), art: art.map { String($0.prefix(24)) },
+        return Pet(name: String(name.prefix(16)), art: art,
+                   blinkArt: variant("LOTUS_AI_PET_ART_BLINK"), wagArt: variant("LOTUS_AI_PET_ART_WAG"),
                    mini: String(clean(e["LOTUS_AI_PET_MINI"] ?? "").prefix(12)),
                    miniBlink: String(clean(e["LOTUS_AI_PET_MINI_BLINK"] ?? "").prefix(12)),
                    color: "\u{1B}[" + (valid && !color.isEmpty ? color : "38;5;218") + "m")
@@ -373,12 +386,21 @@ final class Spinner: @unchecked Sendable {
     private var started = Date()
     private var frame = 0
     private let frames = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"]
-    // With a pet: its face, blinking now and then
+    // With a pet and room: the whole pet, blinking and wagging now and then (0 idle, 1 blink, 2 wag)
+    private static let petPlan: [Int] = {
+        var plan: [Int] = []
+        for (pose, count) in [(0, 16), (1, 1), (0, 6), (1, 2), (0, 6), (2, 3), (0, 2), (2, 3), (0, 2)] {
+            plan += Array(repeating: pose, count: count)
+        }
+        return plan
+    }()
+    // Too little room for that: just its face in one line
     private let petFrames: [String]? = {
         guard let p = Pet.current, !p.mini.isEmpty else { return nil }
         let shut = p.miniBlink.isEmpty ? p.mini : p.miniBlink
         return Array(repeating: p.mini, count: 16) + [shut] + Array(repeating: p.mini, count: 6) + [shut, shut]
     }()
+    private var rowsDrawn = 1       // rows the spinner takes on screen; the cursor rests on the first one
     var hint = "esc to stop"
 
     func start(_ text: String) {
@@ -410,12 +432,35 @@ final class Spinner: @unchecked Sendable {
         guard timer != nil else { lock.unlock(); return }
         frame += 1
         let secs = Int(Date().timeIntervalSince(started))
-        let glyph: String
-        if let pet = petFrames, let p = Pet.current { glyph = p.color + pet[frame % pet.count] }
-        else { glyph = Style.logo + frames[frame % frames.count] }
-        let line = "\r\u{1B}[2K\(glyph)\(Style.reset) \(Style.logo)\(label)…\(Style.reset) \(Style.dim)(\(secs)s · \(hint))\(Style.reset)"
-        Out.shared.write(line)
+        let status = "\(Style.logo)\(label)…\(Style.reset) \(Style.dim)(\(secs)s · \(hint))\(Style.reset)"
+        if let p = Pet.current, p.art.count > 1, Term.height >= p.art.count + 4, Term.width > p.width + 4 + visibleWidth(status) {
+            drawPet(p, status)
+        } else {
+            let glyph: String
+            if let pet = petFrames, let p = Pet.current { glyph = p.color + pet[frame % pet.count] }
+            else { glyph = Style.logo + frames[frame % frames.count] }
+            let clear = rowsDrawn > 1 ? "\r\u{1B}[J" : ""      // the window got too small for the whole pet
+            rowsDrawn = 1
+            Out.shared.write("\(clear)\r\u{1B}[2K\(glyph)\(Style.reset) \(status)")
+        }
         lock.unlock()
+    }
+
+    // The whole pet with the status beside its face. The cursor goes back to the first row after
+    // every picture, so the next picture (or stop) starts there
+    private func drawPet(_ p: Pet, _ status: String) {
+        let pose = Spinner.petPlan[frame % Spinner.petPlan.count]
+        let art = pose == 1 ? p.blinkArt : pose == 2 ? p.wagArt : p.art
+        let faceRow = (art.count - 1) / 2
+        var out = rowsDrawn > art.count ? "\r\u{1B}[J" : ""
+        for (i, line) in art.enumerated() {
+            let pad = String(repeating: " ", count: max(0, p.width - cellWidth(line)))
+            out += "\r\u{1B}[2K\(p.color)\(line)\(Style.reset)\(pad)"
+            if i == faceRow { out += "   \(status)" }
+            if i < art.count - 1 { out += "\n" } else { out += "\u{1B}[\(art.count - 1)A\r" }
+        }
+        rowsDrawn = art.count
+        Out.shared.write(out)
     }
 
     func stop() {
@@ -423,7 +468,8 @@ final class Spinner: @unchecked Sendable {
         guard let t = timer else { lock.unlock(); return }
         timer = nil
         t.cancel()
-        Out.shared.write("\r\u{1B}[2K\u{1B}[?25h")
+        Out.shared.write((rowsDrawn > 1 ? "\r\u{1B}[J" : "\r\u{1B}[2K") + "\u{1B}[?25h")
+        rowsDrawn = 1
         lock.unlock()
     }
 }
