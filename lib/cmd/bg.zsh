@@ -99,19 +99,62 @@ bg_collect() {
   done
 }
 
-# Drag and drop: the window shows the path, Lotus reads it without running anything
+# Drag and drop: a drop zone in the theme colors. Finder types the path into the window,
+# Lotus reads it without running anything.
+#
+#    ╭╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╮
+#    ┆                  ┃                   ┆
+#    ┆                ━━╋━━                 ┆
+#    ┆                  ┃                   ┆
+#    ┆            Drop images here          ┆
+#    ┆    PNG · JPG · WebP · HEIC · folders ┆
+#    ╰╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯
+#    › (the dropped path)
 bg_ask_paths() {
   ui_hero $LOTUS_L[bg_title] $LOTUS_L[bg_tagline]
-  ui_text $LOTUS_L[bg_drop]
-  ui_dim "  $LOTUS_L[bg_drop_hint]"
+  local -i W=${COLUMNS:-80}
+  (( W > 20 )) || W=80
+  if (( W >= 44 )); then
+    _bg_drop_zone $(( W - 8 > 60 ? 60 : W - 8 ))
+  else
+    ui_text $LOTUS_L[bg_drop]
+    ui_dim "  $LOTUS_L[bg_drop_hint]"
+  fi
+  # the keys above the prompt, so a long dropped path has room to wrap below
+  ui_dim "  $LOTUS_L[bg_drop_keys]"
   ui_blank
-  local line
   print -rn -- "    "$'\e['"$LOTUS_C[accent]m›"$_UI_R" "
+  local line
   read -r line < /dev/tty || return 1
   [[ -z ${line//[[:space:]]/} ]] && return 1
   # (z) splits like the shell would, (Q) removes the quotes and backslashes – no expansion, no commands
   reply=(${(Q)${(z)line}})
   (( ${#reply} ))
+}
+
+# The dashed frame with a plus in the middle.  _bg_drop_zone <width>
+_bg_drop_zone() {
+  local -i w=$1 inner=$(( $1 - 2 ))
+  local b=$'\e['"$LOTUS_C[border]m" k=$'\e[1;'"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" B=$'\e[1m' R=$_UI_R
+  local dash=${${(l:inner::x:)}//x/╌}
+  _row() {   # <plain text> [<colored text>] – centered between the side lines
+    local plain=$1 shown=${2:-$1}
+    local -i left=$(( (inner - ${#plain}) / 2 ))
+    print -r -- "    ${b}┆${R}${(l:left:)}${shown}${(l:inner - left - ${#plain}:)}${b}┆${R}"
+  }
+  local title=$LOTUS_L[bg_drop_here] types=$LOTUS_L[bg_drop_types]
+  (( ${#types} > inner - 2 )) && types="${types[1,inner-3]}…"
+  print -r -- "    ${b}╭${dash}╮${R}"
+  _row ""
+  _row "  ┃  " "  ${k}┃${R}  "
+  _row "━━╋━━" "${k}━━╋━━${R}"
+  _row "  ┃  " "  ${k}┃${R}  "
+  _row ""
+  _row "$title" "${B}${title}${R}"
+  _row "$types" "${d}${types}${R}"
+  _row ""
+  print -r -- "    ${b}╰${dash}╯${R}"
+  unfunction _row
 }
 
 # ── Running the worker ────────────────────────────────────────

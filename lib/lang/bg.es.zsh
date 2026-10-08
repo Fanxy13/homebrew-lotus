@@ -100,4 +100,6 @@ LOTUS_L+=(
   bg_done 'Listo'  bg_ss_load_model 'Modelo'  bg_ss_load_image 'Imagen'  bg_ss_segment 'Motivo'  bg_ss_refine 'Bordes'
   bg_ss_write 'PNG'  bg_ss_python 'Python'  bg_ss_packages 'Paquetes'  bg_ss_download 'Descarga'  bg_ss_verify 'Control'
   bg_ss_test 'Prueba'  bg_ss_marks 'Marcas'
+  bg_drop_here 'Suelta las imágenes aquí'  bg_drop_types 'PNG · JPG · WebP · HEIC · carpetas enteras'
+  bg_drop_keys 'arrastra desde el Finder o escribe una ruta · ⏎ empezar · línea vacía cancela'
 )

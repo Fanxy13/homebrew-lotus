@@ -187,4 +187,7 @@ LOTUS_L+=(
   bg_ss_verify      'Check'
   bg_ss_test        'Test'
   bg_ss_marks       'Marks'
+  bg_drop_here      'Drop images here'
+  bg_drop_types     'PNG · JPG · WebP · HEIC · whole folders'
+  bg_drop_keys      'drag from the Finder or type a path · ⏎ start · empty line cancels'
 )

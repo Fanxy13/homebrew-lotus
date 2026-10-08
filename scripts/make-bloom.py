@@ -17,12 +17,14 @@ W, H = 41, 20            # pixels; 41 x 10 terminal cells
 FRAMES = 16
 BX, BY = 20, 15.2        # base of the flower
 
-# layer: petals, opening in degrees, length, width, shade offset
+# layer: petals, opening in degrees, length, width, shade offset.
+# Outer petals open wide and stay short, the inner ones stay a cup and get taller towards the
+# middle – so the open flower has a pointed, rounded outline instead of a flat top.
 LAYERS = [
-    (6, 168, 11.0, 5.4, -3),
-    (4, 100, 12.2, 6.2, -1),
-    (3, 38, 12.6, 6.6, 1),
-    (1, 0, 13.4, 5.8, 2),
+    (6, 176, 9.6, 5.0, -3),
+    (4, 104, 11.0, 5.4, -1),
+    (3, 52, 11.8, 5.6, 1),
+    (1, 0, 13.6, 5.2, 2),
 ]
 
 
@@ -40,7 +42,7 @@ def petal_pixels(grid, ang, length, width, offset, bud):
             if u <= 0 or u >= length:
                 continue
             t = u / length
-            half = width * 0.5 * math.sin(math.pi * t ** 0.8) ** 0.7
+            half = width * 0.5 * math.sin(math.pi * t ** 0.68) ** 1.0     # widest early, long pointed tip
             if abs(v) >= half:
                 continue
             edge = abs(v) / half
@@ -65,6 +67,18 @@ def frame(b):
             pos = i / (count - 1) - 0.5 if count > 1 else 0
             ang = math.radians(pos * spread * (0.04 + 0.96 * o))
             petal_pixels(grid, ang, L, Wd, offset, round(-1.5 * (1 - o)))
+    # lone pixels at the petal tips look like dust: a petal pixel needs two petal neighbours
+    lone = []
+    for py in range(H):
+        for px in range(W):
+            if not grid[py][px].isdigit():
+                continue
+            n = sum(1 for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+                    if (dy or dx) and 0 <= py + dy < H and 0 <= px + dx < W and grid[py + dy][px + dx].isdigit())
+            if n < 2:
+                lone.append((py, px))
+    for py, px in lone:
+        grid[py][px] = "."
     if o > 0.55:
         for px in range(BX - 2, BX + 3):
             grid[int(BY - 3)][px] = "Y" if abs(px - BX) < 2 else "y"

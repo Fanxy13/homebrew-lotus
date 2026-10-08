@@ -166,7 +166,17 @@ lotus_doctor() {
   ui_dim "Optional, for single commands"
   (( $+commands[brew] )) && _row $ok Homebrew "$(brew --prefix)  (/brew, /install)" || _row $opt Homebrew "not installed – /brew and /install need it"
   (( $+commands[jq] )) && _row $ok jq "$commands[jq]" || _row $opt jq "not found – plutil is used instead"
-  (( $+commands[yt-dlp] && $+commands[ffmpeg] )) && _row $ok yt-dlp "with ffmpeg  (/convert)" || _row $opt yt-dlp "yt-dlp and ffmpeg are needed for /convert"
+  if (( $+commands[yt-dlp] && $+commands[ffmpeg] )); then
+    source $LOTUS_ROOT/lib/cmd/convert.zsh
+    lotus_ytdlp_info
+    if (( ${REPLY:-0} > LOTUS_YTDLP_OLD )); then
+      _row $'\e[1;'"$LOTUS_C[key2]m!"$'\e[0m' yt-dlp "$reply[1] – $REPLY days old, /convert offers an update"
+    else
+      _row $ok yt-dlp "$reply[1] with ffmpeg  (/convert)"
+    fi
+  else
+    _row $opt yt-dlp "yt-dlp and ffmpeg are needed for /convert"
+  fi
   (( $+commands[ideviceinfo] )) && _row $ok libimobiledevice "(/ios devices)" || _row $opt libimobiledevice "optional: shows the iOS version of connected devices"
   /usr/libexec/java_home >/dev/null 2>&1 && _row $ok Java "$(/usr/libexec/java_home 2>/dev/null)  (/minecraft)" || _row $opt Java "not installed – /minecraft can set it up"
   xcrun --find swiftc >/dev/null 2>&1 && _row $ok Swift "for the AI terminal (/ai)" || _row $opt Swift "Command Line Tools are needed for the AI terminal: xcode-select --install"
