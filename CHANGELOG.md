@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.4
+
+- A new `lotus setup`: simpler pages in the Matcha colors, with a small pixel-art lotus that opens a little more with every step – a bud on Welcome, the full flower on Review – and five bars that show where you are
+- Choosing English in the setup works again (it used to jump to "Leave the setup?"); on the welcome page the texts switch to the language you point at
+- The theme page shows all themes at once, and the lotus takes the colors of the theme you point at
+- Name and city are typed into a rounded box; the suggested name is shown dim – Enter keeps it, typing replaces it
+- Features are a two-column checklist with the description of the highlighted one below; the review ends with Back and Finish buttons
+- Finish lets the lotus open all the way while pollen rises (any key skips it)
+- Keys pressed quickly no longer leave `^[[B` on the screen, arrow keys that arrive as `ESC O A` work, resizing the window redraws the page, Ctrl-C leaves the terminal as it was
+
 ## 2.2.3
 
 - `/bg paste` removes the background of the image in the clipboard: a screenshot (⌃⇧⌘4), "Copy Image" in a browser or Preview, or images copied in the Finder (then the originals are used)

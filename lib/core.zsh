@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.2.3
+typeset -g LOTUS_VERSION=2.2.4
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -98,6 +98,7 @@ lotus_lang() {
   typeset -ga _lotus_lang_groups=()
   source $LOTUS_ROOT/lib/lang/en.zsh
   [[ $LOTUS_LANG != en && -r $LOTUS_ROOT/lib/lang/$LOTUS_LANG.zsh ]] && source $LOTUS_ROOT/lib/lang/$LOTUS_LANG.zsh
+  return 0
 }
 
 # Texts of a bigger screen (setup, bg, log), loaded only when it opens: lotus_lang_group bg
@@ -106,6 +107,7 @@ lotus_lang_group() {
   _lotus_lang_groups+=($1)
   source $LOTUS_ROOT/lib/lang/$1.en.zsh
   [[ $LOTUS_LANG != en && -r $LOTUS_ROOT/lib/lang/$1.$LOTUS_LANG.zsh ]] && source $LOTUS_ROOT/lib/lang/$1.$LOTUS_LANG.zsh
+  return 0     # English has no second file – that is not a failure (the setup took it for "back")
 }
 
 # Writes the settings file. Changed keys are logged (personal values only as "changed").

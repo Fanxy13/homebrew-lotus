@@ -39,9 +39,10 @@ or with Homebrew:
 brew install Fanxy13/lotus/lotus
 ```
 
-Open a new terminal window. A short setup asks for the interface language, your name,
-a theme, whether Lotus should start with every terminal window, and which features to
-turn on – then sets up the ones you picked and shows a review before anything is saved.
+Open a new terminal window. A short setup – in the Matcha colors, with a lotus that opens
+a little more with every step – asks for the interface language, your name, a theme,
+whether Lotus should start with every terminal window, and which features to turn on –
+then sets up the ones you picked and shows a review before anything is saved.
 Run it again any time with `lotus setup`; switch features with `lotus features`.
 
 Want Lotus on a key combination? Add the **[Open Lotus](https://www.icloud.com/shortcuts/0ad5b36d73e745bebbaba4635344382e)**

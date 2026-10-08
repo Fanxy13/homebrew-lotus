@@ -108,8 +108,8 @@ ui_key() {
     read -rsk2 -t 0.05 rest < /dev/tty && k+=$rest
   fi
   case $k in
-    $'\e[A'|k) REPLY=up ;;   $'\e[B'|j) REPLY=down ;;
-    $'\e[C'|l) REPLY=right ;; $'\e[D'|h) REPLY=left ;;
+    $'\e[A'|$'\eOA'|k) REPLY=up ;;   $'\e[B'|$'\eOB'|j) REPLY=down ;;
+    $'\e[C'|$'\eOC'|l) REPLY=right ;; $'\e[D'|$'\eOD'|h) REPLY=left ;;
     $'\n'|$'\r'|' ') REPLY=enter ;;
     $'\e'|q|Q) REPLY=quit ;;
     *) REPLY=$k ;;
@@ -190,11 +190,28 @@ ui_path() {
 
 # One key, with more names than ui_key → REPLY:
 #   up down left right home end pgup pgdn enter space tab back esc, or the character
+# With a timeout in seconds it also returns "timeout" (screens that keep moving or watch the
+# window size), and "interrupt" after a Ctrl-C that a TRAPINT turned into UI_INT=1.
+# A keyboard that is gone counts as esc.
+typeset -gi UI_FAILS=0 UI_INT=0
 ui_keyx() {
   local k c rest=
-  read -rsk1 k < /dev/tty || { REPLY=esc; return }
+  if [[ -n $1 ]]; then
+    local -F t0=$EPOCHREALTIME
+    if ! read -rsk1 -t $1 k < /dev/tty; then
+      if (( UI_INT )); then REPLY=interrupt
+      elif (( EPOCHREALTIME - t0 < $1 / 3.0 )); then (( ++UI_FAILS > 5 )) && REPLY=esc || REPLY=timeout
+      else REPLY=timeout UI_FAILS=0; fi
+      return
+    fi
+    UI_FAILS=0
+    (( UI_INT )) && { REPLY=interrupt; return }
+  else
+    read -rsk1 k < /dev/tty || { REPLY=esc; return }
+  fi
   if [[ $k == $'\e' ]]; then
-    while read -rsk1 -t 0.02 c < /dev/tty; do rest+=$c; [[ $c == [A-Za-z~] ]] && break; done
+    # ESC [ … letter, or ESC O letter (arrow keys in application mode)
+    while read -rsk1 -t 0.02 c < /dev/tty; do rest+=$c; [[ $c == [A-Za-z~] && $rest != O ]] && break; done
     k+=$rest
   fi
   case $k in
@@ -213,6 +230,7 @@ ui_keyx() {
 # Radio list with a short description per entry. Enter picks, Esc goes back.
 #   ui_select <default index> "Label|Description" …   → REPLY = index; status 1 = back/cancel
 ui_select() {
+  [[ -n $UI_SELECT_HOOK ]] && { $UI_SELECT_HOOK "$@"; return }   # the setup wizard draws its own
   local -i sel=${1:-1} n i; shift
   local -a opts=("$@")
   n=${#opts}
@@ -299,32 +317,6 @@ ui_toggles() {
   return 0
 }
 
-# A row of buttons:  [ Back ]   [ Finish ]   ← → choose, Enter presses → REPLY = index
-ui_buttons() {
-  local -i sel=${1:-1} n i; shift
-  local -a b=("$@")
-  n=${#b}
-  if ! ui_has_tty; then REPLY=$sel; return 0; fi
-  local k=$'\e[1;'"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" out
-  print -n $'\e[?25l'
-  while :; do
-    out=$'\r\e[K    '
-    for (( i = 1; i <= n; i++ )); do
-      if (( i == sel )); then out+="${k}[ ${b[i]} ]${_UI_R}     "; else out+="${d}[ ${b[i]} ]${_UI_R}     "; fi
-    done
-    print -rn -- $out
-    ui_keyx
-    case $REPLY in
-      left|up)  (( sel = sel > 1 ? sel - 1 : n )) ;;
-      right|down|tab) (( sel = sel < n ? sel + 1 : 1 )) ;;
-      enter|space) break ;;
-      esc|q) print -n $'\e[?25h\n'; return 1 ;;
-    esac
-  done
-  print -n $'\e[?25h\n'
-  REPLY=$sel
-}
-
 # Shown when a command belongs to a feature that is turned off. Status 0 = turned on just now.
 lotus_feature_off_screen() {
   local id=$1
@@ -346,6 +338,7 @@ lotus_feature_off_screen() {
 
 # One line of text with a default; Enter accepts, Esc goes back (status 1).  ui_line "Name" "Gabriel" → REPLY
 ui_line() {
+  [[ -n $UI_LINE_HOOK ]] && { $UI_LINE_HOOK "$@"; return }
   local label=$1 text=$2 d=$'\e['"$LOTUS_C[dim]m" a=$'\e['"$LOTUS_C[accent]m"
   if ! ui_has_tty; then REPLY=$text; return 0; fi
   print -n $'\e[?25h'
@@ -358,7 +351,7 @@ ui_line() {
       back)  text=${text[1,-2]} ;;
       up|down|left|right|home|end|pgup|pgdn|tab|ignore|space)
              [[ $REPLY == space ]] && text+=' ' ;;
-      *)     [[ $REPLY == [[:print:]] ]] && (( ${#text} < 60 )) && text+=$REPLY ;;
+      *)     [[ $REPLY == [[:print:]] ]] && (( ${#text} < 200 )) && text+=$REPLY ;;
     esac
   done
   print
