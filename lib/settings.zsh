@@ -66,7 +66,14 @@ lotus_settings_ui() {
       "choice|LOTUS_AI_EFFORT|$LOTUS_L[ai_effort]|low=$LOTUS_L[effort_low];medium=$LOTUS_L[effort_medium];high=$LOTUS_L[effort_high];max=$LOTUS_L[effort_max]"
       "text|LOTUS_AI_MODEL|$LOTUS_L[ai_model]|"
       "text|LOTUS_AI_URL|$LOTUS_L[ai_url]|"
-      "action|aikey|$LOTUS_L[ai_key]|")
+      "action|aikey|$LOTUS_L[ai_key]|"
+      "head||${LOTUS_L[head_ai_perm]:-AI: what it may do}|"
+      "choice|LOTUS_AI_TOOLS|${LOTUS_L[ai_tools]:-Work on this Mac}|1=$LOTUS_L[on];0=$LOTUS_L[off]"
+      "choice|LOTUS_AI_PERM_READ|${LOTUS_L[ai_p_read]:-Look at files in the folder}|allow=${LOTUS_L[ai_p_allow]:-allowed};ask=${LOTUS_L[ai_p_ask]:-ask first};never=${LOTUS_L[ai_p_never]:-never}"
+      "choice|LOTUS_AI_PERM_READ_OUT|${LOTUS_L[ai_p_read_out]:-Look at files elsewhere}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}"
+      "choice|LOTUS_AI_PERM_WRITE|${LOTUS_L[ai_p_write]:-Change files in the folder}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}"
+      "choice|LOTUS_AI_PERM_WRITE_OUT|${LOTUS_L[ai_p_write_out]:-Change files elsewhere}|ask=${LOTUS_L[ai_p_ask]:-ask first};never=${LOTUS_L[ai_p_never]:-never}"
+      "choice|LOTUS_AI_PERM_RUN|${LOTUS_L[ai_p_run]:-Run commands}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}")
     _on bg && items+=(
       "head||$LOTUS_L[head_bg]|"
       "choice|LOTUS_BG_MODEL|$LOTUS_L[bg_model]|auto=$LOTUS_L[col_auto];birefnet=BiRefNet;birefnet-lite=BiRefNet Lite;inspyrenet=InSPyReNet"

@@ -1,5 +1,6 @@
 // Lotus AI – the tools the AI can use on this Mac, and the questions it asks first.
-// Reading inside the working folder is free; every change and every command needs a yes.
+// By default reading inside the working folder is free; every change and every command needs a yes.
+// The user can allow more or less (Permissions below).
 
 import Foundation
 
@@ -54,6 +55,60 @@ enum ToolCatalog {
 
     static let displayNames = ["list_directory": "List", "read_file": "Read", "write_file": "Write",
                                 "edit_file": "Edit", "search_files": "Search", "run_command": "Run"]
+}
+
+// ── What the AI may do ────────────────────────────────────────
+
+enum Level: String { case allow, ask, never }
+
+// Set in the Lotus settings (AI → what it may do) and with /permissions. The shell hands them over in the
+// environment. Dangerous commands always ask, sudo and private files (keys, .env …) never go through unasked.
+struct Permissions {
+    struct Item {
+        let key: String            // the Lotus setting
+        let label: String
+        let values: [String]       // the first one is the default
+    }
+
+    static let items: [Item] = [
+        Item(key: "LOTUS_AI_TOOLS", label: "Work on this Mac", values: ["1", "0"]),
+        Item(key: "LOTUS_AI_PERM_READ", label: "Look at files in this folder", values: ["allow", "ask", "never"]),
+        Item(key: "LOTUS_AI_PERM_READ_OUT", label: "Look at files elsewhere", values: ["ask", "allow", "never"]),
+        Item(key: "LOTUS_AI_PERM_WRITE", label: "Create and change files in this folder", values: ["ask", "allow", "never"]),
+        Item(key: "LOTUS_AI_PERM_WRITE_OUT", label: "Change files elsewhere", values: ["ask", "never"]),
+        Item(key: "LOTUS_AI_PERM_RUN", label: "Run commands", values: ["ask", "allow", "never"]),
+    ]
+
+    private(set) var values: [String: String] = [:]
+
+    init(environment e: [String: String]) {
+        for item in Permissions.items {
+            let v = (e[item.key] ?? "").lowercased()
+            values[item.key] = item.values.contains(v) ? v : item.values[0]
+        }
+    }
+
+    func value(_ key: String) -> String { values[key] ?? "" }
+    mutating func set(_ key: String, _ v: String) { values[key] = v }
+
+    // The next choice in the list, to go through them one by one
+    func next(_ key: String) -> String {
+        guard let item = Permissions.items.first(where: { $0.key == key }),
+              let i = item.values.firstIndex(of: value(key)) else { return value(key) }
+        return item.values[(i + 1) % item.values.count]
+    }
+
+    static func words(_ v: String) -> String {
+        ["allow": "allowed", "ask": "asks first", "never": "never", "1": "on", "0": "off"][v] ?? v
+    }
+
+    private func level(_ key: String) -> Level { Level(rawValue: value(key)) ?? .ask }
+    var tools: Bool { value("LOTUS_AI_TOOLS") != "0" }
+    var read: Level { level("LOTUS_AI_PERM_READ") }
+    var readOutside: Level { level("LOTUS_AI_PERM_READ_OUT") }
+    var write: Level { level("LOTUS_AI_PERM_WRITE") }
+    var writeOutside: Level { level("LOTUS_AI_PERM_WRITE_OUT") }
+    var run: Level { level("LOTUS_AI_PERM_RUN") }
 }
 
 // ── Questions to the user during an answer ────────────────────
@@ -203,6 +258,8 @@ final class ToolRunner: @unchecked Sendable {
     private var editsAllowed = false
     private var commandsAllowed = false
     private var readsAllowed = false
+    private var readsInsideAllowed = false
+    var permissions = Permissions(environment: ProcessInfo.processInfo.environment)
     private let serial = AsyncLock()
     private(set) var actions: [String] = []   // what happened in this answer, for the memory
 
@@ -210,6 +267,14 @@ final class ToolRunner: @unchecked Sendable {
         self.cwd = cwd
         self.ui = ui
         self.outputLimit = outputLimit
+    }
+
+    // After the permissions changed, "yes, don't ask again" from before no longer counts
+    func resetAllowances() {
+        editsAllowed = false
+        commandsAllowed = false
+        readsAllowed = false
+        readsInsideAllowed = false
     }
 
     func takeActions() -> [String] {
@@ -246,7 +311,7 @@ final class ToolRunner: @unchecked Sendable {
                   "Tool \(name)\(target.isEmpty ? "" : " " + target)")
         if name == "run_command" { Log.write("DEBUG", "Command: \(str(args, "command") ?? "")") }
         switch name {
-        case "list_directory": return listDirectory(str(args, "path") ?? ".")
+        case "list_directory": return await listDirectory(str(args, "path") ?? ".")
         case "read_file":
             guard let p = str(args, "path") else { return missing("path") }
             return await readFile(p, offset: int(args, "offset"), limit: int(args, "limit"))
@@ -313,17 +378,31 @@ final class ToolRunner: @unchecked Sendable {
         return last == ".env" || last.hasPrefix(".env.") || last.hasSuffix(".pem") || last.hasSuffix(".key") || last == "id_rsa" || last == "id_ed25519"
     }
 
-    private func mayRead(_ url: URL) async -> Bool {
+    // nil: go ahead. Otherwise the answer to give instead: declined, or switched off in the settings
+    private func checkRead(_ url: URL, _ what: String) async -> ToolOutcome? {
+        let isInside = inside(url)
+        let level = isInside ? permissions.read : permissions.readOutside
+        if level == .never { return blocked(what) }
         if sensitive(url) {
-            return await ask("Let the AI read \(display(url))? It looks private.", allowAlways: false)
+            return await ask("Let the AI read \(display(url))? It looks private.", allowAlways: false) ? nil : declined(what)
         }
-        if inside(url) || readsAllowed { return true }
-        let answer = await ui.confirm("Let the AI read \(display(url))? It is outside this folder.", allowAlways: true)
-        switch answer {
-        case .yes: return true
-        case .always: readsAllowed = true; return true
-        case .no: return false
+        if level == .allow || (isInside ? readsInsideAllowed : readsAllowed) { return nil }
+        let question = isInside ? "Let the AI read \(display(url))?" : "Let the AI read \(display(url))? It is outside this folder."
+        switch await ui.confirm(question, allowAlways: true) {
+        case .yes: return nil
+        case .always:
+            if isInside { readsInsideAllowed = true } else { readsAllowed = true }
+            return nil
+        case .no(let note): declineNote = note; return declined(what)
         }
+    }
+
+    // The user switched this off in the settings (or with /permissions)
+    private func blocked(_ what: String) -> ToolOutcome {
+        Renderer.shared.toolResult("Switched off in the settings", error: true)
+        actions.append("Not allowed by the settings: \(what)")
+        return ToolOutcome(text: "The user has switched this off in their Lotus settings, so you cannot do it: \(what). "
+                           + "Do not try it again. Tell the user what you wanted to do; they can allow it with /permissions.", isError: true)
     }
 
     private var declineNote = ""
@@ -356,7 +435,7 @@ final class ToolRunner: @unchecked Sendable {
 
     // ── Tools ──
 
-    private func listDirectory(_ raw: String) -> ToolOutcome {
+    private func listDirectory(_ raw: String) async -> ToolOutcome {
         let url = resolve(raw)
         Renderer.shared.toolHeader("List", display(url))
         var isDir: ObjCBool = false
@@ -368,6 +447,7 @@ final class ToolRunner: @unchecked Sendable {
             Renderer.shared.toolResult("Private folder – not listed", error: true)
             return ToolOutcome(text: "This folder looks private; Lotus does not list it.", isError: true)
         }
+        if let stop = await checkRead(url, "listing \(display(url))") { return stop }
         let items = ((try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? [])
             .filter { $0 != ".DS_Store" }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
@@ -385,7 +465,7 @@ final class ToolRunner: @unchecked Sendable {
     private func readFile(_ raw: String, offset: Int?, limit: Int?) async -> ToolOutcome {
         let url = resolve(raw)
         Renderer.shared.toolHeader("Read", display(url))
-        guard await mayRead(url) else { return declined("reading \(display(url))") }
+        if let stop = await checkRead(url, "reading \(display(url))") { return stop }
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else {
             Renderer.shared.toolResult("File not found", error: true)
@@ -428,13 +508,15 @@ final class ToolRunner: @unchecked Sendable {
         var lines = content.components(separatedBy: "\n")
         if lines.count > 1 && lines.last == "" { lines.removeLast() }
         Renderer.shared.toolHeader("Write", display(url))
+        let isInside = inside(url)
+        let level = isInside ? permissions.write : permissions.writeOutside
+        if level == .never { return blocked("writing \(display(url))") }
         if exists, let old = try? String(contentsOf: url, encoding: .utf8) {
             showDiff(old, content)
         } else {
             Renderer.shared.toolLines(lines, color: Style.green, limit: 10)
         }
-        let isInside = inside(url)
-        if sensitive(url) || !isInside || !editsAllowed {
+        if sensitive(url) || !isInside || (level == .ask && !editsAllowed) {
             let verb = exists ? "Replace" : "Create"
             let place = isInside ? "" : " (outside this folder)"
             switch await ui.confirm("\(verb) \(display(url))\(place)?", allowAlways: isInside && !sensitive(url)) {
@@ -459,6 +541,9 @@ final class ToolRunner: @unchecked Sendable {
     private func editFile(_ raw: String, _ oldText: String, _ newText: String) async -> ToolOutcome {
         let url = resolve(raw)
         Renderer.shared.toolHeader("Edit", display(url))
+        let isInside = inside(url)
+        let level = isInside ? permissions.write : permissions.writeOutside
+        if level == .never { return blocked("editing \(display(url))") }
         guard let content = try? String(contentsOf: url, encoding: .utf8) else {
             Renderer.shared.toolResult("File not found", error: true)
             return ToolOutcome(text: "Cannot read \(display(url)). Use write_file to create it.", isError: true)
@@ -480,8 +565,7 @@ final class ToolRunner: @unchecked Sendable {
             return ToolOutcome(text: "old_text appears \(count) times in \(display(url)). Include more surrounding lines so it is unique.", isError: true)
         }
         showDiff(oldText, newText, full: true)
-        let isInside = inside(url)
-        if sensitive(url) || !isInside || !editsAllowed {
+        if sensitive(url) || !isInside || (level == .ask && !editsAllowed) {
             switch await ui.confirm("Change \(display(url))?", allowAlways: isInside && !sensitive(url)) {
             case .yes: break
             case .always: editsAllowed = true
@@ -544,7 +628,7 @@ final class ToolRunner: @unchecked Sendable {
     private func searchFiles(_ pattern: String, _ raw: String) async -> ToolOutcome {
         let url = resolve(raw)
         Renderer.shared.toolHeader("Search", "\"\(pattern)\" in \(display(url))")
-        guard await mayRead(url) else { return declined("searching \(display(url))") }
+        if let stop = await checkRead(url, "searching \(display(url))") { return stop }
         let args = ["-rInE", "--exclude-dir=.git", "--exclude-dir=node_modules", "--exclude-dir=.build",
                     "--exclude-dir=build", "--exclude-dir=DerivedData", "--exclude-dir=.venv", "-m", "20", "-e", pattern, url.path]
         var r = await Shell.run("/usr/bin/grep", args, cwd: cwd, timeout: 20)
@@ -578,8 +662,9 @@ final class ToolRunner: @unchecked Sendable {
             actions.append("Did not run (needs sudo): \(command)")
             return ToolOutcome(text: "Lotus does not run sudo commands. Show the user the command and ask them to run it themselves if they want to.", isError: true)
         }
+        if permissions.run == .never { return blocked("running `\(command)`") }
         let risky = ToolRunner.dangerous.contains { command.range(of: $0, options: .regularExpression) != nil }
-        if risky || !commandsAllowed {
+        if risky || (permissions.run == .ask && !commandsAllowed) {
             if risky { Renderer.shared.toolLines(["This command can delete or overwrite things."], color: Style.red) }
             switch await ui.confirm("Run this command?", allowAlways: !risky) {
             case .yes: break

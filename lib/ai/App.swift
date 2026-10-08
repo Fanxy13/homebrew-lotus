@@ -109,14 +109,14 @@ final class Agent {
     let interaction: Interaction
     let keys: KeyQueue?
     let cwd: URL
-    let usesTools: Bool
+    var usesTools: Bool              // false: the AI only talks (switched off in the permissions)
     var lastAnswer = ""
     var restartForLocal = false      // /model chose the model on this Mac: Lotus starts it, then /ai opens again
 
     init(config: Config, keys: KeyQueue?, memory: Bool, tools: Bool = true) throws {
         self.config = config
         self.keys = keys
-        usesTools = tools
+        usesTools = tools && Permissions(environment: ProcessInfo.processInfo.environment).tools
         cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         interaction = Interaction(keys: keys)
         runner = ToolRunner(cwd: cwd, ui: interaction, outputLimit: 30_000)
@@ -164,7 +164,7 @@ final class Agent {
             p = """
                 You are Lotus AI, a helpful assistant\(tools ? " and coding agent" : "") in the user's macOS terminal.
                 Working folder: \(dir). Today: \(date).\(config.name.isEmpty ? "" : " The user's name: \(config.name).")
-                \(tools ? "Use the tools to look at files, create and change files, and run commands. The user approves every change and command. When asked to make or change something, really do it with the tools – do not only describe it. Write real, complete file content in the right language for the file type: HTML for .html, Python for .py, and so on." : "")
+                \(tools ? "Use the tools to look at files, create and change files, and run commands. Changes and commands need the user's approval, and some actions may be switched off: if a tool says so, do not try it again, just tell the user. When asked to make or change something, really do it with the tools – do not only describe it. Write real, complete file content in the right language for the file type: HTML for .html, Python for .py, and so on." : "")
                 Think step by step. Give complete, correct answers and complete code without placeholders. \
                 When asked for a long text, write all of it. Answer in the user's language. Write in short paragraphs; use '-' lists only for real lists and fenced code blocks for code. No emoji.
                 """
@@ -179,7 +179,7 @@ final class Agent {
             if tools {
                 p += """
                     You can work on this Mac with tools: list_directory, read_file, search_files, write_file, edit_file and run_command. \
-                    Reading in the working folder happens right away; the user approves every change and every command before it runs.
+                    Reading in the working folder happens right away; the user approves changes and commands before they run, and may have switched some actions off: if a tool says so, do not try it again, just tell the user.
 
                     How to work:
                     - Take the time to think the task through. For anything beyond a quick question, work out the steps first, then carry them out one by one.
@@ -312,6 +312,12 @@ final class Agent {
         emit("\n")
     }
 
+    // The first permission: work on this Mac at all, or only talk
+    func applyTools(_ on: Bool) {
+        usesTools = on
+        try? switchTo(provider: config.provider, model: config.model)
+    }
+
     func switchTo(provider kind: String, model: String) throws {
         var c = config
         c.provider = kind
@@ -324,7 +330,8 @@ final class Agent {
 
     // Saves a choice into the Lotus settings file, through Lotus itself
     func saveSetting(_ key: String, _ value: String) {
-        guard ["LOTUS_AI_PROVIDER", "LOTUS_AI_MODEL", "LOTUS_AI_EFFORT"].contains(key), !config.root.isEmpty else { return }
+        let known = ["LOTUS_AI_PROVIDER", "LOTUS_AI_MODEL", "LOTUS_AI_EFFORT"] + Permissions.items.map(\.key)
+        guard known.contains(key), !config.root.isEmpty else { return }
         let script = #"setopt extendedglob; source "$1/lib/core.zsh" && lotus_load && typeset -g "$2=$3" && lotus_save"#
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -344,6 +351,7 @@ enum TUI {
         SlashCommand(name: "/model", help: "choose the AI (Apple, Claude, this Mac, Ollama …)"),
         SlashCommand(name: "/login", help: "connect Claude with an API key"),
         SlashCommand(name: "/effort", help: "how hard the AI thinks"),
+        SlashCommand(name: "/permissions", help: "what the AI may do on this Mac"),
         SlashCommand(name: "/clear", help: "start a new conversation"),
         SlashCommand(name: "/compact", help: "summarize the conversation to free up room"),
         SlashCommand(name: "/context", help: "how full the memory is"),
@@ -384,8 +392,12 @@ enum TUI {
             ]
         }
         var out = "\n" + frame(rows, width: width)
-        out += "  \(Style.dim)Ask anything, or let me work in this folder: create files, change code, run commands.\(Style.reset)\n"
-        out += "  \(Style.dim)I ask before I change anything. /help shows what else you can do.\(Style.reset)\n"
+        if agent.usesTools {
+            out += "  \(Style.dim)Ask anything, or let me work in this folder: create files, change code, run commands.\(Style.reset)\n"
+            out += "  \(Style.dim)I ask before I change anything (/permissions sets what I may do). /help shows what else you can do.\(Style.reset)\n"
+        } else {
+            out += "  \(Style.dim)Ask me anything. Chat only for now – /permissions lets me work on this Mac again.\(Style.reset)\n"
+        }
         if agent.config.claudeKey.isEmpty {
             out += "  \(Style.dim)Tip:\(Style.reset) \(Style.logo)/login\(Style.reset) \(Style.dim)connects Claude – the strongest AI for code and longer work.\(Style.reset)\n"
         }
@@ -499,6 +511,8 @@ enum TUI {
                 Renderer.shared.info("The AI now thinks \(effortNames[levels[i]] ?? levels[i]).")
                 emit("\n")
             }
+        case "/permissions", "/perms", "/allow":
+            await permissionsMenu(agent, keys)
         case "/model", "/models", "/provider":
             await chooseModel(agent, keys)
             return agent.restartForLocal
@@ -511,6 +525,28 @@ enum TUI {
             emit("\n")
         }
         return false
+    }
+
+    // What the AI may do on this Mac: enter changes the choice of the line, the settings keep it
+    static func permissionsMenu(_ agent: Agent, _ keys: KeyQueue) async {
+        var sel = 0
+        while true {
+            var items = Permissions.items.map { item in
+                item.label.padding(toLength: 40, withPad: " ", startingAt: 0) + Permissions.words(agent.runner.permissions.value(item.key))
+            }
+            items.append("Done")
+            guard let i = await menu("What may the AI do on this Mac?", items, selected: sel, keys: keys),
+                  i < Permissions.items.count else { break }
+            sel = i
+            let key = Permissions.items[i].key
+            let value = agent.runner.permissions.next(key)
+            agent.runner.permissions.set(key, value)
+            agent.runner.resetAllowances()
+            agent.saveSetting(key, value)
+            if key == "LOTUS_AI_TOOLS" { agent.applyTools(value != "0") }
+        }
+        Renderer.shared.info("Dangerous commands and private files (keys, .env) still ask first. Also in /settings → AI.")
+        emit("\n")
     }
 
     // Connects Claude: opens the key page, takes the pasted key (hidden), checks it and keeps it in the Keychain

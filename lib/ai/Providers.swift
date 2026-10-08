@@ -674,6 +674,15 @@ final class OpenAIProvider: Provider {
             }
             take(split.flush())
             if Task.isCancelled { throw CancellationError() }
+            // gpt-oss writes its tool calls as text (see ChannelSplit)
+            for c in split.calls {
+                let id = "call_h\(reply.calls.count)"
+                let args = c.args.trimmingCharacters(in: .whitespacesAndNewlines)
+                let parsed = args.isEmpty ? [:] : HTTP.parse(args)
+                reply.calls.append(PendingCall(id: id, name: c.name, args: parsed, raw: args))
+                // the server reads these arguments as JSON again: a broken one would fail the next request
+                reply.rawCalls.append(["id": id, "type": "function", "function": ["name": c.name, "arguments": args.isEmpty || parsed == nil ? "{}" : args]])
+            }
             for i in parts.keys.sorted() {
                 let p = parts[i]!
                 let id = p.id.isEmpty ? "call_\(i)" : p.id
@@ -748,19 +757,39 @@ enum EmptyReply {
 // Models on this Mac write their thoughts into the answer: gpt-oss in its channels
 // (<|channel|>analysis<|message|>… then <|channel|>final<|message|>…), Qwen in <think>…</think>.
 // This splits the stream into thinking and the answer, also when a marker comes in pieces.
+// gpt-oss also writes its tool calls as text, which the model server does not turn into tool calls:
+//   <|channel|>commentary to=functions.read_file <|constrain|>json<|message|>{"path":"a.txt"}<|call|>
+// They are collected in `calls`.
 final class ChannelSplit {
     private var buf = ""
     private var thinking = false
     private var channel: String?          // the name after <|channel|>, until <|message|>
+    private var call: (name: String, args: String)?    // a tool call that is being written
+    private(set) var calls: [(name: String, args: String)] = []
     private let marks = ["<think>", "</think>", "<|start|>", "<|end|>", "<|return|>", "<|channel|>",
                          "<|message|>", "<|constrain|>", "<|call|>"]
+
+    // "commentary to=functions.read_file json" → read_file
+    static func tool(in header: String) -> String? {
+        guard let r = header.range(of: "to=functions.") else { return nil }
+        let name = header[r.upperBound...].prefix { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
+        return name.isEmpty ? nil : String(name)
+    }
+
+    // The answer, and the short notes before a tool call (commentary without a recipient), are for the user
+    static func isVisible(_ header: String) -> Bool {
+        let h = header.trimmingCharacters(in: .whitespaces)
+        return h.hasPrefix("final") || (h.hasPrefix("commentary") && !h.contains("to="))
+    }
 
     func feed(_ s: String) -> [(Bool, String)] {
         buf += s
         var out: [(Bool, String)] = []
         func text(_ t: String) {
             guard !t.isEmpty else { return }
-            if channel != nil { channel! += t } else { out.append((thinking, t)) }
+            if channel != nil { channel! += t }
+            else if call != nil { call!.args += t }
+            else { out.append((thinking, t)) }
         }
         while !buf.isEmpty {
             guard let lt = buf.firstIndex(of: "<") else { text(buf); buf = ""; break }
@@ -770,10 +799,16 @@ final class ChannelSplit {
                 switch m {
                 case "<think>": thinking = true
                 case "</think>": thinking = false
-                case "<|channel|>": channel = ""
+                case "<|start|>", "<|channel|>": channel = ""      // what follows is a header (the role, the channel), not text
                 case "<|message|>":
-                    if let name = channel { thinking = !name.trimmingCharacters(in: .whitespaces).hasPrefix("final"); channel = nil }
-                default: break        // <|start|>assistant, <|end|> …: only structure
+                    if let name = channel {
+                        channel = nil
+                        if let tool = ChannelSplit.tool(in: name) { call = (tool, "") }
+                        else { thinking = !ChannelSplit.isVisible(name) }
+                    }
+                case "<|call|>":
+                    if let c = call { calls.append(c); call = nil }
+                default: break        // <|end|>, <|constrain|> …: only structure
                 }
                 buf = String(rest.dropFirst(m.count))
                 continue
@@ -788,7 +823,7 @@ final class ChannelSplit {
 
     func flush() -> [(Bool, String)] {
         defer { buf = "" }
-        return buf.isEmpty || channel != nil ? [] : [(thinking, buf)]
+        return buf.isEmpty || channel != nil || call != nil ? [] : [(thinking, buf)]
     }
 
     // Only the answer of a saved message (older versions kept the markers – a model refuses them)

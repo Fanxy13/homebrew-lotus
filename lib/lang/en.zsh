@@ -139,4 +139,6 @@ LOTUS_L+=(
   feat_now_on     '%s is on.'
   ai_local 'On this Mac (MLX)'  ai_local_get 'Models on this Mac'
   ai_ctx 'Context window'  ai_len 'Answer length'  ai_temp 'Creativity'  ai_temp_p 'precise'  ai_temp_b 'balanced'  ai_temp_c 'creative'  ai_kv 'Memory saver'
+  head_ai_perm 'AI: what it may do'  ai_tools 'Work on this Mac'  ai_p_read 'Look at files in the folder'  ai_p_read_out 'Look at files elsewhere'
+  ai_p_write 'Change files in the folder'  ai_p_write_out 'Change files elsewhere'  ai_p_run 'Run commands'  ai_p_allow 'allowed'  ai_p_ask 'ask first'  ai_p_never 'never'
 )

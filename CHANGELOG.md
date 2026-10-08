@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.6
+
+- Fixed: gpt-oss on this Mac could not use the computer. It writes its tool calls as text, which the model server does not turn into tool calls, so `/ai` hid them and answered nothing. Lotus reads them now: gpt-oss lists, reads, searches, creates and changes files and runs commands like the other models do. Its short notes before a step are shown
+- New: you decide what the AI may do – `/permissions` in `/ai` and `/settings` → AI: work on this Mac at all, look at files in the folder or elsewhere, change files in the folder or elsewhere, run commands. Each one is allowed, asks first or never (the default is what it was: reading in the folder is free, everything else asks). Dangerous commands and private files (keys, `.env`) always ask, `sudo` never runs. Listing a folder outside the working folder asks like reading does
+
 ## 2.4.5
 
 - Fixed: `/model` in `/ai` did not list the model on this Mac (`lotus ai local`) – only Apple Intelligence and Claude. It does now: pick it and Lotus starts the model, `/ai` opens again with it and the conversation continues. The choice is kept for the next `/ai`

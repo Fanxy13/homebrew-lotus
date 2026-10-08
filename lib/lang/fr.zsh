@@ -46,4 +46,6 @@ LOTUS_L+=(
   pet_brain_ai 'l’IA de /ai'  pet_brain_off 'rien (phrases courtes)'  pet_manage 'Vos animaux'  feat_pets 'Animaux'
   ai_local 'Sur ce Mac (MLX)'  ai_local_get 'Modèles sur ce Mac'
   ai_ctx 'Fenêtre de contexte'  ai_len 'Longueur des réponses'  ai_temp 'Créativité'  ai_temp_p 'précis'  ai_temp_b 'équilibré'  ai_temp_c 'créatif'  ai_kv 'Économie de mémoire'
+  head_ai_perm 'IA : ce qu’elle peut faire'  ai_tools 'Travailler sur ce Mac'  ai_p_read 'Lire les fichiers du dossier'  ai_p_read_out 'Lire les fichiers ailleurs'
+  ai_p_write 'Modifier les fichiers du dossier'  ai_p_write_out 'Modifier les fichiers ailleurs'  ai_p_run 'Exécuter des commandes'  ai_p_allow 'autorisé'  ai_p_ask 'demander d’abord'  ai_p_never 'jamais'
 )

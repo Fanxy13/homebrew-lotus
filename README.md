@@ -231,7 +231,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 - No accounts, no tracking, no analytics.
 - Lotus only goes online for what you ask: weather, updates, searches, downloads you confirm.
 - Installs, downloads and deletions are shown first and need a yes. `sudo` is never run silently.
-- API keys come from the macOS Keychain or the environment, never from files. The AI asks before it changes a file or runs a command.
+- API keys come from the macOS Keychain or the environment, never from files. By default the AI asks before it changes a file or runs a command; `/permissions` (or `/settings` → AI) sets what it may do – look at files, change files, run commands: allowed, ask first or never. Dangerous commands and private files (keys, `.env`) always ask, `sudo` never runs.
 - Links, package names, city names and shortcut names are validated; shortcuts cannot run shell commands.
 - `/convert` is meant for content you have the right to download. It does not bypass DRM or paywalls.
 - `/ios` only downloads official releases and checks compatibility before it does.
