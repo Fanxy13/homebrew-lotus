@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.10.0 – The AI sees the pages it builds
+
+- A new tool, `view_page`: the AI opens a web page of the folder in a real browser – WebKit, the engine of Safari, without a window – at desktop and phone width and gets what a person would notice: the title and structure (headings, links, buttons, forms), errors in the browser console with file and line, files that did not load, styles and scripts that are nearly empty, what is wider than the screen and which element it is, images without alt text, form fields without a label. With `inspect` (a CSS selector) it gets the size, position, colors and font of elements – access to the HTML elements of its page
+- Claude also gets a screenshot, so it sees the design. The web chat shows the screenshot in the step (click shows all of it), iTerm2 and WezTerm in the terminal; elsewhere the step names the file
+- After the AI writes or changes an HTML, CSS or JavaScript file, Lotus looks at the page by itself and adds what it saw to the result – so every model notices a missing file, an error or a layout that does not fit, also when it does not think of looking
+- Instructions for building websites, the same for every AI (`data/ai/system.md` "websites"): semantic HTML, mobile first with grid and flexbox, CSS variables, alt texts and labels, plain HTML, CSS and JavaScript unless you ask for a framework – then look at desktop and phone width and fix what was found until nothing is left
+- Safe: the page sees only its folder (served as `lotus-page://`, never private files like `.env`), may load scripts, styles, fonts and images from the internet but cannot send anything (fetch, XHR, WebSockets and beacons are blocked) and cannot navigate away. Looking at a page counts as reading: free in the folder, asks elsewhere. It takes about a second and a half
+- Fixed: in the web chat a step that went wrong ("Declined", "3 things to fix") was drawn as a red box instead of a red line
+- Tests: rendering (console errors with the line, missing files, too wide on a phone, alt texts, labels), private files and sending blocked, the whole step in the web chat with its screenshot, and the look after writing a page
+
 ## 2.9.1
 
 - Fixed: answers showed HTML as text – `<br>` in table cells, `<b>`, `&nbsp;` and the like, which models such as gpt-oss like to write into their Markdown. In the web chat and in `/ai` it now does what it means: `<br>` is a new line (in the terminal a table row stays one row, with " / "), `<b>`, `<i>`, `<u>`, `<sub>`, `<sup>`, `<kbd>`, `<code>` and friends format the text, entities become their characters, style wrappers like `<span style=…>` disappear

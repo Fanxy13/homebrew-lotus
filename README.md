@@ -162,6 +162,16 @@ The gear opens the settings – who answers, thinking, improving prompts, ask fi
 may do, what it remembers. They are the same Lotus settings as `/settings` in the terminal; the port,
 starting with the terminal and other devices can only be changed there.
 
+**It sees the pages it builds.** When the AI builds a website it looks at it in a real browser –
+WebKit, the engine of Safari, without a window – at desktop and phone width (`view_page`). It gets
+the title and structure, errors in the browser console with file and line, files that did not load,
+styles or scripts that are nearly empty, what is wider than the screen and which element, images
+without alt text and form fields without a label; with `inspect` (a CSS selector) also the size,
+position, colors and font of elements. Claude gets a screenshot too; the web chat shows it in the
+step, iTerm2 and WezTerm in the terminal. After the AI writes an HTML, CSS or JS file, Lotus looks at
+the page by itself and tells the AI what it saw – so smaller models notice their mistakes as well.
+The page only sees its folder (never private files) and cannot send anything away while it is looked at.
+
 **Better prompts.** With `/settings` → AI → "Improve prompts" (or `/enhance` in `/ai`) the AI first
 rewrites your message into a clear prompt – the goal, the details, the expected result – keeping your
 language and every name, path, command and quote. "on" shows it and sends it; "ask" shows it first:
@@ -282,6 +292,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 - Installs, downloads and deletions are shown first and need a yes. `sudo` is never run silently.
 - API keys come from the macOS Keychain or the environment, never from files. By default the AI asks before it changes a file or runs a command; `/permissions` (or `/settings` → AI) sets what it may do – look at files, change files, run commands: allowed, ask first or never. In auto mode (`/permissions` or ⇧⇥) it works on its own in the folder and asks only when Lotus is unsure: before a command runs, Lotus reads it like the shell does and lets it through only when it stays in the folder and destroys nothing – deleting, pushing, installing, sending data, other folders, private files and unknown programs still ask, with the reason. Dangerous commands and private files (keys, `.env`) always ask, `sudo` never runs.
 - The AI can use Lotus itself (open or install apps, weather, music, theme, clock, keep awake, features, Minecraft) through one list of tools, `data/ai-tools.tsv`. It only gets the tools of features that are on, every argument is checked against that list, and the commands are run with fixed arguments – never as a shell string the model wrote. Changing things asks first (`/permissions` → "Use Lotus features"), installing an app always asks.
+- When the AI looks at a web page it built (`view_page`), WebKit shows only that page's folder – never private files such as `.env` – and blocks everything that could send data away (fetch, XHR, WebSockets, beacons); scripts, styles, fonts and images may load from the internet. Looking at a page counts as reading: free in the folder, asks elsewhere. Screenshots stay in `~/.cache/lotus/ai/pages`.
 - The AI can search the web (DuckDuckGo, Wikipedia) and read pages; `/permissions` → "Search and read the web" turns that to ask first or off. Search words go to DuckDuckGo or Wikipedia, pages are fetched directly, without cookies. Only the public internet – addresses on this Mac or in the local network are refused, also after a redirect. Web text is marked as information, never as instructions; in auto mode commands ask again after the AI has read web pages, and an address that carries a lot of data always asks.
 - What the AI remembers between conversations (`remember`, `/memory`) is a plain text file next to your settings (`~/.config/lotus/ai-memory.md`); passwords and keys are never kept.
 - The web chat (`/ai server`) listens on 127.0.0.1 only and never starts unless you start it. The browser signs in with an access key (`~/.local/state/lotus/ai-server.key`, only you can read it); the server answers only to its own address, checks a per-page token and the origin of every change, and never sends API keys to the browser. Commands from the web follow the same permissions as in the terminal – dangerous ones always ask, `sudo` never runs – and the port and other devices can only be changed in the terminal. Conversations are kept in `~/.local/state/lotus/ai-chats`, readable only by you.
@@ -304,6 +315,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/ai/*.swift` | The AI terminal (Claude, Apple Intelligence, Ollama, OpenAI-compatible), built once on first use; `Server.swift` is the web chat |
 | `lib/ai/web/` | The web chat's page (HTML, CSS, JavaScript – no libraries, nothing from other servers) |
 | `lib/ai/download.py` | Downloads a model for `lotus ai local` and reports the bytes received, for Lotus' progress line |
+| `lib/ai/Page.swift` | `view_page`: renders a web page in WebKit without a window and reports what a person would notice |
 | `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |

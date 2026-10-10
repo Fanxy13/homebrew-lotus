@@ -403,7 +403,14 @@ final class ClaudeProvider: Provider {
                 results = await runCalls(reply.calls, tools)
             }
             let content: [[String: Any]] = results.map { call, out in
-                ["type": "tool_result", "tool_use_id": call.id, "content": out.text, "is_error": out.isError]
+                // a screenshot goes along, so Claude sees the page it built (view_page)
+                guard let image = out.image else {
+                    return ["type": "tool_result", "tool_use_id": call.id, "content": out.text, "is_error": out.isError]
+                }
+                return ["type": "tool_result", "tool_use_id": call.id, "is_error": out.isError, "content": [
+                    ["type": "text", "text": out.text],
+                    ["type": "image", "source": ["type": "base64", "media_type": "image/jpeg", "data": image.base64EncodedString()]],
+                ] as [[String: Any]]]
             }
             messages.append(["role": "user", "content": content])
             pendingToolIDs = []

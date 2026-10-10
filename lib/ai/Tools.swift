@@ -109,13 +109,19 @@ enum ToolCatalog {
                  description: "Read a web page (http or https) as plain text, e.g. documentation or a result of web_search. Long pages come in parts: call again with start to read on.",
                  params: [ToolParam(name: "url", description: "The address of the page.", required: true),
                           ToolParam(name: "start", description: "Character to start at, for reading on. Optional.", required: false, isInt: true)]),
+        ToolSpec(name: "view_page",
+                 description: "Look at an HTML page of the folder in a real browser (WebKit, the engine of Safari) at desktop and phone width: its title and structure, errors in the browser console, files that did not load, what is wider than the screen, images without alt text and form fields without a label – with a screenshot for models that can see images. Use it every time you build or change a web page, and fix what it reports. With inspect (a CSS selector) it also tells you the size, position, colors and font of those elements.",
+                 params: [ToolParam(name: "path", description: "The HTML file, relative to the working directory, e.g. index.html.", required: true),
+                          ToolParam(name: "view", description: "desktop (default) or phone – which one the screenshot and the elements are taken from.", required: false, enumValues: ["desktop", "phone"]),
+                          ToolParam(name: "inspect", description: "Optional CSS selector, e.g. .hero h1 or nav a – details of up to 8 matching elements.", required: false)]),
         ToolSpec(name: "remember",
                  description: "Keep one short fact for later conversations: the user's preferences, their projects, names, decisions. Only what will matter later – never passwords or keys.",
                  params: [ToolParam(name: "fact", description: "The fact, in one sentence.", required: true)]),
     ]
 
     static let displayNames = ["list_directory": "List", "read_file": "Read", "write_file": "Write", "edit_file": "Edit",
-                                "search_files": "Search", "run_command": "Run", "web_search": "Web", "fetch_url": "Fetch", "remember": "Remember"]
+                                "search_files": "Search", "run_command": "Run", "web_search": "Web", "fetch_url": "Fetch", "remember": "Remember",
+                                "view_page": "View"]
 }
 
 // ── What the AI may do ────────────────────────────────────────
@@ -327,6 +333,7 @@ actor AsyncLock {
 struct ToolOutcome {
     var text: String
     var isError = false
+    var image: Data? = nil          // a screenshot (JPEG) for models that can see images (view_page)
 }
 
 final class ToolRunner: @unchecked Sendable {
@@ -425,6 +432,9 @@ final class ToolRunner: @unchecked Sendable {
         case "remember":
             guard let f = str(args, "fact"), !f.trimmingCharacters(in: .whitespaces).isEmpty else { return missing(name, "fact") }
             return remember(f)
+        case "view_page":
+            guard let p = str(args, "path"), !p.trimmingCharacters(in: .whitespaces).isEmpty else { return missing(name, "path") }
+            return await viewPage(p, view: str(args, "view") ?? "desktop", inspect: str(args, "inspect") ?? "")
         default:
             if let spec = ToolCatalog.lotus.first(where: { $0.name == name }) { return await runLotus(spec, args) }
             Renderer.shared.toolHeader(String(name.unicodeScalars.filter { $0.value >= 0x20 && $0.value < 0x7F }.prefix(40).map(Character.init)), "")
@@ -472,7 +482,10 @@ final class ToolRunner: @unchecked Sendable {
         return real == base || real.hasPrefix(base + "/") || base == "/"
     }
 
-    private func sensitive(_ url: URL) -> Bool {
+    private func sensitive(_ url: URL) -> Bool { ToolRunner.isPrivate(url) }
+
+    // Keys, .env, SSH and cloud credentials: never read, listed or served without the user (Page.swift too)
+    static func isPrivate(_ url: URL) -> Bool {
         let parts = Set(url.pathComponents)
         let names = [".ssh", ".gnupg", ".aws", "Keychains", ".netrc", ".git-credentials", ".docker", ".kube", "1Password"]
         if names.contains(where: parts.contains) { return true }
@@ -774,6 +787,114 @@ final class ToolRunner: @unchecked Sendable {
         return ToolOutcome(text: text)
     }
 
+    // ── Web pages: the AI looks at what it builds (Page.swift) ──
+
+    private func viewPage(_ raw: String, view: String, inspect: String) async -> ToolOutcome {
+        let phone = ["phone", "mobile", "p"].contains(view.lowercased())
+        let selector = String(inspect.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
+        if raw.lowercased().hasPrefix("http://") || raw.lowercased().hasPrefix("https://") {
+            Renderer.shared.toolHeader("View", clip(raw, 60))
+            Renderer.shared.toolResult("Only HTML files of the folder", error: true)
+            return ToolOutcome(text: "view_page opens HTML files in the working folder, not web addresses – give it the file, e.g. index.html.", isError: true)
+        }
+        let url = resolve(raw)
+        Renderer.shared.toolHeader("View", display(url) + (phone ? " · phone" : "") + (selector.isEmpty ? "" : " · \(selector)"))
+        guard ["html", "htm", "xhtml"].contains(url.pathExtension.lowercased()) else {
+            Renderer.shared.toolResult("Not an HTML page", error: true)
+            return ToolOutcome(text: "\(display(url)) is not an HTML page – view_page opens .html files.", isError: true)
+        }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            Renderer.shared.toolResult("File not found", error: true)
+            return ToolOutcome(text: "File not found: \(display(url))", isError: true)
+        }
+        if sensitive(url) {
+            Renderer.shared.toolResult("Private file – not opened", error: true)
+            return ToolOutcome(text: "This file looks private; Lotus does not open it.", isError: true)
+        }
+        if let stop = await checkRead(url, "viewing \(display(url))") { return stop }
+        let state = ProcessInfo.processInfo.environment["LOTUS_AI_STATE"].map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache/lotus/ai")
+        let dir = state.appendingPathComponent("pages")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let base = String(url.deletingPathExtension().lastPathComponent.filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }.prefix(40))
+        let shot = dir.appendingPathComponent("\(base.isEmpty ? "page" : base)-\(phone ? "phone" : "desktop").jpg")
+        try? FileManager.default.removeItem(at: shot)
+        Spinner.shared.start("Looking at the page")
+        let looked = await renderPage(url, shot: shot, phone: phone, selector: selector)
+        Spinner.shared.stop()
+        guard case .success(let report, let main) = looked else {
+            if case .failure(let why) = looked {
+                Renderer.shared.toolResult("Could not open it: \(why)", error: true)
+                return ToolOutcome(text: "The page could not be opened: \(why)", isError: true)
+            }
+            return ToolOutcome(text: "The page could not be opened.", isError: true)
+        }
+        Renderer.shared.toolLines(report.summary)
+        var image: Data?
+        if let path = main["shot"] as? String, let data = FileManager.default.contents(atPath: path) {
+            image = data
+            Renderer.shared.toolImage(URL(fileURLWithPath: path))
+        }
+        Renderer.shared.toolResult(report.problems == 0 ? "Looks fine" : "\(report.problems) \(report.problems == 1 ? "thing" : "things") to fix", error: report.problems > 0)
+        actions.append("Looked at \(display(url))\(report.problems == 0 ? "" : " – \(report.problems) to fix")")
+        return ToolOutcome(text: limited(report.text), image: image)
+    }
+
+    enum Looked { case success(PageReport, [String: Any]), failure(String) }
+
+    // The page in WebKit at desktop and phone width (lotus-ai --render, two processes at once)
+    private func renderPage(_ url: URL, shot: URL?, phone: Bool, selector: String) async -> Looked {
+        guard let exe = Bundle.main.executablePath else { return .failure("Lotus AI could not find itself") }
+        let root = inside(url) ? cwd.standardizedFileURL : url.deletingLastPathComponent()
+        let shotPath = shot?.path ?? "-"
+        async let desk = Shell.run(exe, ["--render", url.path, "1280", root.path, phone ? "-" : shotPath, phone ? "" : selector], cwd: cwd, timeout: 45)
+        async let mobile = Shell.run(exe, ["--render", url.path, "390", root.path, phone ? shotPath : "-", phone ? selector : ""], cwd: cwd, timeout: 45)
+        let (d, m) = await (desk, mobile)
+        func parse(_ r: Shell.Result) -> [String: Any]? {
+            for line in r.output.split(separator: "\n").reversed() where line.hasPrefix("{") {
+                if let j = HTTP.parse(String(line)) { return j }
+            }
+            return nil
+        }
+        let dj = parse(d), mj = parse(m)
+        guard let main = phone ? mj : dj, main["ok"] as? Bool == true, let info = main["info"] as? [String: Any] else {
+            let j = phone ? mj : dj
+            let why = (j?["error"] as? String) ?? ((j?["timedOut"] as? Bool) == true || (phone ? m : d).timedOut
+                ? "it did not finish loading in time – a script may hang" : String((phone ? m : d).output.prefix(200)))
+            return .failure(why)
+        }
+        return .success(PageReport(page: display(url), main: info, desktop: dj, phone: mj, selector: selector, phoneView: phone), main)
+    }
+
+    // After a web page, or a style or script of one, was written: Lotus opens the page in a browser
+    // itself and adds what it sees to the result – so every model notices errors, missing files and
+    // layouts that do not fit, also when it does not think of view_page
+    private func lookAfterWriting(_ file: URL) async -> String {
+        guard inside(file), !sensitive(file) else { return "" }
+        let ext = file.pathExtension.lowercased()
+        var page: URL?
+        if ["html", "htm"].contains(ext) {
+            page = file
+        } else if ["css", "js", "mjs"].contains(ext) {
+            // the page next to it that uses it, index.html first
+            let dir = file.deletingLastPathComponent()
+            let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [])
+                .filter { $0.lowercased().hasSuffix(".html") || $0.lowercased().hasSuffix(".htm") }
+                .sorted { $0 == "index.html" || ($1 != "index.html" && $0 < $1) }
+            page = names.prefix(20).lazy.map { dir.appendingPathComponent($0) }
+                .first { (try? String(contentsOf: $0, encoding: .utf8))?.contains(file.lastPathComponent) == true }
+        }
+        guard let p = page else { return "" }
+        Spinner.shared.start("Looking at the page")
+        let looked = await renderPage(p, shot: nil, phone: false, selector: "")
+        Spinner.shared.stop()
+        guard case .success(let report, _) = looked else { return "" }
+        Renderer.shared.toolLines(["In a browser: " + (report.problems == 0 ? "looks fine" : report.summary.filter { !$0.contains("fits") }.joined(separator: " · "))],
+                                  color: report.problems == 0 ? Style.dim : Style.accent)
+        return "\n\nLotus opened \(display(p)) in a browser (desktop and phone) – "
+            + (report.problems == 0 ? "it looks fine." : "what it noticed (if you are still writing the other files, finish them first):\n" + report.brief)
+    }
+
     // ── Memory ──
 
     private func remember(_ raw: String) -> ToolOutcome {
@@ -898,7 +1019,7 @@ final class ToolRunner: @unchecked Sendable {
         let what = "\(exists ? "Updated" : "Created") \(display(url)) (\(lines.count) \(lines.count == 1 ? "line" : "lines"))"
         Renderer.shared.toolResult(what)
         actions.append(what)
-        return ToolOutcome(text: what)
+        return ToolOutcome(text: what + (await lookAfterWriting(url)))
     }
 
     private func editFile(_ raw: String, _ oldText: String, _ newText: String) async -> ToolOutcome {
@@ -947,7 +1068,7 @@ final class ToolRunner: @unchecked Sendable {
         let what = "Edited \(display(url)) (−\(removed) +\(added) lines)"
         Renderer.shared.toolResult(what)
         actions.append(what)
-        return ToolOutcome(text: what)
+        return ToolOutcome(text: what + (await lookAfterWriting(url)))
     }
 
     // Finds the lines of `needle` in `text` when only indentation or trailing spaces differ
@@ -1180,5 +1301,118 @@ enum Memory {
         if ["password", "passwort", "kennwort", "passwd", "api key", "apikey", "api-key", "secret key", "private key", "pin code"].contains(where: l.contains) { return true }
         if s.range(of: #"\b(sk-|ghp_|gho_|github_pat_|hf_|xox[abp]-|AKIA|AIza)[A-Za-z0-9_\-]{8,}"#, options: .regularExpression) != nil { return true }
         return s.range(of: #"[A-Za-z0-9_\-+/=]{32,}"#, options: .regularExpression) != nil
+    }
+}
+
+// ── What view_page tells the model ────────────────────────────
+
+struct PageReport {
+    var text = ""
+    var brief = ""                  // only the layout and what to fix – after a file was written
+    var summary: [String] = []
+    var problems = 0
+
+    init(page: String, main info: [String: Any], desktop: [String: Any]?, phone: [String: Any]?, selector: String, phoneView: Bool) {
+        func strings(_ v: Any?) -> [String] { v as? [String] ?? [] }
+        func int(_ v: Any?) -> Int { (v as? Int) ?? (v as? NSNumber)?.intValue ?? 0 }
+        var lines: [String] = []
+        let title = info["title"] as? String ?? ""
+        lines.append("Page: \(page)" + (title.isEmpty ? " – it has no <title>" : " – \"\(title)\""))
+        if title.isEmpty { problems += 1 }
+
+        // the layout at both widths
+        for (label, j) in [("Desktop", desktop), ("Phone", phone)] {
+            guard let i = j?["info"] as? [String: Any] else { lines.append("\(label): could not be checked"); continue }
+            let view = int(i["view"]), sw = int(i["scrollWidth"]), h = int(i["height"])
+            if sw > view + 1 {
+                problems += 1
+                let wide = strings(i["wide"]).joined(separator: ", ")
+                lines.append("\(label) (\(view) px): wider than the screen by \(sw - view) px – people have to scroll sideways\(wide.isEmpty ? "" : ". Too wide: " + wide)")
+                summary.append("\(label): \(sw - view) px too wide")
+            } else {
+                lines.append("\(label) (\(view) px): fits the width, \(h) px high")
+                summary.append("\(label): fits, \(h) px high")
+            }
+        }
+
+        // what went wrong, from both widths
+        var seen = Set<String>()
+        let console = (strings(desktop?["console"]) + strings(phone?["console"])).filter { seen.insert($0).inserted }
+        let errors = console.filter { $0.hasPrefix("error: ") }.map { String($0.dropFirst(7)) }
+        let warnings = console.filter { $0.hasPrefix("warn: ") }.map { String($0.dropFirst(6)) }
+        let remote = console.filter { $0.hasPrefix("missing: ") }.map { String($0.dropFirst(9)) }
+        var seenFiles = Set<String>()
+        let missing = (strings(desktop?["missing"]) + strings(phone?["missing"])).filter { seenFiles.insert($0).inserted }
+        let refused = Array(Set(strings(desktop?["refused"]) + strings(phone?["refused"]))).sorted()
+        if !errors.isEmpty {
+            problems += errors.count
+            lines.append("Errors in the browser console:")
+            lines += errors.prefix(10).map { "  - \($0)" }
+            summary.append("\(errors.count) \(errors.count == 1 ? "error" : "errors") in the console")
+        }
+        if !missing.isEmpty || !remote.isEmpty {
+            problems += missing.count + remote.count
+            lines.append("Files that did not load: " + (missing + remote).prefix(12).joined(separator: ", "))
+            summary.append("\(missing.count + remote.count) \(missing.count + remote.count == 1 ? "file" : "files") did not load")
+        }
+        if !refused.isEmpty { lines.append("Not served (outside the folder or private): " + refused.prefix(6).joined(separator: ", ")) }
+        // a style or script that is (nearly) empty: its content did not get written
+        var sizes: [String: Int] = [:]
+        for j in [desktop, phone] { for (k, v) in j?["served"] as? [String: Any] ?? [:] { sizes[k] = (v as? Int) ?? (v as? NSNumber)?.intValue ?? 0 } }
+        let empty = sizes.filter { $0.value < 40 }.keys.sorted()
+        if !empty.isEmpty {
+            problems += empty.count
+            lines.append("Nearly empty: " + empty.map { "\($0) (\(sizes[$0] ?? 0) bytes)" }.joined(separator: ", ") + " – its content is missing")
+            summary.append("\(empty.count) nearly empty \(empty.count == 1 ? "file" : "files")")
+        }
+        if !warnings.isEmpty { lines.append("Console warnings: " + warnings.prefix(5).joined(separator: " · ")) }
+        if (info["viewport"] as? Bool) == false {
+            problems += 1
+            lines.append("No <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"> – phones show the page zoomed out.")
+        }
+        let h1 = int(info["h1"])
+        if h1 == 0 { problems += 1; lines.append("No <h1> – a page needs one main heading.") }
+        if h1 > 1 { lines.append("\(h1) <h1> headings – usually one is right.") }
+        let noAlt = strings(info["noAlt"]), broken = strings(info["broken"])
+        if !noAlt.isEmpty { problems += 1; lines.append("Images without alt text: " + noAlt.joined(separator: ", ")) }
+        if !broken.isEmpty { problems += 1; lines.append("Images that do not show: " + broken.joined(separator: ", ")) }
+        let unlabeled = int(info["unlabeled"])
+        if unlabeled > 0 { problems += 1; lines.append("Form fields without a label: \(unlabeled) of \(int(info["fields"]))") }
+        if let lang = info["lang"] as? String, lang.isEmpty { lines.append("<html> has no lang attribute.") }
+
+        brief = (lines.dropFirst() + [problems == 0 ? "Nothing to fix found." : "Fix these, then look again with view_page."]).joined(separator: "\n")
+
+        // what is on it
+        let landmarks = strings(info["landmarks"]).joined(separator: ", ")
+        let headings = strings(info["headings"]).prefix(10).joined(separator: " · ")
+        lines.append("Structure: " + (landmarks.isEmpty ? "no header/nav/main/footer" : landmarks) + (headings.isEmpty ? "" : " · " + headings))
+        let links = int(info["links"]), dead = int(info["deadLinks"])
+        var parts = ["\(links) \(links == 1 ? "link" : "links")" + (dead > 0 ? " (\(dead) go nowhere: href=\"#\" or none)" : "")]
+        let buttons = strings(info["buttons"])
+        if !buttons.isEmpty { parts.append("buttons: " + buttons.joined(separator: ", ")) }
+        if int(info["forms"]) > 0 { parts.append("\(int(info["forms"])) form(s), \(int(info["fields"])) field(s)") }
+        if int(info["images"]) > 0 { parts.append("\(int(info["images"])) image(s)") }
+        lines.append(parts.joined(separator: " · "))
+        if let t = info["text"] as? String, !t.isEmpty { lines.append("Text on the page: " + String(t.prefix(500)) + (t.count > 500 ? " …" : "")) }
+
+        // the elements asked for
+        if !selector.isEmpty {
+            if let e = info["selError"] as? String, !e.isEmpty {
+                lines.append("inspect \"\(selector)\": not a valid CSS selector (\(e))")
+            } else if let els = info["elements"] as? [String: Any] {
+                let items = els["items"] as? [[String: Any]] ?? []
+                lines.append("inspect \"\(selector)\" at \(phoneView ? "phone" : "desktop") width: \(int(els["count"])) element(s)")
+                for it in items {
+                    let box = (it["box"] as? [Any] ?? []).map { "\($0)" }
+                    let where_ = box.count == 4 ? "\(box[2])×\(box[3]) at x \(box[0]), y \(box[1])" : ""
+                    lines.append("  - \(it["el"] ?? ""): \(where_)\((it["visible"] as? Bool) == false ? ", hidden" : "") · \(it["display"] ?? "") \(it["position"] ?? "")"
+                        + " · color \(it["color"] ?? ""), background \(it["background"] ?? "") · font \(it["font"] ?? "")"
+                        + " · margin \(it["margin"] ?? ""), padding \(it["padding"] ?? "")"
+                        + ((it["text"] as? String).map { $0.isEmpty ? "" : " · \"\($0)\"" } ?? ""))
+                }
+            }
+        }
+        lines.append(problems == 0 ? "Nothing to fix found." : "Fix these, then look again with view_page.")
+        text = lines.joined(separator: "\n")
     }
 }

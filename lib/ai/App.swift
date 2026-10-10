@@ -7,6 +7,7 @@
 //   lotus-ai --check          is Apple Intelligence available?
 //   lotus-ai --serve <port>   the web chat in the browser (Server.swift, started by lotus ai server start)
 //   lotus-ai --port-check <port> [lan]   "free" or "used"
+//   lotus-ai --render <page> <width> <folder> <shot|->   view_page's look at a web page (Page.swift)
 //
 // The provider, model, keys and colors come from environment variables set by lib/cmd/ai.zsh.
 // Keys are never written to disk by this program.
@@ -198,7 +199,7 @@ final class Agent {
         if provider.isSmall {
             parts = ["small"] + (tools ? ["small-work"] : []) + (tools && !ToolCatalog.lotus.isEmpty ? ["small-lotus"] : [])
         } else {
-            parts = ["identity"] + (tools ? ["work"] + (ToolCatalog.lotus.isEmpty ? [] : ["lotus"]) + ["web", "memory"] : []) + ["answer"]
+            parts = ["identity"] + (tools ? ["work", "websites"] + (ToolCatalog.lotus.isEmpty ? [] : ["lotus"]) + ["web", "memory"] : []) + ["answer"]
         }
         if browser { parts.append("browser") }
         var p = parts.compactMap { s[$0] }.map(fill).joined(separator: "\n\n")
@@ -983,6 +984,9 @@ struct LotusAI {
                 exit(2)
             }
             exit(await WebServer.run(config, port: port))
+
+        case "--render":
+            PageView.run(args)
 
         case "--port-check":
             guard let port = args.first.flatMap({ Int($0) }), (1...65535).contains(port) else { exit(2) }

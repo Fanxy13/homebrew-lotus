@@ -3,6 +3,7 @@
 # result it says what the command printed; anything else gets a short Markdown answer.
 # "delete" asks for rm -rf ./nothing-here, "admin" for sudo ls – both must not run without the user.
 # "html" gets an answer with the HTML models like to write into Markdown (<br>, <b>, &nbsp; …).
+# "look at" calls view_page on site/index.html at phone width, "make a page" writes site2/index.html.
 # Asked to improve a prompt (data/ai/system.md "## enhance"), it answers "Goal: <the request>" – or fails
 # with an error when the request contains "fail-enhance".
 import json
@@ -37,6 +38,17 @@ class Model(BaseHTTPRequestHandler):
         if improving:
             chunk({"content": "Goal: " + request})
             chunk({}, "stop")
+        elif body.get("tools") and last.get("role") == "user" and "make a page" in str(last.get("content", "")):
+            page = '<!doctype html><html lang="en"><head><title>T</title><link rel="stylesheet" href="style.css"></head><body><h1>Hi</h1></body></html>'
+            call = {"index": 0, "id": "call_w", "type": "function",
+                    "function": {"name": "write_file", "arguments": json.dumps({"path": "site2/index.html", "content": page})}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif body.get("tools") and last.get("role") == "user" and "look at" in str(last.get("content", "")):
+            call = {"index": 0, "id": "call_v", "type": "function",
+                    "function": {"name": "view_page", "arguments": json.dumps({"path": "site/index.html", "view": "phone", "inspect": "h1"})}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
         elif body.get("tools") and last.get("role") == "user" and any(w in str(last.get("content", "")) for w in ("delete", "admin", "run")):
             said = str(last.get("content", ""))
             command = "rm -rf ./nothing-here" if "delete" in said else "sudo ls" if "admin" in said else "echo lotus-test-ok"

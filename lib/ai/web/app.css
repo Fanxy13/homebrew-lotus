@@ -224,7 +224,7 @@ button:disabled { cursor: default; opacity: 0.5; }
 .step-lines .dim { color: var(--muted); }
 .step-result { color: var(--muted); font-size: 13px; margin-top: 2px; }
 .step-result::before { content: "↳ "; }
-.step-result.error { color: rgb(var(--danger)); }
+.step-result.failed { color: rgb(var(--danger)); }
 
 .note-line { color: var(--muted); font-size: 13.5px; margin: 8px 0; white-space: pre-wrap; }
 .thought { color: var(--muted); font-size: 12.5px; margin: 6px 0; font-style: italic; }
@@ -489,3 +489,18 @@ body.locked pre {
   .sugg b { min-width: 0; }
   .sugg { flex-direction: column; gap: 0; }
 }
+
+/* a screenshot of a page the AI looked at (view_page) */
+.step-shot {
+  display: block;
+  margin: 8px 0 4px;
+  max-width: min(100%, 420px);
+  max-height: 300px;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  cursor: zoom-in;
+}
+.step-shot.open { max-width: 100%; max-height: none; cursor: zoom-out; }

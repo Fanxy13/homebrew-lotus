@@ -98,22 +98,24 @@ check_eq "an unknown conversation" "$(code $H $B/api/chats/aaaaaaaaaaaa)" 404
 check_eq "an empty message is refused" "$(code $H -H 'Content-Type: application/json' -d '{"text":"  "}' $B/api/chats/$chat/send)" 400
 
 # a message: the model wants to run a command – in ask mode it asks first, like in the terminal
-send_to() { curl -sN -m 30 $H -H 'Content-Type: application/json' -d "{\"text\":\"$2\"}" $B/api/chats/$1/send }
+send_to() { curl -sN -m 90 $H -H 'Content-Type: application/json' -d "{\"text\":\"$2\"}" $B/api/chats/$1/send }
 answer() { code $H -H 'Content-Type: application/json' -d "{\"id\":\"$1\",\"answer\":\"$2\"}" $B/api/answer }
-asked() {   # <chat> <text> – sends it in the background, waits for the question → REPLY = its id
+asked() {   # <chat> <text> – sends it in the background, waits for the whole question → REPLY = its id
   : >| $events
-  curl -sN -m 60 $H -H 'Content-Type: application/json' -d "{\"text\":\"$2\"}" $B/api/chats/$1/send >| $events &
+  curl -sN -m 90 $H -H 'Content-Type: application/json' -d "{\"text\":\"$2\"}" $B/api/chats/$1/send >| $events &
   sender=$!
-  local p
-  for p in {1..100}; do [[ $(<$events) == *'"type":"ask"'* ]] && break; sleep 0.1; done
-  REPLY=$(sed -n 's/.*"type":"ask".*/&/p' $events | sed -n 's/.*"id":"\([a-z0-9]\{10\}\)".*/\1/p' | head -1)
+  local p line=
+  # the event line can arrive in pieces: only a complete one counts
+  for p in {1..300}; do
+    line=$(grep -m1 '^data: {.*"type":"ask".*}$' $events 2>/dev/null)
+    [[ -n $line ]] && break
+    sleep 0.1
+  done
+  REPLY=$(print -r -- $line | sed -n 's/.*"id":"\([a-z0-9]\{10\}\)".*/\1/p')
 }
 events=$HOME/events.txt
-: >| $events
-curl -sN -m 60 $H -H 'Content-Type: application/json' -d '{"text":"please run the check"}' $B/api/chats/$chat/send >| $events &
-sender=$!
-for p in {1..100}; do [[ $(<$events) == *'"type":"ask"'* ]] && break; sleep 0.1; done
-qid=$(sed -n 's/.*"type":"ask".*/&/p' $events | sed -n 's/.*"id":"\([a-z0-9]\{10\}\)".*/\1/p' | head -1)
+asked $chat "please run the check"
+qid=$REPLY
 check_eq "the command asks first" ${#qid} 10
 check_has "with the command shown" "$(<$events)" '"detail":"echo lotus-test-ok"'
 check_has "it may be allowed for this conversation" "$(<$events)" '"always":true'
@@ -233,6 +235,7 @@ check_eq "auto: deleting still asks" ${#REPLY} 10
 check_has "and never with 'don't ask again'" "$(<$events)" '"always":false'
 answer $REPLY no >/dev/null
 wait $sender
+code -X POST $H $B/api/stop >/dev/null      # nothing may stay open for the next checks
 out=$(send_to $auto "please use admin rights")
 check_has "sudo never runs" "$out" "Lotus never uses sudo"
 setting LOTUS_AI_PERM_MODE ask >/dev/null
@@ -241,6 +244,37 @@ check_has "the state says it" "$(curl -s -m 5 $H $B/api/state)" '"effort":"quick
 setting LOTUS_AI_EFFORT high >/dev/null
 check_has "who answers: the test model" "$(curl -s -m 5 $H $B/api/models)" '"current":true'
 check_eq "an AI that is not there: refused" "$(code $H -H 'Content-Type: application/json' -d '{"kind":"claude","model":"claude-nope"}' $B/api/model)" 400
+
+# view_page: the AI looks at a web page it built, in WebKit, at desktop and phone width
+site=$HOME/work/site
+zf_mkdir -p $site
+print -r -- '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Test</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="gone.css"></head><body><main><h1>Hello</h1><img src="pic.png"><div style="width:900px">wide</div><input type="email"></main><script>console.error("boom"); nope();</script></body></html>' >| $site/index.html
+print -r -- 'h1 { color: rgb(170, 51, 170); }' >| $site/style.css
+print -r -- 'SECRET=1' >| $site/.env
+render=$($bin --render $site/index.html 390 $HOME/work - 2>/dev/null | tail -1)
+check_has "render: errors in the console, with the line" "$render" "Can't find variable: nope (index.html:"
+check_has "render: files that did not load" "$render" 'gone.css'
+check_has "render: too wide on a phone" "$render" '"scrollWidth":908'
+check_has "render: images without alt" "$render" '"noAlt":["pic.png"]'
+check_has "render: the field without a label" "$render" '"unlabeled":1'
+print -r -- '<html><body><link rel="stylesheet" href=".env"><link rel="stylesheet" href="../../outside.css"><script>fetch("https://example.com/?x=1").then(() => console.error("SENT")).catch(() => console.error("not sent"))</script></body></html>' >| $site/leak.html
+render=$($bin --render $site/leak.html 390 $HOME/work - 2>/dev/null | tail -1)
+check_has "render: private files are not served" "$render" "(private)"
+check "render: nothing outside the folder" eval '[[ $render == *"outside the folder"* || $render == *"outside.css"* ]]'
+check_has "render: the page cannot send anything" "$render" "not sent"
+look=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+out=$(send_to $look "please look at the page")
+check_has "view_page: a step of its own" "$out" '"name":"View"'
+check_has "view_page: the screenshot reaches the browser" "$out" '"type":"image"'
+check_has "view_page: the model gets the report" "$out" 'Page: site'
+check "view_page: the screenshot is kept" test -s $LOTUS_CACHE/ai/pages/index-phone.jpg
+# after a page is written, Lotus looks at it by itself and tells the model what it saw
+setting LOTUS_AI_PERM_MODE auto >/dev/null
+out=$(send_to $look "please make a page")
+check_has "written page: looked at in a browser" "$out" 'In a browser:'
+check_has "written page: the model hears what is wrong" "$out" 'Lotus opened site2'
+check_has "written page: the missing style is named" "$out" 'style.css'
+setting LOTUS_AI_PERM_MODE ask >/dev/null
 
 # memory, context, compact
 check_has "memory: empty at first" "$(curl -s -m 5 $H $B/api/memory)" '"facts":[]'

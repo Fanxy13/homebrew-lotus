@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.9.1">
-  <link rel="stylesheet" href="css/pages.css?v=2.9.1">
-  <script src="js/lotus.js?v=2.9.1"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.10.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.10.0">
+  <script src="js/lotus.js?v=2.10.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -111,6 +111,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     <div class="grid">
       <div class="card"><h3>Works on your Mac</h3><p class="muted">It can list, read and search files, create and change files and run commands. Reading inside the folder happens right away; every change and every command is shown first and needs a yes. <kbd>a</kbd> allows the rest of the session, <kbd>n</kbd> lets you say what to do instead. In auto mode (<kbd>⇧</kbd><kbd>⇥</kbd>) it only asks when Lotus is unsure. Never <code>sudo</code>.</p></div>
       <div class="card"><h3>Uses Lotus</h3><p class="muted">Ask in plain words and it uses Lotus itself: open or install an app, the weather, music, the theme, the clock, keeping your Mac awake, turning features on or off, Minecraft servers, removing an image background. It only gets the tools of the features that are on, says when one is off, asks before it changes or installs anything, and only reports what really worked. One list for every AI: <code>data/ai-tools.tsv</code>.</p></div>
+      <div class="card"><h3>Sees the pages it builds</h3><p class="muted">When it builds a website it opens the page in a real browser (WebKit, like Safari) at desktop and phone width and sees errors in the console, files that did not load, what is too wide, missing alt texts and labels – and, with a CSS selector, the size, colors and font of any element. Claude also gets a screenshot. After every HTML, CSS or JS file it writes, Lotus looks at the page by itself. The page sees only its folder and cannot send anything away.</p></div>
       <div class="card"><h3>Knows what is new</h3><p class="muted">It searches the web and reads pages – documentation, release notes, error messages, Wikipedia, Apple's developer docs – instead of guessing, and names its sources. Only the public internet: nothing on your Mac or in your network. What a page says is information for the AI, never an order.</p></div>
       <div class="card"><h3>Remembers</h3><p class="muted">The conversation stays for an hour after your last message, also for single questions with <code>/ai &lt;question&gt;</code>. What matters for later – how you like answers, your projects – it keeps with <code>remember</code>; <code>/memory</code> shows it, <code>/memory clear</code> forgets it. A <code>LOTUS.md</code>, <code>AGENTS.md</code> or <code>CLAUDE.md</code> in the folder tells it how to work there. <code>/ai new</code> or <code>/clear</code> starts fresh.</p></div>
       <div class="card"><h3>Better prompts</h3><p class="muted">Turn on <code>/enhance</code> and the AI first rewrites your message into a clear prompt – goal, details, expected result – in your language, with every name, path and command kept. Shown before it is sent, or offered so you choose. Short messages, commands and long texts go as typed.</p></div>

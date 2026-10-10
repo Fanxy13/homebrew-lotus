@@ -530,6 +530,25 @@ final class Renderer: @unchecked Sendable {
         emit(out + (asking ? "" : "\n"))
     }
 
+    // A screenshot in a tool step (view_page): the web chat shows it, iTerm2 and WezTerm show it in the
+    // terminal, elsewhere the step names the file
+    func toolImage(_ file: URL) {
+        guard let data = try? Data(contentsOf: file) else { return }
+        if let sink = sink {
+            let small = PageView.smaller(data, maxWidth: 720) ?? data      // kept with the conversation
+            sink("image", ["data": small.base64EncodedString(), "alt": "Screenshot of \(file.deletingPathExtension().lastPathComponent)"])
+            return
+        }
+        guard !quiet else { return }
+        let env = ProcessInfo.processInfo.environment
+        if Term.isTTY, ["iTerm.app", "WezTerm"].contains(env["TERM_PROGRAM"] ?? ""), env["TMUX"] == nil {
+            emit("     \u{1B}]1337;File=inline=1;width=56;preserveAspectRatio=1:" + data.base64EncodedString() + "\u{07}\n")
+        } else {
+            let home = NSHomeDirectory()
+            toolLines(["Screenshot: " + (file.path.hasPrefix(home) ? "~" + file.path.dropFirst(home.count) : file.path)])
+        }
+    }
+
     func info(_ s: String) {
         endBlock()
         if let sink = sink {
