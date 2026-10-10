@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.7.0
+typeset -g LOTUS_VERSION=2.8.0
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -23,6 +23,7 @@ typeset -ga LOTUS_KEYS=(
   LOTUS_AI_PROVIDER LOTUS_AI_MODEL LOTUS_AI_URL LOTUS_AI_EFFORT LOTUS_AI_LOCAL
   LOTUS_AI_CONTEXT LOTUS_AI_MAXTOKENS LOTUS_AI_TEMP LOTUS_AI_KVBITS
   LOTUS_AI_PERM_MODE LOTUS_AI_TOOLS LOTUS_AI_PERM_READ LOTUS_AI_PERM_READ_OUT LOTUS_AI_PERM_WRITE LOTUS_AI_PERM_WRITE_OUT LOTUS_AI_PERM_RUN LOTUS_AI_PERM_WEB LOTUS_AI_PERM_LOTUS
+  LOTUS_AI_SERVER_PORT LOTUS_AI_SERVER_BOOT LOTUS_AI_SERVER_LAN
   LOTUS_FEATURES_OFF
   LOTUS_CLOCK_DESIGN LOTUS_CLOCK_SECONDS LOTUS_CLOCK_ZONE LOTUS_CLOCK_ZONES
   LOTUS_BG_READY LOTUS_BG_MODEL LOTUS_BG_BACKEND LOTUS_BG_OUTPUT LOTUS_BG_REFINE LOTUS_BG_PREVIEW
@@ -41,6 +42,8 @@ lotus_defaults() {
   typeset -g LOTUS_AI_CONTEXT=32768 LOTUS_AI_MAXTOKENS=8192 LOTUS_AI_TEMP=0.6 LOTUS_AI_KVBITS=0
   # what /ai may do: ask first or auto (asks only when unsure), work on this Mac at all (1/0), per kind allow|ask|never
   typeset -g LOTUS_AI_PERM_MODE=ask LOTUS_AI_TOOLS=1 LOTUS_AI_PERM_READ=allow LOTUS_AI_PERM_READ_OUT=ask LOTUS_AI_PERM_WRITE=ask LOTUS_AI_PERM_WRITE_OUT=ask LOTUS_AI_PERM_RUN=ask LOTUS_AI_PERM_WEB=allow LOTUS_AI_PERM_LOTUS=ask
+  # the web chat (lotus ai server): its port, start with the first terminal (never unless turned on), other devices
+  typeset -g LOTUS_AI_SERVER_PORT=3000 LOTUS_AI_SERVER_BOOT=0 LOTUS_AI_SERVER_LAN=0
   typeset -g LOTUS_FEATURES_OFF=
   typeset -g LOTUS_CLOCK_DESIGN=big LOTUS_CLOCK_SECONDS=1 LOTUS_CLOCK_ZONE= LOTUS_CLOCK_ZONES='America/New_York Europe/London Asia/Tokyo Australia/Sydney'
   typeset -g LOTUS_BG_READY=0 LOTUS_BG_MODEL=auto LOTUS_BG_BACKEND=auto LOTUS_BG_REFINE=ask LOTUS_BG_PREVIEW=0
@@ -62,6 +65,9 @@ lotus_load() {
     (( ${#full[1]} > 1 )) && LOTUS_NAME=$full[1] || LOTUS_NAME=${(C)${USER:-${LOGNAME:-$(id -un)}}}
   fi
   [[ $LOTUS_INTERVAL == <1-60> ]] || LOTUS_INTERVAL=2
+  [[ $LOTUS_AI_SERVER_PORT == <1024-65535> ]] || LOTUS_AI_SERVER_PORT=3000
+  [[ $LOTUS_AI_SERVER_BOOT == 1 ]] || LOTUS_AI_SERVER_BOOT=0
+  [[ $LOTUS_AI_SERVER_LAN == 1 ]] || LOTUS_AI_SERVER_LAN=0
   [[ -n ${LOTUS_LOG_RANK[$LOTUS_LOG_LEVEL]} ]] || LOTUS_LOG_LEVEL=info
   _lotus_log_max=-1
   # Now playing needs the Music feature as well as its start screen section

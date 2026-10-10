@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.7.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.7.0">
-  <script src="js/lotus.js?v=2.7.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.8.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.8.0">
+  <script src="js/lotus.js?v=2.8.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -137,6 +137,26 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Ollama</h3><p class="muted">Local models. Install Ollama, open the app and download a model that can use tools, e.g. <code>ollama pull qwen3</code>.</p></div>
       <div class="card"><h3>OpenAI-compatible</h3><p class="muted">Any service with an OpenAI-style API. Set the URL in <code>/settings</code>, the key with <code>lotus ai key openai</code>.</p></div>
     </div>
+    <h3 style="margin-top:30px" id="ai-web">In your browser</h3>
+    <p><code>/ai server start</code> opens Lotus AI in your browser – a chat page that Lotus serves itself on this Mac, at <code>http://127.0.0.1:3000</code>. It is the same AI as <code>/ai</code>, not a second one: the same providers, instructions, Lotus tools and permissions. Answers stream in as they are written.</p>
+    <div class="grid">
+      <div class="card"><h3>A real chat</h3><p class="muted">Your conversations in a sidebar – new chat, history, clear, delete. Markdown, tables and code blocks with a copy button, and the steps the AI takes with what they returned. <kbd>⏎</kbd> sends, <kbd>⇧</kbd><kbd>⏎</kbd> makes a new line. Works on a phone and a computer, in the colors of your theme.</p></div>
+      <div class="card"><h3>Asks in the browser</h3><p class="muted">Before it changes something the AI asks in the page, with a preview: yes, yes and don't ask again, no, or what to do instead. The levels of the terminal: reading runs, changes ask unless you allowed them, installing always asks. From the web every command asks, one by one.</p></div>
+      <div class="card"><h3>Only this Mac</h3><p class="muted">It listens on 127.0.0.1 and never starts by itself. <code>/ai server open</code> signs the browser in with your access key; without it the page stays locked. Other pages cannot use it, and your API keys never reach the browser.</p></div>
+      <div class="card"><h3>Keeps going</h3><p class="muted">A reload or a lost connection does not lose an answer – the page picks it up again. The stop button or <kbd>esc</kbd> stops it.</p></div>
+    </div>
+    <div class="table-wrap" style="margin-top:18px">
+      <table class="docs">
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr><td><code>/ai server</code></td><td>Status and a menu: open, start or stop, restart, port, start with the terminal, other devices</td></tr>
+        <tr><td><code>/ai server start</code> · <code>stop</code> · <code>restart</code></td><td>Start it (it opens in your browser), stop it, start it again after a change</td></tr>
+        <tr><td><code>/ai server open</code></td><td>Open the page and sign in with your access key</td></tr>
+        <tr><td><code>/ai server status</code></td><td>Running or off, the address and the folder it works in</td></tr>
+        <tr><td><code>/ai server port 3001</code></td><td>Another port (default 3000), kept in the settings. When a port is in use, Lotus says by which program and offers the next free one – it never changes it without asking</td></tr>
+      </table>
+    </div>
+    <p class="muted">It works in the folder where you started it, like <code>/ai</code>. <code>/settings</code> → AI → "Web chat: start with terminal" starts it with the first terminal window – off unless you turn it on. "Web chat: other devices" lets your phone or another Mac in your network open it with the link that contains your key; that connection is not encrypted, so only turn it on in networks you trust.</p>
+
     <p class="muted">The AI terminal is a small Swift program that Lotus builds once on your Mac (about 15 seconds; needs the Command Line Tools: <code>xcode-select --install</code>). Keys come from the Keychain or <code>$ANTHROPIC_API_KEY</code> / <code>$LOTUS_AI_KEY</code> and are never written to a file. <code>/ai command</code> only suggests a command – it never runs it.</p>
 
     <h2 class="section" id="bg">Remove BG</h2>
@@ -232,6 +252,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Checked input</h3><p class="muted">Links must be http or https, package names and city names are validated, and shortcuts cannot run shell commands.</p></div>
       <div class="card"><h3>Trusted sources</h3><p class="muted">Apps come from Homebrew Cask, Minecraft servers from Mojang or PaperMC (checksums verified), iOS tools from their official releases, Remove BG models from their authors – pinned and checked with SHA-256.</p></div>
       <div class="card"><h3>Images stay on your Mac</h3><p class="muted">Remove BG reads and writes local files only. No cloud API, no upload; dropped paths are never run as commands.</p></div>
+      <div class="card"><h3>The web chat stays home</h3><p class="muted"><code>/ai server</code> listens on 127.0.0.1 only and needs your access key (a file only you can read). It answers only to its own address, checks a token on every request and where every change comes from, and never sends API keys to the browser. Conversations stay in <code>~/.local/state/lotus/ai-chats</code>.</p></div>
       <div class="card"><h3>Pets talk on your Mac</h3><p class="muted">Pets think with Apple Intelligence on the device; what you tell them and what they remember stays in <code>~/.local/state/lotus</code>. A pet file is only read as data – its drawings keep plain ASCII and block characters.</p></div>
     </div>
 
@@ -243,6 +264,8 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
         <tr><td>Wrong colors</td><td><code>/settings</code> → Color mode → 256 colors.</td></tr>
         <tr><td>No logo</td><td>The window is too narrow – Lotus switches to the minimal logo, then none. Make the window wider.</td></tr>
         <tr><td><code>/skip</code> does nothing</td><td>Spotify and Music work directly. Other players need your terminal app in System Settings → Privacy &amp; Security → Accessibility.</td></tr>
+        <tr><td>The web chat says the port is in use</td><td>Say yes to the free port Lotus offers, or choose one: <code>/ai server port 3001</code>.</td></tr>
+        <tr><td>The web chat page is locked</td><td>Open it from the terminal: <code>/ai server open</code> – the link signs you in.</td></tr>
         <tr><td>A command says its feature is off</td><td><code>lotus features</code> or <code>/settings</code> → Features.</td></tr>
         <tr><td>Remove BG fails</td><td>The error screen shows an ID and what to try. Details: <code>/lotus log</code>. Checks: <code>lotus doctor</code>.</td></tr>
         <tr><td>Anything else</td><td>Run <code>lotus doctor</code>, look at <code>/lotus log</code>, and open an issue on <a data-link="repo" href="https://github.com/Fanxy13/homebrew-lotus">GitHub</a>.</td></tr>

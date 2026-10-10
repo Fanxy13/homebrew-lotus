@@ -1,0 +1,133 @@
+# The AI web chat (lotus ai server): settings, port, 127.0.0.1 only, the access key and the request
+# checks, a streamed answer with a question answered from "the browser", stop.
+# The answers come from tests/fake-openai.py – an OpenAI-compatible model on this Mac, no real AI needed.
+source $LOTUS_ROOT/lib/core.zsh
+source $LOTUS_ROOT/lib/ui.zsh
+lotus_load
+lotus() { $LOTUS_ROOT/bin/lotus "$@" }
+zmodload zsh/net/tcp
+
+check_eq "the default port is 3000" "$LOTUS_AI_SERVER_PORT" 3000
+check_eq "it does not start with the terminal unless turned on" "$LOTUS_AI_SERVER_BOOT" 0
+check_eq "other devices are off by default" "$LOTUS_AI_SERVER_LAN" 0
+check_has "off at first" "$(lotus ai server status)" "off (port 3000)"
+
+lotus ai server port abc >/dev/null 2>&1; check_eq "a port must be a number" $? 2
+lotus ai server port 80 >/dev/null 2>&1; check_eq "ports below 1024 are refused" $? 2
+lotus ai server port 70000 >/dev/null 2>&1; check_eq "ports above 65535 are refused" $? 2
+lotus_load
+check_eq "a refused port changes nothing" "$LOTUS_AI_SERVER_PORT" 3000
+
+if ! lotus_can_swift || ! (( $+commands[python3] && $+commands[curl] )); then
+  print -r -- "  - the server checks need the Command Line Tools, python3 and curl – skipped"
+  return 0
+fi
+
+# the AI program, built in this test's home (about 10 seconds)
+source $LOTUS_ROOT/lib/cmd/ai.zsh
+_ai_build 2>/dev/null
+lotus_ai_helper
+bin=$REPLY
+check "the AI program builds" test -x $bin
+
+# two free ports: the web chat and the test model
+typeset -i port=0 mport=0 p
+for (( p = 39100 + RANDOM % 600; p < 39900; p++ )); do
+  [[ $($bin --port-check $p) == free ]] || continue
+  if (( ! mport )); then mport=p; else port=p; break; fi
+done
+python3 $LOTUS_ROOT/tests/fake-openai.py $mport &
+fake=$!
+lotus ai server port $port >/dev/null
+lotus_load
+check_eq "the port is kept in the settings" "$LOTUS_AI_SERVER_PORT" $port
+check_has "it is in the settings file" "$(<$LOTUS_CONF/settings.zsh)" "LOTUS_AI_SERVER_PORT='$port'"
+LOTUS_AI_PROVIDER=openai LOTUS_AI_URL=http://127.0.0.1:$mport/v1 LOTUS_AI_MODEL=test-model
+lotus_save
+export LOTUS_AI_KEY=sk-lotus-test-secret-0123456789
+for p in {1..50}; do curl -s -m 1 -o /dev/null http://127.0.0.1:$mport/ && break; sleep 0.1; done
+
+# an occupied port: a clear error, and the port in the settings stays as it is
+ztcp -l $port
+busy=$REPLY
+out=$(lotus ai server start 2>&1); rc=$?
+check_eq "an occupied port: it does not start" $rc 1
+check_has "and says the port is in use" "$out" "Port $port is already in use"
+check_has "and offers another one" "$out" "lotus ai server port"
+ztcp -c $busy
+lotus_load
+check_eq "the port was not changed silently" "$LOTUS_AI_SERVER_PORT" $port
+
+out=$(cd $LOTUS_ROOT/tests && lotus ai server start 2>&1); rc=$?
+check_eq "it starts" $rc 0
+check_has "on 127.0.0.1" "$out" "http://127.0.0.1:$port"
+check_has "status: running" "$(lotus ai server status)" "running on http://127.0.0.1:$port"
+check_has "starting again: it says it runs already" "$(lotus ai server start 2>&1)" "already running"
+if (( $+commands[lsof] )); then
+  listen=$(lsof -nP -iTCP:$port -sTCP:LISTEN 2>/dev/null)
+  check_has "it listens on 127.0.0.1 only" "$listen" "127.0.0.1:$port"
+  check "not on every address" eval '[[ $listen != *"*:$port"* ]]'
+fi
+
+B=http://127.0.0.1:$port
+key=$(<$LOTUS_STATE/ai-server.key)
+check "the access key file is private" eval '[[ $(stat -f %Lp $LOTUS_STATE/ai-server.key) == 600 ]]'
+code() { curl -s -m 5 -o /dev/null -w '%{http_code}' "$@" }
+check_has "health" "$(curl -s -m 5 $B/api/health)" '"app":"lotus-ai"'
+check_eq "the page without the key: locked" "$(code $B/)" 401
+check_eq "a wrong key: locked" "$(code "$B/?key=nope")" 401
+check_has "the right key signs in (cookie)" "$(curl -s -m 5 -D - -o /dev/null "$B/?key=$key")" "Set-Cookie: lotus_ai_key="
+check_eq "another host name is refused (DNS rebinding)" "$(code -H "Host: evil.example:$port" --cookie "lotus_ai_key=$key" $B/)" 421
+page=$(curl -s -m 5 --cookie "lotus_ai_key=$key" $B/)
+token=$(print -r -- $page | sed -n 's/.*name="lotus-token" content="\([a-z0-9]*\)".*/\1/p')
+check_eq "the page has a token" ${#token} 32
+check_eq "the API without the token: refused" "$(code --cookie "lotus_ai_key=$key" $B/api/state)" 401
+check_eq "the API without the cookie: refused" "$(code -H "X-Lotus-Token: $token" $B/api/state)" 401
+H=(--cookie "lotus_ai_key=$key" -H "X-Lotus-Token: $token")
+check_eq "a change without Origin: refused" "$(code -X POST $H $B/api/chats)" 403
+check_eq "a change from another site: refused" "$(code -X POST $H -H 'Origin: http://evil.example' $B/api/chats)" 403
+H+=(-H "Origin: $B")
+state=$(curl -s -m 5 $H $B/api/state)
+check_has "the state names the AI" "$state" '"ai":"test-model'
+check "the API key never reaches the browser" eval '[[ $state$page != *sk-lotus-test-secret* ]]'
+chat=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+check_eq "a new conversation" ${#chat} 12
+check_eq "an unknown conversation" "$(code $H $B/api/chats/aaaaaaaaaaaa)" 404
+check_eq "an empty message is refused" "$(code $H -H 'Content-Type: application/json' -d '{"text":"  "}' $B/api/chats/$chat/send)" 400
+
+# a message: the model wants to run a command – from the web that always asks, without "don't ask again"
+events=$HOME/events.txt
+: >| $events
+curl -sN -m 60 $H -H 'Content-Type: application/json' -d '{"text":"please run the check"}' $B/api/chats/$chat/send >| $events &
+sender=$!
+for p in {1..100}; do [[ $(<$events) == *'"type":"ask"'* ]] && break; sleep 0.1; done
+qid=$(sed -n 's/.*"type":"ask".*/&/p' $events | sed -n 's/.*"id":"\([a-z0-9]\{10\}\)".*/\1/p' | head -1)
+check_eq "the command asks first" ${#qid} 10
+check_has "with the command shown" "$(<$events)" '"detail":"echo lotus-test-ok"'
+check_has "and no 'always' from the web" "$(<$events)" '"always":false'
+check_eq "busy: a second message waits" "$(code $H -H 'Content-Type: application/json' -d '{"text":"hi"}' $B/api/chats/$chat/send)" 409
+check_eq "'don't ask again' is refused for it" "$(code $H -H 'Content-Type: application/json' -d "{\"id\":\"$qid\",\"answer\":\"always\"}" $B/api/answer)" 400
+check_eq "yes from the browser" "$(code $H -H 'Content-Type: application/json' -d "{\"id\":\"$qid\",\"answer\":\"yes\"}" $B/api/answer)" 200
+wait $sender
+out=$(<$events)
+check_has "the command ran" "$out" '"text":"exit 0'
+check_has "the answer streams the result" "$out" 'lotus-test-ok'
+check_has "and ends" "$out" '"type":"done"'
+saved=$(curl -s -m 5 $H $B/api/chats/$chat)
+check_has "the conversation is kept" "$saved" '"role":"assistant"'
+check_has "with its title" "$saved" '"title":"please run the check"'
+check "the conversation file is private" eval '[[ $(stat -f %Lp $LOTUS_STATE/ai-chats/$chat.json) == 600 ]]'
+out=$(curl -sN -m 30 $H -H 'Content-Type: application/json' -d '{"text":"hello"}' $B/api/chats/$chat/send)
+check_has "a plain answer streams as text" "$out" 'from** the test model'
+check_eq "clear" "$(code -X POST $H $B/api/chats/$chat/clear)" 200
+check_has "cleared: no messages" "$(curl -s -m 5 $H $B/api/chats/$chat)" '"messages":[]'
+check_eq "delete" "$(code -X DELETE $H $B/api/chats/$chat)" 200
+check "deleted: the file is gone" eval '[[ ! -e $LOTUS_STATE/ai-chats/$chat.json ]]'
+
+pid=$(cut -d' ' -f1 $LOTUS_STATE/ai-server | head -1)
+out=$(lotus ai server stop); rc=$?
+check_eq "stop" $rc 0
+check "the server is gone" eval '! kill -0 $pid 2>/dev/null'
+check_has "status: off" "$(lotus ai server status)" "off (port $port)"
+check_eq "the port is free again" "$($bin --port-check $port)" free
+kill $fake 2>/dev/null

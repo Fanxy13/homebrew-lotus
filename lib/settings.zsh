@@ -72,6 +72,9 @@ lotus_settings_ui() {
       "text|LOTUS_AI_MODEL|$LOTUS_L[ai_model]|"
       "text|LOTUS_AI_URL|$LOTUS_L[ai_url]|"
       "action|aikey|$LOTUS_L[ai_key]|"
+      "action|aiserver|${LOTUS_L[ai_srv]:-Web chat in the browser}|"
+      "choice|LOTUS_AI_SERVER_BOOT|${LOTUS_L[ai_srv_boot]:-Web chat: start with terminal}|0=$LOTUS_L[off];1=$LOTUS_L[on]"
+      "choice|LOTUS_AI_SERVER_LAN|${LOTUS_L[ai_srv_lan]:-Web chat: other devices}|0=$LOTUS_L[off];1=$LOTUS_L[on]"
       "head||${LOTUS_L[head_ai_perm]:-AI: what it may do}|"
       "choice|LOTUS_AI_PERM_MODE|${LOTUS_L[ai_p_mode]:-Mode}|ask=${LOTUS_L[ai_p_mode_ask]:-ask first};auto=${LOTUS_L[ai_p_mode_auto]:-auto – asks only when unsure}"
       "choice|LOTUS_AI_TOOLS|${LOTUS_L[ai_tools]:-Work on this Mac}|1=$LOTUS_L[on];0=$LOTUS_L[off]"
@@ -234,6 +237,7 @@ lotus_settings_ui() {
           setup)     _ls_run setup setup ;;
           aikey)     _ls_run ai ai key ;;
           aillm)     _ls_run ai ai local ;;
+          aiserver)  _ls_run ai ai server ;;
           bgmodels)  _ls_run bg bg models ;;
           log)       _ls_run log log ;;
           pets)      _ls_run pets pets ;;

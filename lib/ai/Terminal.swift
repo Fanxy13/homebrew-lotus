@@ -76,6 +76,12 @@ final class Out: @unchecked Sendable {
 }
 
 func emit(_ text: String) {
+    // in the web chat, what is written directly (a plan, a note) arrives as a note
+    if let sink = Renderer.shared.sink {
+        let plain = ToolRunner.plain(text).trimmingCharacters(in: CharacterSet(charactersIn: " \n⎿✻"))
+        if !plain.isEmpty { Renderer.shared.endBlock(); sink("info", ["text": plain]) }
+        return
+    }
     Spinner.shared.stop()
     Out.shared.write(text)
 }
@@ -473,8 +479,10 @@ final class Spinner: @unchecked Sendable {
     }()
     private var rowsDrawn = 1       // rows the spinner takes on screen; the cursor rests on the first one
     var hint = "esc to stop"
+    var onLabel: ((String) -> Void)?    // the web chat shows what the AI is doing
 
     func start(_ text: String) {
+        onLabel?(text)
         guard Term.isTTY else { return }
         lock.lock()
         label = text
@@ -493,6 +501,7 @@ final class Spinner: @unchecked Sendable {
     }
 
     func setLabel(_ text: String) {
+        onLabel?(text)
         lock.lock()
         label = text
         lock.unlock()

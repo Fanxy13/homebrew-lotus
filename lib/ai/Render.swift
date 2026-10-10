@@ -256,10 +256,19 @@ final class Renderer: @unchecked Sendable {
     private var thinking: MarkdownStream?
     private var thinkingStarted: Date?
     var quiet = false            // plain mode: no bullets, no colors
+    // The web chat (Server.swift): every block becomes an event for the browser instead of terminal output
+    var sink: ((String, [String: Any]) -> Void)?
+    private var webText = false  // a text block is open in the web chat
 
     func textDelta(_ s: String) {
         guard !s.isEmpty else { return }
         lock.lock(); defer { lock.unlock() }
+        if let sink = sink {
+            webCloseThinking(sink)
+            webText = true
+            sink("text", ["text": s])
+            return
+        }
         closeThinking()
         if quiet { emit(s); return }
         if text == nil { text = MarkdownStream(bullet: Style.logo + "● " + Style.reset) }
@@ -271,6 +280,10 @@ final class Renderer: @unchecked Sendable {
     func thinkingDelta(_ s: String) {
         guard !s.isEmpty, !quiet else { return }
         lock.lock(); defer { lock.unlock() }
+        if let sink = sink {
+            if thinkingStarted == nil { thinkingStarted = Date(); sink("thinking", [:]) }
+            return
+        }
         if thinkingStarted == nil {
             closeText()
             thinkingStarted = Date()
@@ -295,9 +308,20 @@ final class Renderer: @unchecked Sendable {
         }
     }
 
+    private func webCloseThinking(_ sink: (String, [String: Any]) -> Void) {
+        guard let started = thinkingStarted else { return }
+        thinkingStarted = nil
+        sink("thought", ["secs": max(1, Int(Date().timeIntervalSince(started)))])
+    }
+
     // Closes whatever is open, e.g. before a tool step or at the end of the answer
     func endBlock() {
         lock.lock(); defer { lock.unlock() }
+        if let sink = sink {
+            webCloseThinking(sink)
+            if webText { webText = false; sink("end", [:]) }
+            return
+        }
         closeThinking()
         if quiet {
             if text != nil { text = nil }
@@ -308,18 +332,28 @@ final class Renderer: @unchecked Sendable {
 
     func toolHeader(_ name: String, _ detail: String) {
         endBlock()
+        if let sink = sink { sink("tool", ["name": name, "detail": String(detail.prefix(2000))]); return }
         let room = max(10, Term.width - cellWidth(name) - 6)
         let args = detail.isEmpty ? "" : "\(Style.dim)(\(Style.reset)\(clip(detail, room))\(Style.dim))\(Style.reset)"
         emit("\(Style.key)●\(Style.reset) \(Style.bold)\(name)\(Style.reset)\(args)\n")
     }
 
     func toolResult(_ summary: String, error: Bool = false) {
+        if let sink = sink { sink("result", ["text": String(summary.prefix(2000)), "error": error]); return }
         let color = error ? Style.red : Style.dim
         emit("  \(Style.dim)⎿\(Style.reset)  \(color)\(clip(summary, max(20, Term.width - 6)))\(Style.reset)\n\n")
     }
 
     // Indented preview lines below a tool step
     func toolLines(_ lines: [String], color: String = Style.dim, limit: Int = 8) {
+        if let sink = sink {
+            // the browser has room for more of a preview; a long one scrolls
+            let n = max(limit, 40)
+            let kind = color == Style.green ? "add" : color == Style.red ? "del" : color == Style.accent ? "note" : "dim"
+            sink("lines", ["lines": lines.prefix(n).map { String($0.replacingOccurrences(of: "\t", with: "    ").prefix(400)) },
+                           "more": max(0, lines.count - n), "color": kind])
+            return
+        }
         let width = max(20, Term.width - 7)
         for line in lines.prefix(limit) {
             emit("     \(color)\(clip(line.replacingOccurrences(of: "\t", with: "  "), width))\(Style.reset)\n")
@@ -331,12 +365,18 @@ final class Renderer: @unchecked Sendable {
 
     func info(_ s: String) {
         endBlock()
+        if let sink = sink {
+            let text = ToolRunner.plain(s).trimmingCharacters(in: CharacterSet(charactersIn: " \n⎿✻"))
+            if !text.isEmpty { sink("info", ["text": text]) }
+            return
+        }
         emit("  \(Style.dim)\(s)\(Style.reset)\n")
     }
 
     func error(_ title: String, _ detail: String = "") {
         Log.write("ERROR", detail.isEmpty ? title : "\(title) – \(detail)")
         endBlock()
+        if let sink = sink { sink("error", ["title": title, "detail": detail]); return }
         emit("\(Style.red)●\(Style.reset) \(Style.bold)\(title)\(Style.reset)\n")
         if !detail.isEmpty {
             for line in detail.split(separator: "\n", omittingEmptySubsequences: false) {

@@ -47,6 +47,7 @@ LOTUS_L+=(
   pet_react 'Haustiere reagieren'  pet_brain 'Haustiere denken mit'
   pet_brain_ai 'der KI von /ai'  pet_brain_off 'nichts (kurze Sätze)'  pet_manage 'Deine Haustiere'  feat_pets 'Haustiere'
   ai_local 'Auf diesem Mac (MLX)'  ai_local_get 'Modelle auf diesem Mac'
+  ai_srv 'Web-Chat im Browser'  ai_srv_boot 'Web-Chat: mit Terminal starten'  ai_srv_lan 'Web-Chat: andere Geräte'
   ai_ctx 'Kontextfenster'  ai_len 'Antwortlänge'  ai_temp 'Kreativität'  ai_temp_p 'präzise'  ai_temp_b 'ausgewogen'  ai_temp_c 'kreativ'  ai_kv 'Speicher sparen'
   head_ai_perm 'KI: was sie darf'  ai_tools 'Am Mac arbeiten'  ai_p_read 'Dateien im Ordner ansehen'  ai_p_read_out 'Dateien woanders ansehen'
   caf_title 'Wach halten'  caf_sub 'Dein Mac schläft nicht, solange das an ist – für Downloads, Renderings oder einen Minecraft-Server'

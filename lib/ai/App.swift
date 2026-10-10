@@ -5,6 +5,8 @@
 //   lotus-ai --task <text>    one answer without memory or tools (instructions: $LOTUS_AI_INSTRUCTIONS)
 //   lotus-ai --plain <text>   like --task, plain text only (for other commands to read)
 //   lotus-ai --check          is Apple Intelligence available?
+//   lotus-ai --serve <port>   the web chat in the browser (Server.swift, started by lotus ai server start)
+//   lotus-ai --port-check <port> [lan]   "free" or "used"
 //
 // The provider, model, keys and colors come from environment variables set by lib/cmd/ai.zsh.
 // Keys are never written to disk by this program.
@@ -53,7 +55,7 @@ final class Conversation {
     var turns: [Turn] = []
     var summary = ""
     var updated = Date()
-    private let file: URL
+    private let file: URL?          // nil: kept by someone else (the web chat keeps its own conversations)
     static let keepFor: TimeInterval = 3600
 
     private struct Stored: Codable {
@@ -62,9 +64,9 @@ final class Conversation {
         var updated: Double
     }
 
-    init(file: URL) {
+    init(file: URL?) {
         self.file = file
-        guard let data = try? Data(contentsOf: file),
+        guard let file = file, let data = try? Data(contentsOf: file),
               let s = try? JSONDecoder().decode(Stored.self, from: data) else { return }
         let when = Date(timeIntervalSince1970: s.updated)
         guard Date().timeIntervalSince(when) < Conversation.keepFor else {
@@ -80,6 +82,7 @@ final class Conversation {
 
     func save() {
         updated = Date()
+        guard let file = file else { return }
         let s = Stored(turns: turns, summary: summary, updated: updated.timeIntervalSince1970)
         guard let data = try? JSONEncoder().encode(s) else { return }
         try? data.write(to: file, options: .atomic)
@@ -89,7 +92,7 @@ final class Conversation {
     func clear() {
         turns = []
         summary = ""
-        try? FileManager.default.removeItem(at: file)
+        if let file = file { try? FileManager.default.removeItem(at: file) }
     }
 
     func asText(limit: Int) -> String {
@@ -104,7 +107,7 @@ final class Conversation {
 final class Agent {
     var config: Config
     var provider: Provider
-    let conversation: Conversation
+    var conversation: Conversation
     let runner: ToolRunner
     let interaction: Interaction
     let keys: KeyQueue?
@@ -112,6 +115,8 @@ final class Agent {
     var usesTools: Bool              // false: the AI only talks (switched off in the permissions)
     var lastAnswer = ""
     var restartForLocal = false      // /model chose the model on this Mac: Lotus starts it, then /ai opens again
+    var browser = false              // the web chat: the instructions say where the user reads the answers
+    private var currentWork: Task<String, Error>?
 
     init(config: Config, keys: KeyQueue?, memory: Bool, tools: Bool = true) throws {
         self.config = config
@@ -192,6 +197,7 @@ final class Agent {
         } else {
             parts = ["identity"] + (tools ? ["work"] + (ToolCatalog.lotus.isEmpty ? [] : ["lotus"]) + ["web", "memory"] : []) + ["answer"]
         }
+        if browser { parts.append("browser") }
         var p = parts.compactMap { s[$0] }.map(fill).joined(separator: "\n\n")
         if p.isEmpty {
             // the file is missing: still a sensible start
@@ -274,8 +280,10 @@ final class Agent {
             let runner = tools && usesTools ? self.runner : nil
             let provider = self.provider
             let work = Task { try await provider.send(text, tools: runner) }
+            currentWork = work
             let watcher = keys.map { k in Task { await self.watch(k, work) } }
             let result = await work.result
+            currentWork = nil
             watcher?.cancel()
             Spinner.shared.stop()
             Renderer.shared.endBlock()
@@ -307,6 +315,9 @@ final class Agent {
             }
         }
     }
+
+    // Stops the answer that is being written (the web chat's stop button; the terminal uses esc)
+    func stop() { currentWork?.cancel() }
 
     private func remember(_ question: String, _ answer: String) {
         let actions = runner.takeActions()
@@ -816,6 +827,17 @@ struct LotusAI {
 
         case "--tui":
             exit(await TUI.run(config))
+
+        case "--serve":
+            guard let port = args.first.flatMap({ Int($0) }), (1024...65535).contains(port) else {
+                FileHandle.standardError.write(Data("Usage: lotus-ai --serve <port 1024–65535>\n".utf8))
+                exit(2)
+            }
+            exit(await WebServer.run(config, port: port))
+
+        case "--port-check":
+            guard let port = args.first.flatMap({ Int($0) }), (1...65535).contains(port) else { exit(2) }
+            print(Net.isFree(port, lan: args.dropFirst().first == "1") ? "free" : "used")
 
         case "--once":
             let prompt = readPrompt(args)

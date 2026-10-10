@@ -77,6 +77,7 @@ lotus_uninstall() {
   lotus_unhook
   # a caffeinate that Lotus started stops with it
   source $LOTUS_ROOT/lib/cmd/caffeine.zsh && lotus_caffeine_off quiet
+  source $LOTUS_ROOT/lib/cmd/aiserver.zsh && lotus_ai_server_stop quiet
   [[ -e $LOTUS_CONF/hushlogin-by-lotus ]] && rm -f $HOME/.hushlogin
   rm -rf $LOTUS_CONF $LOTUS_CACHE $LOTUS_STATE
   # Remove BG: its Python environment and the downloaded models

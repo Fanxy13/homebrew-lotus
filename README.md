@@ -100,6 +100,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | | `lotus ai login` or `/login` | Connect Claude in a minute; also Apple Intelligence, Ollama or an OpenAI-compatible API |
 | | `lotus ai local` | Models that run on this Mac with Apple's MLX – no Ollama: download, switch, remove; thinking, context window, answer length, creativity |
 | | `/ai explain`, `summarize`, `write`, `command` | Explain an error, summarize a file, draft text, suggest a command |
+| | `/ai server start`, `/ai server` | Lotus AI in your browser: a web chat on this Mac (127.0.0.1:3000) – the same AI, tools and questions · status, stop, port |
 | Audio | `/np`, `/play`, `/pause`, `/skip`, `/back` | What is playing, play, pause, next, previous |
 | | `/repeat`, `/mute`, `/vu`, `/vd` | Repeat, mute, volume up and down |
 | Media | `/lotus visual` | Audio visualizer with 8 modes (space: next mode, `q`: quit) |
@@ -138,6 +139,34 @@ lotus shortcut add yt "https://www.youtube.com/results?search_query={q}"
 /convert https://example.com/video   # then pick MP3 or MP4
 /bg remove ~/Pictures/portrait.jpg   # → ~/Pictures/Lotus/Background Removed/portrait_no_bg.png
 ```
+
+## The AI in your browser
+
+```bash
+/ai server start        # starts the web chat and opens it: http://127.0.0.1:3000
+/ai server              # status, and a menu: open, stop, restart, port, start with the terminal, other devices
+/ai server port 3001    # another port – kept in the settings
+/ai server stop
+```
+
+The web chat is the same AI as `/ai`, not a second one: the AI program of Lotus serves the page
+itself (`lotus-ai --serve`, `lib/ai/Server.swift`) with the same providers, instructions
+(`data/ai/system.md`), tools (`data/ai-tools.tsv`) and permissions. Answers stream in; a sidebar
+keeps your conversations (new, history, clear, delete); Markdown, tables and code blocks with a
+copy button; Enter sends, Shift+Enter makes a new line. It works on a phone too, in your theme's colors.
+
+**Questions in the browser.** When the AI wants to change something it asks in the page, with a
+preview: yes, yes and don't ask again, no, or what to do instead. The levels are those of the
+terminal – reading runs, changes ask unless allowed or in auto mode, installing always asks. From the
+web every command asks, one by one, and tools that need the terminal (the clock, Remove BG) stay there.
+
+**Safe by default.** It listens on 127.0.0.1 only and never starts by itself (unless you turn on
+`/settings` → AI → "Web chat: start with terminal"). `/ai server open` signs the browser in with
+your access key (a cookie); without it the page stays locked. The server answers only to its own
+address, every request needs the page's token, and changes must come from the page itself. API keys
+never reach the browser. Other devices in your network only when you turn that on – they need the
+link with your key, and the connection is not encrypted. An occupied port gets a clear message and an
+offer of the next free one; Lotus never changes the port without asking.
 
 ## Remove BG
 
@@ -207,6 +236,7 @@ manual refinement (offer, always, never), preview after processing, model cache.
 - Greetings, sections, now playing and live updates
 - Features: turn each part of Lotus on or off (its settings disappear while it is off)
 - Weather city and units, search engine, AI provider, model and how hard it thinks, visualizer mode
+- AI web chat: open its menu, start it with the terminal, allow other devices (with the key)
 - Remove BG: model, backend, output folder, manual refinement, preview, model cache
 - Pets: your pets, the pet on the start screen, `/help` with a pet, reactions, what pets think with (Apple Intelligence, the AI of `/ai`, nothing)
 - Diagnostics: log level (off, errors and warnings, normal, detailed, everything), how long logs are kept, startup details
@@ -237,6 +267,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 - The AI can use Lotus itself (open or install apps, weather, music, theme, clock, keep awake, features, Minecraft) through one list of tools, `data/ai-tools.tsv`. It only gets the tools of features that are on, every argument is checked against that list, and the commands are run with fixed arguments – never as a shell string the model wrote. Changing things asks first (`/permissions` → "Use Lotus features"), installing an app always asks.
 - The AI can search the web (DuckDuckGo, Wikipedia) and read pages; `/permissions` → "Search and read the web" turns that to ask first or off. Search words go to DuckDuckGo or Wikipedia, pages are fetched directly, without cookies. Only the public internet – addresses on this Mac or in the local network are refused, also after a redirect. Web text is marked as information, never as instructions; in auto mode commands ask again after the AI has read web pages, and an address that carries a lot of data always asks.
 - What the AI remembers between conversations (`remember`, `/memory`) is a plain text file next to your settings (`~/.config/lotus/ai-memory.md`); passwords and keys are never kept.
+- The web chat (`/ai server`) listens on 127.0.0.1 only and never starts unless you start it. The browser signs in with an access key (`~/.local/state/lotus/ai-server.key`, only you can read it); the server answers only to its own address, checks a per-page token and the origin of every change, and never sends API keys to the browser. From the web every command asks. Conversations are kept in `~/.local/state/lotus/ai-chats`, readable only by you.
 - Links, package names, city names and shortcut names are validated; shortcuts cannot run shell commands.
 - `/convert` is meant for content you have the right to download. It does not bypass DRM or paywalls.
 - `/ios` only downloads official releases and checks compatibility before it does.
@@ -253,7 +284,8 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/ui.zsh`, `lib/fuzzy.zsh` | Shared UI components and fuzzy matching |
 | `lib/log.zsh` | The log (levels, rotation, masking) – the AI and Remove BG write to the same file |
 | `lib/cmd/*.zsh` | One module per feature (app, brew, weather, ai, ios, bg, log, …) |
-| `lib/ai/*.swift` | The AI terminal (Claude, Apple Intelligence, Ollama, OpenAI-compatible), built once on first use |
+| `lib/ai/*.swift` | The AI terminal (Claude, Apple Intelligence, Ollama, OpenAI-compatible), built once on first use; `Server.swift` is the web chat |
+| `lib/ai/web/` | The web chat's page (HTML, CSS, JavaScript – no libraries, nothing from other servers) |
 | `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |

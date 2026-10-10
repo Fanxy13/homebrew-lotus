@@ -194,7 +194,10 @@ final class Interaction: @unchecked Sendable {
 
     init(keys: KeyQueue?) { self.keys = keys }
 
-    var canAsk: Bool { keys != nil }
+    // The web chat (Server.swift) asks in the browser: the question, and whether "always" may be offered
+    var asker: ((String, Bool) async -> Answer)?
+
+    var canAsk: Bool { keys != nil || asker != nil }
 
     // Called by the watcher that reads keys while the AI works; true when a question took the key
     func deliver(_ key: Key) -> Bool {
@@ -246,6 +249,7 @@ final class Interaction: @unchecked Sendable {
     enum Answer { case yes, always, no(String) }
 
     func confirm(_ question: String, allowAlways: Bool) async -> Answer {
+        if let asker = asker { return await asker(question, allowAlways) }
         guard canAsk else { return .no("") }
         beginAsking()
         defer { endAsking() }
@@ -336,6 +340,9 @@ final class ToolRunner: @unchecked Sendable {
     private(set) var readWeb = false        // web text came in during this answer: in auto mode commands ask
     private var pages: [String: Web.Page] = [:]    // pages read in this session, for reading on
     var permissions = Permissions(environment: ProcessInfo.processInfo.environment)
+    // The web chat: every command asks, one by one (never "don't ask again", never auto mode), and Lotus
+    // tools that need the terminal stay in the terminal
+    var web = false
     private let serial = AsyncLock()
     private(set) var actions: [String] = []   // what happened in this answer, for the memory
 
@@ -578,6 +585,10 @@ final class ToolRunner: @unchecked Sendable {
         if !lt.missing.isEmpty {
             Renderer.shared.toolResult(lt.missing, error: true)
             return ToolOutcome(text: "Not available on this Mac: \(lt.missing)", isError: true)
+        }
+        if web && lt.mode == "tty" {
+            Renderer.shared.toolResult("Needs the terminal – open /ai in a terminal for this", error: true)
+            return ToolOutcome(text: "Not done – \(lt.label) needs the terminal, and the user is in the web chat. Tell them to use /ai in a terminal for it.", isError: true)
         }
         // a file is read like read_file would read it
         for p in spec.params where p.isPath {
@@ -1017,17 +1028,17 @@ final class ToolRunner: @unchecked Sendable {
         let risky = ToolRunner.dangerous.contains { command.range(of: $0, options: .regularExpression) != nil }
         // auto mode: it runs unasked when Lotus is sure; otherwise the question says why
         var unsure: String?
-        if !risky && permissions.run == .ask && !commandsAllowed && permissions.auto {
+        if !web && !risky && permissions.run == .ask && !commandsAllowed && permissions.auto {
             let check = AutoCheck(inside: { self.inside(self.resolve($0)) }, isPrivate: { self.sensitive(self.resolve($0)) },
                                   readOutside: permissions.readOutside == .allow, write: permissions.write != .never)
             unsure = check.unsure(command)
             if unsure == nil && readWeb { unsure = "the AI read web pages in this answer, and they can contain instructions" }
             if unsure != nil { Log.write("DEBUG", "Auto mode asks: \(unsure!)") }
         }
-        if risky || (permissions.run == .ask && !commandsAllowed && (!permissions.auto || unsure != nil)) {
+        if web || risky || (permissions.run == .ask && !commandsAllowed && (!permissions.auto || unsure != nil)) {
             if risky { Renderer.shared.toolLines(["This command can delete or overwrite things."], color: Style.red) }
             else if let why = unsure { Renderer.shared.toolLines(["Auto mode asks: \(why)."], color: Style.accent) }
-            switch await ui.confirm("Run this command?", allowAlways: !risky) {
+            switch await ui.confirm("Run this command?", allowAlways: !risky && !web) {
             case .yes: break
             case .always: commandsAllowed = true
             case .no(let note): declineNote = note; return declined("running `\(command)`")

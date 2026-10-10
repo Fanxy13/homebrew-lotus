@@ -17,6 +17,7 @@ lotus_cmd_ai() {
     login|connect) lotus_ai_login ;;
     logout)    lotus_ai_logout ;;
     key|keys)  shift; lotus_ai_key "$@" ;;
+    server|web) shift; source $LOTUS_ROOT/lib/cmd/aiserver.zsh; lotus_ai_server "$@" ;;
     new|clear|reset)
       shift
       rm -f $LOTUS_CACHE/ai/conversation.json
@@ -134,7 +135,54 @@ lotus_ai_none() {
     "Other: set the AI URL in /settings and add a key with: lotus ai key openai"
 }
 
-# Runs the AI program with everything it needs in its environment (keys never on the command line)
+# Decides what the AI program gets: provider, model, address, labels → AI_* (for _ai_export).
+# When the model on this Mac answers, it is started here (LLM_PID).
+_ai_prepare() {   # <mode, for the log>
+  if ! lotus_ai_provider; then
+    lotus_ai_none || return 1
+    lotus_ai_provider || return 1
+  fi
+  typeset -g AI_PROVIDER=$REPLY AI_MODEL=$LOTUS_AI_MODEL AI_URL=$LOTUS_AI_URL AI_KEY= AI_LABEL= AI_MAC_LABEL=
+  typeset -ga AI_AVAIL=()
+  lotus_log INFO ai "AI ${1#--} with $AI_PROVIDER (thinking: ${LOTUS_AI_EFFORT:-high})"
+  if [[ $AI_PROVIDER == local ]]; then
+    # the model on this Mac speaks the OpenAI API while /ai runs, then it leaves the memory again
+    _llm_start || return 1
+    AI_PROVIDER=openai AI_URL=$REPLY AI_MODEL=$LLM_MODELS/$LOTUS_AI_LOCAL AI_KEY=local
+    _llm_row $LOTUS_AI_LOCAL
+    AI_LABEL="$reply[2] · on this Mac"
+  fi
+  case $AI_PROVIDER in
+    claude) [[ $AI_MODEL == claude-* ]] || AI_MODEL= ;;
+    ollama) _ai_ollama_model; AI_MODEL=$REPLY ;;
+    apple)  AI_MODEL= ;;
+  esac
+  _ai_claude_key && AI_AVAIL+=claude
+  [[ -d /System/Library/Frameworks/FoundationModels.framework ]] && AI_AVAIL+=apple
+  _ai_openai_ok && AI_AVAIL+=openai
+  if _llm_ok; then AI_AVAIL+=local; _llm_row $LOTUS_AI_LOCAL; AI_MAC_LABEL="$reply[2]"; fi
+  zf_mkdir -p $LOTUS_CACHE/ai && chmod 700 $LOTUS_CACHE/ai
+}
+
+# Everything the AI program needs into the environment – call it in a subshell (keys never on the command line)
+_ai_export() {
+  export LOTUS_AI_PROVIDER=$AI_PROVIDER LOTUS_AI_MODEL=$AI_MODEL LOTUS_AI_EFFORT=${LOTUS_AI_EFFORT:-high}
+  export LOTUS_AI_STATE=$LOTUS_CACHE/ai LOTUS_AI_URL=$AI_URL LOTUS_AI_AVAILABLE=${(j:,:)AI_AVAIL} LOTUS_AI_LOCAL_LABEL=$AI_MAC_LABEL
+  export LOTUS_NAME LOTUS_ROOT LOTUS_VERSION
+  export LOTUS_AI_PERM_MODE LOTUS_AI_TOOLS LOTUS_AI_PERM_READ LOTUS_AI_PERM_READ_OUT LOTUS_AI_PERM_WRITE LOTUS_AI_PERM_WRITE_OUT LOTUS_AI_PERM_RUN LOTUS_AI_PERM_WEB LOTUS_AI_PERM_LOTUS
+  export LOTUS_AI_MEMORY=$LOTUS_CONF/ai-memory.md
+  # the Lotus tools of the features that are on (data/ai-tools.tsv) – the same list for every AI
+  source $LOTUS_ROOT/lib/cmd/aitools.zsh && lotus_ai_toolkit && export LOTUS_AI_TOOLKIT=$REPLY
+  [[ -n $AI_LABEL ]] && export LOTUS_AI_LABEL=$AI_LABEL LOTUS_AI_CONTEXT=${LOTUS_AI_CONTEXT:-32768}
+  export LOTUS_AI_C_LOGO=$LOTUS_C[logo] LOTUS_AI_C_KEY=$LOTUS_C[key] LOTUS_AI_C_ACCENT=$LOTUS_C[accent]
+  export LOTUS_AI_C_BORDER=$LOTUS_C[border] LOTUS_AI_C_DIM=$LOTUS_C[dim] LOTUS_AI_C_MUSIC=$LOTUS_C[music]
+  _ai_claude_key && export LOTUS_AI_CLAUDE_KEY=$REPLY
+  if [[ -n $AI_KEY ]]; then export LOTUS_AI_OPENAI_KEY=$AI_KEY; else _ai_openai_key && export LOTUS_AI_OPENAI_KEY=$REPLY; fi
+  [[ -n $LOTUS_AI_INSTRUCTIONS ]] && export LOTUS_AI_INSTRUCTIONS
+  export LOTUS_LOG LOTUS_LOG_LEVEL LOTUS_VERBOSE
+}
+
+# Runs the AI program with everything it needs in its environment
 lotus_ai_run() {
   local mode=$1; shift
   lotus_ai_helper
@@ -143,48 +191,11 @@ lotus_ai_run() {
     return
   fi
   _ai_build || return 1
-  if ! lotus_ai_provider; then
-    lotus_ai_none || return 1
-    lotus_ai_provider || return 1
-  fi
-  local provider=$REPLY model=$LOTUS_AI_MODEL url=$LOTUS_AI_URL key=
-  lotus_log INFO ai "AI ${mode#--} with $provider (thinking: ${LOTUS_AI_EFFORT:-high})"
-  if [[ $provider == local ]]; then
-    # the model on this Mac speaks the OpenAI API while /ai runs, then it leaves the memory again
-    _llm_start || return 1
-    provider=openai url=$REPLY model=$LLM_MODELS/$LOTUS_AI_LOCAL key=local
-    _llm_row $LOTUS_AI_LOCAL
-    local llm_label="$reply[2] · on this Mac"
-  fi
-  case $provider in
-    claude) [[ $model == claude-* ]] || model= ;;
-    ollama) _ai_ollama_model; model=$REPLY ;;
-    apple)  model= ;;
-  esac
-  local -a avail=()
-  _ai_claude_key && avail+=claude
-  [[ -d /System/Library/Frameworks/FoundationModels.framework ]] && avail+=apple
-  _ai_openai_ok && avail+=openai
-  local mac_label=
-  if _llm_ok; then avail+=local; _llm_row $LOTUS_AI_LOCAL; mac_label="$reply[2]"; fi
+  _ai_prepare $mode || return 1
   lotus_ai_helper
   local bin=$REPLY
-  zf_mkdir -p $LOTUS_CACHE/ai && chmod 700 $LOTUS_CACHE/ai
   (
-    export LOTUS_AI_PROVIDER=$provider LOTUS_AI_MODEL=$model LOTUS_AI_EFFORT=${LOTUS_AI_EFFORT:-high}
-    export LOTUS_AI_STATE=$LOTUS_CACHE/ai LOTUS_AI_URL=$url LOTUS_AI_AVAILABLE=${(j:,:)avail} LOTUS_AI_LOCAL_LABEL=$mac_label
-    export LOTUS_NAME LOTUS_ROOT LOTUS_VERSION
-    export LOTUS_AI_PERM_MODE LOTUS_AI_TOOLS LOTUS_AI_PERM_READ LOTUS_AI_PERM_READ_OUT LOTUS_AI_PERM_WRITE LOTUS_AI_PERM_WRITE_OUT LOTUS_AI_PERM_RUN LOTUS_AI_PERM_WEB LOTUS_AI_PERM_LOTUS
-    export LOTUS_AI_MEMORY=$LOTUS_CONF/ai-memory.md
-    # the Lotus tools of the features that are on (data/ai-tools.tsv) – the same list for every AI
-    source $LOTUS_ROOT/lib/cmd/aitools.zsh && lotus_ai_toolkit && export LOTUS_AI_TOOLKIT=$REPLY
-    [[ -n $llm_label ]] && export LOTUS_AI_LABEL=$llm_label LOTUS_AI_CONTEXT=${LOTUS_AI_CONTEXT:-32768}
-    export LOTUS_AI_C_LOGO=$LOTUS_C[logo] LOTUS_AI_C_KEY=$LOTUS_C[key] LOTUS_AI_C_ACCENT=$LOTUS_C[accent]
-    export LOTUS_AI_C_BORDER=$LOTUS_C[border] LOTUS_AI_C_DIM=$LOTUS_C[dim] LOTUS_AI_C_MUSIC=$LOTUS_C[music]
-    _ai_claude_key && export LOTUS_AI_CLAUDE_KEY=$REPLY
-    if [[ -n $key ]]; then export LOTUS_AI_OPENAI_KEY=$key; else _ai_openai_key && export LOTUS_AI_OPENAI_KEY=$REPLY; fi
-    [[ -n $LOTUS_AI_INSTRUCTIONS ]] && export LOTUS_AI_INSTRUCTIONS
-    export LOTUS_LOG LOTUS_LOG_LEVEL LOTUS_VERBOSE
+    _ai_export
     [[ $mode == (--tui|--once) ]] && _ai_pet
     exec $bin $mode "$@"
   )
@@ -331,6 +342,9 @@ lotus_ai_status() {
     ui_dim "Memory: no conversation right now."
   fi
   _ai_can_build || ui_dim "The AI terminal needs the Command Line Tools: xcode-select --install"
+  source $LOTUS_ROOT/lib/cmd/aiserver.zsh
+  if lotus_ai_server_state; then ui_dim "Web chat: running on http://127.0.0.1:$AIS_PORT – lotus ai server"
+  else ui_dim "Web chat: off – lotus ai server start opens Lotus AI in your browser"; fi
   ui_blank
 }
 

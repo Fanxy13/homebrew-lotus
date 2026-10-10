@@ -45,6 +45,7 @@ LOTUS_L+=(
   pet_react 'Les animaux réagissent'  pet_brain 'Les animaux pensent avec'
   pet_brain_ai 'l’IA de /ai'  pet_brain_off 'rien (phrases courtes)'  pet_manage 'Vos animaux'  feat_pets 'Animaux'
   ai_local 'Sur ce Mac (MLX)'  ai_local_get 'Modèles sur ce Mac'
+  ai_srv 'Chat web dans le navigateur'  ai_srv_boot 'Chat web : lancer au terminal'  ai_srv_lan 'Chat web : autres appareils'
   ai_ctx 'Fenêtre de contexte'  ai_len 'Longueur des réponses'  ai_temp 'Créativité'  ai_temp_p 'précis'  ai_temp_b 'équilibré'  ai_temp_c 'créatif'  ai_kv 'Économie de mémoire'
   head_ai_perm 'IA : ce qu’elle peut faire'  ai_tools 'Travailler sur ce Mac'  ai_p_read 'Lire les fichiers du dossier'  ai_p_read_out 'Lire les fichiers ailleurs'
   caf_title 'Rester éveillé'  caf_sub 'Ton Mac ne se met pas en veille tant que c’est activé – pour un téléchargement, un rendu ou un serveur Minecraft'

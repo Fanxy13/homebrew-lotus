@@ -235,6 +235,18 @@ function lotus {
   esac
 }
 
+# The AI web chat starts with the first terminal – only when that is turned on (/settings → AI).
+# Cheap when it runs already: one small file and kill -0.
+_lotus_ai_server_boot() {
+  (( LOTUS_AI_SERVER_BOOT )) && lotus_feature_on ai || return 0
+  local f=$LOTUS_STATE/ai-server
+  if [[ -r $f ]]; then
+    local -a v=(${=$(<$f)})
+    [[ $v[1] == <-> ]] && kill -0 $v[1] 2>/dev/null && return 0
+  fi
+  $LOTUS_ROOT/bin/lotus ai server start --quiet </dev/null >/dev/null 2>&1 &!
+}
+
 # ── Start ─────────────────────────────────────────────────────
 
 autoload -Uz add-zsh-hook
@@ -249,5 +261,6 @@ _lotus_prompt
 if (( ! LOTUS_CONFIGURED )) && [[ -t 0 && -t 1 ]]; then
   command lotus setup --tty && lotus_load && _lotus_prompt && _lotus_pets
 fi
+_lotus_ai_server_boot
 lotus_log DEBUG startup "Shell ready (Lotus $LOTUS_VERSION, $LOTUS_ROOT)"
 (( LOTUS_STARTUP )) && [[ -t 1 ]] && lotus_render live && lotus_startup_details && lotus_pet_start

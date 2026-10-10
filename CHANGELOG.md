@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.8.0 – Lotus AI in your browser
+
+### The web chat
+- `/ai server start` opens Lotus AI in your browser: a chat page that Lotus serves itself on this Mac, at `http://127.0.0.1:3000`. It is the same AI as `/ai`, not a second one – the AI program of Lotus serves the page (`lotus-ai --serve`) with the same providers (Claude, the model on your Mac, Apple Intelligence, Ollama, an OpenAI-compatible API), the same instructions (`data/ai/system.md`), the same Lotus tools and the same permissions. Answers stream in as they are written
+- Your conversations in a sidebar: new chat, history, clear, delete. Markdown with headings, lists, tables and code blocks with a copy button; the steps the AI takes and what they returned; a status line while it works and clear errors when something fails. Enter sends, Shift+Enter makes a new line. Works on a phone and on a computer, in the colors of your Lotus theme
+- Questions in the browser: before the AI changes a file or uses a Lotus feature it asks in the page, with the preview – yes, yes and don't ask again, no, or say what to do instead. The levels of the terminal: reading runs, changes ask unless you allowed them or use auto mode, installing an app always asks. From the web every command asks, one by one – no "don't ask again", no auto mode for commands – and tools that need the terminal (the clock, Remove BG) say so instead of running
+- A reload or a lost connection does not lose the answer: it goes on, and the page picks it up again. The stop button or esc stops it
+- `/ai server` shows the status and a menu; `/ai server start`, `stop`, `restart`, `status` and `open`; `/ai server port 3001` sets the port, kept in the settings. When the port is in use, Lotus says by which program and offers the next free one – it never changes the port without asking
+- It never starts by itself. If you want it to, `/settings` → AI → "Web chat: start with terminal" starts it with the first terminal window
+
+### Safe by default
+- Only this Mac: it listens on 127.0.0.1. Other devices in your network only when you turn on "Web chat: other devices" – then they need the link with your key, and Lotus tells you that the connection is not encrypted
+- Signed in with a key: `/ai server open` opens the page with your access key, which becomes a cookie for this page; without it the page stays locked. The key is in `~/.local/state/lotus/ai-server.key`, readable only by you
+- Other web pages cannot use it: the server answers only to its own address (no DNS rebinding), every request needs the page's token in a header, and every change must come from the page itself (Origin). A strict content security policy, no frames, nothing loaded from other servers
+- API keys stay in the Lotus program – the browser never sees them. Every request is checked: its size, the conversation, the answer to a question
+- The conversations are kept in `~/.local/state/lotus/ai-chats`, one file each, readable only by you. The web chat follows your settings while it runs: permissions changed in `/settings` or `/permissions` count from the next message
+
+### Tests
+- `tests/test-aiserver.zsh`: the settings and the port, an occupied port, 127.0.0.1 only, the access key, the host, token and origin checks, a streamed answer with a question answered from "the browser", busy, clear, delete and stop – with a small test model (`tests/fake-openai.py`), so no real AI is needed. 120 checks in all
+
 ## 2.7.0 – The AI uses Lotus
 
 ### The AI uses Lotus itself

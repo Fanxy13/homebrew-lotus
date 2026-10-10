@@ -45,6 +45,8 @@ AI	-	ai write	/ai write <what>	Help writing text	/ai write a short bio	0
 AI	-	ai command	/ai command <task>	Suggest a shell command, never runs it	/ai command find big files	0
 AI	-	ai local	lotus ai local	A model that runs on this Mac – Apple's MLX, no Ollama; shows what fits your memory	lotus ai local	0
 AI	-	ai status	/ai status	Show which AI providers are available	/ai status	0
+AI	-	ai server	/ai server [start|stop|status|open]	Lotus AI in your browser: a web chat on this Mac (127.0.0.1) with the same AI, tools and questions – it never starts by itself	/ai server start	0
+AI	-	ai server port	/ai server port <n>	The web chat's port (default 3000), kept in the settings	/ai server port 3001	0
 AI	-	ai login	lotus ai login	Connect Claude: opens the key page, paste the key once	lotus ai login	0
 AI	-	ai key	lotus ai key openai	Save a key for an OpenAI-compatible API in the Keychain	lotus ai key openai	0
 Device tools	/ios	ios	/ios	iOS tools: AirCard, Nugget, Sideloadly, Dopamine	/ios	0
