@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.8.1 – Better prompts
+
+- A new setting improves your prompts before the AI sees them: `/settings` → AI → "Improve prompts", or `/enhance` in `/ai`. The AI first rewrites your message into a clear prompt – the goal, the details and context, the expected result – in your language, keeping every name, file name, path, command, number, code and quote exactly, and adding nothing you did not ask for. A message that is already clear stays as it is
+- Three modes: off (the default), on – the improved prompt is shown and sent – and ask – it is shown first, and you choose: Enter sends it, `o` sends yours as typed, Esc sends nothing. Esc while it is being rewritten sends nothing, like during an answer
+- The same in the web chat: the improved prompt appears in the page, and in ask mode with the buttons "Send it", "Send mine as typed" and "Cancel"; the header says when it is on
+- Messages of three words or fewer ("yes", "push it"), commands and texts longer than 3000 characters go as typed. So does a message whose rewrite fails or takes longer than 30 seconds – nothing gets in your way. The last exchange goes along, so a follow-up like "and now in Python" is rewritten correctly
+- The instructions are one section of `data/ai/system.md` ("enhance"), the same for every AI. The rewrite is quick: Claude thinks little for it, and a model on this Mac (gpt-oss) is asked to keep its thinking short – it rewrote a message in a few seconds instead of thinking for a minute
+- The conversation keeps what the AI saw – the improved prompt – so later answers stay consistent
+- Tests: the modes, the rules for what goes as typed, a failing rewrite, and the choice in the web chat (142 checks in all)
+
 ## 2.8.0 – Lotus AI in your browser
 
 ### The web chat

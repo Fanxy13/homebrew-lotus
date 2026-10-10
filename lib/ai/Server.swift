@@ -273,7 +273,8 @@ final class Run: @unchecked Sendable {
     private(set) var done = false
     private var stopped = false
     private var lastStatus = ""
-    private var questions: [String: (wait: CheckedContinuation<Interaction.Answer, Never>, always: Bool)] = [:]
+    // open questions: how to go on, the answers that are allowed, and the one that counts on stop or timeout
+    private var questions: [String: (wait: CheckedContinuation<(String, String), Never>, words: Set<String>, fallback: String)] = [:]
 
     init(chat: String) { self.chat = chat }
 
@@ -321,57 +322,69 @@ final class Run: @unchecked Sendable {
         return !questions.isEmpty
     }
 
-    // A question for the browser; no answer within 15 minutes counts as no
-    func ask(_ question: String, always: Bool) async -> Interaction.Answer {
+    // A question for the browser → (answer, note); no answer within 15 minutes counts as the fallback
+    private func question(_ type: String, _ data: [String: Any], words: Set<String>, fallback: String) async -> (String, String) {
         let id = WebServer.random(10)
         Task.detached { [weak self] in
             try? await Task.sleep(nanoseconds: 900 * 1_000_000_000)
-            self?.resolve(id, .no(""))
+            self?.resolve(id, fallback, "")
         }
         return await withTaskCancellationHandler {
-            await withCheckedContinuation { (c: CheckedContinuation<Interaction.Answer, Never>) in
+            await withCheckedContinuation { (c: CheckedContinuation<(String, String), Never>) in
                 cond.lock()
                 if stopped || Task.isCancelled {
                     cond.unlock()
-                    c.resume(returning: .no(""))
+                    c.resume(returning: (fallback, ""))
                     return
                 }
-                questions[id] = (c, always)
+                questions[id] = (c, words, fallback)
                 cond.unlock()
-                add("ask", ["id": id, "question": question, "always": always])
+                var d = data
+                d["id"] = id
+                add(type, d)
             }
         } onCancel: {
-            self.resolve(id, .no(""))
+            self.resolve(id, fallback, "")
         }
+    }
+
+    // A permission: yes, yes and don't ask again (when offered), or no with what to do instead
+    func ask(_ question: String, always: Bool) async -> Interaction.Answer {
+        let (word, note) = await self.question("ask", ["question": question, "always": always],
+                                               words: always ? ["yes", "always", "no"] : ["yes", "no"], fallback: "no")
+        switch word {
+        case "yes": return .yes
+        case "always": return .always
+        default: return .no(note)
+        }
+    }
+
+    // The improved prompt (ask mode of /enhance) → "improved", "original" or "cancel"
+    func choosePrompt(_ text: String) async -> String {
+        await question("improve", ["text": text], words: ["improved", "original", "cancel"], fallback: "cancel").0
     }
 
     enum Resolved { case done, unknown, notAllowed }
 
     @discardableResult
-    func resolve(_ id: String, _ answer: Interaction.Answer) -> Resolved {
+    func resolve(_ id: String, _ word: String, _ note: String) -> Resolved {
         cond.lock()
         guard let q = questions[id] else { cond.unlock(); return .unknown }
-        if case .always = answer, !q.always { cond.unlock(); return .notAllowed }
+        guard q.words.contains(word) else { cond.unlock(); return .notAllowed }
         questions.removeValue(forKey: id)
         cond.unlock()
-        var word = "yes", note = ""
-        switch answer {
-        case .yes: break
-        case .always: word = "always"
-        case .no(let n): word = "no"; note = n
-        }
         add("asked", ["id": id, "answer": word, "note": note])
-        q.wait.resume(returning: answer)
+        q.wait.resume(returning: (word, note))
         return .done
     }
 
-    // The stop button: open questions are answered with no
+    // The stop button: open questions get their fallback (no, or not sent)
     func stop() {
         cond.lock()
         stopped = true
-        let ids = Array(questions.keys)
+        let open = questions.map { ($0.key, $0.value.fallback) }
         cond.unlock()
-        for id in ids { resolve(id, .no("")) }
+        for (id, fallback) in open { resolve(id, fallback, "") }
     }
 }
 
@@ -734,7 +747,7 @@ final class WebServer: @unchecked Sendable {
         let p = agent.runner.permissions
         return ["version": agent.config.version, "ai": agent.provider.label, "effort": TUI.effortNames[agent.config.effort] ?? agent.config.effort,
                 "tools": agent.usesTools, "mode": p.auto ? "auto" : "ask", "folder": String(folder),
-                "busy": runningChat ?? NSNull(), "lan": lan, "name": agent.config.name]
+                "busy": runningChat ?? NSNull(), "lan": lan, "name": agent.config.name, "enhance": agent.enhanceMode]
     }
 
     // A message: the answer is written in the background and streamed as events (text/event-stream)
@@ -777,6 +790,7 @@ final class WebServer: @unchecked Sendable {
         Renderer.shared.sink = { type, data in run.add(type, data) }
         Spinner.shared.onLabel = { run.add("status", ["text": $0]) }
         agent.interaction.asker = { q, always in await run.ask(q, always: always) }
+        agent.interaction.promptChooser = { text in await run.choosePrompt(text) }
         if !take(id) {
             let chat = store.load(id) ?? [:]
             let conv = Conversation(file: nil)
@@ -796,6 +810,7 @@ final class WebServer: @unchecked Sendable {
         Renderer.shared.sink = nil
         Spinner.shared.onLabel = nil
         agent.interaction.asker = nil
+        agent.interaction.promptChooser = nil
 
         if var chat = store.load(id) {
             chat["turns"] = agent.conversation.turns.map { ["role": $0.role, "text": $0.text] }
@@ -815,6 +830,7 @@ final class WebServer: @unchecked Sendable {
     // The permissions as they are in the Lotus settings now (/settings or /permissions may have changed them)
     private func applySettings(reset: Bool) {
         let saved = SettingsFile.read()
+        if let mode = saved["LOTUS_AI_ENHANCE"], Enhance.modes.contains(mode) { agent.enhanceMode = mode }
         var env = ProcessInfo.processInfo.environment
         for item in Permissions.items { if let v = saved[item.key] { env[item.key] = v } }
         let p = Permissions(environment: env)
@@ -868,19 +884,16 @@ final class WebServer: @unchecked Sendable {
             return problem(c, 400, "The answer is missing")
         }
         let note = String((j["note"] as? String ?? "").replacingOccurrences(of: "\n", with: " ").prefix(2000))
-        let a: Interaction.Answer
-        switch word {
-        case "yes": a = .yes
-        case "always": a = .always
-        case "no": a = .no(note.trimmingCharacters(in: .whitespaces))
-        default: return problem(c, 400, "The answer must be yes, always or no")
+            .trimmingCharacters(in: .whitespaces)
+        guard ["yes", "always", "no", "improved", "original", "cancel"].contains(word) else {
+            return problem(c, 400, "Not an answer to this question")
         }
         lock.lock()
         let run = active
         lock.unlock()
-        switch run?.resolve(id, a) ?? .unknown {
+        switch run?.resolve(id, word, word == "no" ? note : "") ?? .unknown {
         case .done: json(c, 200, ["ok": true])
-        case .notAllowed: problem(c, 400, "This question can only be answered with yes or no")
+        case .notAllowed: problem(c, 400, "Not an answer to this question")
         case .unknown: problem(c, 404, "This question was already answered")
         }
     }

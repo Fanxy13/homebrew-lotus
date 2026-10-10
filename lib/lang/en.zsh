@@ -139,6 +139,7 @@ LOTUS_L+=(
   feat_now_on     '%s is on.'
   ai_local 'On this Mac (MLX)'  ai_local_get 'Models on this Mac'
   ai_srv 'Web chat in the browser'  ai_srv_boot 'Web chat: start with terminal'  ai_srv_lan 'Web chat: other devices'
+  ai_enhance 'Improve prompts'  ai_enhance_ask 'on, you choose each time'
   ai_ctx 'Context window'  ai_len 'Answer length'  ai_temp 'Creativity'  ai_temp_p 'precise'  ai_temp_b 'balanced'  ai_temp_c 'creative'  ai_kv 'Memory saver'
   head_ai_perm 'AI: what it may do'  ai_tools 'Work on this Mac'  ai_p_read 'Look at files in the folder'  ai_p_read_out 'Look at files elsewhere'
   caf_title 'Keep awake'  caf_sub 'Your Mac does not sleep while this is on – for downloads, renders or a Minecraft server'

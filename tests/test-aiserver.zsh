@@ -1,5 +1,5 @@
 # The AI web chat (lotus ai server): settings, port, 127.0.0.1 only, the access key and the request
-# checks, a streamed answer with a question answered from "the browser", stop.
+# checks, a streamed answer with a question answered from "the browser", improving prompts, stop.
 # The answers come from tests/fake-openai.py – an OpenAI-compatible model on this Mac, no real AI needed.
 source $LOTUS_ROOT/lib/core.zsh
 source $LOTUS_ROOT/lib/ui.zsh
@@ -123,6 +123,72 @@ check_eq "clear" "$(code -X POST $H $B/api/chats/$chat/clear)" 200
 check_has "cleared: no messages" "$(curl -s -m 5 $H $B/api/chats/$chat)" '"messages":[]'
 check_eq "delete" "$(code -X DELETE $H $B/api/chats/$chat)" 200
 check "deleted: the file is gone" eval '[[ ! -e $LOTUS_STATE/ai-chats/$chat.json ]]'
+
+# ── Improve prompts (LOTUS_AI_ENHANCE): read from the settings before every message ──
+check_has "the setting is off at first" "$(curl -s -m 5 $H $B/api/state)" '"enhance":"off"'
+enhance() {   # <mode> – as /settings or /enhance would save it
+  LOTUS_AI_ENHANCE=$1
+  lotus_save
+}
+say() {   # <text> → the events of the answer
+  curl -sN -m 30 $H -H 'Content-Type: application/json' -d "{\"text\":\"$1\"}" $B/api/chats/$chat/send
+}
+turns() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["turns"][-2]["text"])' $LOTUS_STATE/ai-chats/$chat.json }
+chat=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+out=$(say "tell me a short story please")
+check "off: sent as typed" eval '[[ $out != *"\"improved\""* ]]'
+enhance on
+out=$(say "tell me a short story please")
+check_has "on: the improved prompt is shown" "$out" '"type":"improved"'
+check_has "with the improved text" "$out" 'Goal: tell me a short story please'
+check_has "and the answer still comes" "$out" 'from** the test model'
+check_eq "the conversation keeps what the AI saw" "$(turns)" "Goal: tell me a short story please"
+check_has "the state says it" "$(curl -s -m 5 $H $B/api/state)" '"enhance":"on"'
+out=$(say "hi there you")
+check "3 words or fewer: sent as typed" eval '[[ $out != *"\"improved\""* ]]'
+check_eq "and kept as typed" "$(turns)" "hi there you"
+out=$(say "/help me with this please")
+check "a command: sent as typed" eval '[[ $out != *"\"improved\""* ]]'
+long=${(l:3100::a:)}
+out=$(say "please read $long")
+check "longer than 3000 characters: sent as typed" eval '[[ $out != *"\"improved\""* ]]'
+out=$(say "fail-enhance tell me something nice")
+check "the rewrite fails: sent as typed" eval '[[ $out != *"\"improved\""* && $out == *"from** the test model"* ]]'
+check_eq "and kept as typed" "$(turns)" "fail-enhance tell me something nice"
+
+# ask: the browser chooses – the improved prompt, the original, or nothing
+enhance ask
+choose() {   # <text> <answer> → the events
+  local f=$HOME/choose.txt q
+  : >| $f
+  curl -sN -m 30 $H -H 'Content-Type: application/json' -d "{\"text\":\"$1\"}" $B/api/chats/$chat/send >| $f &
+  local -i p=$!
+  for q in {1..100}; do [[ $(<$f) == *'"type":"improve"'* ]] && break; sleep 0.1; done
+  q=$(sed -n 's/.*"type":"improve".*/&/p' $f | sed -n 's/.*"id":"\([a-z0-9]\{10\}\)".*/\1/p' | head -1)
+  [[ $2 == always ]] && code $H -H 'Content-Type: application/json' -d "{\"id\":\"$q\",\"answer\":\"always\"}" $B/api/answer >| $HOME/always.txt
+  curl -s -m 5 -o /dev/null $H -H 'Content-Type: application/json' -d "{\"id\":\"$q\",\"answer\":\"${2/always/improved}\"}" $B/api/answer
+  wait $p
+  REPLY=$(<$f)
+}
+choose "write me a haiku about lotus flowers" improved
+check_has "ask: the improved prompt is offered" "$REPLY" '"type":"improve"'
+check_eq "send it: the AI got the improved prompt" "$(turns)" "Goal: write me a haiku about lotus flowers"
+choose "write me a poem about water lilies" original
+check_eq "send mine: the AI got it as typed" "$(turns)" "write me a poem about water lilies"
+before=$(turns)
+choose "write me a song about the moon" cancel
+check_has "cancel: nothing is sent" "$REPLY" '"text":"Not sent."'
+check_eq "and the conversation is as it was" "$(turns)" "$before"
+choose "write me a limerick about a cat" always
+check_eq "'always' is not an answer to this question" "$(<$HOME/always.txt)" 400
+# the terminal: /ai <question> shows the improved prompt the same way
+enhance on
+out=$(cd $HOME && lotus ai "tell me a short story please" 2>&1)
+check_has "/ai: the improved prompt is shown" "$out" "Improved prompt"
+check_has "/ai: then the answer" "$out" "the test model"
+out=$(cd $HOME && lotus ai "hi" 2>&1)
+check "/ai: a short question goes as typed" eval '[[ $out != *"Improved prompt"* ]]'
+enhance off
 
 pid=$(cut -d' ' -f1 $LOTUS_STATE/ai-server | head -1)
 out=$(lotus ai server stop); rc=$?

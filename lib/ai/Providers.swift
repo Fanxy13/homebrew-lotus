@@ -27,11 +27,17 @@ protocol Provider: AnyObject {
     func send(_ text: String, tools: ToolRunner?) async throws -> String
     // A single answer without tools or output, e.g. for summaries
     func complete(system: String, prompt: String) async throws -> String
+    // Like complete, but quick – little or no thinking: rewriting a message (/enhance, Enhance.swift)
+    func rewrite(system: String, prompt: String) async throws -> String
 }
 
 extension Provider {
     func reset(system: String, chatSystem: String, history: [Turn]) {
         reset(system: system, history: history)
+    }
+
+    func rewrite(system: String, prompt: String) async throws -> String {
+        try await complete(system: system, prompt: prompt)
     }
 }
 
@@ -422,6 +428,11 @@ final class ClaudeProvider: Provider {
         let reply = try await stream(body(tools: false, system: sys, messages: msgs, maxTokens: 16000, effort: "medium"), render: false)
         return reply.text
     }
+
+    func rewrite(system sys: String, prompt: String) async throws -> String {
+        let msgs: [[String: Any]] = [["role": "user", "content": [["type": "text", "text": prompt]]]]
+        return try await stream(body(tools: false, system: sys, messages: msgs, maxTokens: 4000, effort: "low"), render: false).text
+    }
 }
 
 // ── Ollama ────────────────────────────────────────────────────
@@ -615,10 +626,11 @@ final class OpenAIProvider: Provider {
         var rawCalls: [[String: Any]] = []
     }
 
-    private func stream(_ msgs: [[String: Any]], tools: Bool, render: Bool) async throws -> Reply {
+    private func stream(_ msgs: [[String: Any]], tools: Bool, render: Bool, extra: [String: Any] = [:]) async throws -> Reply {
         guard let url = URL(string: base + "/chat/completions") else { throw AIError(title: "The AI URL is not valid", detail: base) }
         while true {
             var b: [String: Any] = ["model": model, "messages": msgs, "stream": true]
+            b.merge(extra) { _, new in new }
             if tools && toolsWork {
                 b["tools"] = ToolCatalog.all.map {
                     ["type": "function", "function": ["name": $0.name, "description": $0.description, "parameters": $0.jsonSchema]] as [String: Any]
@@ -727,6 +739,18 @@ final class OpenAIProvider: Provider {
     func complete(system: String, prompt: String) async throws -> String {
         let msgs: [[String: Any]] = [["role": "system", "content": system], ["role": "user", "content": prompt]]
         return try await stream(msgs, tools: false, render: false).text
+    }
+
+    // A model server on this Mac (lotus ai local, LM Studio, llama.cpp) thinks briefly for this and stops early:
+    // gpt-oss would otherwise think for a minute, and a request that was given up keeps such a server busy.
+    // Other APIs get the plain request – they may not know these fields.
+    func rewrite(system: String, prompt: String) async throws -> String {
+        let msgs: [[String: Any]] = [["role": "system", "content": system], ["role": "user", "content": prompt]]
+        var extra: [String: Any] = [:]
+        if let host = URL(string: base)?.host, ["127.0.0.1", "localhost", "::1"].contains(host) {
+            extra = ["max_tokens": 1500, "chat_template_kwargs": ["reasoning_effort": "low", "enable_thinking": false]]
+        }
+        return try await stream(msgs, tools: false, render: false, extra: extra).text
     }
 }
 

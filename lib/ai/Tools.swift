@@ -196,6 +196,8 @@ final class Interaction: @unchecked Sendable {
 
     // The web chat (Server.swift) asks in the browser: the question, and whether "always" may be offered
     var asker: ((String, Bool) async -> Answer)?
+    // …and shows an improved prompt there (ask mode of /enhance) → "improved", "original" or "cancel"
+    var promptChooser: ((String) async -> String)?
 
     var canAsk: Bool { keys != nil || asker != nil }
 

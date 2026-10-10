@@ -100,6 +100,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | | `lotus ai login` or `/login` | Connect Claude in a minute; also Apple Intelligence, Ollama or an OpenAI-compatible API |
 | | `lotus ai local` | Models that run on this Mac with Apple's MLX – no Ollama: download, switch, remove; thinking, context window, answer length, creativity |
 | | `/ai explain`, `summarize`, `write`, `command` | Explain an error, summarize a file, draft text, suggest a command |
+| | `/enhance` in `/ai`, or `/settings` → AI | Improve your prompts before the AI sees them: off, on, or shown first so you choose |
 | | `/ai server start`, `/ai server` | Lotus AI in your browser: a web chat on this Mac (127.0.0.1:3000) – the same AI, tools and questions · status, stop, port |
 | Audio | `/np`, `/play`, `/pause`, `/skip`, `/back` | What is playing, play, pause, next, previous |
 | | `/repeat`, `/mute`, `/vu`, `/vd` | Repeat, mute, volume up and down |
@@ -154,6 +155,13 @@ itself (`lotus-ai --serve`, `lib/ai/Server.swift`) with the same providers, inst
 (`data/ai/system.md`), tools (`data/ai-tools.tsv`) and permissions. Answers stream in; a sidebar
 keeps your conversations (new, history, clear, delete); Markdown, tables and code blocks with a
 copy button; Enter sends, Shift+Enter makes a new line. It works on a phone too, in your theme's colors.
+
+**Better prompts.** With `/settings` → AI → "Improve prompts" (or `/enhance` in `/ai`) the AI first
+rewrites your message into a clear prompt – the goal, the details, the expected result – keeping your
+language and every name, path, command and quote. "on" shows it and sends it; "ask" shows it first:
+send it, send yours as typed, or nothing (Enter, `o`, Esc in the terminal; buttons in the web chat).
+Messages of three words or fewer, commands and very long texts go as typed, and so does a message
+whose rewrite fails or takes longer than 30 seconds. The conversation keeps what the AI saw.
 
 **Questions in the browser.** When the AI wants to change something it asks in the page, with a
 preview: yes, yes and don't ask again, no, or what to do instead. The levels are those of the
@@ -235,7 +243,7 @@ manual refinement (offer, always, never), preview after processing, model cache.
 - 13 themes: Matcha, Sakura, Ocean, Sunset, Mono, Midnight, Terminal, Lavender, Arctic, Graphite, Neon, Crimson, Retro
 - Greetings, sections, now playing and live updates
 - Features: turn each part of Lotus on or off (its settings disappear while it is off)
-- Weather city and units, search engine, AI provider, model and how hard it thinks, visualizer mode
+- Weather city and units, search engine, AI provider, model and how hard it thinks, improving prompts, visualizer mode
 - AI web chat: open its menu, start it with the terminal, allow other devices (with the key)
 - Remove BG: model, backend, output folder, manual refinement, preview, model cache
 - Pets: your pets, the pet on the start screen, `/help` with a pet, reactions, what pets think with (Apple Intelligence, the AI of `/ai`, nothing)

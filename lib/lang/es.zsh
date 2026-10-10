@@ -46,6 +46,7 @@ LOTUS_L+=(
   pet_brain_ai 'la IA de /ai'  pet_brain_off 'nada (frases cortas)'  pet_manage 'Tus mascotas'  feat_pets 'Mascotas'
   ai_local 'En este Mac (MLX)'  ai_local_get 'Modelos en este Mac'
   ai_srv 'Chat web en el navegador'  ai_srv_boot 'Chat web: iniciar con terminal'  ai_srv_lan 'Chat web: otros dispositivos'
+  ai_enhance 'Mejorar los prompts'  ai_enhance_ask 'sí, eliges cada vez'
   ai_ctx 'Ventana de contexto'  ai_len 'Longitud de respuesta'  ai_temp 'Creatividad'  ai_temp_p 'preciso'  ai_temp_b 'equilibrado'  ai_temp_c 'creativo'  ai_kv 'Ahorro de memoria'
   head_ai_perm 'IA: qué puede hacer'  ai_tools 'Trabajar en este Mac'  ai_p_read 'Ver archivos de la carpeta'  ai_p_read_out 'Ver archivos en otros sitios'
   caf_title 'Mantener despierto'  caf_sub 'Tu Mac no se duerme mientras esté activado – para descargas, renders o un servidor de Minecraft'

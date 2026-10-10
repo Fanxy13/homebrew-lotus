@@ -1,6 +1,8 @@
 # A tiny OpenAI-compatible model for tests/test-aiserver.zsh: python3 fake-openai.py <port>
 # Streams like a real one. A message with "run" calls run_command (echo lotus-test-ok); after the tool
 # result it says what the command printed; anything else gets a short Markdown answer.
+# Asked to improve a prompt (data/ai/system.md "## enhance"), it answers "Goal: <the request>" – or fails
+# with an error when the request contains "fail-enhance".
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,7 +12,17 @@ class Model(BaseHTTPRequestHandler):
     def do_POST(self):
         size = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(size) or b"{}")
-        last = (body.get("messages") or [{}])[-1]
+        messages = body.get("messages") or [{}]
+        last = messages[-1]
+        system = str(messages[0].get("content", "")) if messages[0].get("role") == "system" else ""
+        improving = system.startswith("You improve a request")
+        request = str(last.get("content", "")).split("The request to improve:\n")[-1]
+        if improving and "fail-enhance" in request:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"error": {"message": "the test model fails on purpose"}}')
+            return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
@@ -20,7 +32,10 @@ class Model(BaseHTTPRequestHandler):
             self.wfile.write(b"data: " + json.dumps(data).encode() + b"\n\n")
             self.wfile.flush()
 
-        if last.get("role") == "user" and "run" in str(last.get("content", "")):
+        if improving:
+            chunk({"content": "Goal: " + request})
+            chunk({}, "stop")
+        elif last.get("role") == "user" and "run" in str(last.get("content", "")):
             call = {"index": 0, "id": "call_1", "type": "function",
                     "function": {"name": "run_command", "arguments": json.dumps({"command": "echo lotus-test-ok"})}}
             chunk({"tool_calls": [call]})

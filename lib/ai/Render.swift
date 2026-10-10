@@ -363,6 +363,18 @@ final class Renderer: @unchecked Sendable {
         }
     }
 
+    // The improved prompt before it is sent (/enhance): dimmed, the first lines
+    func improvedPrompt(_ text: String, asking: Bool = false) {
+        endBlock()
+        if let sink = sink { sink("improved", ["text": text]); return }
+        guard !quiet else { return }
+        let (lines, more) = Enhance.rows(text, width: max(20, min(Term.width, 120) - 4), rows: 6)
+        var out = "\(Style.dim)✻ Improved prompt\(asking ? " – send it?" : "")\(Style.reset)\n"
+        for l in lines { out += "  \(Style.dim)\(l)\(Style.reset)\n" }
+        if more { out += "  \(Style.dim)…\(Style.reset)\n" }
+        emit(out + (asking ? "" : "\n"))
+    }
+
     func info(_ s: String) {
         endBlock()
         if let sink = sink {

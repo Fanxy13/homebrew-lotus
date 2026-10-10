@@ -69,6 +69,7 @@ lotus_settings_ui() {
       "choice|LOTUS_AI_TEMP|${LOTUS_L[ai_temp]:-Creativity}|0.2=${LOTUS_L[ai_temp_p]:-precise};0.6=${LOTUS_L[ai_temp_b]:-balanced};1.0=${LOTUS_L[ai_temp_c]:-creative}"
       "choice|LOTUS_AI_KVBITS|${LOTUS_L[ai_kv]:-Memory saver}|0=$LOTUS_L[off];8=$LOTUS_L[on]"
       "choice|LOTUS_AI_EFFORT|$LOTUS_L[ai_effort]|low=$LOTUS_L[effort_low];medium=$LOTUS_L[effort_medium];high=$LOTUS_L[effort_high];max=$LOTUS_L[effort_max]"
+      "choice|LOTUS_AI_ENHANCE|${LOTUS_L[ai_enhance]:-Improve prompts}|off=$LOTUS_L[off];on=$LOTUS_L[on];ask=${LOTUS_L[ai_enhance_ask]:-on, you choose each time}"
       "text|LOTUS_AI_MODEL|$LOTUS_L[ai_model]|"
       "text|LOTUS_AI_URL|$LOTUS_L[ai_url]|"
       "action|aikey|$LOTUS_L[ai_key]|"

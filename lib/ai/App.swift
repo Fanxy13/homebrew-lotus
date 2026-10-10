@@ -116,12 +116,15 @@ final class Agent {
     var lastAnswer = ""
     var restartForLocal = false      // /model chose the model on this Mac: Lotus starts it, then /ai opens again
     var browser = false              // the web chat: the instructions say where the user reads the answers
+    var enhanceMode: String          // off · on · ask: improve a message before the AI sees it (Enhance.swift)
     private var currentWork: Task<String, Error>?
 
     init(config: Config, keys: KeyQueue?, memory: Bool, tools: Bool = true) throws {
         self.config = config
         self.keys = keys
         usesTools = tools && Permissions(environment: ProcessInfo.processInfo.environment).tools
+        let mode = (ProcessInfo.processInfo.environment["LOTUS_AI_ENHANCE"] ?? "").lowercased()
+        enhanceMode = Enhance.modes.contains(mode) ? mode : "off"
         cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         interaction = Interaction(keys: keys)
         runner = ToolRunner(cwd: cwd, ui: interaction, outputLimit: 30_000)
@@ -269,8 +272,17 @@ final class Agent {
         }
     }
 
-    // One message from the user, with all tool steps
-    func ask(_ text: String, tools: Bool = true) async {
+    // One message from the user, with all tool steps. `improve`: the message may be improved first (/enhance)
+    func ask(_ text: String, tools: Bool = true, improve: Bool = true) async {
+        var text = text
+        if improve && enhanceMode != "off" {
+            if let why = Enhance.skip(text) {
+                Log.write("DEBUG", "Improve prompt: sent as typed (\(why))")
+            } else {
+                guard let better = await improvePrompt(text) else { return }    // stopped: nothing is sent
+                text = better
+            }
+        }
         if !conversation.turns.isEmpty && provider.usedTokens > provider.budget * 3 / 4 {
             await compact(automatic: true)
         }
@@ -318,6 +330,89 @@ final class Agent {
 
     // Stops the answer that is being written (the web chat's stop button; the terminal uses esc)
     func stop() { currentWork?.cancel() }
+
+    // The message rewritten into a clear prompt (data/ai/system.md "## enhance") – or the original when that
+    // fails or takes longer than 30 seconds; nil when the user stopped it (esc) or chose not to send it
+    private func improvePrompt(_ original: String) async -> String? {
+        guard let instructions = Agent.promptSections["enhance"], !instructions.isEmpty else { return original }
+        Spinner.shared.start("Improving your prompt")
+        let provider = self.provider
+        let request = Enhance.request(original, after: conversation.turns)
+        let late = Enhance.Late()
+        let work = Task { try await provider.rewrite(system: instructions, prompt: request) }
+        currentWork = work
+        let timer = Task {
+            try? await Task.sleep(nanoseconds: Enhance.timeout * 1_000_000_000)
+            if !Task.isCancelled { late.set(); work.cancel() }
+        }
+        let watcher = keys.map { k in Task { await self.watch(k, work) } }
+        let result = await work.result
+        currentWork = nil
+        timer.cancel()
+        watcher?.cancel()
+        Spinner.shared.stop()
+        let improved: String
+        switch result {
+        case .success(let reply):
+            guard let s = Enhance.clean(reply, original: original) else {
+                Log.write("DEBUG", "Improve prompt: nothing better came back – sent as typed")
+                return original
+            }
+            improved = s
+        case .failure(let error):
+            if late.isSet {
+                Log.write("DEBUG", "Improve prompt: took longer than \(Enhance.timeout) s – sent as typed")
+                return original
+            }
+            if isCancellation(error) {
+                Renderer.shared.info("Stopped – nothing was sent.")
+                emit("\n")
+                return nil
+            }
+            Log.write("DEBUG", "Improve prompt failed – sent as typed: \((error as? AIError)?.title ?? error.localizedDescription)")
+            return original
+        }
+        Log.write("DEBUG", "Improve prompt: \(original.count) → \(improved.count) characters")
+        if enhanceMode == "ask" { return await choosePrompt(improved, original) }
+        Renderer.shared.improvedPrompt(improved)
+        return improved
+    }
+
+    // Ask mode: the web chat shows it in the page; the terminal shows it and waits for a key
+    private func choosePrompt(_ improved: String, _ original: String) async -> String? {
+        let choice: String
+        if let choose = interaction.promptChooser {
+            choice = await choose(improved)
+        } else if let keys = keys {
+            Renderer.shared.improvedPrompt(improved, asking: true)
+            Out.shared.write("  \(Style.key)enter\(Style.reset) send it  \(Style.key)o\(Style.reset) send yours as typed  \(Style.key)esc\(Style.reset) cancel")
+            var picked: String?
+            while picked == nil {
+                switch await keys.next() {
+                case .enter: picked = "improved"
+                case .char("o"), .char("O"): picked = "original"
+                case .esc, .ctrlC, .ctrlD, .cancelled: picked = "cancel"
+                default: continue
+                }
+            }
+            Out.shared.write("\r\u{1B}[2K")
+            choice = picked!
+        } else {
+            return original           // nobody to ask: as typed
+        }
+        switch choice {
+        case "improved":
+            return improved
+        case "original":
+            Renderer.shared.info("Sent as you typed it.")
+            emit("\n")
+            return original
+        default:
+            Renderer.shared.info("Not sent.")
+            emit("\n")
+            return nil
+        }
+    }
 
     private func remember(_ question: String, _ answer: String) {
         let actions = runner.takeActions()
@@ -374,7 +469,7 @@ final class Agent {
 
     // Saves a choice into the Lotus settings file, through Lotus itself
     func saveSetting(_ key: String, _ value: String) {
-        let known = ["LOTUS_AI_PROVIDER", "LOTUS_AI_MODEL", "LOTUS_AI_EFFORT"] + Permissions.items.map(\.key)
+        let known = ["LOTUS_AI_PROVIDER", "LOTUS_AI_MODEL", "LOTUS_AI_EFFORT", "LOTUS_AI_ENHANCE"] + Permissions.items.map(\.key)
         guard known.contains(key), !config.root.isEmpty else { return }
         let script = #"setopt extendedglob; source "$1/lib/core.zsh" && lotus_load && typeset -g "$2=$3" && lotus_save"#
         let p = Process()
@@ -395,6 +490,7 @@ enum TUI {
         SlashCommand(name: "/model", help: "choose the AI (Apple, Claude, this Mac, Ollama …)"),
         SlashCommand(name: "/login", help: "connect Claude with an API key"),
         SlashCommand(name: "/effort", help: "how hard the AI thinks"),
+        SlashCommand(name: "/enhance", help: "improve your prompts before the AI sees them – off, on or ask"),
         SlashCommand(name: "/permissions", help: "what the AI may do on this Mac – ask first or auto"),
         SlashCommand(name: "/clear", help: "start a new conversation"),
         SlashCommand(name: "/compact", help: "summarize the conversation to free up room"),
@@ -444,6 +540,9 @@ enum TUI {
                 : "  \(Style.dim)I ask before I change anything (⇧⇥ auto mode, /permissions). /help shows what else you can do.\(Style.reset)\n"
         } else {
             out += "  \(Style.dim)Ask me anything. Chat only for now – /permissions lets me work on this Mac again.\(Style.reset)\n"
+        }
+        if agent.enhanceMode != "off" {
+            out += "  \(Style.dim)Your prompts are improved before the AI sees them\(agent.enhanceMode == "ask" ? " – you choose each time" : "") (/enhance).\(Style.reset)\n"
         }
         if agent.config.claudeKey.isEmpty {
             out += "  \(Style.dim)Tip:\(Style.reset) \(Style.logo)/login\(Style.reset) \(Style.dim)connects Claude – the strongest AI for code and longer work.\(Style.reset)\n"
@@ -578,6 +677,23 @@ enum TUI {
                 try? agent.switchTo(provider: agent.config.provider, model: agent.config.model)
                 agent.saveSetting("LOTUS_AI_EFFORT", levels[i])
                 Renderer.shared.info("The AI now thinks \(effortNames[levels[i]] ?? levels[i]).")
+                emit("\n")
+            }
+        case "/enhance", "/improve":
+            let modes = Enhance.modes
+            var pick = modes.firstIndex(of: arg.lowercased())
+            if pick == nil {
+                let items = ["Off – messages go as you type them",
+                             "On – improved into a clear prompt, shown and sent",
+                             "Ask – improved and shown first: enter sends it, o yours, esc nothing"]
+                pick = await menu("Improve your prompts before the AI sees them?", items, selected: modes.firstIndex(of: agent.enhanceMode) ?? 0, keys: keys)
+            }
+            if let i = pick {
+                agent.enhanceMode = modes[i]
+                agent.saveSetting("LOTUS_AI_ENHANCE", modes[i])
+                Renderer.shared.info(["off": "Messages go as you type them.",
+                                      "on": "Messages are improved into a clear prompt first – short ones (3 words or fewer) and commands go as typed.",
+                                      "ask": "Messages are improved first, and you decide each time: enter sends the improved one, o yours."][modes[i]] ?? "")
                 emit("\n")
             }
         case "/permissions", "/perms", "/allow":
@@ -885,7 +1001,7 @@ struct LotusAI {
                         exit(1)
                     }
                 } else {
-                    await agent.ask(prompt, tools: false)
+                    await agent.ask(prompt, tools: false, improve: false)
                 }
             } catch let e as AIError {
                 if plain { FileHandle.standardError.write(Data("\(e.title)\n\(e.detail)\n".utf8)) } else { Renderer.shared.error(e.title, e.detail) }
