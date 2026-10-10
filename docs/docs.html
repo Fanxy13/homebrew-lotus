@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.5.1">
-  <link rel="stylesheet" href="css/pages.css?v=2.5.1">
-  <script src="js/lotus.js?v=2.5.1"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.6.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.6.0">
+  <script src="js/lotus.js?v=2.6.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -110,7 +110,8 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     <p>Type <code>/ai</code> and the AI terminal opens: a chat you keep typing into – no <code>/ai</code> in front of every message. Ask questions, let it explain code, or let it work in the folder you started it in. <code>lotus ai local</code> puts a model on your Mac with Apple's MLX – no Ollama: it shows what fits your memory (gpt-oss 20B, Qwen3.6 27B, Qwen3-Coder 30B, Devstral Small 2, Qwen3 14B), downloads it once and loads it only while <code>/ai</code> runs. Like every model in <code>/ai</code> it can look at files, change them and run commands – as far as <code>/permissions</code> lets it.</p>
     <div class="grid">
       <div class="card"><h3>Works on your Mac</h3><p class="muted">It can list, read and search files, create and change files and run commands. Reading inside the folder happens right away; every change and every command is shown first and needs a yes. <kbd>a</kbd> allows the rest of the session, <kbd>n</kbd> lets you say what to do instead. In auto mode (<kbd>⇧</kbd><kbd>⇥</kbd>) it only asks when Lotus is unsure. Never <code>sudo</code>.</p></div>
-      <div class="card"><h3>Remembers</h3><p class="muted">The conversation stays for an hour after your last message, also for single questions with <code>/ai &lt;question&gt;</code>. When it gets long, older messages become a summary. <code>/ai new</code> or <code>/clear</code> starts fresh.</p></div>
+      <div class="card"><h3>Knows what is new</h3><p class="muted">It searches the web and reads pages – documentation, release notes, error messages, Wikipedia, Apple's developer docs – instead of guessing, and names its sources. Only the public internet: nothing on your Mac or in your network. What a page says is information for the AI, never an order.</p></div>
+      <div class="card"><h3>Remembers</h3><p class="muted">The conversation stays for an hour after your last message, also for single questions with <code>/ai &lt;question&gt;</code>. What matters for later – how you like answers, your projects – it keeps with <code>remember</code>; <code>/memory</code> shows it, <code>/memory clear</code> forgets it. A <code>LOTUS.md</code>, <code>AGENTS.md</code> or <code>CLAUDE.md</code> in the folder tells it how to work there. <code>/ai new</code> or <code>/clear</code> starts fresh.</p></div>
       <div class="card"><h3>Thinks first</h3><p class="muted">Claude thinks before it answers, Ollama models with a thinking mode too. Apple Intelligence decides whether a message needs files, plans the steps and checks that it really did them. Set the depth with <code>/effort</code> or in <code>/settings</code>.</p></div>
     </div>
     <div class="table-wrap" style="margin-top:18px">
@@ -119,6 +120,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
         <tr><td><code>/login</code></td><td>Connect Claude: opens the key page, paste the key once</td></tr>
         <tr><td><code>/model</code></td><td>Choose who answers: Apple Intelligence, the model on this Mac, Claude Opus, Sonnet, Haiku or Fable, an Ollama model, your OpenAI-compatible API</td></tr>
         <tr><td><code>/permissions</code> · <kbd>⇧</kbd><kbd>⇥</kbd></td><td>What the AI may do on this Mac: ask first, or <strong>auto</strong> – it works on its own in the folder and asks only when Lotus is unsure (deleting, pushing, installing, sending data, other folders, private files, programs it does not know). Per kind: look at files, change files, run commands – allowed, ask first or never. <kbd>⇧</kbd><kbd>⇥</kbd> switches auto mode on and off. Also in <code>/settings</code> → AI</td></tr>
+        <tr><td><code>/memory</code></td><td>What the AI remembers about you from earlier conversations · <code>/memory clear</code> forgets it. The list is a plain text file you can edit</td></tr>
         <tr><td><code>/effort</code></td><td>Quick, balanced, thorough or maximum</td></tr>
         <tr><td><code>/context</code> · <code>/compact</code></td><td>How full the memory is · summarize now</td></tr>
         <tr><td><code>/clear</code> · <code>/copy</code> · <code>/exit</code></td><td>New conversation · copy the last answer · back to the shell</td></tr>

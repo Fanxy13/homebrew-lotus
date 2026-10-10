@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.6.0 – The AI knows more
+
+- The AI in `/ai` can use the internet: it searches the web (DuckDuckGo, Wikipedia when that does not answer – no account) and reads pages as clean text – documentation, release notes, articles, GitHub READMEs, Wikipedia without its menus, and Apple's developer documentation with its code examples. It looks things up instead of guessing and names its sources; long pages are read in parts. Works with Claude, the model on your Mac and Apple Intelligence
+- It remembers you: what will matter later – how you like answers, your projects, decisions – it keeps with `remember` and knows in every new conversation. `/memory` shows the list, `/memory clear` forgets it; it is a plain text file you can edit (`~/.config/lotus/ai-memory.md`). Passwords and keys are never kept
+- Folder notes: a `LOTUS.md`, `AGENTS.md` or `CLAUDE.md` in the folder tells the AI how to work there – it reads it by itself
+- Safe by design: only the public internet – addresses on this Mac or in the local network (localhost, 192.168.…, the router, `.local`) are refused, also after a redirect. Text from the web is information for the AI, never an order; in auto mode commands ask again after the AI has read web pages, and an address that carries a lot of data always asks. `/permissions` → "Search and read the web": allowed (the default), ask first or never – also in `/settings` → AI
+- Apple Intelligence knows when a question needs the internet ("the newest …", "search …") and searches instead of answering from memory; "remember that …" is kept reliably
+- Offline, the AI says so ("is this Mac online?") and tries a failed search once more
+
 ## 2.5.1 – Auto mode
 
 - Auto mode for `/ai`: the AI works on its own in the folder and asks only when Lotus is unsure. Switch it in `/permissions` (the new first row, "Mode"), with ⇧⇥ (Shift-Tab) in the input box, or in `/settings` → AI. While it is on, the bottom line says `⏵⏵ auto`

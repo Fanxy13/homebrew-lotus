@@ -126,9 +126,9 @@ final class AppleProvider: Provider, @unchecked Sendable {
         return picked
     }
 
-    // A fresh session for this message: with tools for work, without for conversation
-    private func session(work: Bool) -> LanguageModelSession {
-        let use = work ? tools : []
+    // A fresh session for this message: with tools for work, the web tools for current facts, none for conversation
+    private func session(work: Bool, only names: Set<String>? = nil) -> LanguageModelSession {
+        let use = names.map { n in tools.filter { n.contains(($0 as? AppleTool)?.spec.name ?? "") } } ?? (work ? tools : [])
         var entries: [Transcript.Entry] = [
             .instructions(Transcript.Instructions(segments: [.text(Transcript.TextSegment(content: work ? system : chatSystem))],
                                                   toolDefinitions: use.map { Transcript.ToolDefinition(tool: $0) }))
@@ -140,7 +140,7 @@ final class AppleProvider: Provider, @unchecked Sendable {
         return LanguageModelSession(model: model, tools: use, transcript: Transcript(entries: entries))
     }
 
-    enum Kind { case chat, look, change }
+    enum Kind { case chat, look, change, web }
 
     // Decides whether the message needs files or commands (a fixed choice – reliable on the small model),
     // then plans the work in plain text.
@@ -155,13 +155,14 @@ final class AppleProvider: Provider, @unchecked Sendable {
             You sort requests to an assistant in the macOS terminal that can use files and commands.
             change: the request needs files or folders to be created, changed or deleted, or a command to be run.
             look: the request needs files or folders on this computer to be read, listed or searched, without changing them.
-            chat: anything that can be answered with words alone – questions, facts, explanations, stories, texts, small talk.
+            web: the request needs current information from the internet – news, the newest versions, prices, weather, results, anything recent – or asks to search or look something up online.
+            chat: anything that can be answered with words alone – questions, timeless facts, explanations, stories, texts, small talk.
             A request that names a file (such as main.py or notes.txt), a folder or "this folder" is never chat.
             Use the earlier conversation to understand short follow-ups.
             """)
-        let choice = DynamicGenerationSchema(type: String.self, guides: [.anyOf(["chat", "look", "change"])])
+        let choice = DynamicGenerationSchema(type: String.self, guides: [.anyOf(["chat", "look", "change", "web"])])
         let root = DynamicGenerationSchema(name: "Decision", properties: [
-            DynamicGenerationSchema.Property(name: "kind", description: "chat, look or change", schema: choice)
+            DynamicGenerationSchema.Property(name: "kind", description: "chat, look, change or web", schema: choice)
         ])
         var kind = Kind.chat
         if let schema = try? GenerationSchema(root: root, dependencies: []) {
@@ -174,13 +175,18 @@ final class AppleProvider: Provider, @unchecked Sendable {
                 }
                 return (try? last?.value(String.self, forProperty: "kind")) ?? "chat"
             }
-            kind = picked == "change" ? .change : picked == "look" ? .look : .chat
+            kind = picked == "change" ? .change : picked == "look" ? .look : picked == "web" ? .web : .chat
         }
+        // "search the web", "the newest …", "today": the internet, also when the sorter thought it was a chat
+        if kind == .chat, text.range(of: AppleProvider.webWords, options: [.regularExpression, .caseInsensitive]) != nil {
+            kind = .web
+        }
+        Log.write("DEBUG", "Apple Intelligence sorted the request as \(kind)")
         // A file name or path in the message: the AI may at least look
         if kind == .chat, text.range(of: #"(~/|\./|/Users/|\b[\w-]+\.(py|js|ts|tsx|jsx|html|css|md|txt|json|swift|sh|zsh|rb|go|rs|java|kt|c|cpp|h|m|yml|yaml|toml|csv|xml|php|sql|ini|cfg|log)\b)"#, options: .regularExpression) != nil {
             kind = .look
         }
-        guard kind != .chat, effort == "high" || effort == "max" else { return (kind, []) }
+        guard kind == .look || kind == .change, effort == "high" || effort == "max" else { return (kind, []) }
 
         let planner = LanguageModelSession(model: model, instructions: """
             You plan work for an assistant in the macOS terminal that can list, read, create and edit files and run commands. \
@@ -206,6 +212,31 @@ final class AppleProvider: Provider, @unchecked Sendable {
         }
         return (kind, Array(steps.prefix(5)))
     }
+
+    // "Merk dir, dass mein Lieblingsessen Pizza ist" → "The user's favourite food is pizza."
+    private func factToRemember(_ text: String) async -> String? {
+        let session = LanguageModelSession(model: model, instructions: """
+            The user wants something remembered. Write it as one short fact about the user, in the user's language, \
+            in the third person ("The user …" / "Der Nutzer …"). Only the fact, nothing else.
+            """)
+        let root = DynamicGenerationSchema(name: "Memory", properties: [
+            DynamicGenerationSchema.Property(name: "fact", description: "the fact, one sentence", schema: DynamicGenerationSchema(type: String.self))
+        ])
+        guard let schema = try? GenerationSchema(root: root, dependencies: []) else { return nil }
+        let fact = try? await Watchdog.run(idle: 8) { progress -> String in
+            var last: GeneratedContent?
+            for try await snap in session.streamResponse(to: text, schema: schema, options: GenerationOptions(sampling: .greedy)) {
+                last = snap.rawContent
+                progress.tick()
+            }
+            return (try? last?.value(String.self, forProperty: "fact")) ?? ""
+        }
+        let f = (fact ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return f.count >= 3 ? f : nil
+    }
+
+    static let webWords = #"\b(search|google|look (it )?up|online|internet|web|latest|newest|current|today|news|price|weather|recherch\w*|such\w*|im (netz|internet|web)|neueste\w*|aktuell\w*|heute|nachrichten|preis\w*|wetter|cherche\w*|dernière?s?|busca\w*|último\w*)\b"#
+    static let rememberWords = #"\b(remember|don't forget|merk (dir|es)|merke|vergiss nicht|souviens|retiens|recuerda|no olvides)\b"#
 
     private func stream(_ session: LanguageModelSession, _ request: String, temperature: Double) async throws -> String {
         let toolProgress = self.toolProgress
@@ -250,11 +281,25 @@ final class AppleProvider: Provider, @unchecked Sendable {
                     + "\nWhen everything is done, say briefly what you changed. " + answerIn
             }
         }
-        let work = kind != .chat
+        let work = kind == .look || kind == .change
+        var only: Set<String>?
+        if runner != nil && !tools.isEmpty {
+            if kind == .web {
+                only = ["web_search", "fetch_url"]
+                prompt += "\n\n(Search the web with web_search first – do not answer from memory. Look at all results: for the newest or latest of something, pick the highest version and the newest date. Read the best page with fetch_url if the snippets are not enough. Answer briefly and name the source.)"
+            } else if kind == .chat, let r = runner, text.range(of: AppleProvider.rememberWords, options: [.regularExpression, .caseInsensitive]) != nil,
+                      let fact = await factToRemember(text) {
+                // the small model's own tool call is unreliable here: Lotus keeps the fact itself, the model confirms
+                let saved = await r.run("remember", ["fact": fact])
+                prompt += saved.isError
+                    ? "\n\n(Lotus could not keep this: \(saved.text) Tell the user in one sentence.)"
+                    : "\n\n(Lotus has kept this for later conversations: \"\(fact)\". Tell the user in one short sentence that you will remember it – speak to them directly, as \"you\".)"
+            }
+        }
         if !prompt.contains(answerIn), let l = language, l != "English" { prompt += "\n\n(\(answerIn))" }
-        Spinner.shared.setLabel(work ? "Working" : "Thinking")
+        Spinner.shared.setLabel(kind == .web ? "Searching the web" : work ? "Working" : "Thinking")
         add(prompt.count)
-        let session = self.session(work: work)
+        let session = self.session(work: work, only: only)
         let actionsBefore = runner?.actions.count ?? 0
         do {
             var answer = try await stream(session, prompt, temperature: work ? 0.3 : 0.6)

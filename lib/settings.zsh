@@ -74,7 +74,8 @@ lotus_settings_ui() {
       "choice|LOTUS_AI_PERM_READ_OUT|${LOTUS_L[ai_p_read_out]:-Look at files elsewhere}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}"
       "choice|LOTUS_AI_PERM_WRITE|${LOTUS_L[ai_p_write]:-Change files in the folder}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}"
       "choice|LOTUS_AI_PERM_WRITE_OUT|${LOTUS_L[ai_p_write_out]:-Change files elsewhere}|ask=${LOTUS_L[ai_p_ask]:-ask first};never=${LOTUS_L[ai_p_never]:-never}"
-      "choice|LOTUS_AI_PERM_RUN|${LOTUS_L[ai_p_run]:-Run commands}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}")
+      "choice|LOTUS_AI_PERM_RUN|${LOTUS_L[ai_p_run]:-Run commands}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}"
+      "choice|LOTUS_AI_PERM_WEB|${LOTUS_L[ai_p_web]:-Search and read the web}|allow=${LOTUS_L[ai_p_allow]:-allowed};ask=${LOTUS_L[ai_p_ask]:-ask first};never=${LOTUS_L[ai_p_never]:-never}")
     _on bg && items+=(
       "head||$LOTUS_L[head_bg]|"
       "choice|LOTUS_BG_MODEL|$LOTUS_L[bg_model]|auto=$LOTUS_L[col_auto];birefnet=BiRefNet;birefnet-lite=BiRefNet Lite;inspyrenet=InSPyReNet"
