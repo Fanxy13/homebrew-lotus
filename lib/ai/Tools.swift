@@ -71,6 +71,7 @@ struct Permissions {
     }
 
     static let items: [Item] = [
+        Item(key: "LOTUS_AI_PERM_MODE", label: "Mode", values: ["ask", "auto"]),
         Item(key: "LOTUS_AI_TOOLS", label: "Work on this Mac", values: ["1", "0"]),
         Item(key: "LOTUS_AI_PERM_READ", label: "Look at files in this folder", values: ["allow", "ask", "never"]),
         Item(key: "LOTUS_AI_PERM_READ_OUT", label: "Look at files elsewhere", values: ["ask", "allow", "never"]),
@@ -98,12 +99,18 @@ struct Permissions {
         return item.values[(i + 1) % item.values.count]
     }
 
-    static func words(_ v: String) -> String {
-        ["allow": "allowed", "ask": "asks first", "never": "never", "1": "on", "0": "off"][v] ?? v
+    static func words(_ v: String, _ key: String = "", auto: Bool = false) -> String {
+        if key == "LOTUS_AI_PERM_MODE" { return v == "auto" ? "auto – asks only when unsure" : "ask first – asks before it changes anything" }
+        // in auto mode these decide by themselves
+        if auto && v == "ask" && ["LOTUS_AI_PERM_READ", "LOTUS_AI_PERM_WRITE"].contains(key) { return "auto" }
+        if auto && v == "ask" && key == "LOTUS_AI_PERM_RUN" { return "auto – asks when unsure" }
+        return ["allow": "allowed", "ask": "asks first", "never": "never", "1": "on", "0": "off"][v] ?? v
     }
 
     private func level(_ key: String) -> Level { Level(rawValue: value(key)) ?? .ask }
     var tools: Bool { value("LOTUS_AI_TOOLS") != "0" }
+    // Auto mode: what asks first runs without a question when Lotus is sure it is safe (see AutoCheck)
+    var auto: Bool { value("LOTUS_AI_PERM_MODE") == "auto" }
     var read: Level { level("LOTUS_AI_PERM_READ") }
     var readOutside: Level { level("LOTUS_AI_PERM_READ_OUT") }
     var write: Level { level("LOTUS_AI_PERM_WRITE") }
@@ -392,6 +399,7 @@ final class ToolRunner: @unchecked Sendable {
             return await ask("Let the AI read \(display(url))? It looks private.", allowAlways: false) ? nil : declined(what)
         }
         if level == .allow || (isInside ? readsInsideAllowed : readsAllowed) { return nil }
+        if isInside && permissions.auto { return nil }
         let question = isInside ? "Let the AI read \(display(url))?" : "Let the AI read \(display(url))? It is outside this folder."
         switch await ui.confirm(question, allowAlways: true) {
         case .yes: return nil
@@ -521,7 +529,7 @@ final class ToolRunner: @unchecked Sendable {
         } else {
             Renderer.shared.toolLines(lines, color: Style.green, limit: 10)
         }
-        if sensitive(url) || !isInside || (level == .ask && !editsAllowed) {
+        if sensitive(url) || !isInside || (level == .ask && !editsAllowed && !permissions.auto) {
             let verb = exists ? "Replace" : "Create"
             let place = isInside ? "" : " (outside this folder)"
             switch await ui.confirm("\(verb) \(display(url))\(place)?", allowAlways: isInside && !sensitive(url)) {
@@ -570,7 +578,7 @@ final class ToolRunner: @unchecked Sendable {
             return ToolOutcome(text: "old_text appears \(count) times in \(display(url)). Include more surrounding lines so it is unique.", isError: true)
         }
         showDiff(oldText, newText, full: true)
-        if sensitive(url) || !isInside || (level == .ask && !editsAllowed) {
+        if sensitive(url) || !isInside || (level == .ask && !editsAllowed && !permissions.auto) {
             switch await ui.confirm("Change \(display(url))?", allowAlways: isInside && !sensitive(url)) {
             case .yes: break
             case .always: editsAllowed = true
@@ -669,8 +677,17 @@ final class ToolRunner: @unchecked Sendable {
         }
         if permissions.run == .never { return blocked("running `\(command)`") }
         let risky = ToolRunner.dangerous.contains { command.range(of: $0, options: .regularExpression) != nil }
-        if risky || (permissions.run == .ask && !commandsAllowed) {
+        // auto mode: it runs unasked when Lotus is sure; otherwise the question says why
+        var unsure: String?
+        if !risky && permissions.run == .ask && !commandsAllowed && permissions.auto {
+            let check = AutoCheck(inside: { self.inside(self.resolve($0)) }, isPrivate: { self.sensitive(self.resolve($0)) },
+                                  readOutside: permissions.readOutside == .allow, write: permissions.write != .never)
+            unsure = check.unsure(command)
+            if unsure != nil { Log.write("DEBUG", "Auto mode asks: \(unsure!)") }
+        }
+        if risky || (permissions.run == .ask && !commandsAllowed && (!permissions.auto || unsure != nil)) {
             if risky { Renderer.shared.toolLines(["This command can delete or overwrite things."], color: Style.red) }
+            else if let why = unsure { Renderer.shared.toolLines(["Auto mode asks: \(why)."], color: Style.accent) }
             switch await ui.confirm("Run this command?", allowAlways: !risky) {
             case .yes: break
             case .always: commandsAllowed = true

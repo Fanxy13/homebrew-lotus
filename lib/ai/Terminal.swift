@@ -189,7 +189,7 @@ enum RawMode {
 enum Key: Equatable {
     case char(Character)
     case paste(String)
-    case enter, newline, backspace, delete, tab, esc
+    case enter, newline, backspace, delete, tab, backtab, esc
     case left, right, up, down, home, end, wordLeft, wordRight, wordBackspace
     case ctrlA, ctrlC, ctrlD, ctrlE, ctrlK, ctrlL, ctrlU, ctrlW, ctrlO
     case cancelled, unknown
@@ -349,6 +349,7 @@ final class KeyReader: @unchecked Sendable {
         case "D": return params.contains(";3") || params.contains(";5") ? .wordLeft : .left
         case "H": return .home
         case "F": return .end
+        case "Z": return .backtab                    // shift-tab
         case "~":
             switch params {
             case "3": return .delete

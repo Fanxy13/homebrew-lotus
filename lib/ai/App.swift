@@ -217,6 +217,17 @@ final class Agent {
         "\(provider.label) · \(contextPercent)% context"
     }
 
+    var autoMode: Bool { usesTools && runner.permissions.auto }
+
+    // ⇧⇥ in the input box: auto mode on or off, kept in the settings
+    func toggleAuto() {
+        guard usesTools else { return }
+        let value = runner.permissions.auto ? "ask" : "auto"
+        runner.permissions.set("LOTUS_AI_PERM_MODE", value)
+        runner.resetAllowances()
+        saveSetting("LOTUS_AI_PERM_MODE", value)
+    }
+
     // Reads keys while the AI works: questions get them, esc stops the answer
     private func watch(_ keys: KeyQueue, _ work: Task<String, Error>) async {
         while !Task.isCancelled {
@@ -351,7 +362,7 @@ enum TUI {
         SlashCommand(name: "/model", help: "choose the AI (Apple, Claude, this Mac, Ollama …)"),
         SlashCommand(name: "/login", help: "connect Claude with an API key"),
         SlashCommand(name: "/effort", help: "how hard the AI thinks"),
-        SlashCommand(name: "/permissions", help: "what the AI may do on this Mac"),
+        SlashCommand(name: "/permissions", help: "what the AI may do on this Mac – ask first or auto"),
         SlashCommand(name: "/clear", help: "start a new conversation"),
         SlashCommand(name: "/compact", help: "summarize the conversation to free up room"),
         SlashCommand(name: "/context", help: "how full the memory is"),
@@ -394,7 +405,9 @@ enum TUI {
         var out = "\n" + frame(rows, width: width)
         if agent.usesTools {
             out += "  \(Style.dim)Ask anything, or let me work in this folder: create files, change code, run commands.\(Style.reset)\n"
-            out += "  \(Style.dim)I ask before I change anything (/permissions sets what I may do). /help shows what else you can do.\(Style.reset)\n"
+            out += agent.runner.permissions.auto
+                ? "  \(Style.dim)Auto mode: I work on my own and ask only when I am unsure (⇧⇥ or /permissions). /help shows more.\(Style.reset)\n"
+                : "  \(Style.dim)I ask before I change anything (⇧⇥ auto mode, /permissions). /help shows what else you can do.\(Style.reset)\n"
         } else {
             out += "  \(Style.dim)Ask me anything. Chat only for now – /permissions lets me work on this Mac again.\(Style.reset)\n"
         }
@@ -432,6 +445,8 @@ enum TUI {
         welcome(agent)
         let box = InputBox(keys: keys, commands: commands, historyFile: config.stateDir.appendingPathComponent("history"))
         box.status = { agent.statusText }
+        box.autoMode = { agent.autoMode }
+        box.onBacktab = { agent.toggleAuto() }
 
         while true {
             guard let line = await box.read() else { break }
@@ -532,7 +547,7 @@ enum TUI {
         var sel = 0
         while true {
             var items = Permissions.items.map { item in
-                item.label.padding(toLength: 40, withPad: " ", startingAt: 0) + Permissions.words(agent.runner.permissions.value(item.key))
+                item.label.padding(toLength: 40, withPad: " ", startingAt: 0) + Permissions.words(agent.runner.permissions.value(item.key), item.key, auto: agent.runner.permissions.auto)
             }
             items.append("Done")
             guard let i = await menu("What may the AI do on this Mac?", items, selected: sel, keys: keys),
@@ -545,7 +560,9 @@ enum TUI {
             agent.saveSetting(key, value)
             if key == "LOTUS_AI_TOOLS" { agent.applyTools(value != "0") }
         }
-        Renderer.shared.info("Dangerous commands and private files (keys, .env) still ask first. Also in /settings → AI.")
+        Renderer.shared.info(agent.runner.permissions.auto
+            ? "Auto mode: I ask only when unsure – deleting, pushing, installing, other folders, private files. ⇧⇥ switches."
+            : "Dangerous commands and private files (keys, .env) always ask first. ⇧⇥ switches to auto mode.")
         emit("\n")
     }
 

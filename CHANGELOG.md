@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.1 – Auto mode
+
+- Auto mode for `/ai`: the AI works on its own in the folder and asks only when Lotus is unsure. Switch it in `/permissions` (the new first row, "Mode"), with ⇧⇥ (Shift-Tab) in the input box, or in `/settings` → AI. While it is on, the bottom line says `⏵⏵ auto`
+- In auto mode it reads, creates and changes files in the folder without a question. Before a command runs, Lotus reads it the way the shell does and lets it through only when it is sure the command stays in the folder and destroys nothing – looking at things, `git status`, `diff`, `add`, `commit`, builds and tests (`swift build`, `npm test`, `pytest`, `cargo`, `make`), creating and moving files here, downloads without sending data
+- It still asks – and says why ("Auto mode asks: it deletes files") – before deleting, `git push`, `pull`, `reset` or `checkout`, installing (`brew install`, `npm i <package>`, `pip install`), sending data to the internet, `ssh`, other folders, private files (`.env`, `~/.ssh`), commands built at run time (`$(…)`, `eval`), code that flows in (`curl … | python3`), things that keep running in the background and programs it does not know. Dangerous commands still always ask and `sudo` never runs
+- Ask first stays the default
+
 ## 2.5.0 – The AI on your Mac works on your Mac
 
 - Fixed: gpt-oss on this Mac still often could not use the computer, and its answers sometimes showed raw arguments like `{"path":"notes.txt"}` instead of doing something. Lotus now reads every way gpt-oss writes a tool call: when the model server cuts off the end of the call, when the tool name comes before the channel (as in earlier steps of the conversation), and `to=functions.read_file<|constrain|>json` without a space – which Lotus read as a tool called "read_filejson", so gpt-oss tried again and again without anything on screen

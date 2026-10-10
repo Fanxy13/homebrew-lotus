@@ -378,6 +378,8 @@ final class InputBox {
     private let historyFile: URL?
     let commands: [SlashCommand]
     var status: () -> String = { "" }
+    var autoMode: () -> Bool = { false }
+    var onBacktab: (() -> Void)?
 
     init(keys: KeyQueue, commands: [SlashCommand], historyFile: URL?) {
         self.keys = keys
@@ -463,10 +465,15 @@ final class InputBox {
                 footer.append("  " + Style.logo + c.name.padding(toLength: 12, withPad: " ", startingAt: 0) + Style.reset + Style.dim + c.help + Style.reset)
             }
         } else {
-            let left = exitArmed ? "Press Ctrl-C again to quit" : "/ for commands · ⌥⏎ new line · ctrl-d quits"
+            let auto = !exitArmed && autoMode()
+            let left = exitArmed ? "Press Ctrl-C again to quit"
+                : auto ? "⏵⏵ auto – asks only when unsure · ⇧⇥ off"
+                : onBacktab != nil && width >= 96 ? "/ for commands · ⌥⏎ new line · ⇧⇥ auto · ctrl-d quits"
+                : "/ for commands · ⌥⏎ new line · ctrl-d quits"
             let right = status()
             let gap = max(2, width - cellWidth(left) - cellWidth(right) - 2)
-            footer.append("  " + Style.dim + left + String(repeating: " ", count: gap) + right + Style.reset)
+            let shown = auto ? Style.accent + left + Style.dim : left
+            footer.append("  " + Style.dim + shown + String(repeating: " ", count: gap) + right + Style.reset)
         }
         for f in footer { out += "\n" + f }
         // Move back to the cursor
@@ -539,6 +546,8 @@ final class InputBox {
                 }
             case .newline:
                 if key == .newline { insert("\n") }
+            case .backtab:
+                onBacktab?()
             case .tab:
                 if let s = suggestions.first {
                     text = Array(s.name + " ")

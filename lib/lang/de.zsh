@@ -49,5 +49,6 @@ LOTUS_L+=(
   ai_local 'Auf diesem Mac (MLX)'  ai_local_get 'Modelle auf diesem Mac'
   ai_ctx 'Kontextfenster'  ai_len 'Antwortlänge'  ai_temp 'Kreativität'  ai_temp_p 'präzise'  ai_temp_b 'ausgewogen'  ai_temp_c 'kreativ'  ai_kv 'Speicher sparen'
   head_ai_perm 'KI: was sie darf'  ai_tools 'Am Mac arbeiten'  ai_p_read 'Dateien im Ordner ansehen'  ai_p_read_out 'Dateien woanders ansehen'
+  ai_p_mode 'Modus'  ai_p_mode_ask 'erst fragen'  ai_p_mode_auto 'auto – fragt nur, wenn unsicher'
   ai_p_write 'Dateien im Ordner ändern'  ai_p_write_out 'Dateien woanders ändern'  ai_p_run 'Befehle ausführen'  ai_p_allow 'erlaubt'  ai_p_ask 'erst fragen'  ai_p_never 'nie'
 )

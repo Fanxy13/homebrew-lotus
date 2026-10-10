@@ -68,6 +68,7 @@ lotus_settings_ui() {
       "text|LOTUS_AI_URL|$LOTUS_L[ai_url]|"
       "action|aikey|$LOTUS_L[ai_key]|"
       "head||${LOTUS_L[head_ai_perm]:-AI: what it may do}|"
+      "choice|LOTUS_AI_PERM_MODE|${LOTUS_L[ai_p_mode]:-Mode}|ask=${LOTUS_L[ai_p_mode_ask]:-ask first};auto=${LOTUS_L[ai_p_mode_auto]:-auto – asks only when unsure}"
       "choice|LOTUS_AI_TOOLS|${LOTUS_L[ai_tools]:-Work on this Mac}|1=$LOTUS_L[on];0=$LOTUS_L[off]"
       "choice|LOTUS_AI_PERM_READ|${LOTUS_L[ai_p_read]:-Look at files in the folder}|allow=${LOTUS_L[ai_p_allow]:-allowed};ask=${LOTUS_L[ai_p_ask]:-ask first};never=${LOTUS_L[ai_p_never]:-never}"
       "choice|LOTUS_AI_PERM_READ_OUT|${LOTUS_L[ai_p_read_out]:-Look at files elsewhere}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}"
