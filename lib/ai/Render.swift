@@ -26,6 +26,9 @@ final class MarkdownStream {
     private var pendingStar = false
     private var word = ""
     private var wordWidth = 0
+    private var html = ""              // "<…" or "&…" that may still become an HTML tag or entity
+    private var htmlCode = false       // inside <code>…</code>: only its end tag counts
+    private var tableLine = false      // a Markdown table row: a <br> in it must not break the row
 
     private enum LineKind { case undecided, text, heading, fence }
 
@@ -61,6 +64,8 @@ final class MarkdownStream {
         lines += 1
         inCode = false
         bold = false
+        htmlCode = false
+        tableLine = false
         if lines >= maxLines && !truncated {
             truncated = true
         }
@@ -123,6 +128,7 @@ final class MarkdownStream {
             head = ""
             atLineStart = false
             lineKind = .text
+            tableLine = pending.drop(while: { $0 == " " }).first == "|"
             for c in pending { inline(c) }
             return
         }
@@ -143,7 +149,7 @@ final class MarkdownStream {
         } else {
             let text = trimmed.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
             if col == 0 { startLine() }
-            out(Style.bold + Style.accent + stripMarks(text) + Style.reset + "\n")
+            out(Style.bold + Style.accent + HTMLText.plain(stripMarks(text)) + Style.reset + "\n")
             col = 0
             lines += 1
         }
@@ -169,7 +175,66 @@ final class MarkdownStream {
         if lines >= maxLines { truncated = true }
     }
 
+    // HTML that models write into Markdown (<br>, <b>, &nbsp; …) does what it means instead of showing up as
+    // text – never in code. Tags Lotus does not know stay as written (List<T>).
     private func inline(_ ch: Character) {
+        if !html.isEmpty {
+            html.append(ch)
+            switch HTMLText.read(html) {
+            case .more:
+                return
+            case .text:
+                let s = html
+                html = ""
+                put(s.first!)                       // not HTML – what follows may start something new
+                for c in s.dropFirst() { inline(c) }
+            case .tag(let name, let closing):
+                let s = html
+                html = ""
+                if htmlCode && !(closing && HTMLText.codeTags.contains(name)) {
+                    for c in s { put(c) }           // inside <code>: tags are code
+                } else {
+                    tag(name, closing)
+                }
+            case .char(let c):
+                html = ""
+                put(c)
+            }
+            return
+        }
+        if (ch == "<" || ch == "&") && (!inCode || htmlCode) {
+            html = String(ch)
+            return
+        }
+        put(ch)
+    }
+
+    private func tag(_ name: String, _ closing: Bool) {
+        if pendingStar { pendingStar = false; word.append("*"); wordWidth += 1 }
+        switch name {
+        case "br":
+            if tableLine { put(" "); put("/"); put(" ") } else { put("\n") }
+        case "p", "div", "hr":
+            if closing || name == "hr" { put("\n") }
+        case "b", "strong":
+            bold = !closing
+            word += bold ? Style.bold : Style.boldOff + baseStyle
+        case "i", "em", "cite", "var":
+            word += closing ? "\u{1B}[23m" : Style.italic
+        case "u", "ins":
+            word += closing ? "\u{1B}[24m" : "\u{1B}[4m"
+        case "s", "del", "strike":
+            word += closing ? "\u{1B}[29m" : "\u{1B}[9m"
+        case _ where HTMLText.codeTags.contains(name):
+            inCode = !closing
+            htmlCode = !closing
+            word += inCode ? Style.code : Style.reset + baseStyle + (bold ? Style.bold : "")
+        default:
+            break                                   // sub, sup, mark, span, font …: only the text stays
+        }
+    }
+
+    private func put(_ ch: Character) {
         if pendingStar {
             pendingStar = false
             if ch == "*" {
@@ -236,6 +301,11 @@ final class MarkdownStream {
             head = ""
             for c in pending { inline(c) }
         }
+        if !html.isEmpty {                          // the answer ended in the middle: it was text
+            let s = html
+            html = ""
+            for c in s { put(c) }
+        }
         flushWord()
         if col > 0 { out(Style.reset + "\n"); col = 0 }
         let wasTruncated = truncated
@@ -245,6 +315,91 @@ final class MarkdownStream {
     }
 
     var hasOutput: Bool { started }
+}
+
+// ── HTML in Markdown ──────────────────────────────────────────
+// Models write <br> into table cells, <b>, <sup>, &nbsp; … The terminal shows what they mean; the web chat
+// (lib/ai/web/app.js) does the same with the same list. Unknown tags stay as written.
+
+enum HTMLText {
+    enum Result: Equatable { case more, text, tag(String, Bool), char(Character) }
+
+    static let tags: Set<String> = ["br", "b", "strong", "i", "em", "u", "s", "del", "strike", "ins", "sub", "sup", "mark", "small",
+                                    "kbd", "code", "q", "abbr", "cite", "var", "samp", "tt", "span", "font", "p", "div", "hr"]
+    static let codeTags: Set<String> = ["code", "kbd", "samp", "tt"]
+    static let wrappers: Set<String> = ["span", "font"]       // these may carry attributes: they are dropped whole
+    static let entities: [String: Character] = [
+        "nbsp": " ", "amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "mdash": "—", "ndash": "–", "hellip": "…",
+        "copy": "©", "reg": "®", "trade": "™", "times": "×", "divide": "÷", "rarr": "→", "larr": "←", "uarr": "↑", "darr": "↓",
+        "harr": "↔", "deg": "°", "euro": "€", "pound": "£", "yen": "¥", "middot": "·", "bull": "•", "laquo": "«", "raquo": "»",
+        "ldquo": "“", "rdquo": "”", "lsquo": "‘", "rsquo": "’", "plusmn": "±", "le": "≤", "ge": "≥", "ne": "≠", "check": "✓",
+    ]
+
+    // What "<…" or "&…" is so far: maybe more to come, plain text, a known tag or an entity's character
+    static func read(_ s: String) -> Result {
+        guard let first = s.first else { return .text }
+        let body = s.dropFirst()
+        if first == "<" {
+            if s.count > 120 || body.contains("\n") || body.contains("<") { return .text }
+            var inner = Substring(body)
+            if inner.hasSuffix(">") {
+                inner = inner.dropLast()
+                let closing = inner.hasPrefix("/")
+                if closing { inner = inner.dropFirst() }
+                let name = inner.prefix(while: { $0.isASCII && ($0.isLetter || $0.isNumber) }).lowercased()
+                let rest = inner.dropFirst(name.count).trimmingCharacters(in: .whitespaces)
+                guard tags.contains(name) else { return .text }
+                if !(rest.isEmpty || rest == "/") && !wrappers.contains(name) { return .text }
+                return .tag(name, closing)
+            }
+            if inner.hasPrefix("/") { inner = inner.dropFirst() }
+            if inner.isEmpty { return .more }
+            let name = inner.prefix(while: { $0.isASCII && ($0.isLetter || $0.isNumber) })
+            if name.isEmpty { return .text }                              // "< 3", "<-"
+            if name.count == inner.count { return name.count <= 6 ? .more : .text }
+            let after = inner.dropFirst(name.count)
+            if after.allSatisfy({ $0 == " " || $0 == "/" }) && after.count <= 2 { return .more }    // "<br /"
+            if wrappers.contains(name.lowercased()) && after.first == " " { return .more }          // <span style=…
+            return .text
+        }
+        guard first == "&" else { return .text }
+        if s.hasSuffix(";") && s.count > 2 {
+            let name = String(body.dropLast())
+            if name.hasPrefix("#") {
+                let digits = name.dropFirst()
+                let value = digits.first == "x" || digits.first == "X" ? UInt32(digits.dropFirst(), radix: 16) : UInt32(digits)
+                guard let v = value, v >= 0x20, !(0x7F...0x9F).contains(v), let u = Unicode.Scalar(v) else { return .text }
+                return .char(Character(u))
+            }
+            return entities[name].map { .char($0) } ?? .text
+        }
+        if body.count > 8 { return .text }
+        let ok = body.enumerated().allSatisfy { i, c in c.isASCII && (c.isLetter || c.isNumber || (i == 0 && c == "#")) }
+        return ok ? .more : .text
+    }
+
+    // A whole line at once (headings): line breaks become spaces, known tags go, entities become characters
+    static func plain(_ s: String) -> String {
+        guard s.contains("<") || s.contains("&") else { return s }
+        var out = ""
+        var pending = ""
+        for ch in s {
+            if !pending.isEmpty {
+                pending.append(ch)
+                switch read(pending) {
+                case .more: continue
+                case .text: out += pending; pending = ""
+                case .tag(let name, _): out += name == "br" ? " " : ""; pending = ""
+                case .char(let c): out.append(c); pending = ""
+                }
+            } else if ch == "<" || ch == "&" {
+                pending = String(ch)
+            } else {
+                out.append(ch)
+            }
+        }
+        return out + pending
+    }
 }
 
 // ── What the assistant is doing, as blocks ────────────────────

@@ -201,6 +201,12 @@ check_has "cancel: nothing is sent" "$REPLY" '"text":"Not sent."'
 check_eq "and the conversation is as it was" "$(turns)" "$before"
 choose "write me a limerick about a cat" always
 check_eq "'always' is not an answer to this question" "$(<$HOME/always.txt)" 400
+# HTML that models write into Markdown: the terminal shows what it means, code and unknown tags stay
+out=$(cd $HOME && lotus ai "show me some html please" 2>&1 | sed $'s/\e\\[[0-9;]*m//g')
+check "/ai: <br> starts a new line" eval '[[ $out == *"Line one"$'"'"'\n'"'"'*"line two & more → x"* && $out != *"Line one<br>"* ]]'
+check_has "/ai: unknown tags stay as written" "$out" "Use List<T> here and bold too."
+check_has "/ai: code keeps its HTML" "$out" "<p>a<br>b</p>"
+check_has "/ai: a <br> in a table row keeps the row" "$out" "| 1 | x / y |"
 # the terminal: /ai <question> shows the improved prompt the same way
 enhance on
 out=$(cd $HOME && lotus ai "tell me a short story please" 2>&1)

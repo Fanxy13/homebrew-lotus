@@ -2,6 +2,7 @@
 # Streams like a real one. A message with "run" calls run_command (echo lotus-test-ok); after the tool
 # result it says what the command printed; anything else gets a short Markdown answer.
 # "delete" asks for rm -rf ./nothing-here, "admin" for sudo ls – both must not run without the user.
+# "html" gets an answer with the HTML models like to write into Markdown (<br>, <b>, &nbsp; …).
 # Asked to improve a prompt (data/ai/system.md "## enhance"), it answers "Goal: <the request>" – or fails
 # with an error when the request contains "fail-enhance".
 import json
@@ -43,6 +44,10 @@ class Model(BaseHTTPRequestHandler):
                     "function": {"name": "run_command", "arguments": json.dumps({"command": command})}}
             chunk({"tool_calls": [call]})
             chunk({}, "tool_calls")
+        elif last.get("role") == "user" and "html" in str(last.get("content", "")):
+            chunk({"content": "Line one<br>line two &amp; more &rarr; x\n\nUse List<T> here and <b>bold</b> too.\n\n"})
+            chunk({"content": "```html\n<p>a<br>b</p>\n```\n\n| A | B |\n|---|---|\n| 1 | x<br>y |\n"})
+            chunk({}, "stop")
         elif last.get("role") == "tool":
             chunk({"content": "The command said: "})
             chunk({"content": str(last.get("content", ""))[:200]})

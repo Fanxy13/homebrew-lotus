@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.1
+
+- Fixed: answers showed HTML as text – `<br>` in table cells, `<b>`, `&nbsp;` and the like, which models such as gpt-oss like to write into their Markdown. In the web chat and in `/ai` it now does what it means: `<br>` is a new line (in the terminal a table row stays one row, with " / "), `<b>`, `<i>`, `<u>`, `<sub>`, `<sup>`, `<kbd>`, `<code>` and friends format the text, entities become their characters, style wrappers like `<span style=…>` disappear
+- Safe as before: only this short list of tags without attributes is shown as HTML – scripts, images, links and anything with attributes stay text, tags Lotus does not know stay as written (`List<T>`), and code is never changed
+- Tests: `tests/test-webmarkdown.zsh` runs the web chat's own Markdown code (with Node.js), and the `/ai` output is checked with an answer full of HTML
+
 ## 2.9.0 – Commands and settings in the browser
 
 - Commands in the web chat, like in `/ai`: `/help`, `/new`, `/clear`, `/model`, `/effort`, `/enhance`, `/auto`, `/permissions`, `/settings`, `/memory`, `/context`, `/compact`, `/copy` – a list shows up when you type `/`, ↑↓ and Tab choose
