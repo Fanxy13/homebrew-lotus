@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.2
+
+- Fixed: the download speed of `lotus ai local` jumped – 200 MB/s, then half of that, a quarter, down to 0, then up again. Hugging Face delivers models through its Xet storage now, which receives the data in blocks of up to 64 MB and writes the files afterwards, so the model folder grows in jumps. Lotus now counts the bytes that came over the network, as Hugging Face's own library reports them (`lib/ai/download.py`), and shows the average of the last 10 seconds – the amount, the speed and the time left move steadily. With an older library it falls back to the size of the folder, averaged the same way
+- The download itself was not slow: the jumps were only on screen (measured: a steady 15–20 MB/s while the display swung between 0 and 200 MB/s)
+- Tests: `tests/test-download.zsh` checks the progress line with a stand-in for the download that writes its file only at the end, like Xet
+
 ## 2.8.1 – Better prompts
 
 - A new setting improves your prompts before the AI sees them: `/settings` → AI → "Improve prompts", or `/enhance` in `/ai`. The AI first rewrites your message into a clear prompt – the goal, the details and context, the expected result – in your language, keeping every name, file name, path, command, number, code and quote exactly, and adding nothing you did not ask for. A message that is already clear stays as it is

@@ -294,6 +294,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/cmd/*.zsh` | One module per feature (app, brew, weather, ai, ios, bg, log, …) |
 | `lib/ai/*.swift` | The AI terminal (Claude, Apple Intelligence, Ollama, OpenAI-compatible), built once on first use; `Server.swift` is the web chat |
 | `lib/ai/web/` | The web chat's page (HTML, CSS, JavaScript – no libraries, nothing from other servers) |
+| `lib/ai/download.py` | Downloads a model for `lotus ai local` and reports the bytes received, for Lotus' progress line |
 | `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |

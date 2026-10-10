@@ -537,19 +537,24 @@ _llm_token_flow() {
 # Downloads a model with Lotus' own progress line (no Hugging Face output on screen):
 #   ━━━━━━━━━━━━━━━━━━──────────  62 %
 #   7.5 of 12.1 GB · 31 MB/s · 2 min left
-# esc or Ctrl-C stops it; the next start continues where it stopped.
+# lib/ai/download.py reports the bytes received over the network; Hugging Face's Xet storage writes the
+# files in blocks of up to 64 MB, so the folder alone grows in jumps. The speed is the average of the
+# last 10 seconds. esc or Ctrl-C stops it; the next start continues where it stopped.
 _llm_fetch() {   # <repo> <revision> <id> <label> <GB>
   local repo=$1 rev=$2 dir=$LLM_MODELS/$3 label=$4 log=$LOTUS_CACHE/llm/download.log tok=
-  local -F total=0 got=0 last=0 speed=0 t0=$EPOCHREALTIME tl=$EPOCHREALTIME now
-  local -i pid rc left tty=0 drawn=0
+  local prog=$LOTUS_CACHE/llm/progress
+  local -F total=0 got=0 net=0 speed=0 t0=$EPOCHREALTIME now
+  local -i pid rc left tty=0 drawn=0 usenet=0
+  local -a st=() sb=() pr=()          # the last seconds: times and bytes, for the speed
   total=$(curl -fsS -m 10 "https://huggingface.co/api/models/$repo?blobs=true" 2>/dev/null | lotus_jq '[.siblings[].size // 0] | add' 2>/dev/null)
   (( total > 0 )) || total=$(( ${5:-0} * 1e9 ))
   _llm_token && tok=$REPLY
   zf_mkdir -p $dir ${log:h}
+  rm -f -- $prog
   (
     export HF_HUB_DISABLE_TELEMETRY=1 HF_HUB_DISABLE_PROGRESS_BARS=1 HF_HUB_VERBOSITY=error
     [[ -n $tok ]] && export HF_TOKEN=$tok
-    exec $LLM_RUNTIME/bin/python -c 'import sys; from huggingface_hub import snapshot_download as d; d(repo_id=sys.argv[1], revision=sys.argv[2], local_dir=sys.argv[3])' $repo $rev $dir
+    exec $LLM_RUNTIME/bin/python $LOTUS_ROOT/lib/ai/download.py $repo $rev $dir $prog
   ) >| $log 2>&1 &
   pid=$!
   LLM_PID=$pid    # if Lotus ends, the download ends too (bin/lotus' EXIT trap); it continues next time
@@ -561,11 +566,20 @@ _llm_fetch() {   # <repo> <revision> <id> <label> <GB>
   UI_INT=0
   (( tty )) && { TRAPINT() { UI_INT=1; return 0 }; print -n $'\e[?25l' }
   while kill -0 $pid 2>/dev/null; do
-    got=$(( $(du -sk $dir 2>/dev/null | cut -f1) * 1024.0 ))
-    now=$EPOCHREALTIME
-    if (( now - tl >= 1.5 )); then
-      (( speed = speed > 0 ? speed * 0.6 + (got - last) / (now - tl) * 0.4 : (got - last) / (now - tl), last = got, tl = now ))
+    # what is there: on disk, or what was received when that is more (it is written later)
+    got=$(( $(du -sk $dir 2>/dev/null | cut -f1) * 1024.0 )) net=0
+    if [[ -r $prog ]]; then
+      pr=(${=$(<$prog)})
+      [[ $pr[1] == <-> ]] && net=$pr[1]
+      [[ $pr[2] == <-> ]] && (( pr[2] > got )) && got=$pr[2]
     fi
+    (( net > got )) && got=$net
+    now=$EPOCHREALTIME
+    # the speed: what came over the network (else what reached the disk) in the last 10 seconds
+    if (( net > 0 && ! usenet )); then usenet=1 st=() sb=(); fi
+    st+=($now) sb+=($(( usenet ? net : got )))
+    while (( ${#st} > 2 && now - st[1] > 10 )); do st[1]=() sb[1]=(); done
+    (( speed = now - st[1] >= 2 ? (sb[-1] - sb[1]) / (now - st[1]) : 0, speed = speed < 0 ? 0 : speed ))
     if (( tty )); then
       _llm_bar $got $total 36
       local -i pct
