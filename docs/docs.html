@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.4.6">
-  <link rel="stylesheet" href="css/pages.css?v=2.4.6">
-  <script src="js/lotus.js?v=2.4.6"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.5.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.5.0">
+  <script src="js/lotus.js?v=2.5.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -107,7 +107,7 @@ LOTUS_AI_PROVIDER=<span class="t-acc">'auto'</span>
 typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|on'</span>)</pre></div>
 
     <h2 class="section" id="ai">The AI terminal</h2>
-    <p>Type <code>/ai</code> and the AI terminal opens: a chat you keep typing into – no <code>/ai</code> in front of every message. Ask questions, let it explain code, or let it work in the folder you started it in. <code>lotus ai local</code> puts a model on your Mac with Apple's MLX – no Ollama: it shows what fits your memory (gpt-oss 20B, Qwen3.6 27B, Qwen3-Coder 30B, Devstral Small 2, Qwen3 14B), downloads it once and loads it only while <code>/ai</code> runs.</p>
+    <p>Type <code>/ai</code> and the AI terminal opens: a chat you keep typing into – no <code>/ai</code> in front of every message. Ask questions, let it explain code, or let it work in the folder you started it in. <code>lotus ai local</code> puts a model on your Mac with Apple's MLX – no Ollama: it shows what fits your memory (gpt-oss 20B, Qwen3.6 27B, Qwen3-Coder 30B, Devstral Small 2, Qwen3 14B), downloads it once and loads it only while <code>/ai</code> runs. Like every model in <code>/ai</code> it can look at files, change them and run commands – as far as <code>/permissions</code> lets it.</p>
     <div class="grid">
       <div class="card"><h3>Works on your Mac</h3><p class="muted">It can list, read and search files, create and change files and run commands. Reading inside the folder happens right away; every change and every command is shown first and needs a yes. <kbd>a</kbd> allows the rest of the session, <kbd>n</kbd> lets you say what to do instead. Never <code>sudo</code>.</p></div>
       <div class="card"><h3>Remembers</h3><p class="muted">The conversation stays for an hour after your last message, also for single questions with <code>/ai &lt;question&gt;</code>. When it gets long, older messages become a summary. <code>/ai new</code> or <code>/clear</code> starts fresh.</p></div>

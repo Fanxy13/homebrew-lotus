@@ -132,6 +132,8 @@ func runCalls(_ calls: [PendingCall], _ tools: ToolRunner) async -> [(PendingCal
             continue
         }
         guard let args = call.args else {
+            Renderer.shared.toolHeader(call.name, "")
+            Renderer.shared.toolResult("The model sent arguments that are not valid JSON – it tries again", error: true)
             let bad = String(decoding: HTTP.json(["INVALID_JSON": call.raw]), as: UTF8.self)
             results.append((call, ToolOutcome(text: bad, isError: true)))
             continue
@@ -757,38 +759,35 @@ enum EmptyReply {
 // Models on this Mac write their thoughts into the answer: gpt-oss in its channels
 // (<|channel|>analysis<|message|>… then <|channel|>final<|message|>…), Qwen in <think>…</think>.
 // This splits the stream into thinking and the answer, also when a marker comes in pieces.
-// gpt-oss also writes its tool calls as text, which the model server does not turn into tool calls:
-//   <|channel|>commentary to=functions.read_file <|constrain|>json<|message|>{"path":"a.txt"}<|call|>
-// They are collected in `calls`.
+// It also finds the tools a model calls in its text:
+//   gpt-oss  <|start|>assistant to=functions.NAME<|channel|>commentary json<|message|>{args}<|call|>
+//   others   <tool_call>{"name": …, "arguments": {…}}</tool_call>  or  <tool_call><function=NAME><parameter=K>V</parameter></function></tool_call>
 final class ChannelSplit {
     private var buf = ""
     private var thinking = false
-    private var channel: String?          // the name after <|channel|>, until <|message|>
-    private var call: (name: String, args: String)?    // a tool call that is being written
+    private var header: String?           // gpt-oss: the head of a message (who, which channel) until <|message|>
+    private var callName: String?         // gpt-oss: the tool the message goes to; its arguments follow
+    private var inToolCall = false        // inside <tool_call>…</tool_call>
+    private var callArgs = ""
+    private var started = false
     private(set) var calls: [(name: String, args: String)] = []
-    private let marks = ["<think>", "</think>", "<|start|>", "<|end|>", "<|return|>", "<|channel|>",
-                         "<|message|>", "<|constrain|>", "<|call|>"]
-
-    // "commentary to=functions.read_file json" → read_file
-    static func tool(in header: String) -> String? {
-        guard let r = header.range(of: "to=functions.") else { return nil }
-        let name = header[r.upperBound...].prefix { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
-        return name.isEmpty ? nil : String(name)
-    }
-
-    // The answer, and the short notes before a tool call (commentary without a recipient), are for the user
-    static func isVisible(_ header: String) -> Bool {
-        let h = header.trimmingCharacters(in: .whitespaces)
-        return h.hasPrefix("final") || (h.hasPrefix("commentary") && !h.contains("to="))
-    }
+    private let marks = ["<think>", "</think>", "<tool_call>", "</tool_call>", "<|start|>", "<|end|>", "<|return|>",
+                         "<|channel|>", "<|message|>", "<|constrain|>", "<|call|>"]
 
     func feed(_ s: String) -> [(Bool, String)] {
         buf += s
         var out: [(Bool, String)] = []
+        // The answer begins right after "<|start|>assistant": gpt-oss may start with " to=functions.NAME", a head
+        if !started {
+            let t = buf.drop(while: { $0 == " " || $0 == "\n" })
+            if t.isEmpty || (t.count < 3 && "to=".hasPrefix(t)) { return out }
+            started = true
+            if t.hasPrefix("to=") { header = "" }
+        }
         func text(_ t: String) {
             guard !t.isEmpty else { return }
-            if channel != nil { channel! += t }
-            else if call != nil { call!.args += t }
+            if header != nil { header! += t }
+            else if callName != nil || inToolCall { callArgs += t }
             else { out.append((thinking, t)) }
         }
         while !buf.isEmpty {
@@ -799,16 +798,14 @@ final class ChannelSplit {
                 switch m {
                 case "<think>": thinking = true
                 case "</think>": thinking = false
-                case "<|start|>", "<|channel|>": channel = ""      // what follows is a header (the role, the channel), not text
-                case "<|message|>":
-                    if let name = channel {
-                        channel = nil
-                        if let tool = ChannelSplit.tool(in: name) { call = (tool, "") }
-                        else { thinking = !ChannelSplit.isVisible(name) }
-                    }
-                case "<|call|>":
-                    if let c = call { calls.append(c); call = nil }
-                default: break        // <|end|>, <|constrain|> …: only structure
+                case "<tool_call>": endCall(); inToolCall = true; callArgs = ""
+                case "</tool_call>": endToolCall()
+                case "<|start|>": endCall(); header = ""
+                case "<|channel|>": header = (header ?? "") + "\u{1}"
+                case "<|message|>": if let h = header { header = nil; open(h) }
+                case "<|constrain|>": if header != nil { header! += " " }   // "to=functions.read_file<|constrain|>json"
+                case "<|call|>", "<|end|>", "<|return|>": endCall()
+                default: break
                 }
                 buf = String(rest.dropFirst(m.count))
                 continue
@@ -821,9 +818,66 @@ final class ChannelSplit {
         return out
     }
 
+    // A message begins: "assistant to=functions.NAME␁commentary json" is a tool call, "␁analysis" thinking,
+    // "␁final" the answer
+    private func open(_ h: String) {
+        if let r = h.range(of: "to=") {
+            let target = h[r.upperBound...].prefix(while: { $0.isASCII && ($0.isLetter || $0.isNumber || "_.-".contains($0)) })
+            if !target.isEmpty && target != "assistant" {
+                callName = target.hasPrefix("functions.") ? String(target.dropFirst(10)) : String(target)
+                callArgs = ""
+                return
+            }
+        }
+        guard h.contains("\u{1}") else { thinking = false; return }
+        thinking = !ChannelSplit.isVisible(String(h.split(separator: "\u{1}", omittingEmptySubsequences: false).last ?? ""))
+    }
+
+    // The answer, and the short notes before a tool call (commentary without a recipient), are for the user
+    static func isVisible(_ channel: String) -> Bool {
+        let c = channel.trimmingCharacters(in: .whitespaces)
+        return c.hasPrefix("final") || (c.hasPrefix("commentary") && !c.contains("to="))
+    }
+
+    private func endCall() {
+        if let n = callName { calls.append((n, callArgs.trimmingCharacters(in: .whitespacesAndNewlines))) }
+        callName = nil
+        if !inToolCall { callArgs = "" }
+    }
+
+    private func endToolCall() {
+        defer { inToolCall = false; callArgs = "" }
+        let body = callArgs.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let j = HTTP.parse(body), let name = j["name"] as? String {
+            let a = j["arguments"] ?? j["parameters"] ?? [String: Any]()
+            let args = a as? String ?? (try? JSONSerialization.data(withJSONObject: a)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            calls.append((name, args))
+            return
+        }
+        // <function=NAME><parameter=KEY>value</parameter>…</function>
+        guard let f = body.range(of: "<function="), let close = body[f.upperBound...].firstIndex(of: ">") else { return }
+        let name = String(body[f.upperBound..<close])
+        var args: [String: Any] = [:]
+        var rest = body[close...]
+        while let p = rest.range(of: "<parameter="), let gt = rest[p.upperBound...].firstIndex(of: ">") {
+            let key = String(rest[p.upperBound..<gt])
+            let after = rest[rest.index(after: gt)...]
+            let end = after.range(of: "</parameter>")?.lowerBound ?? after.endIndex
+            var value = String(after[..<end])
+            if value.hasPrefix("\n") { value.removeFirst() }
+            if value.hasSuffix("\n") { value.removeLast() }
+            args[key] = Int(value).map { $0 as Any } ?? (value == "true" || value == "false" ? (value == "true") as Any : value)
+            rest = after[end...]
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: args)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        calls.append((name, data))
+    }
+
     func flush() -> [(Bool, String)] {
         defer { buf = "" }
-        return buf.isEmpty || channel != nil || call != nil ? [] : [(thinking, buf)]
+        if callName != nil { callArgs += buf; endCall(); return [] }
+        if inToolCall { callArgs += buf; endToolCall(); return [] }
+        return buf.isEmpty || header != nil ? [] : [(thinking, buf)]
     }
 
     // Only the answer of a saved message (older versions kept the markers – a model refuses them)

@@ -313,29 +313,34 @@ final class ToolRunner: @unchecked Sendable {
         switch name {
         case "list_directory": return await listDirectory(str(args, "path") ?? ".")
         case "read_file":
-            guard let p = str(args, "path") else { return missing("path") }
+            guard let p = str(args, "path") else { return missing(name, "path") }
             return await readFile(p, offset: int(args, "offset"), limit: int(args, "limit"))
         case "write_file":
-            guard let p = str(args, "path") else { return missing("path") }
-            guard let c = str(args, "content") else { return missing("content") }
+            guard let p = str(args, "path") else { return missing(name, "path") }
+            guard let c = str(args, "content") else { return missing(name, "content") }
             return await writeFile(p, c)
         case "edit_file":
-            guard let p = str(args, "path") else { return missing("path") }
-            guard let o = str(args, "old_text") else { return missing("old_text") }
+            guard let p = str(args, "path") else { return missing(name, "path") }
+            guard let o = str(args, "old_text") else { return missing(name, "old_text") }
             return await editFile(p, o, str(args, "new_text") ?? "")
         case "search_files":
-            guard let p = str(args, "pattern"), !p.isEmpty else { return missing("pattern") }
+            guard let p = str(args, "pattern"), !p.isEmpty else { return missing(name, "pattern") }
             return await searchFiles(p, str(args, "path") ?? ".")
         case "run_command":
-            guard let c = str(args, "command"), !c.trimmingCharacters(in: .whitespaces).isEmpty else { return missing("command") }
+            guard let c = str(args, "command"), !c.trimmingCharacters(in: .whitespaces).isEmpty else { return missing(name, "command") }
             return await runCommand(c)
         default:
+            Renderer.shared.toolHeader(String(name.unicodeScalars.filter { $0.value >= 0x20 && $0.value < 0x7F }.prefix(40).map(Character.init)), "")
+            Renderer.shared.toolResult("There is no tool with this name – the model tries again", error: true)
             return ToolOutcome(text: "Unknown tool \(name). Available: \(ToolCatalog.all.map(\.name).joined(separator: ", ")).", isError: true)
         }
     }
 
-    private func missing(_ p: String) -> ToolOutcome {
-        ToolOutcome(text: "Missing parameter: \(p)", isError: true)
+    // Shown, so a model that gets a call wrong does not try again and again unseen
+    private func missing(_ tool: String, _ p: String) -> ToolOutcome {
+        Renderer.shared.toolHeader(tool, "")
+        Renderer.shared.toolResult("The model left out \(p) – it tries again", error: true)
+        return ToolOutcome(text: "Missing parameter: \(p)", isError: true)
     }
 
     // ── Paths ──

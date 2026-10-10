@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0 – The AI on your Mac works on your Mac
+
+- Fixed: gpt-oss on this Mac still often could not use the computer, and its answers sometimes showed raw arguments like `{"path":"notes.txt"}` instead of doing something. Lotus now reads every way gpt-oss writes a tool call: when the model server cuts off the end of the call, when the tool name comes before the channel (as in earlier steps of the conversation), and `to=functions.read_file<|constrain|>json` without a space – which Lotus read as a tool called "read_filejson", so gpt-oss tried again and again without anything on screen
+- Qwen, Devstral and other models on this Mac: tool calls written as `<tool_call>` blocks (JSON or `<function=…>`) are used too when the model server leaves them in the text
+- A tool call a model gets wrong is shown now – a red line says what happened (no such tool, a missing path, arguments that are not valid JSON) – so you see what the AI does instead of only "thought for …" lines
+
 ## 2.4.6
 
 - Fixed: gpt-oss on this Mac could not use the computer. It writes its tool calls as text, which the model server does not turn into tool calls, so `/ai` hid them and answered nothing. Lotus reads them now: gpt-oss lists, reads, searches, creates and changes files and runs commands like the other models do. Its short notes before a step are shown
