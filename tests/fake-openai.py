@@ -1,6 +1,7 @@
 # A tiny OpenAI-compatible model for tests/test-aiserver.zsh: python3 fake-openai.py <port>
 # Streams like a real one. A message with "run" calls run_command (echo lotus-test-ok); after the tool
 # result it says what the command printed; anything else gets a short Markdown answer.
+# "delete" asks for rm -rf ./nothing-here, "admin" for sudo ls – both must not run without the user.
 # Asked to improve a prompt (data/ai/system.md "## enhance"), it answers "Goal: <the request>" – or fails
 # with an error when the request contains "fail-enhance".
 import json
@@ -35,9 +36,11 @@ class Model(BaseHTTPRequestHandler):
         if improving:
             chunk({"content": "Goal: " + request})
             chunk({}, "stop")
-        elif last.get("role") == "user" and "run" in str(last.get("content", "")):
+        elif body.get("tools") and last.get("role") == "user" and any(w in str(last.get("content", "")) for w in ("delete", "admin", "run")):
+            said = str(last.get("content", ""))
+            command = "rm -rf ./nothing-here" if "delete" in said else "sudo ls" if "admin" in said else "echo lotus-test-ok"
             call = {"index": 0, "id": "call_1", "type": "function",
-                    "function": {"name": "run_command", "arguments": json.dumps({"command": "echo lotus-test-ok"})}}
+                    "function": {"name": "run_command", "arguments": json.dumps({"command": command})}}
             chunk({"tool_calls": [call]})
             chunk({}, "tool_calls")
         elif last.get("role") == "tool":

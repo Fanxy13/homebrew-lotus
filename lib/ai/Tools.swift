@@ -342,8 +342,7 @@ final class ToolRunner: @unchecked Sendable {
     private(set) var readWeb = false        // web text came in during this answer: in auto mode commands ask
     private var pages: [String: Web.Page] = [:]    // pages read in this session, for reading on
     var permissions = Permissions(environment: ProcessInfo.processInfo.environment)
-    // The web chat: every command asks, one by one (never "don't ask again", never auto mode), and Lotus
-    // tools that need the terminal stay in the terminal
+    // The web chat: Lotus tools that need the terminal (the clock, Remove BG) stay in the terminal
     var web = false
     private let serial = AsyncLock()
     private(set) var actions: [String] = []   // what happened in this answer, for the memory
@@ -1030,17 +1029,17 @@ final class ToolRunner: @unchecked Sendable {
         let risky = ToolRunner.dangerous.contains { command.range(of: $0, options: .regularExpression) != nil }
         // auto mode: it runs unasked when Lotus is sure; otherwise the question says why
         var unsure: String?
-        if !web && !risky && permissions.run == .ask && !commandsAllowed && permissions.auto {
+        if !risky && permissions.run == .ask && !commandsAllowed && permissions.auto {
             let check = AutoCheck(inside: { self.inside(self.resolve($0)) }, isPrivate: { self.sensitive(self.resolve($0)) },
                                   readOutside: permissions.readOutside == .allow, write: permissions.write != .never)
             unsure = check.unsure(command)
             if unsure == nil && readWeb { unsure = "the AI read web pages in this answer, and they can contain instructions" }
             if unsure != nil { Log.write("DEBUG", "Auto mode asks: \(unsure!)") }
         }
-        if web || risky || (permissions.run == .ask && !commandsAllowed && (!permissions.auto || unsure != nil)) {
+        if risky || (permissions.run == .ask && !commandsAllowed && (!permissions.auto || unsure != nil)) {
             if risky { Renderer.shared.toolLines(["This command can delete or overwrite things."], color: Style.red) }
             else if let why = unsure { Renderer.shared.toolLines(["Auto mode asks: \(why)."], color: Style.accent) }
-            switch await ui.confirm("Run this command?", allowAlways: !risky && !web) {
+            switch await ui.confirm("Run this command?", allowAlways: !risky) {
             case .yes: break
             case .always: commandsAllowed = true
             case .no(let note): declineNote = note; return declined("running `\(command)`")

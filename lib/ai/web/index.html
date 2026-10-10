@@ -33,6 +33,9 @@
           <h1 id="title">New chat</h1>
           <p class="meta" id="meta">Connecting …</p>
         </div>
+        <button class="icon-btn" id="open-settings" type="button" aria-label="Settings" title="Settings (/settings)">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
         <button class="icon-btn" id="clear" type="button" aria-label="Clear this conversation" title="Clear this conversation" hidden>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -51,8 +54,10 @@
         </div>
       </section>
 
+      <div class="suggest" id="suggest" role="listbox" aria-label="Commands" hidden></div>
       <form class="composer" id="composer" autocomplete="off">
-        <textarea id="input" rows="1" placeholder="Message Lotus AI" aria-label="Message" enterkeyhint="send"></textarea>
+        <button class="mode" id="mode" type="button" title="Ask first or auto mode (/auto)" hidden>Ask</button>
+        <textarea id="input" rows="1" placeholder="Message Lotus AI – / for commands" aria-label="Message" enterkeyhint="send"></textarea>
         <button class="send" id="send" type="submit" aria-label="Send" title="Send (Enter)">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -60,8 +65,21 @@
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
         </button>
       </form>
-      <p class="hint" id="hint">Enter sends · Shift+Enter new line</p>
+      <p class="hint" id="hint">Enter sends · Shift+Enter new line · / for commands · Ask/Auto switches the mode</p>
     </main>
+  </div>
+
+  <div class="sheet" id="sheet" hidden>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <header class="sheet-head">
+        <h2 id="sheet-title">Settings</h2>
+        <span class="sheet-saved" id="sheet-saved" aria-live="polite"></span>
+        <button class="icon-btn" id="sheet-close" type="button" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+      <div class="sheet-body" id="sheet-body"></div>
+    </div>
   </div>
 </body>
 </html>

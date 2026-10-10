@@ -401,6 +401,7 @@ final class WebServer: @unchecked Sendable {
     private let lock = NSLock()
     private var active: Run?
     private var agentChat: String?     // the conversation the agent holds right now
+    private var needsReset = false     // the memory changed: the next message gets fresh instructions
     private var connections = 0
     private static var signals: [DispatchSourceSignal] = []
 
@@ -702,6 +703,25 @@ final class WebServer: @unchecked Sendable {
             json(c, 200, ["ok": true])
         case ("POST", let p) where p.count == 3 && p[0] == "chats" && p[2] == "send":
             send(c, p[1], r)
+        case ("POST", let p) where p.count == 3 && p[0] == "chats" && p[2] == "compact":
+            guard ChatStore.valid(p[1]) else { return problem(c, 404, "This conversation does not exist") }
+            startRun(c, p[1], .compact, shown: "/compact")
+        case ("GET", let p) where p.count == 3 && p[0] == "chats" && p[2] == "context":
+            context(c, p[1])
+        case ("GET", ["settings"]):
+            json(c, 200, settingsJSON())
+        case ("POST", ["settings"]):
+            changeSetting(c, r)
+        case ("GET", ["models"]):
+            json(c, 200, ["models": modelsJSON()])
+        case ("POST", ["model"]):
+            changeModel(c, r)
+        case ("GET", ["memory"]):
+            json(c, 200, memoryJSON())
+        case ("POST", ["memory", "clear"]):
+            guard Memory.clear() else { return problem(c, 500, "The memory file could not be written") }
+            lock.lock(); needsReset = true; lock.unlock()
+            json(c, 200, memoryJSON())
         case ("GET", ["run"]):
             attach(c, r)
         case ("POST", ["answer"]):
@@ -744,10 +764,14 @@ final class WebServer: @unchecked Sendable {
         let home = NSHomeDirectory()
         let cwd = agent.cwd.path
         let folder = cwd == home ? "~" : cwd.hasPrefix(home + "/") ? "~/" + cwd.dropFirst(home.count + 1) : cwd
-        let p = agent.runner.permissions
-        return ["version": agent.config.version, "ai": agent.provider.label, "effort": TUI.effortNames[agent.config.effort] ?? agent.config.effort,
-                "tools": agent.usesTools, "mode": p.auto ? "auto" : "ask", "folder": String(folder),
-                "busy": runningChat ?? NSNull(), "lan": lan, "name": agent.config.name, "enhance": agent.enhanceMode]
+        // as saved: a change counts from the next message when an answer is being written
+        let saved = SettingsFile.read()
+        let mode = saved["LOTUS_AI_PERM_MODE"] ?? (agent.runner.permissions.auto ? "auto" : "ask")
+        let effort = saved["LOTUS_AI_EFFORT"] ?? agent.config.effort
+        return ["version": agent.config.version, "ai": agent.provider.label, "effort": TUI.effortNames[effort] ?? effort,
+                "tools": (saved["LOTUS_AI_TOOLS"] ?? (agent.usesTools ? "1" : "0")) != "0", "mode": mode == "auto" ? "auto" : "ask",
+                "folder": String(folder), "busy": runningChat ?? NSNull(), "lan": lan, "name": agent.config.name,
+                "enhance": saved["LOTUS_AI_ENHANCE"] ?? agent.enhanceMode]
     }
 
     // A message: the answer is written in the background and streamed as events (text/event-stream)
@@ -757,6 +781,13 @@ final class WebServer: @unchecked Sendable {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return problem(c, 400, "The message is empty") }
         guard clean.count <= 100_000 else { return problem(c, 413, "The message is too long (at most 100,000 characters)") }
+        startRun(c, id, .message(clean), shown: clean)
+    }
+
+    enum Action { case message(String), compact }
+
+    // An answer (or /compact): written in the background and streamed as events
+    private func startRun(_ c: Conn, _ id: String, _ action: Action, shown: String) {
         lock.lock()
         if let a = active, !a.done {
             lock.unlock()
@@ -772,9 +803,9 @@ final class WebServer: @unchecked Sendable {
 
         let now = Date().timeIntervalSince1970
         var messages = chat["messages"] as? [[String: Any]] ?? []
-        messages.append(["role": "user", "text": clean, "time": now])
+        messages.append(["role": "user", "text": shown, "time": now])
         chat["messages"] = messages
-        if (chat["title"] as? String ?? "").isEmpty {
+        if case .message(let clean) = action, (chat["title"] as? String ?? "").isEmpty {
             let line = clean.split(whereSeparator: \.isNewline).first.map(String.init) ?? clean
             let words = line.split(whereSeparator: \.isWhitespace).joined(separator: " ")
             chat["title"] = words.count > 60 ? String(words.prefix(59)) + "…" : words
@@ -782,14 +813,18 @@ final class WebServer: @unchecked Sendable {
         chat["updated"] = now
         store.save(chat)
         run.add("start", ["chat": id, "title": chat["title"] ?? ""])
-        Task.detached { await self.work(run, id, clean) }
+        Task.detached { await self.work(run, id, action) }
         stream(c, run, from: 0)
     }
 
-    private func work(_ run: Run, _ id: String, _ text: String) async {
+    private func work(_ run: Run, _ id: String, _ action: Action) async {
         Renderer.shared.sink = { type, data in run.add(type, data) }
         Spinner.shared.onLabel = { run.add("status", ["text": $0]) }
-        agent.interaction.asker = { q, always in await run.ask(q, always: always) }
+        agent.interaction.asker = { [weak self] q, always in
+            let answer = await run.ask(q, always: always)
+            self?.applyPermissions()      // "switch to auto mode" in the browser counts from the next step
+            return answer
+        }
         agent.interaction.promptChooser = { text in await run.choosePrompt(text) }
         if !take(id) {
             let chat = store.load(id) ?? [:]
@@ -800,12 +835,18 @@ final class WebServer: @unchecked Sendable {
             }
             conv.summary = chat["summary"] as? String ?? ""
             agent.conversation = conv
+            agent.runner.resetAllowances()      // "don't ask again" counts for one conversation
             applySettings(reset: true)
         } else {
-            applySettings(reset: false)
+            applySettings(reset: takeReset())
         }
-        Log.write("INFO", "Web chat: message with \(agent.provider.label)")
-        await agent.ask(text)
+        switch action {
+        case .message(let text):
+            Log.write("INFO", "Web chat: message with \(agent.provider.label)")
+            await agent.ask(text)
+        case .compact:
+            await agent.compact(automatic: false)
+        }
         Renderer.shared.endBlock()
         Renderer.shared.sink = nil
         Spinner.shared.onLabel = nil
@@ -827,10 +868,33 @@ final class WebServer: @unchecked Sendable {
         run.finish()
     }
 
-    // The permissions as they are in the Lotus settings now (/settings or /permissions may have changed them)
+    // Only the permissions – safe during an answer: the step that asked is waiting for this
+    private func applyPermissions() {
+        let saved = SettingsFile.read()
+        var env = ProcessInfo.processInfo.environment
+        for item in Permissions.items { if let v = saved[item.key] { env[item.key] = v } }
+        let p = Permissions(environment: env)
+        guard p.values != agent.runner.permissions.values, p.tools == agent.usesTools else { return }
+        agent.runner.permissions = p
+        agent.runner.resetAllowances()
+    }
+
+    private func takeReset() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        let r = needsReset
+        needsReset = false
+        return r
+    }
+
+    // The settings as they are in the Lotus settings file now – changed in the browser, in /settings or in /ai
     private func applySettings(reset: Bool) {
         let saved = SettingsFile.read()
         if let mode = saved["LOTUS_AI_ENHANCE"], Enhance.modes.contains(mode) { agent.enhanceMode = mode }
+        var reset = reset
+        if let e = saved["LOTUS_AI_EFFORT"], WebServer.efforts.contains(where: { $0.0 == e }), e != agent.config.effort {
+            agent.config.effort = e
+            if (try? agent.switchTo(provider: agent.config.provider, model: agent.config.model)) != nil { reset = false }
+        }
         var env = ProcessInfo.processInfo.environment
         for item in Permissions.items { if let v = saved[item.key] { env[item.key] = v } }
         let p = Permissions(environment: env)
@@ -844,6 +908,135 @@ final class WebServer: @unchecked Sendable {
         } else if reset {
             agent.resetProvider()
         }
+    }
+
+    // ── Settings, the AI, the memory: the same Lotus settings as /settings and /ai ──
+
+    static let efforts = [("low", "Quick – short answers, fast"), ("medium", "Balanced"),
+                          ("high", "Thorough – thinks before it answers"), ("max", "Maximum – takes the most time")]
+    static let enhanceModes = [("off", "Off – messages go as you type them"), ("on", "On – improved into a clear prompt, shown and sent"),
+                               ("ask", "Ask – improved and shown first, you choose")]
+
+    private var idle: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return active?.done ?? true
+    }
+
+    private func settingsJSON() -> [String: Any] {
+        let saved = SettingsFile.read()
+        var env = ProcessInfo.processInfo.environment
+        for item in Permissions.items { if let v = saved[item.key] { env[item.key] = v } }
+        let p = Permissions(environment: env)
+        let perms: [[String: Any]] = Permissions.items.map { item in
+            ["key": item.key, "label": item.label, "value": p.value(item.key),
+             "options": item.values.map { ["value": $0, "label": Permissions.words($0, item.key)] }]
+        }
+        let home = NSHomeDirectory()
+        let cwd = agent.cwd.path
+        return [
+            "effort": ["key": "LOTUS_AI_EFFORT", "value": saved["LOTUS_AI_EFFORT"] ?? agent.config.effort,
+                       "options": WebServer.efforts.map { ["value": $0.0, "label": $0.1] }],
+            "enhance": ["key": "LOTUS_AI_ENHANCE", "value": saved["LOTUS_AI_ENHANCE"] ?? agent.enhanceMode,
+                        "options": WebServer.enhanceModes.map { ["value": $0.0, "label": $0.1] }],
+            "permissions": perms,
+            "auto": p.auto,
+            "server": ["address": "http://127.0.0.1:\(port)", "lan": lan, "version": agent.config.version,
+                       "folder": cwd == home ? "~" : cwd.hasPrefix(home + "/") ? "~/" + cwd.dropFirst(home.count + 1) : cwd],
+            "now": idle,
+        ]
+    }
+
+    // One setting: saved through Lotus (the same file as /settings); it counts at once, or from the next
+    // message while an answer is being written
+    private func changeSetting(_ c: Conn, _ r: Request) {
+        guard let j = r.json, let key = j["key"] as? String, let value = j["value"] as? String else {
+            return problem(c, 400, "The setting is missing")
+        }
+        var allowed: [String: [String]] = ["LOTUS_AI_EFFORT": WebServer.efforts.map(\.0), "LOTUS_AI_ENHANCE": Enhance.modes]
+        for item in Permissions.items { allowed[item.key] = item.values }
+        guard let values = allowed[key] else { return problem(c, 400, "The web chat cannot change this setting") }
+        guard values.contains(value) else { return problem(c, 400, "Not a value for this setting") }
+        agent.saveSetting(key, value)
+        guard SettingsFile.read()[key] == value else { return problem(c, 500, "The setting could not be saved") }
+        Log.write("INFO", "Web chat: \(key) = \(value)")
+        lock.lock()
+        if active?.done ?? true { applySettings(reset: false) }
+        lock.unlock()
+        json(c, 200, settingsJSON())
+    }
+
+    // Async work from a connection's thread
+    private final class Box<T>: @unchecked Sendable { var value: T? }
+    private func blocking<T>(_ op: @escaping @Sendable () async -> T) -> T {
+        let box = Box<T>()
+        let done = DispatchSemaphore(value: 0)
+        Task.detached {
+            box.value = await op()
+            done.signal()
+        }
+        done.wait()
+        return box.value!
+    }
+
+    private func modelsJSON() -> [[String: Any]] {
+        let agent = self.agent
+        return blocking { await agent.modelChoices() }.map { m in
+            var o: [String: Any] = ["label": m.label, "kind": m.kind, "model": m.model, "current": agent.isCurrent(m)]
+            // the model on this Mac needs its server, which Lotus starts in the terminal
+            if m.kind == "local" && !agent.isCurrent(m) { o["note"] = "Start it in the terminal: /ai, then /model" }
+            return o
+        }
+    }
+
+    private func changeModel(_ c: Conn, _ r: Request) {
+        guard let j = r.json, let kind = j["kind"] as? String, let model = j["model"] as? String else {
+            return problem(c, 400, "Which AI?")
+        }
+        let agent = self.agent
+        guard let pick = blocking({ await agent.modelChoices() }).first(where: { $0.kind == kind && $0.model == model }) else {
+            return problem(c, 400, "This AI is not available here")
+        }
+        if agent.isCurrent(pick) { return json(c, 200, ["ai": agent.provider.label, "models": modelsJSON()]) }
+        if pick.kind == "local" { return problem(c, 400, "The model on this Mac starts in the terminal: /ai, then /model") }
+        lock.lock()
+        guard active?.done ?? true else {
+            lock.unlock()
+            return problem(c, 409, "Lotus AI is still answering – change the AI when it is done")
+        }
+        do {
+            try agent.switchTo(provider: pick.kind, model: pick.model)
+        } catch let e as AIError {
+            lock.unlock()
+            return problem(c, 400, "\(e.title). \(e.detail)")
+        } catch {
+            lock.unlock()
+            return problem(c, 400, error.localizedDescription)
+        }
+        lock.unlock()
+        agent.saveSetting("LOTUS_AI_PROVIDER", pick.kind)
+        agent.saveSetting("LOTUS_AI_MODEL", pick.model)
+        Log.write("INFO", "Web chat: now answering \(agent.provider.label)")
+        json(c, 200, ["ai": agent.provider.label, "models": modelsJSON()])
+    }
+
+    private func memoryJSON() -> [String: Any] {
+        let home = NSHomeDirectory()
+        let path = Memory.path.map { $0.hasPrefix(home) ? "~" + $0.dropFirst(home.count) : $0 } ?? ""
+        return ["facts": Memory.facts(), "path": path]
+    }
+
+    // How full the conversation's memory is (/context)
+    private func context(_ c: Conn, _ id: String) {
+        guard ChatStore.valid(id), let chat = store.load(id) else { return problem(c, 404, "This conversation does not exist") }
+        let turns = chat["turns"] as? [[String: String]] ?? []
+        let summary = chat["summary"] as? String ?? ""
+        let budget = agent.provider.budget
+        lock.lock()
+        let holds = agentChat == id
+        lock.unlock()
+        let used = holds ? agent.provider.usedTokens : (summary.count + turns.reduce(0) { $0 + ($1["text"]?.count ?? 0) }) / 4
+        json(c, 200, ["percent": min(99, used * 100 / max(1, budget)), "used": used, "budget": budget,
+                      "messages": turns.count / 2, "summary": !summary.isEmpty, "ai": agent.provider.label])
     }
 
     // A browser attaches to the answer that is being written (after a reload or a lost connection)

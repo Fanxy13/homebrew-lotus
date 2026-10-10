@@ -482,6 +482,54 @@ final class Agent {
     }
 }
 
+// ── Who can answer ────────────────────────────────────────────
+// The same list for /model in the terminal and the web chat's settings
+
+struct ModelChoice {
+    let label: String
+    let kind: String          // apple · local · claude · ollama · openai
+    let model: String
+}
+
+extension Agent {
+    // the model on this Mac (lotus ai local) answers through its own server, as an OpenAI-compatible AI
+    var onThisMac: Bool { config.provider == "openai" && !(ProcessInfo.processInfo.environment["LOTUS_AI_LABEL"] ?? "").isEmpty }
+
+    func modelChoices() async -> [ModelChoice] {
+        var options: [ModelChoice] = []
+        let have = Set(config.available)
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *), AppleProvider.availability() == "available" {
+            options.append(ModelChoice(label: "Apple Intelligence – on this Mac, private, free", kind: "apple", model: ""))
+        }
+        #endif
+        // The model on this Mac (lotus ai local) runs as a server that Lotus starts before /ai opens
+        if have.contains("local") {
+            let name = config.localLabel.isEmpty ? "Model on this Mac" : config.localLabel
+            options.append(ModelChoice(label: "\(name) – on this Mac, private, free", kind: "local", model: ""))
+        }
+        if !config.claudeKey.isEmpty {
+            options.append(ModelChoice(label: "Claude Opus 5.5 – the best for most work", kind: "claude", model: "claude-opus-5-5"))
+            options.append(ModelChoice(label: "Claude Sonnet 5.5 – fast and strong", kind: "claude", model: "claude-sonnet-5-5"))
+            options.append(ModelChoice(label: "Claude Haiku 4.5 – quickest and cheapest", kind: "claude", model: "claude-haiku-4-5"))
+            options.append(ModelChoice(label: "Claude Fable 5.1 – the most capable, costs more", kind: "claude", model: "claude-fable-5-1"))
+        }
+        for m in await OllamaProvider.installedModels() {
+            options.append(ModelChoice(label: "Ollama · \(m) – on this Mac", kind: "ollama", model: m))
+        }
+        if have.contains("openai") && !config.openaiURL.isEmpty {
+            let host = URL(string: config.openaiURL)?.host ?? config.openaiURL
+            options.append(ModelChoice(label: "\(config.model.isEmpty ? "gpt-4o-mini" : config.model) · \(host)", kind: "openai",
+                                       model: config.provider == "openai" ? config.model : ""))
+        }
+        return options
+    }
+
+    func isCurrent(_ c: ModelChoice) -> Bool {
+        onThisMac ? c.kind == "local" : c.kind == config.provider && (c.model == config.model || c.kind == "apple")
+    }
+}
+
 // ── The AI terminal ───────────────────────────────────────────
 
 enum TUI {
@@ -492,6 +540,7 @@ enum TUI {
         SlashCommand(name: "/effort", help: "how hard the AI thinks"),
         SlashCommand(name: "/enhance", help: "improve your prompts before the AI sees them – off, on or ask"),
         SlashCommand(name: "/permissions", help: "what the AI may do on this Mac – ask first or auto"),
+        SlashCommand(name: "/auto", help: "auto mode on or off – it asks only when unsure (also ⇧⇥)"),
         SlashCommand(name: "/clear", help: "start a new conversation"),
         SlashCommand(name: "/compact", help: "summarize the conversation to free up room"),
         SlashCommand(name: "/context", help: "how full the memory is"),
@@ -698,6 +747,17 @@ enum TUI {
             }
         case "/permissions", "/perms", "/allow":
             await permissionsMenu(agent, keys)
+        case "/auto":
+            guard agent.usesTools else {
+                Renderer.shared.info("Working on this Mac is off – /permissions turns it on first.")
+                emit("\n")
+                break
+            }
+            if (arg == "on" && !agent.autoMode) || (arg == "off" && agent.autoMode) || arg.isEmpty { agent.toggleAuto() }
+            Renderer.shared.info(agent.autoMode
+                ? "Auto mode: I work on my own and ask only when I am unsure – deleting, pushing, installing, other folders, private files."
+                : "Ask first: I ask before I change anything.")
+            emit("\n")
         case "/model", "/models", "/provider":
             await chooseModel(agent, keys)
             return agent.restartForLocal
@@ -846,44 +906,17 @@ enum TUI {
     }
 
     static func chooseModel(_ agent: Agent, _ keys: KeyQueue) async {
-        var options: [(label: String, kind: String, model: String)] = []
-        let have = Set(agent.config.available)
-        #if canImport(FoundationModels)
-        if #available(macOS 26.0, *), AppleProvider.availability() == "available" {
-            options.append(("Apple Intelligence – on this Mac, private, free", "apple", ""))
-        }
-        #endif
-        // The model on this Mac (lotus ai local) runs as a server that Lotus starts before /ai opens
-        if have.contains("local") {
-            let name = agent.config.localLabel.isEmpty ? "Model on this Mac" : agent.config.localLabel
-            options.append(("\(name) – on this Mac, private, free", "local", ""))
-        }
-        if !agent.config.claudeKey.isEmpty {
-            options.append(("Claude Opus 5.5 – the best for most work", "claude", "claude-opus-5-5"))
-            options.append(("Claude Sonnet 5.5 – fast and strong", "claude", "claude-sonnet-5-5"))
-            options.append(("Claude Haiku 4.5 – quickest and cheapest", "claude", "claude-haiku-4-5"))
-            options.append(("Claude Fable 5.1 – the most capable, costs more", "claude", "claude-fable-5-1"))
-        }
-        for m in await OllamaProvider.installedModels() {
-            options.append(("Ollama · \(m) – on this Mac", "ollama", m))
-        }
-        if have.contains("openai") && !agent.config.openaiURL.isEmpty {
-            let host = URL(string: agent.config.openaiURL)?.host ?? agent.config.openaiURL
-            options.append(("\(agent.config.model.isEmpty ? "gpt-4o-mini" : agent.config.model) · \(host)", "openai", agent.config.provider == "openai" ? agent.config.model : ""))
-        }
+        var options = await agent.modelChoices()
         if agent.config.claudeKey.isEmpty {
-            options.append(("Claude – connect now (paste an API key)", "login", ""))
+            options.append(ModelChoice(label: "Claude – connect now (paste an API key)", kind: "login", model: ""))
         }
         guard !options.isEmpty else {
             Renderer.shared.info("No other AI found. Install Ollama or add a Claude key.")
             emit("\n")
             return
         }
-        // while the model on this Mac answers, /ai talks to its server as an OpenAI-compatible AI
-        let onThisMac = agent.config.provider == "openai" && !(ProcessInfo.processInfo.environment["LOTUS_AI_LABEL"] ?? "").isEmpty
-        let current = options.firstIndex {
-            onThisMac ? $0.kind == "local" : $0.kind == agent.config.provider && ($0.model == agent.config.model || $0.kind == "apple")
-        } ?? 0
+        let onThisMac = agent.onThisMac
+        let current = options.firstIndex { agent.isCurrent($0) } ?? 0
         guard let i = await menu("Which AI should answer?", options.map(\.label), selected: current, keys: keys) else { return }
         let o = options[i]
         if o.kind == "login" {

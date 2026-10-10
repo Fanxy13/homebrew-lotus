@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.8.2">
-  <link rel="stylesheet" href="css/pages.css?v=2.8.2">
-  <script src="js/lotus.js?v=2.8.2"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.9.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.9.0">
+  <script src="js/lotus.js?v=2.9.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -124,6 +124,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
         <tr><td><code>/permissions</code> · <kbd>⇧</kbd><kbd>⇥</kbd></td><td>What the AI may do on this Mac: ask first, or <strong>auto</strong> – it works on its own in the folder and asks only when Lotus is unsure (deleting, pushing, installing, sending data, other folders, private files, programs it does not know). Per kind: look at files, change files, run commands, search the web, use Lotus features – allowed, ask first or never; installing an app always asks. <kbd>⇧</kbd><kbd>⇥</kbd> switches auto mode on and off. Also in <code>/settings</code> → AI</td></tr>
         <tr><td><code>/memory</code></td><td>What the AI remembers about you from earlier conversations · <code>/memory clear</code> forgets it. The list is a plain text file you can edit</td></tr>
         <tr><td><code>/effort</code></td><td>Quick, balanced, thorough or maximum</td></tr>
+        <tr><td><code>/auto</code></td><td>Auto mode on or off – it works on its own and asks only when unsure (the same as <kbd>⇧</kbd><kbd>⇥</kbd>)</td></tr>
         <tr><td><code>/enhance</code></td><td>Improve your prompts before the AI sees them: off, on (shown and sent), or ask – <kbd>⏎</kbd> sends the improved one, <kbd>o</kbd> yours, <kbd>esc</kbd> nothing. Also in <code>/settings</code> → AI → Improve prompts</td></tr>
         <tr><td><code>/context</code> · <code>/compact</code></td><td>How full the memory is · summarize now</td></tr>
         <tr><td><code>/clear</code> · <code>/copy</code> · <code>/exit</code></td><td>New conversation · copy the last answer · back to the shell</td></tr>
@@ -143,7 +144,10 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     <p><code>/ai server start</code> opens Lotus AI in your browser – a chat page that Lotus serves itself on this Mac, at <code>http://127.0.0.1:3000</code>. It is the same AI as <code>/ai</code>, not a second one: the same providers, instructions, Lotus tools and permissions. Answers stream in as they are written.</p>
     <div class="grid">
       <div class="card"><h3>A real chat</h3><p class="muted">Your conversations in a sidebar – new chat, history, clear, delete. Markdown, tables and code blocks with a copy button, and the steps the AI takes with what they returned. <kbd>⏎</kbd> sends, <kbd>⇧</kbd><kbd>⏎</kbd> makes a new line. Works on a phone and a computer, in the colors of your theme.</p></div>
-      <div class="card"><h3>Asks in the browser</h3><p class="muted">Before it changes something the AI asks in the page, with a preview: yes, yes and don't ask again, no, or what to do instead. The levels of the terminal: reading runs, changes ask unless you allowed them, installing always asks. From the web every command asks, one by one. Improved prompts are shown there too.</p></div>
+      <div class="card"><h3>Asks in the browser</h3><p class="muted">Before it changes something the AI asks in the page, with a preview: yes, yes and don't ask again (for this conversation), no, or what to do instead. The rules of the terminal: reading runs, changes and commands ask unless you allowed them, installing always asks. Improved prompts are shown there too.</p></div>
+      <div class="card"><h3>Dares more</h3><p class="muted">The Ask/Auto switch next to the message box, or "Yes, and switch to auto mode" in a question: it works on its own and asks only when unsure. Deleting, pushing, installing, private files and other folders still ask, and <code>sudo</code> never runs.</p></div>
+      <div class="card"><h3>Commands</h3><p class="muted">Type <code>/</code> for the commands of <code>/ai</code>: <code>/help</code>, <code>/new</code>, <code>/clear</code>, <code>/model</code>, <code>/effort</code>, <code>/enhance</code>, <code>/auto</code>, <code>/permissions</code>, <code>/memory</code>, <code>/context</code>, <code>/compact</code>, <code>/copy</code>. <kbd>↑</kbd><kbd>↓</kbd> and <kbd>⇥</kbd> choose.</p></div>
+      <div class="card"><h3>Settings</h3><p class="muted">The gear: who answers, thinking, improving prompts, ask first or auto, what the AI may do, what it remembers. The same settings as <code>/settings</code> in the terminal – the port and other devices stay in the terminal.</p></div>
       <div class="card"><h3>Only this Mac</h3><p class="muted">It listens on 127.0.0.1 and never starts by itself. <code>/ai server open</code> signs the browser in with your access key; without it the page stays locked. Other pages cannot use it, and your API keys never reach the browser.</p></div>
       <div class="card"><h3>Keeps going</h3><p class="muted">A reload or a lost connection does not lose an answer – the page picks it up again. The stop button or <kbd>esc</kbd> stops it.</p></div>
     </div>

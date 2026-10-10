@@ -156,6 +156,12 @@ itself (`lotus-ai --serve`, `lib/ai/Server.swift`) with the same providers, inst
 keeps your conversations (new, history, clear, delete); Markdown, tables and code blocks with a
 copy button; Enter sends, Shift+Enter makes a new line. It works on a phone too, in your theme's colors.
 
+**Commands and settings.** Type `/` for the commands of `/ai`: `/help`, `/new`, `/clear`, `/model`,
+`/effort`, `/enhance`, `/auto`, `/permissions`, `/settings`, `/memory`, `/context`, `/compact`, `/copy`.
+The gear opens the settings – who answers, thinking, improving prompts, ask first or auto, what the AI
+may do, what it remembers. They are the same Lotus settings as `/settings` in the terminal; the port,
+starting with the terminal and other devices can only be changed there.
+
 **Better prompts.** With `/settings` → AI → "Improve prompts" (or `/enhance` in `/ai`) the AI first
 rewrites your message into a clear prompt – the goal, the details, the expected result – keeping your
 language and every name, path, command and quote. "on" shows it and sends it; "ask" shows it first:
@@ -165,8 +171,11 @@ whose rewrite fails or takes longer than 30 seconds. The conversation keeps what
 
 **Questions in the browser.** When the AI wants to change something it asks in the page, with a
 preview: yes, yes and don't ask again, no, or what to do instead. The levels are those of the
-terminal – reading runs, changes ask unless allowed or in auto mode, installing always asks. From the
-web every command asks, one by one, and tools that need the terminal (the clock, Remove BG) stay there.
+terminal – reading runs, changes and commands ask unless allowed or in auto mode ("Yes, don't ask again"
+counts for one conversation), installing always asks. The Ask/Auto switch next to the message box and
+"Yes, and switch to auto mode" let it work on its own, asking only when unsure; deleting, pushing,
+installing, private files and other folders still ask, and `sudo` never runs. Tools that need the
+terminal (the clock, Remove BG) stay there.
 
 **Safe by default.** It listens on 127.0.0.1 only and never starts by itself (unless you turn on
 `/settings` → AI → "Web chat: start with terminal"). `/ai server open` signs the browser in with
@@ -275,7 +284,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 - The AI can use Lotus itself (open or install apps, weather, music, theme, clock, keep awake, features, Minecraft) through one list of tools, `data/ai-tools.tsv`. It only gets the tools of features that are on, every argument is checked against that list, and the commands are run with fixed arguments – never as a shell string the model wrote. Changing things asks first (`/permissions` → "Use Lotus features"), installing an app always asks.
 - The AI can search the web (DuckDuckGo, Wikipedia) and read pages; `/permissions` → "Search and read the web" turns that to ask first or off. Search words go to DuckDuckGo or Wikipedia, pages are fetched directly, without cookies. Only the public internet – addresses on this Mac or in the local network are refused, also after a redirect. Web text is marked as information, never as instructions; in auto mode commands ask again after the AI has read web pages, and an address that carries a lot of data always asks.
 - What the AI remembers between conversations (`remember`, `/memory`) is a plain text file next to your settings (`~/.config/lotus/ai-memory.md`); passwords and keys are never kept.
-- The web chat (`/ai server`) listens on 127.0.0.1 only and never starts unless you start it. The browser signs in with an access key (`~/.local/state/lotus/ai-server.key`, only you can read it); the server answers only to its own address, checks a per-page token and the origin of every change, and never sends API keys to the browser. From the web every command asks. Conversations are kept in `~/.local/state/lotus/ai-chats`, readable only by you.
+- The web chat (`/ai server`) listens on 127.0.0.1 only and never starts unless you start it. The browser signs in with an access key (`~/.local/state/lotus/ai-server.key`, only you can read it); the server answers only to its own address, checks a per-page token and the origin of every change, and never sends API keys to the browser. Commands from the web follow the same permissions as in the terminal – dangerous ones always ask, `sudo` never runs – and the port and other devices can only be changed in the terminal. Conversations are kept in `~/.local/state/lotus/ai-chats`, readable only by you.
 - Links, package names, city names and shortcut names are validated; shortcuts cannot run shell commands.
 - `/convert` is meant for content you have the right to download. It does not bypass DRM or paywalls.
 - `/ios` only downloads official releases and checks compatibility before it does.

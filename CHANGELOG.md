@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.9.0 – Commands and settings in the browser
+
+- Commands in the web chat, like in `/ai`: `/help`, `/new`, `/clear`, `/model`, `/effort`, `/enhance`, `/auto`, `/permissions`, `/settings`, `/memory`, `/context`, `/compact`, `/copy` – a list shows up when you type `/`, ↑↓ and Tab choose
+- Settings in the browser (the gear): who answers, thinking, improving prompts, ask first or auto, what the AI may do, what it remembers. They are the same Lotus settings as `/settings` and `/ai` in the terminal; the port, starting with the terminal and other devices stay in the terminal
+- It dares more: in the web chat commands follow the same rules as in the terminal now – "Yes, don't ask again" (for one conversation) and auto mode, where it works on its own and asks only when unsure. A switch next to the message box (Ask / Auto) and "Yes, and switch to auto mode" in every question. Deleting, pushing, installing, private files and other folders still ask, and `sudo` never runs
+- `/auto` in `/ai` in the terminal too
+- Tests: don't ask again for one conversation, auto mode from the browser, deleting still asks, sudo never runs, settings that the browser may not change, memory, context and compact
+
 ## 2.8.2
 
 - Fixed: the download speed of `lotus ai local` jumped – 200 MB/s, then half of that, a quarter, down to 0, then up again. Hugging Face delivers models through its Xet storage now, which receives the data in blocks of up to 64 MB and writes the files afterwards, so the model folder grows in jumps. Lotus now counts the bytes that came over the network, as Hugging Face's own library reports them (`lib/ai/download.py`), and shows the average of the last 10 seconds – the amount, the speed and the time left move steadily. With an older library it falls back to the size of the folder, averaged the same way

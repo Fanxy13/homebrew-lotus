@@ -1,5 +1,6 @@
 # The AI web chat (lotus ai server): settings, port, 127.0.0.1 only, the access key and the request
-# checks, a streamed answer with a question answered from "the browser", improving prompts, stop.
+# checks, a streamed answer with a question answered from "the browser", the permissions and settings of
+# the browser (auto mode, don't ask again, what never runs), memory, context, compact, improving prompts, stop.
 # The answers come from tests/fake-openai.py – an OpenAI-compatible model on this Mac, no real AI needed.
 source $LOTUS_ROOT/lib/core.zsh
 source $LOTUS_ROOT/lib/ui.zsh
@@ -58,7 +59,8 @@ ztcp -c $busy
 lotus_load
 check_eq "the port was not changed silently" "$LOTUS_AI_SERVER_PORT" $port
 
-out=$(cd $LOTUS_ROOT/tests && lotus ai server start 2>&1); rc=$?
+zf_mkdir -p $HOME/work
+out=$(cd $HOME/work && lotus ai server start 2>&1); rc=$?
 check_eq "it starts" $rc 0
 check_has "on 127.0.0.1" "$out" "http://127.0.0.1:$port"
 check_has "status: running" "$(lotus ai server status)" "running on http://127.0.0.1:$port"
@@ -95,7 +97,17 @@ check_eq "a new conversation" ${#chat} 12
 check_eq "an unknown conversation" "$(code $H $B/api/chats/aaaaaaaaaaaa)" 404
 check_eq "an empty message is refused" "$(code $H -H 'Content-Type: application/json' -d '{"text":"  "}' $B/api/chats/$chat/send)" 400
 
-# a message: the model wants to run a command – from the web that always asks, without "don't ask again"
+# a message: the model wants to run a command – in ask mode it asks first, like in the terminal
+send_to() { curl -sN -m 30 $H -H 'Content-Type: application/json' -d "{\"text\":\"$2\"}" $B/api/chats/$1/send }
+answer() { code $H -H 'Content-Type: application/json' -d "{\"id\":\"$1\",\"answer\":\"$2\"}" $B/api/answer }
+asked() {   # <chat> <text> – sends it in the background, waits for the question → REPLY = its id
+  : >| $events
+  curl -sN -m 60 $H -H 'Content-Type: application/json' -d "{\"text\":\"$2\"}" $B/api/chats/$1/send >| $events &
+  sender=$!
+  local p
+  for p in {1..100}; do [[ $(<$events) == *'"type":"ask"'* ]] && break; sleep 0.1; done
+  REPLY=$(sed -n 's/.*"type":"ask".*/&/p' $events | sed -n 's/.*"id":"\([a-z0-9]\{10\}\)".*/\1/p' | head -1)
+}
 events=$HOME/events.txt
 : >| $events
 curl -sN -m 60 $H -H 'Content-Type: application/json' -d '{"text":"please run the check"}' $B/api/chats/$chat/send >| $events &
@@ -104,10 +116,10 @@ for p in {1..100}; do [[ $(<$events) == *'"type":"ask"'* ]] && break; sleep 0.1;
 qid=$(sed -n 's/.*"type":"ask".*/&/p' $events | sed -n 's/.*"id":"\([a-z0-9]\{10\}\)".*/\1/p' | head -1)
 check_eq "the command asks first" ${#qid} 10
 check_has "with the command shown" "$(<$events)" '"detail":"echo lotus-test-ok"'
-check_has "and no 'always' from the web" "$(<$events)" '"always":false'
+check_has "it may be allowed for this conversation" "$(<$events)" '"always":true'
 check_eq "busy: a second message waits" "$(code $H -H 'Content-Type: application/json' -d '{"text":"hi"}' $B/api/chats/$chat/send)" 409
-check_eq "'don't ask again' is refused for it" "$(code $H -H 'Content-Type: application/json' -d "{\"id\":\"$qid\",\"answer\":\"always\"}" $B/api/answer)" 400
-check_eq "yes from the browser" "$(code $H -H 'Content-Type: application/json' -d "{\"id\":\"$qid\",\"answer\":\"yes\"}" $B/api/answer)" 200
+check_eq "an answer that is none: refused" "$(answer $qid maybe)" 400
+check_eq "yes, don't ask again – from the browser" "$(answer $qid always)" 200
 wait $sender
 out=$(<$events)
 check_has "the command ran" "$out" '"text":"exit 0'
@@ -119,6 +131,14 @@ check_has "with its title" "$saved" '"title":"please run the check"'
 check "the conversation file is private" eval '[[ $(stat -f %Lp $LOTUS_STATE/ai-chats/$chat.json) == 600 ]]'
 out=$(curl -sN -m 30 $H -H 'Content-Type: application/json' -d '{"text":"hello"}' $B/api/chats/$chat/send)
 check_has "a plain answer streams as text" "$out" 'from** the test model'
+out=$(send_to $chat "please run the check again")
+check "don't ask again: the next command runs without a question" eval '[[ $out != *"\"type\":\"ask\""* && $out == *"\"text\":\"exit 0"* ]]'
+other=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+asked $other "please run the check"
+check_eq "it counts for one conversation – a new one asks again" ${#REPLY} 10
+check_eq "no from the browser" "$(answer $REPLY no)" 200
+wait $sender
+check_has "declined: it did not run" "$(<$events)" '"text":"Declined"'
 check_eq "clear" "$(code -X POST $H $B/api/chats/$chat/clear)" 200
 check_has "cleared: no messages" "$(curl -s -m 5 $H $B/api/chats/$chat)" '"messages":[]'
 check_eq "delete" "$(code -X DELETE $H $B/api/chats/$chat)" 200
@@ -189,6 +209,43 @@ check_has "/ai: then the answer" "$out" "the test model"
 out=$(cd $HOME && lotus ai "hi" 2>&1)
 check "/ai: a short question goes as typed" eval '[[ $out != *"Improved prompt"* ]]'
 enhance off
+
+# ── Settings from the browser: the same Lotus settings as /settings and /ai ──
+setting() { code $H -H 'Content-Type: application/json' -d "{\"key\":\"$1\",\"value\":\"$2\"}" $B/api/settings }
+check_has "the settings list what the AI may do" "$(curl -s -m 5 $H $B/api/settings)" '"key":"LOTUS_AI_PERM_RUN"'
+check_eq "a value that does not exist: refused" "$(setting LOTUS_AI_PERM_RUN sometimes)" 400
+check_eq "other devices cannot be turned on from the browser" "$(setting LOTUS_AI_SERVER_LAN 1)" 400
+check_eq "nor the port changed" "$(setting LOTUS_AI_SERVER_PORT 3001)" 400
+check_eq "auto mode from the browser" "$(setting LOTUS_AI_PERM_MODE auto)" 200
+check_has "saved in the Lotus settings" "$(<$LOTUS_CONF/settings.zsh)" "LOTUS_AI_PERM_MODE='auto'"
+check_has "the state says auto" "$(curl -s -m 5 $H $B/api/state)" '"mode":"auto"'
+auto=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+out=$(send_to $auto "please run the check")
+check "auto: a harmless command runs without a question" eval '[[ $out != *"\"type\":\"ask\""* && $out == *"\"text\":\"exit 0"* ]]'
+asked $auto "please delete the old build"
+check_eq "auto: deleting still asks" ${#REPLY} 10
+check_has "and never with 'don't ask again'" "$(<$events)" '"always":false'
+answer $REPLY no >/dev/null
+wait $sender
+out=$(send_to $auto "please use admin rights")
+check_has "sudo never runs" "$out" "Lotus never uses sudo"
+setting LOTUS_AI_PERM_MODE ask >/dev/null
+check_eq "thinking from the browser" "$(setting LOTUS_AI_EFFORT low)" 200
+check_has "the state says it" "$(curl -s -m 5 $H $B/api/state)" '"effort":"quick"'
+setting LOTUS_AI_EFFORT high >/dev/null
+check_has "who answers: the test model" "$(curl -s -m 5 $H $B/api/models)" '"current":true'
+check_eq "an AI that is not there: refused" "$(code $H -H 'Content-Type: application/json' -d '{"kind":"claude","model":"claude-nope"}' $B/api/model)" 400
+
+# memory, context, compact
+check_has "memory: empty at first" "$(curl -s -m 5 $H $B/api/memory)" '"facts":[]'
+print -r -- $'# What Lotus AI remembers\n\n- The user likes short answers.' >| $LOTUS_CONF/ai-memory.md
+check_has "memory: what it keeps" "$(curl -s -m 5 $H $B/api/memory)" 'The user likes short answers.'
+check_eq "memory: forget" "$(code -X POST $H $B/api/memory/clear)" 200
+check_has "memory: forgotten" "$(curl -s -m 5 $H $B/api/memory)" '"facts":[]'
+check_has "context: how full" "$(curl -s -m 5 $H $B/api/chats/$auto/context)" '"percent":'
+out=$(curl -sN -m 30 -X POST $H $B/api/chats/$auto/compact)
+check_has "compact: done" "$out" 'Compacted'
+check "compact: older messages became a summary" python3 -c 'import json,sys; c=json.load(open(sys.argv[1])); sys.exit(0 if len(c["turns"]) <= 2 and c["summary"] else 1)' $LOTUS_STATE/ai-chats/$auto.json
 
 pid=$(cut -d' ' -f1 $LOTUS_STATE/ai-server | head -1)
 out=$(lotus ai server stop); rc=$?
