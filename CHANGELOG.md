@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.7.0 – The AI uses Lotus
+
+### The AI uses Lotus itself
+- In `/ai` the AI can now use Lotus: open or install an app, the weather, what is playing and play, pause or skip, change the theme, open the clock, keep the Mac awake, turn features on or off, list and start Minecraft servers, remove an image background. Ask in plain words – "keep my Mac awake for an hour", "open Safari", "change the theme to Midnight"
+- One list of tools for every AI in Lotus (`data/ai-tools.tsv`): each tool has a name, a description, checked parameters, a permission level and what happens when it fails. The AI only gets the tools of the features that are on; it cannot call others, and when you ask for a feature that is off it tells you how to turn it on
+- Every argument is checked against that list, and Lotus runs its commands with fixed arguments – never a shell string the model wrote. Reading (weather, what is playing, the app catalog) runs right away; changing something asks first, unless you allow it in `/permissions` → "Use Lotus features" or use auto mode; installing an app always asks
+- Honest results: a tool reports done, failed, or that you have to decide (for example which of several apps you meant) – the AI only says something worked when Lotus reported it. Tools that need the screen (the clock, Remove BG) get the terminal until you close them, then the conversation goes on
+- Apple Intelligence knows when a request is for Lotus and gets only the Lotus tools – its small memory stays free
+
+### One set of instructions for every AI
+- The instructions for the AI are in one file now, `data/ai/system.md`, used by Claude, the model on your Mac, Ollama, OpenAI-compatible APIs and Apple Intelligence (a compact version for small models): understand the goal, look before assuming, use what exists, try something different when a step fails, check results, keep your work, and keep apart what was planned, tried, done, failed or needs your permission
+
+### /clock
+- A full-screen clock in the colors of your theme with six designs: minimal, big digits, a retro seven-segment display with the unlit segments faintly visible, Matrix rain that forms the digits, a round analog face drawn with braille dots, and a world clock with a day-and-night bar per city
+- ←→ or 1–6 switch the design, s turns the seconds on or off, z shows a second time zone, q closes it. The last design is remembered; design, seconds and the world clock's cities are in `/settings` → Clock
+- It uses the Mac's own clock and starts no background process – it only draws when the second changes
+
+### Keep awake
+- `/caffeine on 90` keeps your Mac awake for 90 minutes with macOS' own `caffeinate` (0: until you turn it off), `/caffeine off` lets it sleep, `/caffeine` shows the status and a short menu. It keeps running when you close the terminal, ends by itself, and the start screen shows it while it is on. Lotus only ever stops the `caffeinate` it started; `lotus uninstall` stops it too
+- A feature of its own ("Keep awake"), so it can be turned off like any other
+
+### Fixed
+- After a mistyped command, the pet's reaction showed only the row with its eyes. The pet is drawn whole now, the same way as everywhere else; in a very narrow window it is one line of text instead of half a drawing
+- Lotus forces a UTF-8 locale for its own process when the terminal sets none – without it the pets, the bloom and the clock lost their block characters
+- `lotus features` (without a terminal) started a subshell per feature – measured on an M5: 31.9 ms before, 18.0 ms now. `lotus version` stays at 14.5 ms; an unknown command with its suggestion takes 19.6 ms instead of 18.7 ms (three more commands to compare)
+
+### Tests
+- `zsh tests/run.zsh` runs Lotus' tests in an empty home (62 checks): the pet reactions, the clock, keep awake and the AI tools – nothing of your own settings is read or changed
 ## 2.6.0 – The AI knows more
 
 - The AI in `/ai` can use the internet: it searches the web (DuckDuckGo, Wikipedia when that does not answer – no account) and reads pages as clean text – documentation, release notes, articles, GitHub READMEs, Wikipedia without its menus, and Apple's developer documentation with its code examples. It looks things up instead of guessing and names its sources; long pages are read in parts. Works with Claude, the model on your Mac and Apple Intelligence

@@ -7,6 +7,10 @@ if [[ $LOTUS_FOR_USER == [[:alnum:]._-]## ]]; then
   _home=${~:-~$LOTUS_FOR_USER}
   [[ $_home == /* && -d $_home ]] && HOME=$_home
 fi
+# Pets, blooms and the logo are drawn with Unicode block characters: without a UTF-8 locale (a terminal
+# that sets no language) zsh would treat them as bytes and drop them. Only for Lotus' own process.
+zmodload -F zsh/langinfo p:langinfo 2>/dev/null
+[[ ${langinfo[CODESET]:-UTF-8} == UTF-8 ]] || export LC_CTYPE=en_US.UTF-8
 source ${0:A:h:h}/lib/core.zsh
 source $LOTUS_ROOT/lib/ui.zsh
 source $LOTUS_ROOT/lib/fuzzy.zsh
@@ -37,7 +41,7 @@ typeset -A LOTUS_MODULES=(
   app app  brew brew  install install  audio audio  weather weather  ai ai
   ios ios  minecraft minecraft  mc minecraft  convert convert  visual visual
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
-  bg bg  log log  features setup  pets pets  pet pets  feed pets
+  bg bg  log log  features setup  pets pets  pet pets  feed pets  clock clock  caffeine caffeine  awake caffeine  ai-tool aitools
 )
 
 # -V / --verbose: every log line is printed while the command runs
@@ -54,6 +58,7 @@ case $cmd in
     fi
     lotus_render
     lotus_startup_details
+    lotus_caffeine_note
     lotus_pet_start ;;
   settings|config)
     lotus_log DEBUG cli "Settings opened"

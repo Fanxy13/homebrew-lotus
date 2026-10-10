@@ -7,6 +7,9 @@ Core	/help	help	/help	Help: your pet asks what you need and shows the commands (
 Core	-	update	lotus update	Update Lotus, settings stay as they are	lotus update	0
 Core	-	uninstall	lotus uninstall	Remove Lotus completely	lotus uninstall	0
 Core	-	version	lotus version	Print the installed version	lotus version	0
+Core	/clock	clock	/clock [design]	A clock in your theme: minimal, big, retro, matrix, analog or world – ←→ switches, s seconds, z a second time zone	/clock retro	0
+Keep awake	/caffeine	caffeine	/caffeine [on [minutes]|off|status]	Keep your Mac awake for a while (macOS' caffeinate), then it may sleep again	/caffeine on 90	0
+Keep awake	/awake	caffeine	/awake	The same as /caffeine	/awake	1
 Core	-	features	lotus features	Turn Lotus features on or off	lotus features	0
 Core	-	features	lotus features <name> on|off	Switch one feature, e.g. for scripts	lotus features minecraft off	0
 Core	-	goat	who is the goat?	-	who is the goat?	1

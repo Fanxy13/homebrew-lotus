@@ -140,7 +140,7 @@ final class AppleProvider: Provider, @unchecked Sendable {
         return LanguageModelSession(model: model, tools: use, transcript: Transcript(entries: entries))
     }
 
-    enum Kind { case chat, look, change, web }
+    enum Kind { case chat, look, change, web, lotus }
 
     // Decides whether the message needs files or commands (a fixed choice – reliable on the small model),
     // then plans the work in plain text.
@@ -155,14 +155,15 @@ final class AppleProvider: Provider, @unchecked Sendable {
             You sort requests to an assistant in the macOS terminal that can use files and commands.
             change: the request needs files or folders to be created, changed or deleted, or a command to be run.
             look: the request needs files or folders on this computer to be read, listed or searched, without changing them.
+            lotus: the request asks Lotus to do something for the user: open or install an app, the weather, play or pause music, change the theme, open the clock, keep the Mac awake, turn a Lotus feature on or off, Minecraft servers.
             web: the request needs current information from the internet – news, the newest versions, prices, weather, results, anything recent – or asks to search or look something up online.
             chat: anything that can be answered with words alone – questions, timeless facts, explanations, stories, texts, small talk.
             A request that names a file (such as main.py or notes.txt), a folder or "this folder" is never chat.
             Use the earlier conversation to understand short follow-ups.
             """)
-        let choice = DynamicGenerationSchema(type: String.self, guides: [.anyOf(["chat", "look", "change", "web"])])
+        let choice = DynamicGenerationSchema(type: String.self, guides: [.anyOf(["chat", "look", "change", "web", "lotus"])])
         let root = DynamicGenerationSchema(name: "Decision", properties: [
-            DynamicGenerationSchema.Property(name: "kind", description: "chat, look, change or web", schema: choice)
+            DynamicGenerationSchema.Property(name: "kind", description: "chat, look, change, web or lotus", schema: choice)
         ])
         var kind = Kind.chat
         if let schema = try? GenerationSchema(root: root, dependencies: []) {
@@ -175,7 +176,11 @@ final class AppleProvider: Provider, @unchecked Sendable {
                 }
                 return (try? last?.value(String.self, forProperty: "kind")) ?? "chat"
             }
-            kind = picked == "change" ? .change : picked == "look" ? .look : picked == "web" ? .web : .chat
+            kind = picked == "change" ? .change : picked == "look" ? .look : picked == "web" ? .web : picked == "lotus" ? .lotus : .chat
+        }
+        // "turn on caffeine", "open Safari", "play music": Lotus itself
+        if kind == .chat, !ToolCatalog.lotus.isEmpty, text.range(of: AppleProvider.lotusWords, options: [.regularExpression, .caseInsensitive]) != nil {
+            kind = .lotus
         }
         // "search the web", "the newest …", "today": the internet, also when the sorter thought it was a chat
         if kind == .chat, text.range(of: AppleProvider.webWords, options: [.regularExpression, .caseInsensitive]) != nil {
@@ -235,6 +240,7 @@ final class AppleProvider: Provider, @unchecked Sendable {
         return f.count >= 3 ? f : nil
     }
 
+    static let lotusWords = #"\b(open (the )?(app|clock)|install|theme|clock|keep (my mac |the mac )?awake|caffeine|stay awake|play|pause|skip|next song|music|minecraft|turn (on|off)|feature|öffne|installier\w*|uhr|wach|musik|spiel\w*|ouvre|installe|horloge|musique|abre|instala|reloj|música)\b"#
     static let webWords = #"\b(search|google|look (it )?up|online|internet|web|latest|newest|current|today|news|price|weather|recherch\w*|such\w*|im (netz|internet|web)|neueste\w*|aktuell\w*|heute|nachrichten|preis\w*|wetter|cherche\w*|dernière?s?|busca\w*|último\w*)\b"#
     static let rememberWords = #"\b(remember|don't forget|merk (dir|es)|merke|vergiss nicht|souviens|retiens|recuerda|no olvides)\b"#
 
@@ -284,7 +290,11 @@ final class AppleProvider: Provider, @unchecked Sendable {
         let work = kind == .look || kind == .change
         var only: Set<String>?
         if runner != nil && !tools.isEmpty {
-            if kind == .web {
+            if kind == .lotus && !ToolCatalog.lotus.isEmpty {
+                // only Lotus' own tools: the small model has little room
+                only = Set(ToolCatalog.lotus.map(\.name))
+                prompt += "\n\n(Use the Lotus tool that fits. Say it is done only when the tool reported success; if it says the user has to decide, ask them.)"
+            } else if kind == .web {
                 only = ["web_search", "fetch_url"]
                 prompt += "\n\n(Search the web with web_search first – do not answer from memory. Look at all results: for the newest or latest of something, pick the highest version and the newest date. Read the best page with fetch_url if the snippets are not enough. Answer briefly and name the source.)"
             } else if kind == .chat, let r = runner, text.range(of: AppleProvider.rememberWords, options: [.regularExpression, .caseInsensitive]) != nil,

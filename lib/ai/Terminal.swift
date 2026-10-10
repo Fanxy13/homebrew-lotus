@@ -142,6 +142,44 @@ func clip(_ s: String, _ cells: Int) -> String {
     return out + "…"
 }
 
+// ── Handing the terminal to another program ──────────────────
+// For Lotus tools that draw on the whole screen (the clock, Remove BG): the AI stops reading keys,
+// gives the terminal back its normal mode, runs the program and waits, then takes the terminal again.
+// Ctrl-C belongs to that program meanwhile; the AI only catches it so it does not end too.
+
+extension Term {
+    static func handOff(_ exe: String, _ args: [String], cwd: URL) -> Int32 {
+        Spinner.shared.stop()
+        KeyReader.pause()
+        RawMode.disable()
+        signal(SIGINT) { _ in }            // caught (not ignored), so the program still gets its own Ctrl-C
+        defer {
+            signal(SIGINT, SIG_DFL)
+            RawMode.enable()
+            KeyReader.resume()
+        }
+        // posix_spawn, not Process: Process starts the program in a process group of its own, and a
+        // program outside the terminal's foreground group is stopped (SIGTTIN/SIGTTOU) the moment it
+        // touches the terminal. In our own group it is in the foreground, like a program started by the shell.
+        var env = ProcessInfo.processInfo.environment
+        for k in env.keys where k.hasPrefix("LOTUS_AI_") { env.removeValue(forKey: k) }
+        let argv: [UnsafeMutablePointer<CChar>?] = ([exe] + args).map { strdup($0) } + [nil]
+        let envp: [UnsafeMutablePointer<CChar>?] = env.map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer { argv.forEach { free($0) }; envp.forEach { free($0) } }
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        posix_spawn_file_actions_addchdir_np(&actions, cwd.path)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        var pid: pid_t = 0
+        guard posix_spawn(&pid, exe, &actions, nil, argv, envp) == 0 else { return 127 }
+        var status: Int32 = 0
+        while waitpid(pid, &status, 0) < 0 && errno == EINTR {}
+        // exited normally → its exit status; ended by a signal → 128 + the signal, like the shell says it
+        if status & 0x7f == 0 { return (status >> 8) & 0xff }
+        return 128 + (status & 0x7f)
+    }
+}
+
 // ── Raw mode ──────────────────────────────────────────────────
 
 var savedTermios = termios()
@@ -250,6 +288,25 @@ final class KeyReader: @unchecked Sendable {
     let queue: KeyQueue
     private var pending: [UInt8] = []
 
+    // While another program has the terminal (Term.handOff) the reader takes no keys
+    private static let pauseLock = NSLock()
+    nonisolated(unsafe) private static var paused = false
+    nonisolated(unsafe) private static var resting = true
+    static func pause() {
+        pauseLock.lock(); paused = true; pauseLock.unlock()
+        for _ in 0..<40 {
+            pauseLock.lock(); let r = resting; pauseLock.unlock()
+            if r { return }
+            usleep(10_000)
+        }
+    }
+    static func resume() { pauseLock.lock(); paused = false; pauseLock.unlock() }
+    private static func isPaused() -> Bool {
+        pauseLock.lock(); defer { pauseLock.unlock() }
+        resting = paused
+        return paused
+    }
+
     init(queue: KeyQueue) { self.queue = queue }
 
     func start() {
@@ -273,6 +330,19 @@ final class KeyReader: @unchecked Sendable {
 
     private func loop() {
         while true {
+            if KeyReader.isPaused() { usleep(20_000); continue }
+            if pending.isEmpty {
+                // wait a little at a time, so a pause takes effect before the next key
+                var fds = pollfd(fd: STDIN_FILENO, events: Int16(POLLIN), revents: 0)
+                let r = poll(&fds, 1, 100)
+                if r == 0 { continue }
+                if r < 0 {
+                    if errno == EINTR { continue }
+                    queue.push(.ctrlD)
+                    return
+                }
+                if KeyReader.isPaused() { continue }     // the other program gets this key
+            }
             guard let b = readByte() else {
                 queue.push(.ctrlD)
                 return

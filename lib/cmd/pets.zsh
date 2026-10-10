@@ -678,18 +678,24 @@ lotus_pet_react_now() {   # <typo|done>
   _pet_species
   local -i idx=$(( RANDOM % ${#PET_N} + 1 ))
   _pet_kind $idx
-  local kind=$REPLY face text
-  _pet_color $idx
-  local c=$'\e['"${REPLY}m" r=$'\e[0m'
+  local text frame style
   case $1 in
-    typo) face=${PET_INFO[$kind,face]:-(o.o)}; text=${LOTUS_L[pt_typo]//\%s/$PET_N[idx]} ;;
-    done) face=${PET_INFO[$kind,face_happy]:-${PET_INFO[$kind,face]:-(^.^)}}
-          local key=pt_done_$(( RANDOM % 3 + 1 ))
-          text="$PET_N[idx]: $LOTUS_L[$key]" ;;
+    typo) frame=idle style=plain text=${LOTUS_L[pt_typo]//\%s/$PET_N[idx]} ;;    # told about the pet
+    done) frame=happy style=bubble text=$LOTUS_L[pt_done_$(( RANDOM % 3 + 1 ))] ;;  # said by the pet
     *)    return 0 ;;
   esac
-  face=${face//[^ -~▀-▟]/}
-  print -r -- "  $c${face[1,12]}$r $text"
+  # The whole pet with a speech bubble – the same drawing as everywhere else. The "face" of a pixel
+  # pet is only the row with its eyes, so it is never printed alone. Too narrow for the drawing:
+  # one line of text with the pet's name.
+  if (( ${COLUMNS:-80} < PET_AW[$REPLY] + 26 )); then
+    _pet_color $idx
+    print -r -- "  "$'\e['"${REPLY}m$PET_N[idx]"$'\e[0m'": $text"
+    return 0
+  fi
+  _pet_bubble_width $idx
+  _pet_wrap "$text" $REPLY
+  _pet_block $idx $frame -1 $style "${reply[@]}"
+  _pet_print
 }
 
 # ── /help with a pet ──────────────────────────────────────────

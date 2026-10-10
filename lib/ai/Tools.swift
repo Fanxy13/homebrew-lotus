@@ -9,24 +9,75 @@ struct ToolParam {
     let description: String
     let required: Bool
     var isInt = false
+    var enumValues: [String]? = nil
+    var minimum: Int? = nil
+    var maximum: Int? = nil
+    var isPath = false
+}
+
+// A tool of Lotus itself (data/ai-tools.tsv, handed over by the shell as JSON)
+struct LotusTool {
+    let feature: String
+    let level: String          // read · act · install
+    let mode: String           // run · tty
+    let label: String
+    let argv: [String]         // lotus arguments; {name} a parameter, [{name}] an optional one
+    let missing: String        // why it cannot run here (a program is missing), or ""
 }
 
 struct ToolSpec {
     let name: String
     let description: String
     let params: [ToolParam]
+    var lotus: LotusTool? = nil
 
     var jsonSchema: [String: Any] {
         var props: [String: Any] = [:]
         for p in params {
-            props[p.name] = ["type": p.isInt ? "integer" : "string", "description": p.description]
+            var s: [String: Any] = ["type": p.isInt ? "integer" : "string", "description": p.description]
+            if let e = p.enumValues { s["enum"] = e }
+            if let n = p.minimum { s["minimum"] = n }
+            if let n = p.maximum { s["maximum"] = n }
+            props[p.name] = s
         }
         return ["type": "object", "properties": props, "required": params.filter(\.required).map(\.name)]
     }
 }
 
 enum ToolCatalog {
-    static let all: [ToolSpec] = [
+    // The built-in tools, then the Lotus tools of the features that are on
+    static let all: [ToolSpec] = builtin + lotus
+    static let lotus: [ToolSpec] = loadLotus().tools
+    static let lotusOff: [String] = loadLotus().off
+
+    private static func loadLotus() -> (tools: [ToolSpec], off: [String]) {
+        guard let path = ProcessInfo.processInfo.environment["LOTUS_AI_TOOLKIT"], path.hasPrefix("/"),
+              let data = FileManager.default.contents(atPath: path),
+              let j = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return ([], []) }
+        var tools: [ToolSpec] = []
+        for t in j["tools"] as? [[String: Any]] ?? [] {
+            guard let name = t["name"] as? String, name.range(of: #"^[a-z_]{2,40}$"#, options: .regularExpression) != nil,
+                  !builtin.contains(where: { $0.name == name }) else { continue }
+            let params = (t["params"] as? [[String: Any]] ?? []).compactMap { p -> ToolParam? in
+                guard let n = p["name"] as? String else { return nil }
+                let type = p["type"] as? String ?? "text"
+                return ToolParam(name: n, description: p["description"] as? String ?? "", required: p["required"] as? Bool ?? false,
+                                 isInt: type == "int", enumValues: p["enum"] as? [String],
+                                 minimum: p["min"] as? Int, maximum: p["max"] as? Int, isPath: type == "path")
+            }
+            let lt = LotusTool(feature: t["feature"] as? String ?? "", level: t["level"] as? String ?? "act",
+                               mode: t["mode"] as? String ?? "run", label: t["label"] as? String ?? name,
+                               argv: t["argv"] as? [String] ?? [], missing: t["missing"] as? String ?? "")
+            tools.append(ToolSpec(name: name, description: t["description"] as? String ?? "", params: params, lotus: lt))
+        }
+        return (tools, j["off"] as? [String] ?? [])
+    }
+
+    static func label(_ name: String) -> String {
+        displayNames[name] ?? lotus.first(where: { $0.name == name })?.lotus?.label ?? "tool"
+    }
+
+    static let builtin: [ToolSpec] = [
         ToolSpec(name: "list_directory",
                  description: "List the files and folders in a directory. Use it to look around before reading or changing files.",
                  params: [ToolParam(name: "path", description: "Directory path, relative to the working directory. Default: the working directory.", required: false)]),
@@ -89,6 +140,7 @@ struct Permissions {
         Item(key: "LOTUS_AI_PERM_WRITE_OUT", label: "Change files elsewhere", values: ["ask", "never"]),
         Item(key: "LOTUS_AI_PERM_RUN", label: "Run commands", values: ["ask", "allow", "never"]),
         Item(key: "LOTUS_AI_PERM_WEB", label: "Search and read the web", values: ["allow", "ask", "never"]),
+        Item(key: "LOTUS_AI_PERM_LOTUS", label: "Use Lotus features", values: ["ask", "allow", "never"]),
     ]
 
     private(set) var values: [String: String] = [:]
@@ -113,7 +165,7 @@ struct Permissions {
     static func words(_ v: String, _ key: String = "", auto: Bool = false) -> String {
         if key == "LOTUS_AI_PERM_MODE" { return v == "auto" ? "auto – asks only when unsure" : "ask first – asks before it changes anything" }
         // in auto mode these decide by themselves
-        if auto && v == "ask" && ["LOTUS_AI_PERM_READ", "LOTUS_AI_PERM_WRITE"].contains(key) { return "auto" }
+        if auto && v == "ask" && ["LOTUS_AI_PERM_READ", "LOTUS_AI_PERM_WRITE", "LOTUS_AI_PERM_LOTUS"].contains(key) { return "auto" }
         if auto && v == "ask" && key == "LOTUS_AI_PERM_RUN" { return "auto – asks when unsure" }
         return ["allow": "allowed", "ask": "asks first", "never": "never", "1": "on", "0": "off"][v] ?? v
     }
@@ -128,6 +180,7 @@ struct Permissions {
     var writeOutside: Level { level("LOTUS_AI_PERM_WRITE_OUT") }
     var run: Level { level("LOTUS_AI_PERM_RUN") }
     var web: Level { level("LOTUS_AI_PERM_WEB") }
+    var lotus: Level { level("LOTUS_AI_PERM_LOTUS") }
 }
 
 // ── Questions to the user during an answer ────────────────────
@@ -279,6 +332,7 @@ final class ToolRunner: @unchecked Sendable {
     private var readsAllowed = false
     private var readsInsideAllowed = false
     private var webAllowed = false
+    private var lotusAllowed = false
     private(set) var readWeb = false        // web text came in during this answer: in auto mode commands ask
     private var pages: [String: Web.Page] = [:]    // pages read in this session, for reading on
     var permissions = Permissions(environment: ProcessInfo.processInfo.environment)
@@ -298,6 +352,7 @@ final class ToolRunner: @unchecked Sendable {
         readsAllowed = false
         readsInsideAllowed = false
         webAllowed = false
+        lotusAllowed = false
     }
 
     func takeActions() -> [String] {
@@ -363,6 +418,7 @@ final class ToolRunner: @unchecked Sendable {
             guard let f = str(args, "fact"), !f.trimmingCharacters(in: .whitespaces).isEmpty else { return missing(name, "fact") }
             return remember(f)
         default:
+            if let spec = ToolCatalog.lotus.first(where: { $0.name == name }) { return await runLotus(spec, args) }
             Renderer.shared.toolHeader(String(name.unicodeScalars.filter { $0.value >= 0x20 && $0.value < 0x7F }.prefix(40).map(Character.init)), "")
             Renderer.shared.toolResult("There is no tool with this name – the model tries again", error: true)
             return ToolOutcome(text: "Unknown tool \(name). Available: \(ToolCatalog.all.map(\.name).joined(separator: ", ")).", isError: true)
@@ -473,6 +529,132 @@ final class ToolRunner: @unchecked Sendable {
     }
 
     // ── Tools ──
+
+    // ── Lotus' own features (data/ai-tools.tsv) ──
+
+    static func plain(_ s: String) -> String {
+        s.replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]", with: "", options: .regularExpression)
+    }
+
+    private func refuse(_ label: String, _ shown: String, _ why: String) -> ToolOutcome {
+        Renderer.shared.toolHeader(label, shown)
+        Renderer.shared.toolResult(why, error: true)
+        return ToolOutcome(text: "Not done – \(why)", isError: true)
+    }
+
+    private func runLotus(_ spec: ToolSpec, _ args: [String: Any]) async -> ToolOutcome {
+        guard let lt = spec.lotus else { return ToolOutcome(text: "Unknown tool \(spec.name).", isError: true) }
+        // every value checked against the list – the list decides what is allowed, not the model
+        var values: [String: String] = [:]
+        for p in spec.params {
+            let raw = p.isInt ? int(args, p.name).map(String.init) : str(args, p.name)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let v = raw, !v.isEmpty else {
+                if p.required { return refuse(lt.label, "", "\(p.name) is missing") }
+                continue
+            }
+            if let e = p.enumValues, !e.contains(v) {
+                return refuse(lt.label, v, "\(p.name) must be one of: \(e.joined(separator: ", "))")
+            }
+            if p.isInt {
+                guard let n = Int(v) else { return refuse(lt.label, v, "\(p.name) must be a whole number") }
+                if let lo = p.minimum, n < lo { return refuse(lt.label, v, "\(p.name) must be at least \(lo)") }
+                if let hi = p.maximum, n > hi { return refuse(lt.label, v, "\(p.name) must be at most \(hi)") }
+            }
+            if !p.isInt && p.enumValues == nil {
+                if v.count > (p.isPath ? 1000 : 120) || v.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
+                    return refuse(lt.label, String(v.prefix(40)), "\(p.name) is not a valid value")
+                }
+            }
+            if p.isPath {
+                let url = resolve(v)
+                guard FileManager.default.fileExists(atPath: url.path) else { return refuse(lt.label, v, "\(display(url)) does not exist") }
+                values[p.name] = url.path
+            } else {
+                values[p.name] = v
+            }
+        }
+        let shown = spec.params.compactMap { p in values[p.name].map { p.isPath ? display(URL(fileURLWithPath: $0)) : $0 } }.joined(separator: ", ")
+        Renderer.shared.toolHeader(lt.label, shown)
+        if !lt.missing.isEmpty {
+            Renderer.shared.toolResult(lt.missing, error: true)
+            return ToolOutcome(text: "Not available on this Mac: \(lt.missing)", isError: true)
+        }
+        // a file is read like read_file would read it
+        for p in spec.params where p.isPath {
+            if let v = values[p.name], let stop = await checkRead(URL(fileURLWithPath: v), "reading \(display(URL(fileURLWithPath: v)))") { return stop }
+        }
+        let what = "\(lt.label)\(shown.isEmpty ? "" : ": \(shown)")"
+        switch lt.level {
+        case "read":
+            break
+        case "install":
+            // installing always asks, in every mode
+            if permissions.lotus == .never { return blocked(what) }
+            Renderer.shared.toolLines(["Lotus will install this with Homebrew."], color: Style.accent)
+            switch await ui.confirm("Install \(shown)?", allowAlways: false) {
+            case .yes, .always: break
+            case .no(let note): declineNote = note; return declined(what)
+            }
+        default:
+            if permissions.lotus == .never { return blocked(what) }
+            if !(permissions.lotus == .allow || permissions.auto || lotusAllowed) {
+                switch await ui.confirm("\(what)?", allowAlways: true) {
+                case .yes: break
+                case .always: lotusAllowed = true
+                case .no(let note): declineNote = note; return declined(what)
+                }
+            }
+        }
+        // the command line, one argument per word – never a shell string
+        var argv: [String] = []
+        for token in lt.argv {
+            if token.hasPrefix("[{") && token.hasSuffix("}]") {
+                if let v = values[String(token.dropFirst(2).dropLast(2))] { argv.append(v) }
+            } else if token.hasPrefix("{") && token.hasSuffix("}") {
+                argv.append(values[String(token.dropFirst().dropLast())] ?? "")
+            } else {
+                argv.append(token)
+            }
+        }
+        let lotusBin = (ProcessInfo.processInfo.environment["LOTUS_ROOT"] ?? "") + "/bin/lotus"
+        guard FileManager.default.isExecutableFile(atPath: lotusBin) else {
+            Renderer.shared.toolResult("Lotus itself was not found", error: true)
+            return ToolOutcome(text: "Not done – the lotus command was not found.", isError: true)
+        }
+        Log.write("INFO", "Lotus tool \(spec.name) \(argv.joined(separator: " "))")
+        if lt.mode == "tty" {
+            // it needs the terminal: the AI steps aside until the user closes it
+            Renderer.shared.toolLines(["\(lt.label) opens in this terminal – the conversation goes on when you close it."])
+            let status = Term.handOff(lotusBin, argv, cwd: cwd)
+            Renderer.shared.toolResult(status == 0 ? "Closed" : "Ended with status \(status)", error: status != 0)
+            actions.append("Opened \(what)")
+            return ToolOutcome(text: status == 0 ? "\(lt.label) ran in the terminal and the user closed it." : "\(lt.label) ended with status \(status).",
+                               isError: status != 0)
+        }
+        Spinner.shared.start(lt.level == "install" ? "Installing" : lt.label)
+        let r = await Shell.run(lotusBin, argv, cwd: cwd, timeout: lt.level == "install" ? 900 : 120)
+        Spinner.shared.stop()
+        let out = ToolRunner.plain(r.output).trimmingCharacters(in: .whitespacesAndNewlines)
+        let first = out.split(separator: "\n").first.map(String.init) ?? ""
+        let state: String
+        switch r.status {
+        case 0:
+            state = "done"
+            Renderer.shared.toolResult(first.isEmpty ? "Done" : first)
+            actions.append("\(what) → \(first)")
+        case 3:
+            state = "not done – the user has to decide"
+            Renderer.shared.toolResult(first, error: false)
+        case 2:
+            state = "not done – the arguments were not accepted"
+            Renderer.shared.toolResult(first.isEmpty ? "Not accepted" : first, error: true)
+        default:
+            state = r.timedOut ? "stopped – it took too long" : r.cancelled ? "stopped by the user" : "failed"
+            Renderer.shared.toolResult(first.isEmpty ? "Failed (exit \(r.status))" : first, error: true)
+            actions.append("\(what) failed")
+        }
+        return ToolOutcome(text: "Result: \(state) (exit \(r.status))\n" + limited(out.isEmpty ? "(no output)" : out), isError: r.status != 0 && r.status != 3)
+    }
 
     // ── The internet ──
 

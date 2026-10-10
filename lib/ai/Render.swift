@@ -309,7 +309,8 @@ final class Renderer: @unchecked Sendable {
     func toolHeader(_ name: String, _ detail: String) {
         endBlock()
         let room = max(10, Term.width - cellWidth(name) - 6)
-        emit("\(Style.key)●\(Style.reset) \(Style.bold)\(name)\(Style.reset)\(Style.dim)(\(Style.reset)\(clip(detail, room))\(Style.dim))\(Style.reset)\n")
+        let args = detail.isEmpty ? "" : "\(Style.dim)(\(Style.reset)\(clip(detail, room))\(Style.dim))\(Style.reset)"
+        emit("\(Style.key)●\(Style.reset) \(Style.bold)\(name)\(Style.reset)\(args)\n")
     }
 
     func toolResult(_ summary: String, error: Bool = false) {

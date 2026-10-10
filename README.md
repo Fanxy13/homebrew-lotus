@@ -93,6 +93,8 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | | `/web github lotus`, `/web youtube.com` | Open a site or search it; pasting a link opens it too |
 | | `/lotus web`, `/lotus github` | The Lotus website and GitHub |
 | Weather | `/weather`, `/weather Tokyo` | ASCII art and a 3-day forecast, no API key |
+| Clock | `/clock`, `/clock retro` | A full-screen clock in your theme: minimal, big, retro, Matrix, analog, world clock |
+| Keep awake | `/caffeine on 90`, `/caffeine off` | Keep your Mac awake for a while with macOS' caffeinate |
 | AI | `/ai` | The AI terminal: chat, write code, create and change files, run commands – it asks before every change |
 | | `/ai what is a symlink?`, `/ai new` | One question (it remembers the conversation for an hour) · start fresh |
 | | `lotus ai login` or `/login` | Connect Claude in a minute; also Apple Intelligence, Ollama or an OpenAI-compatible API |
@@ -232,6 +234,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 - Lotus only goes online for what you ask: weather, updates, searches, downloads you confirm.
 - Installs, downloads and deletions are shown first and need a yes. `sudo` is never run silently.
 - API keys come from the macOS Keychain or the environment, never from files. By default the AI asks before it changes a file or runs a command; `/permissions` (or `/settings` → AI) sets what it may do – look at files, change files, run commands: allowed, ask first or never. In auto mode (`/permissions` or ⇧⇥) it works on its own in the folder and asks only when Lotus is unsure: before a command runs, Lotus reads it like the shell does and lets it through only when it stays in the folder and destroys nothing – deleting, pushing, installing, sending data, other folders, private files and unknown programs still ask, with the reason. Dangerous commands and private files (keys, `.env`) always ask, `sudo` never runs.
+- The AI can use Lotus itself (open or install apps, weather, music, theme, clock, keep awake, features, Minecraft) through one list of tools, `data/ai-tools.tsv`. It only gets the tools of features that are on, every argument is checked against that list, and the commands are run with fixed arguments – never as a shell string the model wrote. Changing things asks first (`/permissions` → "Use Lotus features"), installing an app always asks.
 - The AI can search the web (DuckDuckGo, Wikipedia) and read pages; `/permissions` → "Search and read the web" turns that to ask first or off. Search words go to DuckDuckGo or Wikipedia, pages are fetched directly, without cookies. Only the public internet – addresses on this Mac or in the local network are refused, also after a redirect. Web text is marked as information, never as instructions; in auto mode commands ask again after the AI has read web pages, and an address that carries a lot of data always asks.
 - What the AI remembers between conversations (`remember`, `/memory`) is a plain text file next to your settings (`~/.config/lotus/ai-memory.md`); passwords and keys are never kept.
 - Links, package names, city names and shortcut names are validated; shortcuts cannot run shell commands.
@@ -256,6 +259,9 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |
 | `logos/` | Built-in logos (`scripts/make-logos.py` derives them from the classic lotus) |
 | `docs/` | Website, deployed with `data/` and `logos/` by `.github/workflows/pages.yml` |
+
+
+Tests: `zsh tests/run.zsh` (or `zsh tests/run.zsh clock`) runs them in an empty home – your own settings are not touched.
 
 ## License
 

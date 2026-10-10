@@ -306,7 +306,7 @@ final class ClaudeProvider: Provider {
                 if b["type"] as? String == "tool_use" {
                     json[i] = ""
                     if render {
-                        let n = ToolCatalog.displayNames[b["name"] as? String ?? ""] ?? "tool"
+                        let n = ToolCatalog.label(b["name"] as? String ?? "")
                         Renderer.shared.endBlock()
                         Spinner.shared.start(n == "Write" || n == "Edit" ? "Writing" : "Preparing \(n)")
                     }

@@ -47,6 +47,11 @@ lotus_settings_ui() {
       "bool|LOTUS_LIVE|$LOTUS_L[live]|"
       "choice|LOTUS_INTERVAL|$LOTUS_L[interval]|1=$LOTUS_L[sec1];2=2 $LOTUS_L[secs];3=3 $LOTUS_L[secs];5=5 $LOTUS_L[secs]")
     items+=("choice|LOTUS_COLORS|$LOTUS_L[colors]|auto=$LOTUS_L[col_auto];truecolor=$LOTUS_L[col_tc];256=$LOTUS_L[col_256]")
+    items+=(
+      "head||${LOTUS_L[head_clock]:-Clock}|"
+      "choice|LOTUS_CLOCK_DESIGN|${LOTUS_L[clk_design]:-Design}|minimal=${LOTUS_L[clk_minimal]:-Minimal};big=${LOTUS_L[clk_big]:-Big};retro=${LOTUS_L[clk_retro]:-Retro};matrix=${LOTUS_L[clk_matrix]:-Matrix};analog=${LOTUS_L[clk_analog]:-Analog};world=${LOTUS_L[clk_world]:-World}"
+      "choice|LOTUS_CLOCK_SECONDS|${LOTUS_L[clk_secs]:-Seconds}|1=$LOTUS_L[on];0=$LOTUS_L[off]"
+      "text|LOTUS_CLOCK_ZONES|${LOTUS_L[clk_zones]:-World clock: time zones}|")
     _on visualizer && items+=("choice|LOTUS_VISUAL_MODE|$LOTUS_L[visual_mode]|bars=Bars;wave=Wave;spectrum=Spectrum;particles=Particles;minimal=Minimal;circular=Circular;retro=Retro terminal;matrix=Matrix")
     if _on weather || _on web; then
       items+=("head||$LOTUS_L[head_weather]|")
@@ -75,7 +80,8 @@ lotus_settings_ui() {
       "choice|LOTUS_AI_PERM_WRITE|${LOTUS_L[ai_p_write]:-Change files in the folder}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}"
       "choice|LOTUS_AI_PERM_WRITE_OUT|${LOTUS_L[ai_p_write_out]:-Change files elsewhere}|ask=${LOTUS_L[ai_p_ask]:-ask first};never=${LOTUS_L[ai_p_never]:-never}"
       "choice|LOTUS_AI_PERM_RUN|${LOTUS_L[ai_p_run]:-Run commands}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}"
-      "choice|LOTUS_AI_PERM_WEB|${LOTUS_L[ai_p_web]:-Search and read the web}|allow=${LOTUS_L[ai_p_allow]:-allowed};ask=${LOTUS_L[ai_p_ask]:-ask first};never=${LOTUS_L[ai_p_never]:-never}")
+      "choice|LOTUS_AI_PERM_WEB|${LOTUS_L[ai_p_web]:-Search and read the web}|allow=${LOTUS_L[ai_p_allow]:-allowed};ask=${LOTUS_L[ai_p_ask]:-ask first};never=${LOTUS_L[ai_p_never]:-never}"
+      "choice|LOTUS_AI_PERM_LOTUS|${LOTUS_L[ai_p_lotus]:-Use Lotus features}|ask=${LOTUS_L[ai_p_ask]:-ask first};allow=${LOTUS_L[ai_p_allow]:-allowed};never=${LOTUS_L[ai_p_never]:-never}")
     _on bg && items+=(
       "head||$LOTUS_L[head_bg]|"
       "choice|LOTUS_BG_MODEL|$LOTUS_L[bg_model]|auto=$LOTUS_L[col_auto];birefnet=BiRefNet;birefnet-lite=BiRefNet Lite;inspyrenet=InSPyReNet"

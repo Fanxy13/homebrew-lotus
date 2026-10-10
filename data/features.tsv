@@ -1,7 +1,7 @@
 # Lotus features – the switches in the setup wizard and in /settings → Features (also read by the website).
 # A feature that is off keeps its settings, downloads nothing and its commands explain how to turn it back on.
 # id	label	commands (lotus subcommands that belong to it)	description	what it may download
-core	Core	show settings config setup update upgrade doctor uninstall unhook help -h --help cheatsheet themes suggest logo shortcuts shortcut run log features goat who version	Start screen, settings, shortcuts and the cheatsheet	-
+core	Core	show settings config setup update upgrade doctor uninstall unhook help -h --help cheatsheet themes suggest logo shortcuts shortcut run log features goat who version clock ai-tool	Start screen, settings, shortcuts and the cheatsheet	-
 apps	App Launcher	app	Open installed apps by name, typos included	-
 homebrew	Homebrew	brew install	Search Homebrew and install apps from the catalog	Apps you choose
 web	Web Search	web github browse google search open	Search the web and open links from the command line	-
@@ -14,3 +14,4 @@ ios	iOS Tools	ios	AirCard, Nugget, Sideloadly and Dopamine with compatibility ch
 minecraft	Minecraft	minecraft mc	Set up your own Minecraft server step by step	Java and the server, when you use it
 bg	Background Removal	bg	Remove image backgrounds on your Mac with BiRefNet or InSPyReNet	About 1.4 GB, the first time you use it
 pets	Pets	pets pet feed	Little pixel pets that live in your terminal: they talk, help with /help, come along into /ai and get hungry	-
+caffeine	Keep awake	caffeine awake	Keep your Mac awake for a while with macOS' caffeinate – for downloads, renders or a server	-

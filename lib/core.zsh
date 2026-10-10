@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.6.0
+typeset -g LOTUS_VERSION=2.7.0
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -22,8 +22,9 @@ typeset -ga LOTUS_KEYS=(
   LOTUS_WEATHER_LOCATION LOTUS_WEATHER_UNITS LOTUS_SEARCH_ENGINE LOTUS_VISUAL_MODE
   LOTUS_AI_PROVIDER LOTUS_AI_MODEL LOTUS_AI_URL LOTUS_AI_EFFORT LOTUS_AI_LOCAL
   LOTUS_AI_CONTEXT LOTUS_AI_MAXTOKENS LOTUS_AI_TEMP LOTUS_AI_KVBITS
-  LOTUS_AI_PERM_MODE LOTUS_AI_TOOLS LOTUS_AI_PERM_READ LOTUS_AI_PERM_READ_OUT LOTUS_AI_PERM_WRITE LOTUS_AI_PERM_WRITE_OUT LOTUS_AI_PERM_RUN LOTUS_AI_PERM_WEB
+  LOTUS_AI_PERM_MODE LOTUS_AI_TOOLS LOTUS_AI_PERM_READ LOTUS_AI_PERM_READ_OUT LOTUS_AI_PERM_WRITE LOTUS_AI_PERM_WRITE_OUT LOTUS_AI_PERM_RUN LOTUS_AI_PERM_WEB LOTUS_AI_PERM_LOTUS
   LOTUS_FEATURES_OFF
+  LOTUS_CLOCK_DESIGN LOTUS_CLOCK_SECONDS LOTUS_CLOCK_ZONE LOTUS_CLOCK_ZONES
   LOTUS_BG_READY LOTUS_BG_MODEL LOTUS_BG_BACKEND LOTUS_BG_OUTPUT LOTUS_BG_REFINE LOTUS_BG_PREVIEW
   LOTUS_LOG_LEVEL LOTUS_LOG_RETENTION LOTUS_LOG_STARTUP
   LOTUS_PET_START LOTUS_PET_HELP LOTUS_PET_REACT LOTUS_PET_BRAIN
@@ -39,8 +40,9 @@ lotus_defaults() {
   typeset -g LOTUS_VISUAL_MODE=bars LOTUS_AI_PROVIDER=auto LOTUS_AI_MODEL= LOTUS_AI_URL= LOTUS_AI_EFFORT=high LOTUS_AI_LOCAL=
   typeset -g LOTUS_AI_CONTEXT=32768 LOTUS_AI_MAXTOKENS=8192 LOTUS_AI_TEMP=0.6 LOTUS_AI_KVBITS=0
   # what /ai may do: ask first or auto (asks only when unsure), work on this Mac at all (1/0), per kind allow|ask|never
-  typeset -g LOTUS_AI_PERM_MODE=ask LOTUS_AI_TOOLS=1 LOTUS_AI_PERM_READ=allow LOTUS_AI_PERM_READ_OUT=ask LOTUS_AI_PERM_WRITE=ask LOTUS_AI_PERM_WRITE_OUT=ask LOTUS_AI_PERM_RUN=ask LOTUS_AI_PERM_WEB=allow
+  typeset -g LOTUS_AI_PERM_MODE=ask LOTUS_AI_TOOLS=1 LOTUS_AI_PERM_READ=allow LOTUS_AI_PERM_READ_OUT=ask LOTUS_AI_PERM_WRITE=ask LOTUS_AI_PERM_WRITE_OUT=ask LOTUS_AI_PERM_RUN=ask LOTUS_AI_PERM_WEB=allow LOTUS_AI_PERM_LOTUS=ask
   typeset -g LOTUS_FEATURES_OFF=
+  typeset -g LOTUS_CLOCK_DESIGN=big LOTUS_CLOCK_SECONDS=1 LOTUS_CLOCK_ZONE= LOTUS_CLOCK_ZONES='America/New_York Europe/London Asia/Tokyo Australia/Sydney'
   typeset -g LOTUS_BG_READY=0 LOTUS_BG_MODEL=auto LOTUS_BG_BACKEND=auto LOTUS_BG_REFINE=ask LOTUS_BG_PREVIEW=0
   typeset -g LOTUS_BG_OUTPUT='~/Pictures/Lotus/Background Removed'
   typeset -g LOTUS_LOG_LEVEL=info LOTUS_LOG_RETENTION=7 LOTUS_LOG_STARTUP=0
@@ -502,6 +504,19 @@ lotus_startup_details() {
   for id in $LOTUS_FEATURE_IDS; do lotus_feature_on $id && (( on++ )); done
   print -r -- "  "$'\e['"$LOTUS_C[dim]mlotus $LOTUS_VERSION · ${ms} ms · $on/${#LOTUS_FEATURE_IDS} ${LOTUS_L[features_word]:-features} · log: $LOTUS_LOG_LEVEL · /lotus log"$'\e[0m'
   lotus_log DEBUG startup "Start screen in ${ms} ms, $on of ${#LOTUS_FEATURE_IDS} features on"
+}
+
+# Under the start screen while caffeinate of Lotus keeps the Mac awake
+lotus_caffeine_note() {
+  local f=$LOTUS_STATE/caffeine
+  [[ -t 1 && -r $f ]] && lotus_feature_on caffeine || return 0
+  local -a v=(${=$(<$f)})
+  [[ $v[1] == <-> ]] && kill -0 $v[1] 2>/dev/null || return 0
+  local text=${LOTUS_L[caf_status_on]:-Keep awake: on}
+  if [[ $v[3] == <-> ]] && (( v[3] > EPOCHSECONDS )); then
+    text+=" · $(( (v[3] - EPOCHSECONDS + 59) / 60 )) min"
+  fi
+  print -r -- "  "$'\e['"$LOTUS_C[dim]m$text · lotus caffeine off"$'\e[0m'
 }
 
 # Pets (lib/cmd/pets.zsh is only loaded when there is a pet to show)

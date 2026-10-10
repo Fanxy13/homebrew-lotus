@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.6.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.6.0">
-  <script src="js/lotus.js?v=2.6.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.7.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.7.0">
+  <script src="js/lotus.js?v=2.7.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -23,7 +23,7 @@
 
     <nav class="toc card">
       <a href="#install">Install</a><a href="#setup">First start</a><a href="#use">Using Lotus</a><a href="#settings">Settings</a>
-      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#pets">Pets</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
+      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
       <a href="#privacy">Privacy and security</a><a href="#trouble">Troubleshooting</a><a href="#changelog">Changelog</a>
     </nav>
 
@@ -110,6 +110,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     <p>Type <code>/ai</code> and the AI terminal opens: a chat you keep typing into – no <code>/ai</code> in front of every message. Ask questions, let it explain code, or let it work in the folder you started it in. <code>lotus ai local</code> puts a model on your Mac with Apple's MLX – no Ollama: it shows what fits your memory (gpt-oss 20B, Qwen3.6 27B, Qwen3-Coder 30B, Devstral Small 2, Qwen3 14B), downloads it once and loads it only while <code>/ai</code> runs. Like every model in <code>/ai</code> it can look at files, change them and run commands – as far as <code>/permissions</code> lets it.</p>
     <div class="grid">
       <div class="card"><h3>Works on your Mac</h3><p class="muted">It can list, read and search files, create and change files and run commands. Reading inside the folder happens right away; every change and every command is shown first and needs a yes. <kbd>a</kbd> allows the rest of the session, <kbd>n</kbd> lets you say what to do instead. In auto mode (<kbd>⇧</kbd><kbd>⇥</kbd>) it only asks when Lotus is unsure. Never <code>sudo</code>.</p></div>
+      <div class="card"><h3>Uses Lotus</h3><p class="muted">Ask in plain words and it uses Lotus itself: open or install an app, the weather, music, the theme, the clock, keeping your Mac awake, turning features on or off, Minecraft servers, removing an image background. It only gets the tools of the features that are on, says when one is off, asks before it changes or installs anything, and only reports what really worked. One list for every AI: <code>data/ai-tools.tsv</code>.</p></div>
       <div class="card"><h3>Knows what is new</h3><p class="muted">It searches the web and reads pages – documentation, release notes, error messages, Wikipedia, Apple's developer docs – instead of guessing, and names its sources. Only the public internet: nothing on your Mac or in your network. What a page says is information for the AI, never an order.</p></div>
       <div class="card"><h3>Remembers</h3><p class="muted">The conversation stays for an hour after your last message, also for single questions with <code>/ai &lt;question&gt;</code>. What matters for later – how you like answers, your projects – it keeps with <code>remember</code>; <code>/memory</code> shows it, <code>/memory clear</code> forgets it. A <code>LOTUS.md</code>, <code>AGENTS.md</code> or <code>CLAUDE.md</code> in the folder tells it how to work there. <code>/ai new</code> or <code>/clear</code> starts fresh.</p></div>
       <div class="card"><h3>Thinks first</h3><p class="muted">Claude thinks before it answers, Ollama models with a thinking mode too. Apple Intelligence decides whether a message needs files, plans the steps and checks that it really did them. Set the depth with <code>/effort</code> or in <code>/settings</code>.</p></div>
@@ -119,7 +120,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
         <tr><th>Inside the AI terminal</th><th>What it does</th></tr>
         <tr><td><code>/login</code></td><td>Connect Claude: opens the key page, paste the key once</td></tr>
         <tr><td><code>/model</code></td><td>Choose who answers: Apple Intelligence, the model on this Mac, Claude Opus, Sonnet, Haiku or Fable, an Ollama model, your OpenAI-compatible API</td></tr>
-        <tr><td><code>/permissions</code> · <kbd>⇧</kbd><kbd>⇥</kbd></td><td>What the AI may do on this Mac: ask first, or <strong>auto</strong> – it works on its own in the folder and asks only when Lotus is unsure (deleting, pushing, installing, sending data, other folders, private files, programs it does not know). Per kind: look at files, change files, run commands – allowed, ask first or never. <kbd>⇧</kbd><kbd>⇥</kbd> switches auto mode on and off. Also in <code>/settings</code> → AI</td></tr>
+        <tr><td><code>/permissions</code> · <kbd>⇧</kbd><kbd>⇥</kbd></td><td>What the AI may do on this Mac: ask first, or <strong>auto</strong> – it works on its own in the folder and asks only when Lotus is unsure (deleting, pushing, installing, sending data, other folders, private files, programs it does not know). Per kind: look at files, change files, run commands, search the web, use Lotus features – allowed, ask first or never; installing an app always asks. <kbd>⇧</kbd><kbd>⇥</kbd> switches auto mode on and off. Also in <code>/settings</code> → AI</td></tr>
         <tr><td><code>/memory</code></td><td>What the AI remembers about you from earlier conversations · <code>/memory clear</code> forgets it. The list is a plain text file you can edit</td></tr>
         <tr><td><code>/effort</code></td><td>Quick, balanced, thorough or maximum</td></tr>
         <tr><td><code>/context</code> · <code>/compact</code></td><td>How full the memory is · summarize now</td></tr>
@@ -186,6 +187,19 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       </table>
     </div>
     <p class="muted">Adopted pets are in <code>~/.config/lotus/pets.tsv</code>, your own kinds in <code>~/.config/lotus/pets/</code>, hunger and what they remember in <code>~/.local/state/lotus/</code>. A pet's name only calls it when no command, alias or function has that name.</p>
+
+    <h2 class="section" id="clock">Clock and keep awake</h2>
+    <p><code>/clock</code> opens a full-screen clock in the colors of your theme. Six designs: minimal, big digits, a retro seven-segment display with faintly lit unused segments, Matrix rain that forms the digits, a round analog face drawn with braille dots, and a world clock with a day-and-night bar for every city. It uses your Mac's own clock and starts no background process.</p>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Command or key</th><th>What it does</th></tr>
+        <tr><td><code>/clock</code> · <code>/clock retro</code></td><td>The clock in your last design · in a given one (minimal, big, retro, matrix, analog, world)</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd> · <kbd>1</kbd>–<kbd>6</kbd></td><td>Another design</td></tr>
+        <tr><td><kbd>s</kbd> · <kbd>z</kbd> · <kbd>q</kbd></td><td>Seconds on or off · a second time zone under the clock · close</td></tr>
+        <tr><td><code>/caffeine on 90</code> · <code>/caffeine off</code> · <code>/caffeine</code></td><td>Keep your Mac awake for 90 minutes (0 = until you turn it off) · let it sleep again · status and a short menu</td></tr>
+      </table>
+    </div>
+    <p class="muted">The design, seconds and the cities of the world clock are in <code>/settings</code> → Clock (time zones like <code>Europe/Zurich</code>). Keep awake uses macOS' own <code>caffeinate</code>: it keeps running when you close the terminal, ends by itself when the time is up, and the start screen shows it while it is on. Lotus only ever stops the <code>caffeinate</code> it started itself.</p>
 
     <h2 class="section" id="log">Log</h2>
     <p><code>/lotus log</code> shows what Lotus did – commands, settings changes, downloads, installs, the AI's tool use, Remove BG stages and every error – with the time and the part of Lotus it came from.</p>

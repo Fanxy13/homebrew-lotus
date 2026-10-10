@@ -1,0 +1,28 @@
+# Lotus tools for the AI – one list for every AI in Lotus: the /ai terminal, and later the web chat and the pets.
+# The AI only sees the tools of features that are on; it cannot invent or call others.
+#
+# name     what the model calls
+# feature  the Lotus feature it belongs to (data/features.tsv) – off means the tool is not offered
+# level    read: runs right away · act: asks first (allowed in auto mode or when the user allows Lotus features)
+#          install: always asks
+# mode     run: Lotus runs it and hands the result back · tty: it gets the terminal until the user closes it
+# label    what the user sees: ● <label>(…)
+# command  the lotus command, one word per space; {name} is a parameter, [{name}] an optional one
+# params   name:type:required:description; … – types: text, int(min,max), enum(a|b|c), path
+#          enum(@themes) and enum(@features) are filled in from Lotus' own lists
+# name	feature	level	mode	label	command	params	description
+lotus_status	core	read	run	Lotus status	ai-tool lotus_status	-	What Lotus has here: version, theme, language, which features are on and off, keep-awake. Use it before saying a feature is missing.
+open_app	apps	act	run	Open	ai-tool open_app {app}	app:text:1:The app's name – typos are fine	Open an installed Mac app by its name. When several apps could be meant, it lists them instead of guessing.
+find_app	homebrew	read	run	Find app	ai-tool find_app {query}	query:text:1:What to look for, e.g. "browser" or "Firefox"	Search Lotus' app catalog (and Homebrew) for apps to install, with what each one is and whether it is installed.
+install_app	homebrew	install	run	Install	ai-tool install_app {app}	app:text:1:The exact name from find_app, or a Homebrew cask	Install a Mac app with Homebrew. The user approves it first. Use find_app first when you are not sure of the exact name.
+weather	weather	read	run	Weather	ai-tool weather [{place}]	place:text:0:A city; leave it out for the user's own city	The weather now and the forecast for the next days.
+music_now	music	read	run	Music	ai-tool music_now	-	What is playing right now in Spotify, Music or another player.
+music_control	music	act	run	Music	ai-tool music_control {action}	action:enum(play|pause|next|previous|louder|quieter):1:What to do	Play, pause, skip, go back or change the volume of what is playing.
+set_theme	core	act	run	Theme	ai-tool set_theme {theme}	theme:enum(@themes):1:The theme	Change the color theme of Lotus (the start screen, the AI terminal, the clock).
+open_clock	core	act	tty	Clock	clock [{design}]	design:enum(minimal|big|retro|matrix|analog|world):0:The design – leave it out for the user's favorite	Open the full-screen clock in this terminal. The user closes it with q, then the conversation goes on.
+keep_awake	caffeine	act	run	Keep awake	ai-tool keep_awake {minutes}	minutes:int(0,1440):1:How long in minutes; 0 keeps it awake until it is turned off	Keep the Mac awake for a while with macOS' caffeinate, e.g. during a download, a render or a server.
+keep_awake_off	caffeine	act	run	Keep awake	ai-tool keep_awake_off	-	Let the Mac sleep again.
+set_feature	core	act	run	Features	ai-tool set_feature {feature} {state}	feature:enum(@features):1:The feature;state:enum(on|off):1:on or off	Turn a Lotus feature on or off. A feature that is off has no commands and downloads nothing.
+minecraft_servers	minecraft	read	run	Minecraft	ai-tool minecraft_servers	-	The Minecraft servers set up with Lotus, and whether they are running.
+minecraft_start	minecraft	act	run	Minecraft	ai-tool minecraft_start {server}	server:text:1:The server's folder name from minecraft_servers	Start a Minecraft server set up with Lotus, in its own Terminal window.
+remove_background	bg	act	tty	Remove BG	bg remove {image}	image:path:1:The image file	Remove the background of an image on this Mac. Lotus shows its progress and saves a new PNG next to it; the original stays.

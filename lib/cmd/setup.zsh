@@ -900,9 +900,11 @@ lotus_features_page() {
     return 0
   fi
   if ! { [[ -t 1 ]] && ui_has_tty }; then
+    local state
     for id in $LOTUS_FEATURE_IDS; do
       lotus_feature_label $id
-      print -r -- "${(r:12:)id} ${(r:22:)REPLY} $(lotus_feature_on $id && print on || print off)"
+      lotus_feature_on $id && state=on || state=off       # no subshell per feature
+      print -r -- "${(r:12:)id} ${(r:22:)REPLY} $state"
     done
     return 0
   fi
