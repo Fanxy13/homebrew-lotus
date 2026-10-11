@@ -499,6 +499,36 @@ body.resizing { cursor: col-resize; user-select: none; }
   body.viewing .menu { display: grid; }
 }
 
+/* the AI's to-do list (plan): a ring still to do, a ring with a dot for the step in work, a filled ring with a tick when done */
+.plan { list-style: none; margin: 6px 0 4px; padding: 0; font-size: 14px; }
+.plan-step { position: relative; padding: 2px 0 2px 26px; color: var(--muted); }
+.plan-step::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.45em;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.plan-step.doing { color: var(--text); font-weight: 600; }
+.plan-step.doing::before { border-color: rgb(var(--accent)); background: radial-gradient(circle, rgb(var(--accent)) 0 2.5px, transparent 3px); }
+.plan-step.done { text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.plan-step.done::before { border-color: rgb(var(--key)); background: rgb(var(--key)); }
+.plan-step.done::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: calc(0.45em + 2px);
+  width: 3px;
+  height: 6px;
+  border: solid var(--bg);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
 /* the whole file the AI wrote */
 .step-open { margin: 6px 0 2px; border: 1px solid var(--line-strong); background: none; border-radius: 8px; padding: 3px 11px; font: 12.5px var(--mono); color: var(--muted); }
 .step-open:hover { color: var(--text); border-color: rgb(var(--accent) / 0.6); }

@@ -72,7 +72,8 @@ final class AppleProvider: Provider, @unchecked Sendable {
         self.effort = effort
         if let runner = runner {
             runner.outputLimit = 1400
-            tools = ToolCatalog.all.map { spec in
+            // Apple Intelligence plans the steps itself (below) – the plan tool is for the bigger models
+            tools = ToolCatalog.all.filter { $0.name != "plan" }.map { spec in
                 AppleTool(spec: spec, runner: runner, progress: toolProgress) { [weak self] n in self?.add(n) }
             }
         }

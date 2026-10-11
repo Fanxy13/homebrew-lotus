@@ -196,6 +196,11 @@ written; the AI is told to use `edit_file`. Tools called by other names (`open_f
 right tool, and gpt-oss keeps its plan from one tool step to the next. All of this was measured with the benchmark
 of [Nucifera](https://github.com/Fanxy13/nucifera-20b) – gpt-oss-20b tuned for Lotus.
 
+**It works in steps.** A bigger task – or several in one message – starts with a short to-do list
+(`plan`): one line per step, ticked off as it goes, shown as a checklist in the terminal and the web chat.
+The AI thinks only about the step in front of it instead of planning everything in its head, and when it
+stops with steps still open, Lotus sends it back to the next one.
+
 **It keeps going.** When the AI stops before it is done – it ran out of room, only thought, or said
 what it would do next and stopped there – Lotus lets it go on by itself, at most three times per
 message, and says so in a line ("↻ … – Lotus lets it go on (1/3)"). A question to you is an end –

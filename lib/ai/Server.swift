@@ -979,6 +979,7 @@ final class WebServer: @unchecked Sendable {
             conv.summary = chat["summary"] as? String ?? ""
             agent.conversation = conv
             agent.runner.resetAllowances()      // "don't ask again" counts for one conversation
+            agent.runner.clearPlan()            // and a plan belongs to its conversation
             applySettings(reset: true)
         } else {
             applySettings(reset: takeReset())

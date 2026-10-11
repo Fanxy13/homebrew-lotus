@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.15.0 – Step by step
+
+- The AI works in steps: a bigger task – or several things in one message – starts with a short to-do list, written with a new tool, `plan`: one line per step, in order, each small enough for one or two tool calls. It takes the step marked as in work, does it, ticks it off and marks the next one. The list is shown as a checklist – in the terminal with ✓ and ▸, in the web chat with rings that fill as steps get done – and in `/performance`
+- Thinking about one step instead of the whole project: the instructions for every AI (and Nucifera's profile) say to keep the plan in the list, not in long thinking, and each answer of the plan tool names the step to do now. When Lotus has to stop a long thinking, it names the next step of the plan, so the AI goes on there instead of planning everything again
+- When the AI stops while its plan still has open steps – and it did not ask you anything – Lotus sends it on to the next one, once per message; it either does it or ticks off what is already done. A plan ticked off in its answer instead of with the tool counts too. A plan belongs to its conversation: `/clear` and another conversation in the web chat start without one. Apple Intelligence keeps its own way of planning
+- Measured with Nucifera on a task of three parts (a page, its styles, a Python script that counts its words and is run): planned in four steps, done in 3 min 47 s with 10 tool calls, and its thinking never had to be stopped
+- Tests: a plan ticked off in the answer, and a plan with two files that stops after the first – Lotus sends it on, both files are written and the list is ticked off
+
 ## 2.14.0 – Code on the right
 
 - In the web chat, Expand on a code block opens it on the right, like in Claude: the whole code with line numbers, scrolling up and down and sideways (the numbers stay), Copy and Download (as `code.py`, `code.html` … by its language). Drag the edge to make it wider or narrower – the browser keeps the width – and Esc or × closes it

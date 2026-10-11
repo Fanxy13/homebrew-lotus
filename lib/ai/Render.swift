@@ -528,6 +528,19 @@ final class Renderer: @unchecked Sendable {
         sink("file", ["name": name, "text": content])
     }
 
+    // The plan (the plan tool) as a checklist: done, the step in work, still to do
+    func plan(_ steps: [(text: String, state: String)]) {
+        if send("plan", ["steps": steps.map { ["text": $0.text, "state": $0.state] }]) { return }
+        let width = max(20, Term.width - 9)
+        for s in steps {
+            switch s.state {
+            case "done": emit("     \(Style.green)✓\(Style.reset) \(Style.dim)\(clip(s.text, width))\(Style.reset)\n")
+            case "doing": emit("     \(Style.key)▸\(Style.reset) \(Style.bold)\(clip(s.text, width))\(Style.reset)\n")
+            default: emit("     \(Style.dim)○ \(clip(s.text, width))\(Style.reset)\n")
+            }
+        }
+    }
+
     // Indented preview lines below a tool step
     func toolLines(_ lines: [String], color: String = Style.dim, limit: Int = 8) {
         if let sink = sink {

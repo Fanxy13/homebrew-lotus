@@ -114,6 +114,9 @@ enum ToolCatalog {
                  params: [ToolParam(name: "path", description: "The HTML file, relative to the working directory, e.g. index.html.", required: true),
                           ToolParam(name: "view", description: "desktop (default) or phone – which one the screenshot and the elements are taken from.", required: false, enumValues: ["desktop", "phone"]),
                           ToolParam(name: "inspect", description: "Optional CSS selector, e.g. .hero h1 or nav a – details of up to 8 matching elements.", required: false)]),
+        ToolSpec(name: "plan",
+                 description: "Your to-do list for a bigger task – it keeps you on track, and the user sees it. Call it first when a task has three or more steps or the user asks for several things: one short line per step, in the order you will do them. Then do the steps one by one with the other tools; after each step call plan again with the whole list – that step ticked off and the next one marked. Small tasks need no plan.",
+                 params: [ToolParam(name: "steps", description: "The whole list, one step per line: [x] done, [>] the step you do now, [ ] still to do. Example:\n[x] Look at the folder\n[>] Write index.html\n[ ] Write style.css\n[ ] Check it with view_page", required: true)]),
         ToolSpec(name: "remember",
                  description: "Keep one short fact for later conversations: the user's preferences, their projects, names, decisions. Only what will matter later – never passwords or keys.",
                  params: [ToolParam(name: "fact", description: "The fact, in one sentence.", required: true)]),
@@ -121,7 +124,7 @@ enum ToolCatalog {
 
     static let displayNames = ["list_directory": "List", "read_file": "Read", "write_file": "Write", "edit_file": "Edit",
                                 "search_files": "Search", "run_command": "Run", "web_search": "Web", "fetch_url": "Fetch", "remember": "Remember",
-                                "view_page": "View"]
+                                "view_page": "View", "plan": "Plan"]
 }
 
 // ── What the AI may do ────────────────────────────────────────
@@ -358,6 +361,9 @@ final class ToolRunner: @unchecked Sendable {
     private var steps: [String: (count: Int, change: Int)] = [:]
     private var changes = 0                    // files written, commands run: after a change, a step may be repeated
     private var shortened: Set<String> = []    // write_file that would cut a file short, refused once
+    // The plan of a bigger task (the plan tool): kept for the conversation, so a follow-up can go on with it
+    private(set) var plan: [PlanStep] = []
+    private(set) var planTouched = false       // written in this answer – then open steps mean it is not done yet
 
     init(cwd: URL, ui: Interaction, outputLimit: Int) {
         self.cwd = cwd
@@ -380,7 +386,38 @@ final class ToolRunner: @unchecked Sendable {
         steps = [:]
         changes = 0
         shortened = []
+        planTouched = false
     }
+
+    // /clear: a new conversation has no plan yet
+    func clearPlan() {
+        plan = []
+        planTouched = false
+    }
+
+    // A plan ticked off in the answer ("[x] Write style.css") instead of with the tool: taken over, so the list
+    // the user sees is right and Lotus does not send the AI on for steps that are done. true when a step changed
+    func adoptTicks(from text: String) -> Bool {
+        let lines = text.components(separatedBy: .newlines).filter { $0.range(of: #"^\s*([-*•]\s*)?\[[xX✓]\]"#, options: .regularExpression) != nil }
+        guard !lines.isEmpty, !plan.isEmpty else { return false }
+        let key = { (s: String) in s.lowercased().filter { $0.isLetter || $0.isNumber } }
+        let ticked = Set(ToolRunner.parsePlan(lines.joined(separator: "\n")).filter { $0.state == .done }.map { key($0.text) })
+        var changed = false
+        for i in plan.indices where plan[i].state != .done && ticked.contains(key(plan[i].text)) {
+            plan[i].state = .done
+            changed = true
+        }
+        guard changed else { return false }
+        let done = plan.filter { $0.state == .done }.count
+        Renderer.shared.toolHeader("Plan", "\(done) of \(plan.count) done")
+        Renderer.shared.plan(plan.map { ($0.text, $0.state.rawValue) })
+        Renderer.shared.toolResult(nextStep.map { "Now: \(clip($0, 80))" } ?? "All steps done")
+        return true
+    }
+
+    // The step to do now: the one marked [>], else the first open one
+    var nextStep: String? { (plan.first { $0.state == .doing } ?? plan.first { $0.state == .open })?.text }
+    var openSteps: [PlanStep] { plan.filter { $0.state != .done } }
 
     func takeActions() -> [String] {
         readWeb = false
@@ -547,6 +584,10 @@ final class ToolRunner: @unchecked Sendable {
         case "fetch_url":
             guard let u = str(args, "url"), !u.trimmingCharacters(in: .whitespaces).isEmpty else { return missing(name, "url") }
             return await fetchURL(u, start: int(args, "start") ?? 0)
+        case "plan":
+            guard let s = str(args, "steps") ?? (args["steps"] as? [Any]).map({ $0.map { "\($0)" }.joined(separator: "\n") }),
+                  !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return missing(name, "steps") }
+            return updatePlan(s)
         case "remember":
             guard let f = str(args, "fact"), !f.trimmingCharacters(in: .whitespaces).isEmpty else { return missing(name, "fact") }
             return remember(f)
@@ -1032,6 +1073,64 @@ final class ToolRunner: @unchecked Sendable {
     }
 
     // ── Memory ──
+
+    // ── The plan: a short to-do list the AI keeps for a bigger task, ticked off step by step ──
+
+    struct PlanStep: Equatable {
+        enum State: String { case open, doing, done }
+        var text: String
+        var state: State
+    }
+
+    // "[x] done", "[>] now", "[ ] open" – also "- [x] …", "1. …" and lines without a mark (open); at most 12 steps
+    static func parsePlan(_ raw: String) -> [PlanStep] {
+        var out: [PlanStep] = []
+        for line in raw.components(separatedBy: .newlines) {
+            var t = line.trimmingCharacters(in: .whitespaces)
+            t = t.replacingOccurrences(of: #"^([-*•]|\d{1,2}[.)])\s+"#, with: "", options: .regularExpression)
+            var state = PlanStep.State.open
+            if let r = t.range(of: #"^\[([ xX✓>~/*-]?)\]\s*"#, options: .regularExpression) {
+                let mark = t[r].dropFirst().first ?? " "
+                state = "xX✓".contains(mark) ? .done : ">~/*-".contains(mark) ? .doing : .open
+                t = String(t[r.upperBound...])
+            } else if let r = t.range(of: #"^(✓|✔|☑)\s*"#, options: .regularExpression) {
+                state = .done
+                t = String(t[r.upperBound...])
+            }
+            t = t.trimmingCharacters(in: .whitespaces)
+            guard !t.isEmpty else { continue }
+            out.append(PlanStep(text: String(t.prefix(160)), state: state))
+            if out.count == 12 { break }
+        }
+        // one step at a time: only the first one marked [>] is the step in work
+        var doing = false
+        for i in out.indices where out[i].state == .doing {
+            if doing { out[i].state = .open }
+            doing = true
+        }
+        return out
+    }
+
+    private func updatePlan(_ raw: String) -> ToolOutcome {
+        let steps = ToolRunner.parsePlan(raw)
+        guard !steps.isEmpty else {
+            return ToolOutcome(text: "The plan is empty. Write one step per line: [ ] still to do, [>] the step you do now, [x] done.", isError: true)
+        }
+        plan = steps
+        planTouched = true
+        let done = steps.filter { $0.state == .done }.count
+        Renderer.shared.toolHeader("Plan", "\(done) of \(steps.count) done")
+        Renderer.shared.plan(steps.map { ($0.text, $0.state.rawValue) })
+        guard let next = nextStep else {
+            Renderer.shared.toolResult("All steps done")
+            return ToolOutcome(text: "Plan saved – all \(steps.count) steps are done. Check that every part of the request is done, then give "
+                + "the user a short summary of the result.")
+        }
+        Renderer.shared.toolResult("Now: \(clip(next, 80))")
+        return ToolOutcome(text: "Plan saved (\(done) of \(steps.count) done). Now: \(next)\nDo this step now with the tools. Think only about "
+            + "this step – a few sentences – and write file contents straight into write_file, never into your thinking. When it is "
+            + "done, call plan again with it ticked off ([x]) and the next step marked [>].")
+    }
 
     private func remember(_ raw: String) -> ToolOutcome {
         let fact = String(raw.components(separatedBy: .newlines).joined(separator: " ")

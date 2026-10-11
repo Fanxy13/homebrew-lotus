@@ -269,6 +269,16 @@ check_has "arguments that cannot be repaired: it is told what went wrong" "$out"
 check_has "a quiet end after it: Lotus lets it go on" "$out" "It stopped without an answer"
 check_has "and it gets there" "$out" '"text":"Recovered after the broken call."'
 check "nothing was written from the broken call" test ! -e $HOME/work/broken.txt
+out=$(send_to $auto "please plan two files")
+check_has "a plan: the to-do list reaches the browser" "$out" '"type":"plan"'
+check_has "with the step in work" "$out" '"state":"doing"'
+check_has "it stopped with a step still open: Lotus sends it on" "$out" "Its plan still has open steps"
+check_has "and it finishes the plan" "$out" '"text":"Both files are done."'
+check "both files are there" eval '[[ -e $HOME/work/plan-a.txt && -e $HOME/work/plan-b.txt ]]'
+check "the ticked-off plan" eval '[[ $out == *"\"state\":\"done\",\"text\":\"Write plan-b.txt\""* || $out == *"\"text\":\"Write plan-b.txt\",\"state\":\"done\""* ]]'
+out=$(send_to $auto "please plan in text")
+check "a plan ticked off in the answer counts – it is not sent on" eval '[[ $out != *"Its plan still has open steps"* && $out != *"Nudged again"* ]]'
+check_has "and the list shows it" "$out" '"text":"All steps done"'
 out=$(send_to $auto "please break off")
 check_has "a model server that breaks off: it says so instead of nothing" "$out" "stopped in the middle of its answer"
 setting LOTUS_AI_PERM_MODE ask >/dev/null

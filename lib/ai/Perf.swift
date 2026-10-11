@@ -300,6 +300,12 @@ enum Perf {
                     if let more = e["more"] as? Int, more > 0 || (e["lines"] as? [String] ?? []).count > 12 {
                         out.append("              | … \(more + max(0, (e["lines"] as? [String] ?? []).count - 12)) more lines")
                     }
+                case "plan":
+                    for st in e["steps"] as? [[String: Any]] ?? [] {
+                        let mark = ["done": "[x]", "doing": "[>]"][st["state"] as? String ?? ""] ?? "[ ]"
+                        out.append("              | \(mark) \(st["text"] as? String ?? "")")
+                    }
+                case "file": break
                 case "model":
                     model += 1
                     let prompt = Int(num(e["prompt"]))

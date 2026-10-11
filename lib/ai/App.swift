@@ -314,6 +314,7 @@ final class Agent {
         // counted for /stats: how long, how many steps, how it ended
         var outcome = "done"
         runner.beginAnswer()
+        planNudged = false
         (provider as? OpenAIProvider)?.warmer = false
         Stats.begin(browser ? "web" : "terminal")
         defer { Stats.end(outcome, ai: provider.label) }
@@ -386,10 +387,13 @@ final class Agent {
 
     // ultra lets it go on longer
     var goOnRounds: Int { config.effort == "ultra" ? 6 : 3 }
+    private var planNudged = false     // sent on once in this message for the open steps of its plan
 
     // Why it stopped too early, and what Lotus tells it so it goes on – nil when it is done
     private func goOn(_ part: String, request: String, worked: Bool, wrote: Bool, canAct: Bool) -> (why: String, message: String, brief: Bool)? {
-        let language = " Keep answering in the language of the user's request."
+        // the step of its plan (the plan tool) to go on with – so it does not plan everything again
+        let next = runner.planTouched ? runner.nextStep.map { " The next step of your plan: \($0)." } ?? "" : ""
+        let language = next + " Keep answering in the language of the user's request."
         switch provider.stopped {
         case .overthought:
             let plan = provider.lastThoughts.trimmingCharacters(in: .whitespacesAndNewlines).suffix(2500)
@@ -417,6 +421,19 @@ final class Agent {
         case .stepLimit:
             return ("It took many steps and stopped", "Continue the task where you stopped and finish it." + language, false)
         case .done:
+            // its plan still has open steps, and it did not ask the user anything: the next one – once per message
+            let said = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            if canAct, runner.planTouched, !runner.openSteps.isEmpty, !said.hasSuffix("?") {
+                _ = runner.adoptTicks(from: part)          // ticked off in the answer counts too
+                let open = runner.openSteps
+                if !open.isEmpty && !planNudged {
+                    planNudged = true
+                    let list = open.prefix(8).map { "[ ] \($0.text)" }.joined(separator: "\n")
+                    return ("Its plan still has open steps",
+                            "Your plan still has open steps:\n\(list)\nGo on with the next one now, with the tools. If they are already "
+                                + "done, call the plan tool with them ticked off ([x]) – not in your answer – then finish." + language, false)
+                }
+            }
             if worked, Agent.announcesMore(part) {
                 return ("It stopped at the next step it announced",
                         "You said what you would do next, but you stopped. Do it now with the tools, then go on until the whole task is done." + language, false)
@@ -850,6 +867,7 @@ enum TUI {
             Out.shared.write(out)
         case "/clear", "/new", "/reset":
             agent.conversation.clear()
+            agent.runner.clearPlan()
             agent.resetProvider()
             agent.lastAnswer = ""
             Out.shared.write("\u{1B}[2J\u{1B}[H")

@@ -10,6 +10,7 @@
 # offer" answers at length and ends with an offer (that stays the answer). "raw newline" writes a file with
 # arguments that have real line breaks in a string (Lotus repairs them), "broken call" sends arguments that
 # cannot be repaired and then stops without a word (Lotus lets it go on).
+# "plan two files" keeps a to-do list with the plan tool and stops with a step still open (Lotus sends it on).
 # "break off" ends the stream in the middle, like a model server that crashed.
 # "in the background" runs a command that leaves a program running (sleep 20 &) – the step must not wait for it.
 # Going wrong the way small models do: "cut the file short" writes 1 line over big.txt (50 lines), "search twice"
@@ -42,7 +43,7 @@ class Model(BaseHTTPRequestHandler):
         # the user's latest request – not Lotus' "go on" messages
         asked = [str(m.get("content", "")) for m in messages if m.get("role") == "user"]
         said = next((t for t in reversed(asked) if not t.startswith(("You ran out of room", "You said what you would do next",
-                                                                        "You only thought", "Continue the task"))), "")
+                                                                        "You only thought", "Continue the task", "Your plan still"))), "")
         nudge = str(last.get("content", "")) if last.get("role") == "user" else ""
         if os.environ.get("FAKE_LOG"):
             with open(os.environ["FAKE_LOG"], "a") as f:
@@ -136,6 +137,44 @@ class Model(BaseHTTPRequestHandler):
                 time.sleep(0.5)
             chunk({"content": "Took my time."})
             chunk({}, "stop")
+        elif "plan in text" in said and body.get("tools"):
+            # the plan, both files, then the plan ticked off in the answer instead of with the tool
+            start = max(i for i, m in enumerate(messages) if m.get("role") == "user" and "plan in text" in str(m.get("content", "")))
+            done = sum(1 for m in messages[start:] if m.get("role") == "tool")
+            nudged = any(str(m.get("content", "")).startswith("Your plan still has open steps") for m in messages[start:])
+            steps = [("plan", {"steps": "[>] Write text-a.txt\n[ ] Write text-b.txt"}),
+                     ("write_file", {"path": "text-a.txt", "content": "A"}), ("write_file", {"path": "text-b.txt", "content": "B"})]
+            if done < len(steps):
+                name, args = steps[done]
+                c = {"index": 0, "id": "call_t%d" % done, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
+                chunk({"tool_calls": [c]})
+                chunk({}, "tool_calls")
+            else:
+                chunk({"content": "Nudged again." if nudged else "Done:\n\n```\n[x] Write text-a.txt\n[x] Write text-b.txt\n```"})
+                chunk({}, "stop")
+        elif "plan two files" in said and body.get("tools"):
+            # a plan, the first file, a stop with a step still open – after Lotus' nudge the second file and the ticked-off plan
+            start = max(i for i, m in enumerate(messages) if m.get("role") == "user" and "plan two files" in str(m.get("content", "")))
+            done = sum(1 for m in messages[start:] if m.get("role") == "tool")
+            nudged = any(str(m.get("content", "")).startswith("Your plan still has open steps") for m in messages[start:])
+            def call(name, args):
+                c = {"index": 0, "id": "call_p%d" % done, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
+                chunk({"tool_calls": [c]})
+                chunk({}, "tool_calls")
+            if done == 0:
+                call("plan", {"steps": "[>] Write plan-a.txt\n[ ] Write plan-b.txt"})
+            elif done == 1:
+                call("write_file", {"path": "plan-a.txt", "content": "A"})
+            elif done == 2 and not nudged:
+                chunk({"content": "Wrote plan-a.txt."})
+                chunk({}, "stop")
+            elif done == 2:
+                call("write_file", {"path": "plan-b.txt", "content": "B"})
+            elif done == 3:
+                call("plan", {"steps": "- [x] Write plan-a.txt\n- [x] Write plan-b.txt"})
+            else:
+                chunk({"content": "Both files are done."})
+                chunk({}, "stop")
         elif "break off" in said:
             chunk({"reasoning_content": "Let me start …"})
             return          # no finish reason, no [DONE]: the server broke off
