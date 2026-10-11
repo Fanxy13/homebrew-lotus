@@ -339,10 +339,98 @@ out=$(curl -sN -m 30 -X POST $H $B/api/chats/$auto/compact)
 check_has "compact: done" "$out" 'Compacted'
 check "compact: older messages became a summary" python3 -c 'import json,sys; c=json.load(open(sys.argv[1])); sys.exit(0 if len(c["turns"]) <= 2 and c["summary"] else 1)' $LOTUS_STATE/ai-chats/$auto.json
 
+# a command that leaves a program running in the background: the step ends when the command ends
+zmodload zsh/datetime
+setting LOTUS_AI_PERM_RUN allow >/dev/null
+bg=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+t0=$EPOCHREALTIME
+out=$(send_to $bg "start the server in the background")
+t1=$EPOCHREALTIME
+check_has "a program left running: the command's output" "$out" 'started-it'
+check "and the step does not wait for that program" eval '(( t1 - t0 < 10 ))'
+setting LOTUS_AI_PERM_RUN ask >/dev/null
+
+# ── It works on without a page: only the web chat has to run; the terminal follows it (lotus ai stats) ──
+setting LOTUS_AI_PERM_MODE ask >/dev/null
+check_has "the web chat says what it is doing in a file only you can read" "$(<$LOTUS_STATE/ai-server.now)" "\"port\":$port"
+check "that file is private" eval '[[ $(stat -f %Lp $LOTUS_STATE/ai-server.now) == 600 ]]'
+gone=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+curl -sN -m 1 $H -H 'Content-Type: application/json' -d '{"text":"please take your time"}' $B/api/chats/$gone/send >/dev/null 2>&1
+check_has "the page is gone: it works on" "$(curl -s -m 5 $H $B/api/state)" "\"busy\":\"$gone\""
+for i in {1..30}; do [[ $(<$LOTUS_STATE/ai-server.now) == *'"watching":0'* ]] && break; sleep 0.1; done
+now=$(<$LOTUS_STATE/ai-server.now)
+check_has "the terminal sees what it does" "$now" '"activity":"Thinking"'
+check_has "and since when" "$now" '"started":'
+check_has "and that no page watches" "$now" '"watching":0'
+out=$(lotus ai stats 2>&1)
+check_has "lotus ai stats: the web chat is working" "$out" "working"
+check_has "lotus ai stats: on its own" "$out" "no page follows it – it works on anyway"
+check_has "lotus ai stats: the conversation" "$out" "please take your time"
+back=$(curl -sN -m 2 $H "$B/api/run?chat=$gone&from=0")
+first=${${(f)back}[1]}
+check_has "a page that comes back gets the clock first" "$first" '"type":"clock"'
+elapsed=$(print -r -- $first | sed -n 's/.*"elapsed":\([0-9.]*\).*/\1/p')
+check "it has been going for more than a second – the stopwatch goes on from there" eval '(( ${elapsed:-0} >= 1 ))'
+check_has "and the thoughts so far, as they came" "$back" '"text":"Thinking step 0. "'
+check_has "every event has its time" "$back" '"t":'
+for i in {1..80}; do [[ $(curl -s -m 5 $H $B/api/state) == *'"busy":null'* ]] && break; sleep 0.1; done
+saved=$(curl -s -m 5 $H $B/api/chats/$gone)
+check_has "it finished without a page" "$saved" 'Took my time.'
+check_has "the thoughts are kept in one piece" "$saved" 'Thinking step 0. Thinking step 1. Thinking step 2.'
+check_has "and how long it thought" "$saved" '"type":"thought"'
+sleep 0.3
+check "done: the terminal sees nothing running" eval '[[ $(<$LOTUS_STATE/ai-server.now) != *"\"run\""* ]]'
+
+# a question while no page is open: the terminal answers it (lotus ai stats, /stats in /ai)
+ask=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+curl -sN -m 1 $H -H 'Content-Type: application/json' -d '{"text":"please run the check"}' $B/api/chats/$ask/send >/dev/null 2>&1
+for i in {1..50}; do [[ $(<$LOTUS_STATE/ai-server.now) == *'"question"'* ]] && break; sleep 0.1; done
+now=$(<$LOTUS_STATE/ai-server.now)
+check_has "the open question is there for the terminal" "$now" '"question":'
+check_has "with the command" "$now" 'echo lotus-test-ok'
+qid=$(print -r -- $now | sed -n 's/.*"id":"\([a-z0-9]\{10\}\)".*/\1/p')
+check_eq "it has its id" ${#qid} 10
+out=$(lotus ai stats --once 2>&1)
+check_has "lotus ai stats: waiting for your answer" "$out" "waiting for your answer"
+tkey=$(<$LOTUS_STATE/ai-server.key)
+tanswer() { curl -s -m 5 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' "$@" -d "{\"id\":\"$qid\",\"answer\":\"yes\"}" $B/api/answer }
+check_eq "from the terminal without the key: refused" "$(tanswer -H 'X-Lotus-Key: nope')" 401
+check_eq "the key from a web page: refused" "$(tanswer -H "X-Lotus-Key: $tkey" -H 'Origin: http://evil.example')" 401
+check_eq "the terminal can only answer and stop" "$(code -H "X-Lotus-Key: $tkey" $B/api/state)" 404
+check_eq "the terminal answers: yes" "$(tanswer -H "X-Lotus-Key: $tkey")" 200
+for i in {1..80}; do [[ $(curl -s -m 5 $H $B/api/state) == *'"busy":null'* ]] && break; sleep 0.1; done
+saved=$(curl -s -m 5 $H $B/api/chats/$ask)
+check_has "the command ran after the terminal's yes" "$saved" 'lotus-test-ok'
+check_has "the answer is kept with the question" "$saved" '"answer":"yes"'
+
+# and it can stop an answer
+halt=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+curl -sN -m 1 $H -H 'Content-Type: application/json' -d '{"text":"please take your time"}' $B/api/chats/$halt/send >/dev/null 2>&1
+check_eq "the terminal stops the answer" "$(code -X POST -H "X-Lotus-Key: $tkey" $B/api/stop)" 200
+for i in {1..80}; do [[ $(curl -s -m 5 $H $B/api/state) == *'"busy":null'* ]] && break; sleep 0.1; done
+check_has "stopped" "$(curl -s -m 5 $H $B/api/chats/$halt)" '"text":"Stopped"'
+
+# the numbers: one line per answer, from the web chat and from /ai – only counts and times
+stats=$LOTUS_STATE/ai-stats.tsv
+check "the statistics file is private" eval '[[ $(stat -f %Lp $stats) == 600 ]]'
+check_has "answers from the web chat are counted" "$(<$stats)" $'\tweb\t'
+check_has "and from /ai in the terminal" "$(<$stats)" $'\tterminal\t'
+check_has "with the steps by tool" "$(<$stats)" 'run_command:1'
+check_has "stopped answers count as stopped" "$(<$stats)" $'\tstopped\t'
+check "nothing of what was said is kept there" eval '[[ $(<$stats) != *"take your time"* && $(<$stats) != *"lotus-test-ok"* ]]'
+out=$(lotus ai stats 2>&1)
+check_has "lotus ai stats: the answers" "$out" "Answers"
+check_has "lotus ai stats: the steps by tool" "$out" "Run"
+check_has "lotus ai stats: where" "$out" "web chat"
+check_has "/stats in the web chat: the same numbers" "$(curl -s -m 5 $H $B/api/stats)" "Answers"
+check "lotus ai stats without a terminal: no colors" eval '[[ $out != *$'"'"'\e['"'"'* ]]'
+
 pid=$(cut -d' ' -f1 $LOTUS_STATE/ai-server | head -1)
 out=$(lotus ai server stop); rc=$?
 check_eq "stop" $rc 0
 check "the server is gone" eval '! kill -0 $pid 2>/dev/null'
 check_has "status: off" "$(lotus ai server status)" "off (port $port)"
+check "stopped: the terminal sees it is off" test ! -e $LOTUS_STATE/ai-server.now
+check_has "lotus ai stats: the web chat is off" "$(lotus ai stats 2>&1)" "off · lotus ai server start"
 check_eq "the port is free again" "$($bin --port-check $port)" free
 kill $fake 2>/dev/null

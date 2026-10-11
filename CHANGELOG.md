@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.13.0 – Follow along
+
+- Follow what the AI is doing in the web chat, like in Claude: its thoughts come in as it thinks – folded to their last lines, all of them with a click, "Thought for 12s" afterwards – every step shows a spinner while it runs and how long it took when it is done, and a line at the bottom of the window says what it is doing right now ("Run npm test", "Searching the web", "Waiting for your answer"), for how long and how many steps so far. The browser tab says it too, and the sidebar marks the conversation it is working in
+- Fixed: the stopwatch started again at 0 when you closed the tab or reloaded the page. The times now come from Lotus itself – every event has its time and a page that comes back gets the clock first – so the stopwatch, the thinking and every step show the real times, also after a reload or on another device
+- The AI works on when no page is open: the answer is written by the web chat on your Mac, not by the page, so you can close the tab and come back later – only the web chat has to run (it runs in the background until you stop it). A page that comes back picks the answer up where it is; an answer started in another tab or on your phone is followed in the open conversation within a few seconds. The hint under the message box says so while it works
+- Statistics in the terminal: `/stats` in `/ai`, or `lotus ai stats` – what the web chat is doing right now (what, since when, how many steps, whether a page follows it) and what the AI did today, in the last 7 days and in all: answers, time working, time thinking, steps, stopped and failed answers, steps by tool, answers per day for two weeks, terminal or web chat, and which AI. Live until `q`
+- Only the terminal open is enough: when the web chat asks a question and no page is open, `/stats` and `lotus ai stats` show it and answer it – `y` yes, `a` yes and don't ask again, `n` no (`s`, `o`, `c` for an improved prompt) – and `x` stops the answer
+- `/stats` in the web chat shows the same numbers
+- The settings button in the web chat is a gear now, not a sun
+- Private: the statistics keep only counts and times, never what was asked or answered (`~/.local/state/lotus/ai-stats.tsv`, only you can read it, kept below about 1 MB). What the web chat is doing is in `ai-server.now` next to it, also only for you. The terminal answers with the access key in a header and only from this Mac; it can answer a question or stop the answer, nothing else
+- The conversation keeps the thoughts with the answer (at most 40,000 characters each) and joins the pieces of text, so the files stay small
+- Fixed: a step of the AI could hang for good after its command had ended – Lotus waited for the end of the program in a way macOS does not always report, most often right after another answer. It now gets the end reported directly; a stopped command gets 3 seconds before it is killed
+- Fixed: a command that leaves a program running in the background (`npm run dev &`, `python3 -m http.server &`) no longer keeps the AI waiting until that program ends – the step ends with the command and shows what it printed
+- Tests: an answer that goes on after the page is closed, the clock and the thoughts for a page that comes back, the terminal answering a question and stopping an answer (and refused without the key, from a web page, and for anything else), the statistics file and `lotus ai stats`, a command that leaves a program running
+
 ## 2.12.0 – Ultra, and it does more
 
 - Fixed: gpt-oss on this Mac stopped working in the middle of longer tasks – with the memory saver on (`lotus ai local settings`), mlx cannot compress the memory of models with a sliding window (gpt-oss, Gemma), and every answer broke off once a conversation reached about 5000 tokens: after a web search or a few files the AI seemed to only think and then do nothing. These models now run without the memory saver, and a model server an older Lotus started that way is started again by itself the next time `/ai` or the web chat starts

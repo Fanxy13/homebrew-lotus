@@ -7,6 +7,7 @@
 //   lotus-ai --check          is Apple Intelligence available?
 //   lotus-ai --serve <port>   the web chat in the browser (Server.swift, started by lotus ai server start)
 //   lotus-ai --port-check <port> [lan]   "free" or "used"
+//   lotus-ai --stats [--once]  what the AI did and what the web chat is doing (Stats.swift)
 //   lotus-ai --render <page> <width> <folder> <shot|->   view_page's look at a web page (Page.swift)
 //
 // The provider, model, keys and colors come from environment variables set by lib/cmd/ai.zsh.
@@ -297,6 +298,10 @@ final class Agent {
                 text = better
             }
         }
+        // counted for /stats: how long, how many steps, how it ended
+        var outcome = "done"
+        Stats.begin(browser ? "web" : "terminal")
+        defer { Stats.end(outcome, ai: provider.label) }
         if !conversation.turns.isEmpty && provider.usedTokens > provider.budget * 3 / 4 {
             await compact(automatic: true)
         }
@@ -341,11 +346,13 @@ final class Agent {
                     continue
                 }
                 if isCancellation(error) {
+                    outcome = "stopped"
                     Renderer.shared.info("⎿  Stopped")
                     emit("\n")
                     remember(text, (answer + ["(The user stopped this answer.)"]).joined(separator: "\n\n"))
                     return
                 }
+                outcome = "failed"
                 if error is ContextFull {
                     Renderer.shared.error("This is too long for \(provider.label)", "Try a shorter message, /clear, or a provider with more room (/model).")
                 } else if let e = error as? AIError {
@@ -668,6 +675,7 @@ enum TUI {
         SlashCommand(name: "/compact", help: "summarize the conversation to free up room"),
         SlashCommand(name: "/context", help: "how full the memory is"),
         SlashCommand(name: "/memory", help: "what I remember about you – /memory clear forgets it"),
+        SlashCommand(name: "/stats", help: "what the AI did, and what the web chat is doing right now"),
         SlashCommand(name: "/copy", help: "copy the last answer"),
         SlashCommand(name: "/exit", help: "back to the shell"),
     ]
@@ -813,6 +821,8 @@ enum TUI {
             }
             if let notes = agent.folderNotes() { out += "  \(Style.dim)This folder: I follow \(notes.name).\(Style.reset)\n" }
             Out.shared.write(out + "\n")
+        case "/stats", "/statistics":
+            await Stats.live(keys)
         case "/context":
             let used = agent.provider.usedTokens, budget = agent.provider.budget
             var out = "  \(Style.bold)Memory\(Style.reset)  \(agent.provider.label)\n"
@@ -1107,6 +1117,15 @@ struct LotusAI {
 
         case "--render":
             PageView.run(args)
+
+        case "--stats":
+            // lotus ai stats: live in a terminal, once when the output goes elsewhere
+            guard Term.isTTY && args.first != "--once" else { Stats.printOnce(); return }
+            let keys = KeyQueue()
+            RawMode.enable()
+            KeyReader(queue: keys).start()
+            await Stats.live(keys)
+            RawMode.disable()
 
         case "--port-check":
             guard let port = args.first.flatMap({ Int($0) }), (1...65535).contains(port) else { exit(2) }

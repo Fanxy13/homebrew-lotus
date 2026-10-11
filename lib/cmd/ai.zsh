@@ -18,6 +18,7 @@ lotus_cmd_ai() {
     logout)    lotus_ai_logout ;;
     key|keys)  shift; lotus_ai_key "$@" ;;
     server|web) shift; source $LOTUS_ROOT/lib/cmd/aiserver.zsh; lotus_ai_server "$@" ;;
+    stats|statistics) shift; lotus_ai_stats "$@" ;;
     new|clear|reset)
       shift
       rm -f $LOTUS_CACHE/ai/conversation.json
@@ -168,7 +169,7 @@ _ai_prepare() {   # <mode, for the log>
 _ai_export() {
   export LOTUS_AI_PROVIDER=$AI_PROVIDER LOTUS_AI_MODEL=$AI_MODEL LOTUS_AI_EFFORT=${LOTUS_AI_EFFORT:-high} LOTUS_AI_ENHANCE=${LOTUS_AI_ENHANCE:-off}
   export LOTUS_AI_STATE=$LOTUS_CACHE/ai LOTUS_AI_URL=$AI_URL LOTUS_AI_AVAILABLE=${(j:,:)AI_AVAIL} LOTUS_AI_LOCAL_LABEL=$AI_MAC_LABEL
-  export LOTUS_NAME LOTUS_ROOT LOTUS_VERSION
+  export LOTUS_NAME LOTUS_ROOT LOTUS_VERSION LOTUS_STATE
   export LOTUS_AI_PERM_MODE LOTUS_AI_TOOLS LOTUS_AI_PERM_READ LOTUS_AI_PERM_READ_OUT LOTUS_AI_PERM_WRITE LOTUS_AI_PERM_WRITE_OUT LOTUS_AI_PERM_RUN LOTUS_AI_PERM_WEB LOTUS_AI_PERM_LOTUS
   export LOTUS_AI_MEMORY=$LOTUS_CONF/ai-memory.md
   # the Lotus tools of the features that are on (data/ai-tools.tsv) – the same list for every AI
@@ -180,6 +181,22 @@ _ai_export() {
   if [[ -n $AI_KEY ]]; then export LOTUS_AI_OPENAI_KEY=$AI_KEY; else _ai_openai_key && export LOTUS_AI_OPENAI_KEY=$REPLY; fi
   [[ -n $LOTUS_AI_INSTRUCTIONS ]] && export LOTUS_AI_INSTRUCTIONS
   export LOTUS_LOG LOTUS_LOG_LEVEL LOTUS_VERBOSE
+}
+
+# lotus ai stats, /stats in /ai – what the AI did (from /ai and the web chat) and what the web chat is
+# doing right now. Live in a terminal until q; a question of the web chat can be answered there.
+# No keys reach the program for this – it only reads $LOTUS_STATE/ai-stats.tsv and ai-server.now.
+lotus_ai_stats() {
+  _ai_build || return 1
+  lotus_ai_helper
+  local bin=$REPLY
+  (
+    export LOTUS_STATE LOTUS_ROOT LOTUS_LOG LOTUS_LOG_LEVEL
+    source $LOTUS_ROOT/lib/cmd/aitools.zsh && lotus_ai_toolkit && export LOTUS_AI_TOOLKIT=$REPLY
+    export LOTUS_AI_C_LOGO=$LOTUS_C[logo] LOTUS_AI_C_KEY=$LOTUS_C[key] LOTUS_AI_C_ACCENT=$LOTUS_C[accent]
+    export LOTUS_AI_C_BORDER=$LOTUS_C[border] LOTUS_AI_C_DIM=$LOTUS_C[dim] LOTUS_AI_C_MUSIC=$LOTUS_C[music]
+    exec $bin --stats "$@"
+  )
 }
 
 # Runs the AI program with everything it needs in its environment

@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.12.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.12.0">
-  <script src="js/lotus.js?v=2.12.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.13.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.13.0">
+  <script src="js/lotus.js?v=2.13.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -129,6 +129,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
         <tr><td><code>/auto</code></td><td>Auto mode on or off – it works on its own and asks only when unsure (the same as <kbd>⇧</kbd><kbd>⇥</kbd>)</td></tr>
         <tr><td><code>/enhance</code></td><td>Improve your prompts before the AI sees them: off, on (shown and sent), or ask – <kbd>⏎</kbd> sends the improved one, <kbd>o</kbd> yours, <kbd>esc</kbd> nothing. Also in <code>/settings</code> → AI → Improve prompts</td></tr>
         <tr><td><code>/context</code> · <code>/compact</code></td><td>How full the memory is · summarize now</td></tr>
+        <tr><td><code>/stats</code></td><td>What the web chat is doing right now – and its open question, which you can answer here – and what the AI did: answers, time working and thinking, steps by tool, answers per day. Live until <kbd>q</kbd>; also <code>/ai stats</code></td></tr>
         <tr><td><code>/clear</code> · <code>/copy</code> · <code>/exit</code></td><td>New conversation · copy the last answer · back to the shell</td></tr>
         <tr><td><kbd>esc</kbd> · <kbd>⌥</kbd><kbd>⏎</kbd> · <kbd>↑</kbd></td><td>Stop an answer · new line · earlier messages</td></tr>
       </table>
@@ -149,18 +150,21 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Asks in the browser</h3><p class="muted">Before it changes something the AI asks in the page, with a preview: yes, yes and don't ask again (for this conversation), no, or what to do instead. The rules of the terminal: reading runs, changes and commands ask unless you allowed them, installing always asks. Improved prompts are shown there too.</p></div>
       <div class="card"><h3>How hard it thinks</h3><p class="muted">The bars next to the message box open a slider: quick, balanced, thorough, maximum, ultra. Ultra is Claude's highest effort; with every AI it also plans, checks its work and goes on longer when it stops early. The same setting as <code>/effort</code>.</p></div>
       <div class="card"><h3>Dares more</h3><p class="muted">The Ask/Auto switch next to the message box, or "Yes, and switch to auto mode" in a question: it works on its own and asks only when unsure. Deleting, pushing, installing, private files and other folders still ask, and <code>sudo</code> never runs.</p></div>
-      <div class="card"><h3>Commands</h3><p class="muted">Type <code>/</code> for the commands of <code>/ai</code>: <code>/help</code>, <code>/new</code>, <code>/clear</code>, <code>/model</code>, <code>/effort</code>, <code>/enhance</code>, <code>/auto</code>, <code>/permissions</code>, <code>/memory</code>, <code>/context</code>, <code>/compact</code>, <code>/copy</code>. <kbd>↑</kbd><kbd>↓</kbd> and <kbd>⇥</kbd> choose.</p></div>
+      <div class="card"><h3>Commands</h3><p class="muted">Type <code>/</code> for the commands of <code>/ai</code>: <code>/help</code>, <code>/new</code>, <code>/clear</code>, <code>/model</code>, <code>/effort</code>, <code>/enhance</code>, <code>/auto</code>, <code>/permissions</code>, <code>/memory</code>, <code>/context</code>, <code>/stats</code>, <code>/compact</code>, <code>/copy</code>. <kbd>↑</kbd><kbd>↓</kbd> and <kbd>⇥</kbd> choose.</p></div>
       <div class="card"><h3>Settings</h3><p class="muted">The gear: who answers, thinking, improving prompts, ask first or auto, what the AI may do, what it remembers. The same settings as <code>/settings</code> in the terminal – the port and other devices stay in the terminal.</p></div>
       <div class="card"><h3>Only this Mac</h3><p class="muted">It listens on 127.0.0.1 and never starts by itself. <code>/ai server open</code> signs the browser in with your access key; without it the page stays locked. Other pages cannot use it, and your API keys never reach the browser.</p></div>
-      <div class="card"><h3>Keeps going</h3><p class="muted">A reload or a lost connection does not lose an answer – the page picks it up again. The stop button or <kbd>esc</kbd> stops it.</p></div>
+      <div class="card"><h3>Follow along</h3><p class="muted">Like in Claude: its thoughts as they come, folded to the last lines – all of them with a click. Every step shows a spinner while it runs and how long it took. A line at the bottom says what it is doing right now, for how long and how many steps so far; the browser tab says it too.</p></div>
+      <div class="card"><h3>Works without the page</h3><p class="muted">The answer is written on your Mac, not by the page: close the tab and it works on – only the web chat has to run. Come back any time, from another device too: the page picks it up where it is, with the real times. The sidebar marks where it is working. The stop button or <kbd>esc</kbd> stops it.</p></div>
+      <div class="card"><h3>Statistics</h3><p class="muted"><code>/ai stats</code>, or <code>/stats</code> in <code>/ai</code>: what the web chat is doing right now, and its open question – answer it right there when no page is open. Below, answers, time working and thinking, steps by tool and answers per day. Only counts and times, never what was said.</p></div>
     </div>
     <div class="table-wrap" style="margin-top:18px">
       <table class="docs">
         <tr><th>Command</th><th>What it does</th></tr>
-        <tr><td><code>/ai server</code></td><td>Status and a menu: open, start or stop, restart, port, start with the terminal, other devices</td></tr>
+        <tr><td><code>/ai server</code></td><td>Status and a menu: open, start or stop, restart, statistics, port, start with the terminal, other devices</td></tr>
         <tr><td><code>/ai server start</code> · <code>stop</code> · <code>restart</code></td><td>Start it (it opens in your browser), stop it, start it again after a change</td></tr>
         <tr><td><code>/ai server open</code></td><td>Open the page and sign in with your access key</td></tr>
         <tr><td><code>/ai server status</code></td><td>Running or off, the address and the folder it works in</td></tr>
+        <tr><td><code>/ai stats</code></td><td>What it is doing right now and what it did, live until <kbd>q</kbd>: <kbd>y</kbd> <kbd>a</kbd> <kbd>n</kbd> answer its open question, <kbd>x</kbd> stops the answer</td></tr>
         <tr><td><code>/ai server port 3001</code></td><td>Another port (default 3000), kept in the settings. When a port is in use, Lotus says by which program and offers the next free one – it never changes it without asking</td></tr>
       </table>
     </div>

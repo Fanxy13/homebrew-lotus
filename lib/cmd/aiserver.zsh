@@ -1,6 +1,6 @@
 # lotus ai server – Lotus AI in the browser: a web chat served by the AI program itself
 # (lotus-ai --serve, lib/ai/Server.swift) – the same AI, tools, permissions and questions as /ai.
-#   lotus ai server                    status, start or stop, port, start with the terminal, other devices
+#   lotus ai server                    status, start or stop, statistics, port, start with the terminal, other devices
 #   lotus ai server start|stop|restart|status|open
 #   lotus ai server port <n>           the port (default 3000), kept in the settings
 # It listens on 127.0.0.1 only. Other devices only when "Other devices" is turned on – they need the link
@@ -207,7 +207,7 @@ lotus_ai_server_stop() {
   if (( AIS_CHILD > 1 )) && [[ $(ps -p $AIS_CHILD -o command= 2>/dev/null) == *mlx_lm.server* ]]; then
     kill $AIS_CHILD 2>/dev/null
   fi
-  rm -f -- "${LOTUS_STATE:?}/ai-server"
+  rm -f -- "${LOTUS_STATE:?}/ai-server" "${LOTUS_STATE:?}/ai-server.now"
   lotus_log INFO ai "Web chat stopped (pid $AIS_PID)"
   [[ $1 == quiet ]] || ui_success "The web chat is stopped"
 }
@@ -298,8 +298,8 @@ _ais_menu() {
       opts=("Start|on port $LOTUS_AI_SERVER_PORT, then it opens in your browser")
     fi
     (( LOTUS_AI_SERVER_BOOT )) && onoff="on – it starts with the first terminal" || onoff="off – it starts only when you start it"
-    acts+=(port boot lan)
-    opts+=("Port|$LOTUS_AI_SERVER_PORT" "Start with the terminal|$onoff")
+    acts+=(stats port boot lan)
+    opts+=("Statistics|what it is doing right now and what the AI did – lotus ai stats" "Port|$LOTUS_AI_SERVER_PORT" "Start with the terminal|$onoff")
     if (( LOTUS_AI_SERVER_LAN )); then opts+=("Other devices|allowed – with the link that has your key")
     else opts+=("Other devices|off – only this Mac"); fi
     ui_select $sel "${opts[@]}" || break
@@ -309,6 +309,7 @@ _ais_menu() {
       open)    print; lotus_ai_server_open; _ais_back ;;
       stop)    print; lotus_ai_server_stop; _ais_back ;;
       restart) print; lotus_ai_server_stop quiet; lotus_ai_server_start --no-open; _ais_back ;;
+      stats)   lotus_ai_stats ;;
       port)
         print
         ui_input "Port (1024–65535)" $LOTUS_AI_SERVER_PORT && [[ $REPLY != $LOTUS_AI_SERVER_PORT ]] && lotus_ai_server_port $REPLY

@@ -431,12 +431,14 @@ final class Renderer: @unchecked Sendable {
     }
 
     // Thinking stays out of the way: the spinner (the pet's face) says "Thinking", afterwards one
-    // short line says for how long – only the answer is shown
+    // short line says for how long – only the answer is shown. The web chat gets the thoughts as they
+    // come, folded away under "Thinking", so you can follow along.
     func thinkingDelta(_ s: String) {
         guard !s.isEmpty, !quiet else { return }
         lock.lock(); defer { lock.unlock() }
         if let sink = sink {
-            if thinkingStarted == nil { thinkingStarted = Date(); sink("thinking", [:]) }
+            if thinkingStarted == nil { thinkingStarted = Date() }
+            sink("thinking", ["text": s])
             return
         }
         if thinkingStarted == nil {
@@ -458,6 +460,7 @@ final class Renderer: @unchecked Sendable {
         if let started = thinkingStarted {
             thinking = nil
             thinkingStarted = nil
+            Stats.thinking(Date().timeIntervalSince(started))
             let secs = Int(Date().timeIntervalSince(started))
             emit("\(Style.dim)✻ thought for \(max(1, secs))s\(Style.reset)\n")
         }
@@ -466,6 +469,7 @@ final class Renderer: @unchecked Sendable {
     private func webCloseThinking(_ sink: (String, [String: Any]) -> Void) {
         guard let started = thinkingStarted else { return }
         thinkingStarted = nil
+        Stats.thinking(Date().timeIntervalSince(started))
         sink("thought", ["secs": max(1, Int(Date().timeIntervalSince(started)))])
     }
 

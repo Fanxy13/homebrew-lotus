@@ -11,12 +11,16 @@
 # arguments that have real line breaks in a string (Lotus repairs them), "broken call" sends arguments that
 # cannot be repaired and then stops without a word (Lotus lets it go on).
 # "break off" ends the stream in the middle, like a model server that crashed.
+# "in the background" runs a command that leaves a program running (sleep 20 &) – the step must not wait for it.
+# "take your time" thinks for about 3 seconds (its thoughts come in pieces), then answers "Took my time." –
+# long enough to close the page in between.
 # "how hard" gets back how it was asked to think (a model on this Mac gets it with every message) and
 # whether the ultra instructions are there.
 # Asked to improve a prompt (data/ai/system.md "## enhance"), it answers "Goal: <the request>" – or fails
 # with an error when the request contains "fail-enhance".
 import json
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -80,6 +84,12 @@ class Model(BaseHTTPRequestHandler):
             chunk({}, "tool_calls")
         elif last.get("role") == "tool" and "broken call" in said:
             chunk({}, "stop")
+        elif "take your time" in said and last.get("role") == "user":
+            for i in range(6):
+                chunk({"reasoning_content": "Thinking step %d. " % i})
+                time.sleep(0.5)
+            chunk({"content": "Took my time."})
+            chunk({}, "stop")
         elif "break off" in said:
             chunk({"reasoning_content": "Let me start …"})
             return          # no finish reason, no [DONE]: the server broke off
@@ -117,6 +127,11 @@ class Model(BaseHTTPRequestHandler):
         elif body.get("tools") and last.get("role") == "user" and "look at" in str(last.get("content", "")):
             call = {"index": 0, "id": "call_v", "type": "function",
                     "function": {"name": "view_page", "arguments": json.dumps({"path": "site/index.html", "view": "phone", "inspect": "h1"})}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif body.get("tools") and last.get("role") == "user" and "in the background" in str(last.get("content", "")):
+            call = {"index": 0, "id": "call_bg", "type": "function",
+                    "function": {"name": "run_command", "arguments": json.dumps({"command": "sleep 20 & echo started-it"})}}
             chunk({"tool_calls": [call]})
             chunk({}, "tool_calls")
         elif body.get("tools") and last.get("role") == "user" and any(w in str(last.get("content", "")) for w in ("delete", "admin", "run")):

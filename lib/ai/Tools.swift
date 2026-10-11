@@ -379,6 +379,7 @@ final class ToolRunner: @unchecked Sendable {
 
     func run(_ name: String, _ args: [String: Any]) async -> ToolOutcome {
         await serial.lock()
+        Stats.tool(name)
         let result = await execute(name, args)
         await serial.unlock()
         Spinner.shared.start("Thinking")
@@ -1216,33 +1217,62 @@ enum Shell {
         process.standardError = pipe
 
         let collected = Collected()
-        pipe.fileHandleForReading.readabilityHandler = { h in
+        let reader = pipe.fileHandleForReading
+        reader.readabilityHandler = { h in
             let d = h.availableData
-            if !d.isEmpty { collected.append(d) }
+            if d.isEmpty { h.readabilityHandler = nil } else { collected.append(d) }     // empty: the end – stop listening
         }
+        // the end of the program is reported here – never with waitUntilExit, which can wait forever when it is
+        // called on another thread than the one that started the program (as tasks of Swift concurrency are)
+        let exit = Exited()
+        process.terminationHandler = { _ in exit.set() }
         do {
             try process.run()
         } catch {
-            pipe.fileHandleForReading.readabilityHandler = nil
+            reader.readabilityHandler = nil
             return Result(status: 127, output: "Could not start: \(error.localizedDescription)")
         }
         let deadline = Date().addingTimeInterval(timeout)
         var timedOut = false
         var cancelled = false
         await withTaskCancellationHandler {
-            while process.isRunning {
+            while !exit.done {
                 if Date() > deadline { timedOut = true; process.terminate(); break }
                 if Task.isCancelled { cancelled = true; process.terminate(); break }
-                try? await Task.sleep(nanoseconds: 50_000_000)
+                try? await Task.sleep(nanoseconds: 20_000_000)
             }
         } onCancel: {
             process.terminate()
         }
-        process.waitUntilExit()
-        pipe.fileHandleForReading.readabilityHandler = nil
-        if let rest = try? pipe.fileHandleForReading.readToEnd() { collected.append(rest) }
+        // stopped: it gets 3 seconds to end, then it is killed
+        var waited = 0
+        while !exit.done && waited < 200 {
+            if waited == 150 && process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+            waited += 1
+        }
+        // what is still in the pipe – without waiting for programs it started in the background (`server &`),
+        // which keep the pipe open
+        reader.readabilityHandler = nil
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        let fd = reader.fileDescriptor
+        _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+        var buffer = [UInt8](repeating: 0, count: 65_536)
+        while true {
+            let n = read(fd, &buffer, buffer.count)
+            if n <= 0 { break }
+            collected.append(Data(buffer[0..<n]))
+        }
         let text = String(decoding: collected.data, as: UTF8.self)
-        return Result(status: process.terminationStatus, output: text, timedOut: timedOut, cancelled: cancelled || Task.isCancelled)
+        return Result(status: exit.done ? process.terminationStatus : -1, output: text, timedOut: timedOut,
+                      cancelled: cancelled || Task.isCancelled)
+    }
+
+    final class Exited: @unchecked Sendable {
+        private let lock = NSLock()
+        private var flag = false
+        func set() { lock.lock(); flag = true; lock.unlock() }
+        var done: Bool { lock.lock(); defer { lock.unlock() }; return flag }
     }
 
     final class Collected: @unchecked Sendable {

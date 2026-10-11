@@ -90,6 +90,28 @@ final class Conn {
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &s, socklen_t(MemoryLayout<timeval>.size))
     }
 
+    // The browser closed the connection (the page was closed or reloaded)
+    var closedByPeer: Bool {
+        var p = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        guard poll(&p, 1, 0) > 0 else { return false }
+        if p.revents & Int16(POLLHUP | POLLERR) != 0 { return true }
+        var b: UInt8 = 0
+        return recv(fd, &b, 1, MSG_PEEK | MSG_DONTWAIT) == 0
+    }
+
+    // From this Mac (127.0.0.1)? Only the terminal's answers are taken this way
+    var fromThisMac: Bool {
+        var a = sockaddr_storage()
+        var len = socklen_t(MemoryLayout<sockaddr_storage>.size)
+        let ok = withUnsafeMutablePointer(to: &a) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getpeername(fd, $0, &len) } }
+        guard ok == 0 else { return false }
+        if a.ss_family == sa_family_t(AF_INET) {
+            let v4 = withUnsafePointer(to: &a) { $0.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee } }
+            return UInt32(bigEndian: v4.sin_addr.s_addr) >> 24 == 127
+        }
+        return false
+    }
+
     @discardableResult
     func write(_ data: Data) -> Bool {
         guard open else { return false }
@@ -263,11 +285,15 @@ final class ChatStore: @unchecked Sendable {
 }
 
 // ── One answer that is being written ──────────────────────────
-// The events of the answer are kept, so a browser that reloads or loses the connection can attach
-// again and see all of it. Questions wait here for the browser's answer.
+// The answer is written by the server, not by the page: it goes on when no browser is open. Its events
+// are kept, so a browser that reloads or comes back later attaches again and sees all of it – every event
+// has its time ("t", seconds since the answer started), so the stopwatch goes on where it was.
+// Questions wait here for the browser's answer, or the terminal's (lotus ai stats).
 
 final class Run: @unchecked Sendable {
     let chat: String
+    let title: String
+    let started = Date()
     private let cond = NSCondition()
     private var events: [[String: Any]] = []
     private(set) var done = false
@@ -275,22 +301,90 @@ final class Run: @unchecked Sendable {
     private var lastStatus = ""
     // open questions: how to go on, the answers that are allowed, and the one that counts on stop or timeout
     private var questions: [String: (wait: CheckedContinuation<(String, String), Never>, words: Set<String>, fallback: String)] = [:]
+    // what it is doing right now – for the terminal (/stats); the page works it out from the events itself
+    private var activity = "Starting"
+    private var activitySince = Date()
+    private var steps = 0
+    private var thought = 0.0
+    private var inTool = false
+    private var open: [String: Any]?
+    var onChange: (() -> Void)?
 
-    init(chat: String) { self.chat = chat }
+    init(chat: String, title: String = "") {
+        self.chat = chat
+        self.title = title
+    }
+
+    var elapsed: Double { Date().timeIntervalSince(started) }
+
+    // Seconds with one decimal, written as such in JSON (0.1, not 0.10000000000000001)
+    static func tenths(_ secs: Double) -> NSDecimalNumber {
+        NSDecimalNumber(string: String(format: "%.1f", max(0, secs)))
+    }
 
     func add(_ type: String, _ data: [String: Any] = [:]) {
         cond.lock()
-        defer { cond.unlock() }
-        if done { return }
+        if done { cond.unlock(); return }
         if type == "status" {
             let text = data["text"] as? String ?? ""
-            if text == lastStatus { return }
+            if text == lastStatus { cond.unlock(); return }
             lastStatus = text
         }
         var e = data
         e["type"] = type
+        e["t"] = Run.tenths(Date().timeIntervalSince(started))
         events.append(e)
+        let changed = track(type, data)
         cond.broadcast()
+        cond.unlock()
+        if changed { onChange?() }
+    }
+
+    // Keeps what it is doing up to date → true when that changed
+    private func track(_ type: String, _ data: [String: Any]) -> Bool {
+        func now(_ label: String) -> Bool {
+            guard !label.isEmpty, label != activity else { return false }
+            activity = label
+            activitySince = Date()
+            return true
+        }
+        switch type {
+        case "thinking": return inTool ? false : now("Thinking")
+        case "text": return inTool ? false : now("Writing the answer")
+        case "status": return inTool ? false : now(data["text"] as? String ?? "")
+        case "thought":
+            thought += Double(data["secs"] as? Int ?? 0)
+            return true
+        case "tool":
+            steps += 1
+            inTool = true
+            let name = data["name"] as? String ?? "", detail = data["detail"] as? String ?? ""
+            activity = detail.isEmpty ? name : "\(name) \(detail)"
+            activitySince = Date()          // a new step, also when it is the same command again
+            return true
+        case "result":
+            inTool = false
+            return now("Thinking")
+        case "ask":
+            open = ["id": data["id"] ?? "", "kind": "ask", "text": data["question"] ?? "", "always": data["always"] ?? false]
+            return true
+        case "improve":
+            open = ["id": data["id"] ?? "", "kind": "improve", "text": "Send the improved prompt? " + (data["text"] as? String ?? "")]
+            return true
+        case "asked":
+            open = nil
+            return true
+        default: return false
+        }
+    }
+
+    // For the terminal: what it is doing, since when, how far it got, the open question
+    var snapshot: [String: Any] {
+        cond.lock(); defer { cond.unlock() }
+        var o: [String: Any] = ["chat": chat, "title": title, "started": started.timeIntervalSince1970, "activity": activity,
+                                "since": activitySince.timeIntervalSince1970, "steps": steps, "thought": thought]
+        if let q = open { o["question"] = q }
+        return o
     }
 
     func finish() {
@@ -311,10 +405,34 @@ final class Run: @unchecked Sendable {
         return (from < events.count ? Array(events[from...]) : [], done)
     }
 
-    // What the conversation keeps: everything but the passing status lines
+    // What the conversation keeps: everything but the passing status lines, with the pieces of text and
+    // of thoughts joined (the thoughts of one block at most 40,000 characters)
     var kept: [[String: Any]] {
         cond.lock(); defer { cond.unlock() }
-        return events.filter { $0["type"] as? String != "status" }
+        var out: [[String: Any]] = []
+        var texts: [String?] = []
+        for e in events {
+            let type = e["type"] as? String ?? ""
+            if type == "status" { continue }
+            if type == "text" || type == "thinking" {
+                let piece = e["text"] as? String ?? ""
+                if let last = out.last, last["type"] as? String == type, texts[texts.count - 1] != nil {
+                    texts[texts.count - 1]! += piece
+                    continue
+                }
+                out.append(e)
+                texts.append(piece)
+                continue
+            }
+            out.append(e)
+            texts.append(nil)
+        }
+        for i in out.indices {
+            guard var t = texts[i] else { continue }
+            if out[i]["type"] as? String == "thinking" && t.utf16.count > 40_000 { t = String(t.prefix(40_000)) + " …" }
+            out[i]["text"] = t
+        }
+        return out
     }
 
     var waiting: Bool {
@@ -403,6 +521,10 @@ final class WebServer: @unchecked Sendable {
     private var agentChat: String?     // the conversation the agent holds right now
     private var needsReset = false     // the memory changed: the next message gets fresh instructions
     private var connections = 0
+    private var watching = 0           // browsers that follow an answer right now
+    private let since = Date()
+    private var nowPending = false
+    private let nowQueue = DispatchQueue(label: "lotus.ai.now")
     private static var signals: [DispatchSourceSignal] = []
 
     init(port: Int, lan: Bool, key: String, agent: Agent, store: ChatStore, root: String) {
@@ -474,6 +596,7 @@ final class WebServer: @unchecked Sendable {
             let src = DispatchSource.makeSignalSource(signal: s, queue: .global())
             src.setEventHandler {
                 Log.write("INFO", "Web chat stopped")
+                if let now = Stats.nowFile { unlink(now.path) }
                 if child > 1 { kill(child, SIGTERM) }
                 exit(0)
             }
@@ -481,6 +604,7 @@ final class WebServer: @unchecked Sendable {
             signals.append(src)
         }
         Log.write("INFO", "Web chat on \(lan ? "every address" : "127.0.0.1"):\(port) with \(agent.provider.label)")
+        server.saveNow()
         let t = Thread { server.accept(fd) }
         t.stackSize = 1 << 20
         t.start()
@@ -570,6 +694,17 @@ final class WebServer: @unchecked Sendable {
         return nil
     }
 
+    // lotus ai stats in the terminal: it answers a question or stops the answer – with the access key (a file
+    // only you can read) in a header, from this Mac. No browser sends that header by itself.
+    private func fromTerminal(_ c: Conn, _ r: Request) {
+        guard WebServer.same(r.header("x-lotus-key"), key), c.fromThisMac,
+              r.header("origin").isEmpty, r.header("sec-fetch-site").isEmpty else {
+            return problem(c, 401, "Only the terminal on this Mac can do this")
+        }
+        guard r.method == "POST", r.path == "/api/answer" || r.path == "/api/stop" else { return problem(c, 404, "Unknown request") }
+        api(c, r)
+    }
+
     // ── Requests ──
 
     private func handle(_ c: Conn) {
@@ -589,6 +724,7 @@ final class WebServer: @unchecked Sendable {
             return json(c, 200, ["ok": true, "app": "lotus-ai", "pid": Int(getpid())])
         }
         if r.path.hasPrefix("/api/") {
+            if !r.header("x-lotus-key").isEmpty { return fromTerminal(c, r) }
             if let why = apiOK(r) { return problem(c, r.header("x-lotus-token").isEmpty || !signedIn(r) ? 401 : 403, why) }
             return api(c, r)
         }
@@ -722,6 +858,9 @@ final class WebServer: @unchecked Sendable {
             guard Memory.clear() else { return problem(c, 500, "The memory file could not be written") }
             lock.lock(); needsReset = true; lock.unlock()
             json(c, 200, memoryJSON())
+        case ("GET", ["stats"]):
+            // /stats: what the AI did – the same view as lotus ai stats in the terminal
+            json(c, 200, ["text": Stats.lines(width: 74, live: false).map { ToolRunner.plain($0) }.joined(separator: "\n")])
         case ("GET", ["run"]):
             attach(c, r)
         case ("POST", ["answer"]):
@@ -798,7 +937,13 @@ final class WebServer: @unchecked Sendable {
             lock.unlock()
             return problem(c, 404, "This conversation does not exist")
         }
-        let run = Run(chat: id)
+        if case .message(let clean) = action, (chat["title"] as? String ?? "").isEmpty {
+            let line = clean.split(whereSeparator: \.isNewline).first.map(String.init) ?? clean
+            let words = line.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            chat["title"] = words.count > 60 ? String(words.prefix(59)) + "…" : words
+        }
+        let run = Run(chat: id, title: chat["title"] as? String ?? "")
+        run.onChange = { [weak self] in self?.saveNow() }
         active = run
         lock.unlock()
 
@@ -806,11 +951,6 @@ final class WebServer: @unchecked Sendable {
         var messages = chat["messages"] as? [[String: Any]] ?? []
         messages.append(["role": "user", "text": shown, "time": now])
         chat["messages"] = messages
-        if case .message(let clean) = action, (chat["title"] as? String ?? "").isEmpty {
-            let line = clean.split(whereSeparator: \.isNewline).first.map(String.init) ?? clean
-            let words = line.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-            chat["title"] = words.count > 60 ? String(words.prefix(59)) + "…" : words
-        }
         chat["updated"] = now
         store.save(chat)
         run.add("start", ["chat": id, "title": chat["title"] ?? ""])
@@ -867,6 +1007,36 @@ final class WebServer: @unchecked Sendable {
         }
         run.add("done")
         run.finish()
+        saveNow()
+    }
+
+    // What the web chat is doing, for the terminal: $LOTUS_STATE/ai-server.now (only you can read it).
+    // Written a moment after a change, once for several changes.
+    func saveNow() {
+        lock.lock()
+        if nowPending { lock.unlock(); return }
+        nowPending = true
+        lock.unlock()
+        nowQueue.asyncAfter(deadline: .now() + 0.15) { [self] in
+            lock.lock()
+            nowPending = false
+            let run = active
+            let browsers = watching
+            lock.unlock()
+            guard let url = Stats.nowFile else { return }
+            var o: [String: Any] = ["pid": Int(getpid()), "port": port, "since": since.timeIntervalSince1970, "lan": lan,
+                                    "watching": browsers, "ai": agent.provider.label]
+            if let r = run, !r.done { o["run"] = r.snapshot }
+            let tmp = url.appendingPathExtension("new")
+            if FileManager.default.createFile(atPath: tmp.path, contents: HTTP.json(o), attributes: [.posixPermissions: 0o600]) {
+                _ = rename(tmp.path, url.path)
+            }
+        }
+    }
+
+    private func watch(_ n: Int) {
+        lock.lock(); watching += n; lock.unlock()
+        saveNow()
     }
 
     // Only the permissions – safe during an answer: the step that asked is waiting for this
@@ -1053,13 +1223,24 @@ final class WebServer: @unchecked Sendable {
         var head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream; charset=utf-8\r\nCache-Control: no-store\r\nConnection: close\r\n"
         for h in WebServer.security { head += h + "\r\n" }
         guard c.write(head + "\r\n") else { return }
+        watch(1)
+        defer { watch(-1) }
+        // the stopwatch: how long the answer has been going, by this Mac's clock – a page that comes back goes on from there
+        let clock: [String: Any] = ["type": "clock", "elapsed": Run.tenths(run.elapsed)]
+        guard c.write("data: " + String(decoding: HTTP.json(clock), as: UTF8.self) + "\n\n") else { return }
         var cursor = from
+        var quiet = Date()
         while true {
-            let (events, finished) = run.next(after: cursor, timeout: 15)
+            let (events, finished) = run.next(after: cursor, timeout: 1)
             if events.isEmpty && !finished {
-                if !c.write(": still here\n\n") { return }
+                if c.closedByPeer { return }        // the page is gone – the answer goes on without it
+                if Date().timeIntervalSince(quiet) >= 15 {
+                    if !c.write(": still here\n\n") { return }
+                    quiet = Date()
+                }
                 continue
             }
+            quiet = Date()
             var out = ""
             for e in events {
                 var line = e

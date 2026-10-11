@@ -102,6 +102,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | | `/ai explain`, `summarize`, `write`, `command` | Explain an error, summarize a file, draft text, suggest a command |
 | | `/enhance` in `/ai`, or `/settings` → AI | Improve your prompts before the AI sees them: off, on, or shown first so you choose |
 | | `/ai server start`, `/ai server` | Lotus AI in your browser: a web chat on this Mac (127.0.0.1:3000) – the same AI, tools and questions · status, stop, port |
+| | `/ai stats` or `/stats` in `/ai` | What the web chat is doing right now, and what the AI did: answers, time, steps by tool – live; answers its questions too |
 | Audio | `/np`, `/play`, `/pause`, `/skip`, `/back` | What is playing, play, pause, next, previous |
 | | `/repeat`, `/mute`, `/vu`, `/vd` | Repeat, mute, volume up and down |
 | Media | `/lotus visual` | Audio visualizer with 8 modes (space: next mode, `q`: quit) |
@@ -147,6 +148,7 @@ lotus shortcut add yt "https://www.youtube.com/results?search_query={q}"
 /ai server start        # starts the web chat and opens it: http://127.0.0.1:3000
 /ai server              # status, and a menu: open, stop, restart, port, start with the terminal, other devices
 /ai server port 3001    # another port – kept in the settings
+/ai stats               # what it is doing right now, and what it did – live, q closes
 /ai server stop
 ```
 
@@ -161,8 +163,21 @@ Claude: quick, balanced, thorough, maximum, ultra. Ultra is Claude's highest eff
 also plans, checks its work (runs it, reads it back, looks at pages) and goes on longer when it stops
 early. It is the same setting as `/effort` in `/ai` and counts from the next message.
 
+**Follow along.** Like in Claude you see what the AI is doing: its thoughts as they come (folded to the
+last lines, all of them with a click), every step with a spinner while it runs and how long it took, and
+a line at the bottom that says what it is doing right now, for how long and how many steps so far. The
+times come from Lotus, so the stopwatch goes on where it was after a reload. The answer is written on
+your Mac, not by the page: close the tab and it works on – only the web chat has to run. Come back
+any time, also from another device; the sidebar marks the conversation it is working in.
+
+**Statistics.** `/stats` in `/ai` (or `/ai stats`) shows what the web chat is doing right now – and when
+it asks a question while no page is open, you answer it right there (`y`, `a`, `n`; `x` stops the
+answer). Below: answers, time working and thinking, steps, stopped and failed answers – today, in the
+last 7 days and in all – the steps by tool, answers per day, terminal or web chat, and which AI. Only
+counts and times are kept, never what was said. `/stats` in the web chat shows the same numbers.
+
 **Commands and settings.** Type `/` for the commands of `/ai`: `/help`, `/new`, `/clear`, `/model`,
-`/effort`, `/enhance`, `/auto`, `/permissions`, `/settings`, `/memory`, `/context`, `/compact`, `/copy`.
+`/effort`, `/enhance`, `/auto`, `/permissions`, `/settings`, `/memory`, `/context`, `/stats`, `/compact`, `/copy`.
 The gear opens the settings – who answers, thinking, improving prompts, ask first or auto, what the AI
 may do, what it remembers. They are the same Lotus settings as `/settings` in the terminal; the port,
 starting with the terminal and other devices can only be changed there.
@@ -307,7 +322,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 - When the AI looks at a web page it built (`view_page`), WebKit shows only that page's folder – never private files such as `.env` – and blocks everything that could send data away (fetch, XHR, WebSockets, beacons); scripts, styles, fonts and images may load from the internet. Looking at a page counts as reading: free in the folder, asks elsewhere. Screenshots stay in `~/.cache/lotus/ai/pages`.
 - The AI can search the web (DuckDuckGo, Wikipedia) and read pages; `/permissions` → "Search and read the web" turns that to ask first or off. Search words go to DuckDuckGo or Wikipedia, pages are fetched directly, without cookies. Only the public internet – addresses on this Mac or in the local network are refused, also after a redirect. Web text is marked as information, never as instructions; in auto mode commands ask again after the AI has read web pages, and an address that carries a lot of data always asks.
 - What the AI remembers between conversations (`remember`, `/memory`) is a plain text file next to your settings (`~/.config/lotus/ai-memory.md`); passwords and keys are never kept.
-- The web chat (`/ai server`) listens on 127.0.0.1 only and never starts unless you start it. The browser signs in with an access key (`~/.local/state/lotus/ai-server.key`, only you can read it); the server answers only to its own address, checks a per-page token and the origin of every change, and never sends API keys to the browser. Commands from the web follow the same permissions as in the terminal – dangerous ones always ask, `sudo` never runs – and the port and other devices can only be changed in the terminal. Conversations are kept in `~/.local/state/lotus/ai-chats`, readable only by you.
+- The web chat (`/ai server`) listens on 127.0.0.1 only and never starts unless you start it. The browser signs in with an access key (`~/.local/state/lotus/ai-server.key`, only you can read it); the server answers only to its own address, checks a per-page token and the origin of every change, and never sends API keys to the browser. Commands from the web follow the same permissions as in the terminal – dangerous ones always ask, `sudo` never runs – and the port and other devices can only be changed in the terminal. Conversations are kept in `~/.local/state/lotus/ai-chats`, readable only by you. `/ai stats` answers the web chat's questions with the access key in a header, only from this Mac, and can do nothing but answer or stop; the statistics (`ai-stats.tsv`) keep counts and times, never what was said.
 - Links, package names, city names and shortcut names are validated; shortcuts cannot run shell commands.
 - `/convert` is meant for content you have the right to download. It does not bypass DRM or paywalls.
 - `/ios` only downloads official releases and checks compatibility before it does.
