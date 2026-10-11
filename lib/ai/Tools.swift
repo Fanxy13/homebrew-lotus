@@ -1175,6 +1175,7 @@ final class ToolRunner: @unchecked Sendable {
             return ToolOutcome(text: "Could not write \(display(url)): \(error.localizedDescription)", isError: true)
         }
         let what = "\(exists ? "Updated" : "Created") \(display(url)) (\(lines.count) \(lines.count == 1 ? "line" : "lines"))"
+        if !sensitive(url) { Renderer.shared.toolFile(display(url), content) }
         Renderer.shared.toolResult(what)
         actions.append(what)
         return ToolOutcome(text: what + (await lookAfterWriting(url)))
@@ -1224,6 +1225,7 @@ final class ToolRunner: @unchecked Sendable {
         let removed = oldText.components(separatedBy: "\n").count
         let added = newText.components(separatedBy: "\n").count
         let what = "Edited \(display(url)) (−\(removed) +\(added) lines)"
+        if !sensitive(url) { Renderer.shared.toolFile(display(url), updated) }
         Renderer.shared.toolResult(what)
         actions.append(what)
         return ToolOutcome(text: what + (await lookAfterWriting(url)))

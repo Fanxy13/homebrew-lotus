@@ -72,6 +72,22 @@
       </form>
       <p class="hint" id="hint">Enter sends · Shift+Enter new line · / for commands · Ask/Auto switches the mode</p>
     </main>
+
+    <aside class="viewer" id="viewer" aria-labelledby="viewer-name" hidden>
+      <div class="viewer-grip" id="viewer-grip" role="separator" aria-orientation="vertical" aria-label="Resize the code panel" tabindex="0"></div>
+      <header class="viewer-head">
+        <div class="viewer-title">
+          <h2 id="viewer-name">code</h2>
+          <span class="viewer-meta" id="viewer-meta"></span>
+        </div>
+        <button class="viewer-btn" id="viewer-copy" type="button" title="Copy all of it">Copy</button>
+        <button class="viewer-btn" id="viewer-download" type="button" title="Save it as a file">Download</button>
+        <button class="icon-btn" id="viewer-close" type="button" aria-label="Close the code panel" title="Close (Esc)">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+      <div class="viewer-body" id="viewer-body" tabindex="0" aria-label="Code"></div>
+    </aside>
   </div>
 
   <div class="sheet" id="sheet" hidden>

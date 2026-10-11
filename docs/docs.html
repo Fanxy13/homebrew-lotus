@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.13.1">
-  <link rel="stylesheet" href="css/pages.css?v=2.13.1">
-  <script src="js/lotus.js?v=2.13.1"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.14.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.14.0">
+  <script src="js/lotus.js?v=2.14.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -147,7 +147,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     <h3 style="margin-top:30px" id="ai-web">In your browser</h3>
     <p><code>/ai server start</code> opens Lotus AI in your browser – a chat page that Lotus serves itself on this Mac, at <code>http://127.0.0.1:3000</code>. It is the same AI as <code>/ai</code>, not a second one: the same providers, instructions, Lotus tools and permissions. Answers stream in as they are written.</p>
     <div class="grid">
-      <div class="card"><h3>A real chat</h3><p class="muted">Your conversations in a sidebar – new chat, history, clear, delete. Markdown, tables and code blocks with a copy button, and the steps the AI takes with what they returned. <kbd>⏎</kbd> sends, <kbd>⇧</kbd><kbd>⏎</kbd> makes a new line. Works on a phone and a computer, in the colors of your theme.</p></div>
+      <div class="card"><h3>A real chat</h3><p class="muted">Your conversations in a sidebar – new chat, history, clear, delete. Markdown, tables and code blocks with a copy button – Expand shows a block on the right, with line numbers, copy and download, and Open does the same for every file the AI wrote – and the steps the AI takes with what they returned. <kbd>⏎</kbd> sends, <kbd>⇧</kbd><kbd>⏎</kbd> makes a new line. Works on a phone and a computer, in the colors of your theme.</p></div>
       <div class="card"><h3>Asks in the browser</h3><p class="muted">Before it changes something the AI asks in the page, with a preview: yes, yes and don't ask again (for this conversation), no, or what to do instead. The rules of the terminal: reading runs, changes and commands ask unless you allowed them, installing always asks. Improved prompts are shown there too.</p></div>
       <div class="card"><h3>How hard it thinks</h3><p class="muted">The bars next to the message box open a slider: quick, balanced, thorough, maximum, ultra. Ultra is Claude's highest effort; with every AI it also plans, checks its work and goes on longer when it stops early. The same setting as <code>/effort</code>.</p></div>
       <div class="card"><h3>Dares more</h3><p class="muted">The Ask/Auto switch next to the message box, or "Yes, and switch to auto mode" in a question: it works on its own and asks only when unsure. Deleting, pushing, installing, private files and other folders still ask, and <code>sudo</code> never runs.</p></div>

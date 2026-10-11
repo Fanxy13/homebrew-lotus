@@ -304,6 +304,8 @@ out=$(send_to $look "please make a page")
 check_has "written page: looked at in a browser" "$out" 'In a browser:'
 check_has "written page: the model hears what is wrong" "$out" 'Lotus opened site2'
 check_has "written page: the missing style is named" "$out" 'style.css'
+check_has "written page: the whole file reaches the browser for the code panel" "$out" '"type":"file"'
+check_has "with its name and all of its content" "$out" '<\/body><\/html>'
 setting LOTUS_AI_PERM_MODE ask >/dev/null
 
 # it stopped before it was done: Lotus lets it go on, at most 3 times

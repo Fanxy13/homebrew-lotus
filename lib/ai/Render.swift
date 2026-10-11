@@ -521,6 +521,13 @@ final class Renderer: @unchecked Sendable {
         emit("  \(Style.dim)⎿\(Style.reset)  \(color)\(clip(summary, max(20, Term.width - 6)))\(Style.reset)\n\n")
     }
 
+    // The whole file the AI wrote or changed – for the web chat's side panel (scroll, copy, download);
+    // the terminal has the preview lines
+    func toolFile(_ name: String, _ content: String) {
+        guard let sink = sink, content.utf8.count <= 400_000 else { return }
+        sink("file", ["name": name, "text": content])
+    }
+
     // Indented preview lines below a tool step
     func toolLines(_ lines: [String], color: String = Style.dim, limit: Int = 8) {
         if let sink = sink {

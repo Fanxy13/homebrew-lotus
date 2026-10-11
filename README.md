@@ -157,6 +157,8 @@ itself (`lotus-ai --serve`, `lib/ai/Server.swift`) with the same providers, inst
 (`data/ai/system.md`), tools (`data/ai-tools.tsv`) and permissions. Answers stream in; a sidebar
 keeps your conversations (new, history, clear, delete); Markdown, tables and code blocks with a
 copy button; Enter sends, Shift+Enter makes a new line. It works on a phone too, in your theme's colors.
+**Expand** on a code block – and **Open** on a file the AI wrote or changed – shows all of it on the right,
+like in Claude: with line numbers, scrolling both ways, Copy and Download; drag its edge to make it wider.
 
 **How hard it thinks.** The bars next to the message box open a slider, like the effort setting of
 Claude: quick, balanced, thorough, maximum, ultra. Ultra is Claude's highest effort; with every AI it

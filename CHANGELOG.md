@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.14.0 – Code on the right
+
+- In the web chat, Expand on a code block opens it on the right, like in Claude: the whole code with line numbers, scrolling up and down and sideways (the numbers stay), Copy and Download (as `code.py`, `code.html` … by its language). Drag the edge to make it wider or narrower – the browser keeps the width – and Esc or × closes it
+- Every file the AI writes or changes gets an Open button in its step: the whole file on the right, not just the first lines – also when you open the conversation again later. Private files such as `.env` are not sent to the page
+- Long code blocks in an answer scroll within the chat instead of filling it; on a mid-sized screen the list of conversations steps aside while the code is open, and on a phone the code takes the whole screen
+- Tests: the whole written file reaches the browser
+
 ## 2.13.1 – Unstuck, and much faster on this Mac
 
 - Much faster with a model on this Mac: every request listed the tools in a different order (a dictionary of Swift has none), so the start of the prompt changed every time and the model server read the whole conversation again for every step – in a long conversation about 40 seconds before it wrote a word. Requests now read the same every time, and mlx reuses what it already read: 77–99% of the prompt from its cache, the first token after about a second instead of 6–8 (gpt-oss 20B, measured)
