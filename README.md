@@ -98,7 +98,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | AI | `/ai` | The AI terminal: chat, write code, create and change files, run commands – it asks before every change |
 | | `/ai what is a symlink?`, `/ai new` | One question (it remembers the conversation for an hour) · start fresh |
 | | `lotus ai login` or `/login` | Connect Claude in a minute; also Apple Intelligence, Ollama or an OpenAI-compatible API |
-| | `lotus ai local` | Models that run on this Mac with Apple's MLX – no Ollama: download, switch, remove; thinking, context window, answer length, creativity |
+| | `lotus ai local` | Models that run on this Mac with Apple's MLX – no Ollama: download, switch, remove; thinking, context window, answer length, creativity. Nucifera 20B is gpt-oss-20b tuned for Lotus ([nucifera-20b](https://github.com/Fanxy13/nucifera-20b)) |
 | | `/ai explain`, `summarize`, `write`, `command` | Explain an error, summarize a file, draft text, suggest a command |
 | | `/enhance` in `/ai`, or `/settings` → AI | Improve your prompts before the AI sees them: off, on, or shown first so you choose |
 | | `/ai server start`, `/ai server` | Lotus AI in your browser: a web chat on this Mac (127.0.0.1:3000) – the same AI, tools and questions · status, stop, port |
@@ -170,6 +170,11 @@ times come from Lotus, so the stopwatch goes on where it was after a reload. The
 your Mac, not by the page: close the tab and it works on – only the web chat has to run. Come back
 any time, also from another device; the sidebar marks the conversation it is working in.
 
+**Performance report.** `/performance` – in `/ai` or the web chat – writes the conversation into a `.txt`
+file: the AI and its settings, this Mac, the time and tokens of every step, how much the model read from its
+cache and how fast it wrote, where Lotus had to step in, and the logs of that time. The web chat downloads it,
+`/ai` saves it in Downloads. Hand it over to improve the AI – API keys are never in it.
+
 **Statistics.** `/stats` in `/ai` (or `/ai stats`) shows what the web chat is doing right now – and when
 it asks a question while no page is open, you answer it right there (`y`, `a`, `n`; `x` stops the
 answer). Below: answers, time working and thinking, steps, stopped and failed answers – today, in the
@@ -177,10 +182,17 @@ last 7 days and in all – the steps by tool, answers per day, terminal or web c
 counts and times are kept, never what was said. `/stats` in the web chat shows the same numbers.
 
 **Commands and settings.** Type `/` for the commands of `/ai`: `/help`, `/new`, `/clear`, `/model`,
-`/effort`, `/enhance`, `/auto`, `/permissions`, `/settings`, `/memory`, `/context`, `/stats`, `/compact`, `/copy`.
+`/effort`, `/enhance`, `/auto`, `/permissions`, `/settings`, `/memory`, `/context`, `/stats`, `/performance`, `/compact`, `/copy`.
 The gear opens the settings – who answers, thinking, improving prompts, ask first or auto, what the AI
 may do, what it remembers. They are the same Lotus settings as `/settings` in the terminal; the port,
 starting with the terminal and other devices can only be changed there.
+
+**It does not get stuck.** A step the AI already made, with nothing changed since, is not run again – the
+third time Lotus ends the tools for that answer. Thinking that repeats itself or goes on far too long is
+stopped and the AI is told to act. A `write_file` that would replace a long file with a few lines is not
+written; the AI is told to use `edit_file`. Tools called by other names (`open_file`, `bash`) run as the
+right tool, and gpt-oss keeps its plan from one tool step to the next. All of this was measured with the benchmark
+of [Nucifera](https://github.com/Fanxy13/nucifera-20b) – gpt-oss-20b tuned for Lotus.
 
 **It keeps going.** When the AI stops before it is done – it ran out of room, only thought, or said
 what it would do next and stopped there – Lotus lets it go on by itself, at most three times per

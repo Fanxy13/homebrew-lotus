@@ -61,11 +61,14 @@ enum Stats {
         lock.lock()
         guard let start = begun else { lock.unlock(); return }
         begun = nil
+        let summary: [String: Any] = ["secs": Run.tenths(Date().timeIntervalSince(start)), "thought": Run.tenths(thought),
+                                      "outcome": outcome, "steps": tools.values.reduce(0, +)]
         let line = [String(Int(start.timeIntervalSince1970)), place, clean(ai),
                     String(format: "%.1f", Date().timeIntervalSince(start)), String(format: "%.1f", thought), outcome,
                     tools.isEmpty ? "-" : tools.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined(separator: ",")]
             .joined(separator: "\t") + "\n"
         lock.unlock()
+        Renderer.shared.record("answer", summary)      // outside the lock: the renderer calls in here with its own
         append(line)
     }
 

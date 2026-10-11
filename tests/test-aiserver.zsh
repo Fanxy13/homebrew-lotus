@@ -37,7 +37,7 @@ for (( p = 39100 + RANDOM % 600; p < 39900; p++ )); do
   [[ $($bin --port-check $p) == free ]] || continue
   if (( ! mport )); then mport=p; else port=p; break; fi
 done
-python3 $LOTUS_ROOT/tests/fake-openai.py $mport &
+FAKE_LOG=$HOME/requests.jsonl python3 $LOTUS_ROOT/tests/fake-openai.py $mport &
 fake=$!
 lotus ai server port $port >/dev/null
 lotus_load
@@ -326,6 +326,74 @@ check_has "then it says why" "$out" 'The AI keeps running out of room'
 out=$(cd $HOME && lotus ai "please think too long" 2>&1)
 check_has "/ai in the terminal goes on too" "$out" 'Lotus lets it go on (1/3)'
 check_has "/ai: and finishes" "$out" 'Finished after going on.'
+setting LOTUS_AI_PERM_MODE ask >/dev/null
+
+# ── Stuck and going in circles: what small models do, and what Lotus does about it ──
+setting LOTUS_AI_PERM_MODE auto >/dev/null
+stuck=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+print -l "line "{1..50} >| $HOME/work/big.txt
+out=$(send_to $stuck "please cut the file short")
+check_has "write_file with only a part of a long file: not written" "$out" 'Not written: it would replace 50 lines with 1'
+check_eq "and the file is whole" "$(wc -l < $HOME/work/big.txt | tr -d ' ')" 50
+check_has "the AI is told to use edit_file" "$(tail -1 $HOME/requests.jsonl)" 'use edit_file'
+out=$(send_to $stuck "please search twice for the needle")
+check_has "the same step again: not run again" "$out" 'The same as before – not run again'
+check_has "the third time: the tools stop for this answer" "$out" 'Lotus stopped the tools for this answer'
+check_has "and the AI is told it goes in circles" "$(tail -1 $HOME/requests.jsonl)" 'you are going in circles'
+check_has "then it answers" "$out" 'Done with the steps.'
+out=$(send_to $stuck "please use the alias")
+check_has "a tool by another name (open_file): runs as read_file" "$out" '"name":"Read"'
+check_has "on the file it meant" "$out" '"detail":"raw.txt"'
+check "with file_path for path" eval '[[ $out != *"left out path"* && $out != *"There is no tool with this name"* ]]'
+check_has "the model learns the right name" "$(tail -1 $HOME/requests.jsonl)" 'There is no tool open_file'
+out=$(send_to $stuck "make a page and paste the code")
+check_has "code in the chat instead of files: it is told to write them" "$out" 'It put the code into the chat instead of creating the files'
+check_has "and it does" "$out" 'Created the files now.'
+out=$(send_to $stuck "please think in circles")
+check_has "thinking in circles: stopped, and it is told to act" "$out" 'Its thinking went in circles'
+check_has "then it acts" "$out" 'Acting now.'
+check "it was cut off before the end" eval '[[ $out != *"never be reached"* ]]'
+: >| $HOME/requests.jsonl
+out=$(send_to $stuck "please think then look")
+check_has "thinking then a tool: done" "$out" 'Done with the steps.'
+check_has "a model on this Mac gets its thinking back with the tool call" "$(<$HOME/requests.jsonl)" '"reasoning_content": "I will look at the folder first."'
+# gpt-oss: the thinking with the call, one call per message, as its chat template wants it
+LOTUS_AI_MODEL=gpt-oss-test; lotus_save
+: >| $HOME/requests.jsonl
+out=$(cd $HOME/work && lotus ai "please think then look" 2>&1)
+check_has "gpt-oss in /ai: done" "$out" 'Done with the steps.'
+check "gpt-oss gets its thinking back as thinking, the call in a message of its own" python3 -c '
+import json, sys
+reqs = [json.loads(l) for l in open(sys.argv[1])]
+calls = [m for r in reqs for m in r["messages"] if m.get("role") == "assistant" and m.get("tool_calls")]
+ok = calls and all(len(m["tool_calls"]) == 1 for m in calls) and calls[-1].get("thinking") == "I will look at the folder first." and calls[-1]["content"] == ""
+sys.exit(0 if ok else 1)' $HOME/requests.jsonl
+LOTUS_AI_MODEL=test-model; lotus_save
+check "every request reads the same: the tool list in the same order (so a model on this Mac can reuse its cache)" python3 -c '
+import json, sys
+tools = {json.dumps(json.loads(l)["tools"]) for l in open(sys.argv[1]) if "\"tools\"" in l}
+sys.exit(0 if len(tools) == 1 else 1)' $HOME/requests.jsonl
+out=$(send_to $stuck "hello again")
+check_has "every model request is measured" "$out" '"type":"model"'
+check_has "with the time to the first token" "$out" '"first":'
+
+# ── /performance: the conversation as a report in a text file ──
+rep=$(curl -s -m 10 $H $B/api/chats/$stuck/performance)
+check_has "the report: the setup" "$rep" "═══ SETUP ═══"
+check_has "the AI and this Mac" "$rep" "AI:"
+check_has "the totals" "$rep" "Model requests:"
+check_has "where Lotus stepped in: the repeated steps" "$rep" "steps repeated: 2"
+check_has "and the file it did not cut short" "$rep" "files not cut short: 1"
+check_has "every step" "$rep" "STEP Write big.txt"
+check_has "every model request with its numbers" "$rep" "model request 1:"
+check_has "the Lotus log of that time" "$rep" "═══ LOTUS LOG"
+check "no API key in it" eval '[[ $rep != *sk-lotus-test-secret* ]]'
+check_has "it comes with a file name" "$(curl -s -m 10 -D - -o /dev/null $H $B/api/chats/$stuck/performance)" "X-Lotus-File: lotus-performance-please-cut-the-file-short-"
+check_eq "an unknown conversation: none" "$(code $H $B/api/chats/aaaaaaaaaaaa/performance)" 404
+# one question in the terminal, with the report for a benchmark (LOTUS_AI_PERFORMANCE)
+out=$(cd $HOME/work && LOTUS_AI_PERFORMANCE=$HOME/perf.txt lotus ai "please think then look" 2>&1)
+check_has "/ai: the report of one question" "$(<$HOME/perf.txt)" "STEP List"
+check "/ai: and its steps as data" python3 -c 'import json,sys; m=json.load(open(sys.argv[1]))["messages"]; sys.exit(0 if any(e.get("type")=="model" for x in m for e in x.get("events",[])) else 1)' $HOME/perf.txt.json
 setting LOTUS_AI_PERM_MODE ask >/dev/null
 
 # memory, context, compact

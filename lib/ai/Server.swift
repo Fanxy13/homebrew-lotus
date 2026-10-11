@@ -858,6 +858,8 @@ final class WebServer: @unchecked Sendable {
             guard Memory.clear() else { return problem(c, 500, "The memory file could not be written") }
             lock.lock(); needsReset = true; lock.unlock()
             json(c, 200, memoryJSON())
+        case ("GET", let p) where p.count == 3 && p[0] == "chats" && p[2] == "performance":
+            performance(c, p[1])
         case ("GET", ["stats"]):
             // /stats: what the AI did – the same view as lotus ai stats in the terminal
             json(c, 200, ["text": Stats.lines(width: 74, live: false).map { ToolRunner.plain($0) }.joined(separator: "\n")])
@@ -1193,6 +1195,22 @@ final class WebServer: @unchecked Sendable {
         let home = NSHomeDirectory()
         let path = Memory.path.map { $0.hasPrefix(home) ? "~" + $0.dropFirst(home.count) : $0 } ?? ""
         return ["facts": Memory.facts(), "path": path]
+    }
+
+    // /performance: the conversation as a report in a text file – with the answer that is being written
+    private func performance(_ c: Conn, _ id: String) {
+        guard ChatStore.valid(id), let chat = store.load(id) else { return problem(c, 404, "This conversation does not exist") }
+        var messages = chat["messages"] as? [[String: Any]] ?? []
+        lock.lock()
+        let run = active
+        lock.unlock()
+        if let r = run, !r.done, r.chat == id {
+            messages.append(["role": "assistant", "events": r.kept, "ai": agent.provider.label + " – still answering", "time": Date().timeIntervalSince1970])
+        }
+        guard !messages.isEmpty else { return problem(c, 404, "Nothing in this conversation yet") }
+        let title = chat["title"] as? String ?? ""
+        let report = Perf.report(messages: messages, title: title, setup: Perf.setup(agent, place: "web chat"))
+        respond(c, 200, "text/plain; charset=utf-8", Data(report.utf8), ["X-Lotus-File: \(Perf.fileName(title))"])
     }
 
     // How full the conversation's memory is (/context)

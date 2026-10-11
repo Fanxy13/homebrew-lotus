@@ -194,7 +194,8 @@ final class Agent {
 
     func systemPrompt(tools: Bool) -> String {
         let os = ProcessInfo.processInfo.operatingSystemVersion
-        let date = DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .short)
+        // the date without the time: the instructions read the same all day, so a model on this Mac reuses what it read
+        let date = DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)
         let home = NSHomeDirectory()
         let dir = cwd.path == home ? "~" : cwd.path.hasPrefix(home + "/") ? "~/" + cwd.path.dropFirst(home.count + 1) : cwd.path
         let lotusTools = ToolCatalog.lotus.map(\.name).joined(separator: ", ")
@@ -216,6 +217,7 @@ final class Agent {
         }
         if browser { parts.append("browser") }
         if config.effort == "ultra" && !provider.isSmall { parts.append("ultra") }
+        if nucifera && !provider.isSmall { parts.append("nucifera") }
         var p = parts.compactMap { s[$0] }.map(fill).joined(separator: "\n\n")
         if p.isEmpty {
             // the file is missing: still a sensible start
@@ -265,6 +267,14 @@ final class Agent {
 
     var autoMode: Bool { usesTools && runner.permissions.auto }
 
+    // Nucifera: gpt-oss on this Mac, with a profile of its own ("## nucifera" in data/ai/system.md) – measured and
+    // improved with the benchmark of github.com/Fanxy13/nucifera-20b
+    var nucifera: Bool {
+        let id = (config.model + " " + provider.label + " " + (ProcessInfo.processInfo.environment["LOTUS_AI_LOCAL"] ?? "")).lowercased()
+        let local = config.provider == "local" || ["127.0.0.1", "localhost", "::1"].contains(URL(string: config.openaiURL)?.host ?? "")
+        return local && (id.contains("gpt-oss") || id.contains("nucifera"))
+    }
+
     // ⇧⇥ in the input box: auto mode on or off, kept in the settings
     func toggleAuto() {
         guard usesTools else { return }
@@ -289,6 +299,9 @@ final class Agent {
 
     // One message from the user, with all tool steps. `improve`: the message may be improved first (/enhance)
     func ask(_ text: String, tools: Bool = true, improve: Bool = true) async {
+        // /performance in the terminal: this session's messages and what happened (the web chat keeps its own)
+        if !browser { SessionLog.shared.user(text) }
+        defer { if !browser { SessionLog.shared.end(ai: provider.label) } }
         var text = text
         if improve && enhanceMode != "off" {
             if let why = Enhance.skip(text) {
@@ -300,6 +313,8 @@ final class Agent {
         }
         // counted for /stats: how long, how many steps, how it ended
         var outcome = "done"
+        runner.beginAnswer()
+        (provider as? OpenAIProvider)?.warmer = false
         Stats.begin(browser ? "web" : "terminal")
         defer { Stats.end(outcome, ai: provider.label) }
         if !conversation.turns.isEmpty && provider.usedTokens > provider.budget * 3 / 4 {
@@ -325,7 +340,8 @@ final class Agent {
             case .success(let part):
                 if !part.isEmpty { answer.append(part) }
                 // it stopped before it was done: Lotus lets it go on, a few times
-                if rounds < goOnRounds, let go = goOn(part, worked: !self.runner.actions.isEmpty, canAct: runner != nil) {
+                let wrote = self.runner.actions.contains { $0.hasPrefix("Created") || $0.hasPrefix("Updated") || $0.hasPrefix("Edited") }
+                if rounds < goOnRounds, let go = goOn(part, request: text, worked: !self.runner.actions.isEmpty, wrote: wrote, canAct: runner != nil) {
                     rounds += 1
                     Log.write("INFO", "The AI stopped too early (\(go.why)) – going on \(rounds)/\(goOnRounds)")
                     Renderer.shared.info("↻ \(go.why) – Lotus lets it go on (\(rounds)/\(goOnRounds))")
@@ -372,9 +388,22 @@ final class Agent {
     var goOnRounds: Int { config.effort == "ultra" ? 6 : 3 }
 
     // Why it stopped too early, and what Lotus tells it so it goes on – nil when it is done
-    private func goOn(_ part: String, worked: Bool, canAct: Bool) -> (why: String, message: String, brief: Bool)? {
+    private func goOn(_ part: String, request: String, worked: Bool, wrote: Bool, canAct: Bool) -> (why: String, message: String, brief: Bool)? {
         let language = " Keep answering in the language of the user's request."
         switch provider.stopped {
+        case .overthought:
+            let plan = provider.lastThoughts.trimmingCharacters(in: .whitespacesAndNewlines).suffix(2500)
+            if let p = provider as? OpenAIProvider, p.circled {
+                p.warmer = true
+                return ("Its thinking went in circles",
+                        "Your thinking went in circles – you repeated the same words over and over, so it was cut off. Do not plan any "
+                            + "further: take the next step now with a tool (write files directly with write_file) or give your answer, in "
+                            + "different words than before." + language, true)
+            }
+            return ("It thought for a long time without acting",
+                    "You thought for a long time without doing anything, so your thinking was cut off. Stop planning and act now: take "
+                        + "the next step with a tool – write files directly with write_file, never draft them in your thinking – or give "
+                        + "your answer. Think briefly from here on. The end of your thinking so far:\n" + plan + language, true)
         case .ranOut:
             return ("It ran out of room before it was done",
                     "You ran out of room before you were done. Continue exactly where you stopped and finish the task – think briefly, "
@@ -392,6 +421,11 @@ final class Agent {
                 return ("It stopped at the next step it announced",
                         "You said what you would do next, but you stopped. Do it now with the tools, then go on until the whole task is done." + language, false)
             }
+            if !wrote, canAct, Agent.pastedCode(part), Agent.wantsWork(request) {
+                return ("It put the code into the chat instead of creating the files",
+                        "You wrote the code into your answer but created no files. Create them now with write_file – each file complete, "
+                            + "one file per call, in a sensible folder (say which) – then check them. Do not repeat the code in the chat." + language, false)
+            }
             if !worked, canAct, Agent.asksToDo(part) {
                 return ("It asked whether it should instead of doing it",
                         "Do not ask whether you should – the user asked for it, and Lotus asks the user itself before anything that needs "
@@ -400,6 +434,21 @@ final class Agent {
             }
             return nil
         }
+    }
+
+    // Files in the answer instead of on the disk: two code blocks of 15 lines or more, or one of 60
+    static func pastedCode(_ text: String) -> Bool {
+        let blocks = text.components(separatedBy: "```").enumerated().filter { $0.offset % 2 == 1 }.map { $0.element.components(separatedBy: "\n").count }
+        let big = blocks.filter { $0 >= 15 }
+        return big.count >= 2 || big.contains { $0 >= 60 }
+    }
+
+    // The user asked to make something (not to explain or show how)
+    static func wantsWork(_ request: String) -> Bool {
+        let t = String(request.prefix(6000)).lowercased()
+        let make = #"\b(build|create|make|write|generate|develop|implement|code|program|set up|erstell\w*|bau\w*|mach\w*|schreib\w*|programmier\w*|entwick\w*|generier\w*|cr[ée]\w*|construi\w*|fais|faire|[ée]cri\w*|d[ée]velopp\w*|crea\w*|construy\w*|haz|hacer|escrib\w*|desarroll\w*)\b"#
+        let explain = #"\b(explain|show me how|how (do|would|can|could) (i|you)|example of|erklär\w*|zeig mir wie|wie (kann|würde|mache) ich|beispiel für|explique|comment (faire|puis)|explica|cómo (puedo|hago))\b"#
+        return t.range(of: make, options: .regularExpression) != nil && t.range(of: explain, options: .regularExpression) == nil
     }
 
     // A short answer that only asks whether it should do the work ("Would you like me to create the files?",
@@ -454,6 +503,10 @@ final class Agent {
             return nil
         case .stepLimit:
             Renderer.shared.info("It took many steps and stopped – say \"go on\" to let it continue.")
+            return nil
+        case .overthought:
+            Renderer.shared.error("The AI keeps thinking without acting",
+                                  "Lotus stopped its thinking several times. Make it think less with /effort, or give it a smaller step.")
             return nil
         }
     }
@@ -676,6 +729,7 @@ enum TUI {
         SlashCommand(name: "/context", help: "how full the memory is"),
         SlashCommand(name: "/memory", help: "what I remember about you – /memory clear forgets it"),
         SlashCommand(name: "/stats", help: "what the AI did, and what the web chat is doing right now"),
+        SlashCommand(name: "/performance", help: "this session as a report in a .txt file – times, tokens, every step"),
         SlashCommand(name: "/copy", help: "copy the last answer"),
         SlashCommand(name: "/exit", help: "back to the shell"),
     ]
@@ -754,6 +808,7 @@ enum TUI {
             return 1
         }
         welcome(agent)
+        Renderer.shared.recorder = { SessionLog.shared.event($0, $1) }
         let box = InputBox(keys: keys, commands: commands, historyFile: config.stateDir.appendingPathComponent("history"))
         box.status = { agent.statusText }
         box.autoMode = { agent.autoMode }
@@ -823,6 +878,23 @@ enum TUI {
             Out.shared.write(out + "\n")
         case "/stats", "/statistics":
             await Stats.live(keys)
+        case "/performance", "/perf", "/report":
+            let msgs = SessionLog.shared.messages
+            guard !msgs.isEmpty else {
+                Renderer.shared.info("Nothing to report yet – ask something first. The report covers this session of /ai.")
+                emit("\n")
+                break
+            }
+            let title = (msgs.first?["text"] as? String ?? "").split(separator: "\n").first.map { String($0.prefix(60)) } ?? ""
+            let report = Perf.report(messages: msgs, title: title, setup: Perf.setup(agent, place: "/ai in the terminal"))
+            if let url = Perf.save(report, title: title) {
+                let home = NSHomeDirectory()
+                let shown = url.path.hasPrefix(home) ? "~" + url.path.dropFirst(home.count) : url.path
+                Renderer.shared.info("Saved: \(shown) (\(max(1, report.utf8.count / 1024)) KB) – this session step by step, with the numbers of every model request and the Lotus log.")
+            } else {
+                Renderer.shared.error("The report could not be saved", "~/Downloads is not writable.")
+            }
+            emit("\n")
         case "/context":
             let used = agent.provider.usedTokens, budget = agent.provider.budget
             var out = "  \(Style.bold)Memory\(Style.reset)  \(agent.provider.label)\n"
@@ -1143,8 +1215,17 @@ struct LotusAI {
             defer { RawMode.disable() }
             do {
                 let agent = try Agent(config: config, keys: keys, memory: true)
+                Renderer.shared.recorder = { SessionLog.shared.event($0, $1) }
                 emit("\n")
                 await agent.ask(prompt)
+                // a benchmark (nucifera-20b/bench) asks for the report of this one answer
+                if let path = ProcessInfo.processInfo.environment["LOTUS_AI_PERFORMANCE"], path.hasPrefix("/") {
+                    let messages = SessionLog.shared.messages
+                    let report = Perf.report(messages: messages, title: String(prompt.prefix(60)), setup: Perf.setup(agent, place: "lotus ai (one question)"))
+                    FileManager.default.createFile(atPath: path, contents: Data(report.utf8), attributes: [.posixPermissions: 0o600])
+                    // and every step as data, for the benchmark to score
+                    FileManager.default.createFile(atPath: path + ".json", contents: HTTP.json(["messages": messages]), attributes: [.posixPermissions: 0o600])
+                }
             } catch let e as AIError {
                 Renderer.shared.error(e.title, e.detail)
                 RawMode.disable()

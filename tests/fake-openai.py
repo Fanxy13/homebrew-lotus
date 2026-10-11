@@ -12,6 +12,11 @@
 # cannot be repaired and then stops without a word (Lotus lets it go on).
 # "break off" ends the stream in the middle, like a model server that crashed.
 # "in the background" runs a command that leaves a program running (sleep 20 &) – the step must not wait for it.
+# Going wrong the way small models do: "cut the file short" writes 1 line over big.txt (50 lines), "search twice"
+# makes the same search again and again, "alias" calls open_file with file_path, "paste the code" puts two files
+# into the answer instead of writing them, "think in circles" thinks the same sentence over and over,
+# "think then look" thinks and lists the folder (its thinking must come back with the tool call).
+# With FAKE_LOG set, every request is appended to that file (one JSON per line).
 # "take your time" thinks for about 3 seconds (its thoughts come in pieces), then answers "Took my time." –
 # long enough to close the page in between.
 # "how hard" gets back how it was asked to think (a model on this Mac gets it with every message) and
@@ -19,6 +24,7 @@
 # Asked to improve a prompt (data/ai/system.md "## enhance"), it answers "Goal: <the request>" – or fails
 # with an error when the request contains "fail-enhance".
 import json
+import os
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -38,6 +44,10 @@ class Model(BaseHTTPRequestHandler):
         said = next((t for t in reversed(asked) if not t.startswith(("You ran out of room", "You said what you would do next",
                                                                         "You only thought", "Continue the task"))), "")
         nudge = str(last.get("content", "")) if last.get("role") == "user" else ""
+        if os.environ.get("FAKE_LOG"):
+            with open(os.environ["FAKE_LOG"], "a") as f:
+                f.write(json.dumps(body) + "\n")
+        tools_done = sum(1 for m in messages[[i for i, m in enumerate(messages) if m.get("role") == "user"][-1]:] if m.get("role") == "tool")
         if improving and "fail-enhance" in request:
             self.send_response(500)
             self.send_header("Content-Type", "application/json")
@@ -83,6 +93,42 @@ class Model(BaseHTTPRequestHandler):
             chunk({"tool_calls": [call]})
             chunk({}, "tool_calls")
         elif last.get("role") == "tool" and "broken call" in said:
+            chunk({}, "stop")
+        elif nudge.startswith(("You thought for a long time", "Your thinking went in circles")):
+            chunk({"content": "Acting now."})
+            chunk({}, "stop")
+        elif nudge.startswith("You wrote the code into your answer"):
+            chunk({"content": "Created the files now."})
+            chunk({}, "stop")
+        elif "think in circles" in said and last.get("role") == "user":
+            for i in range(200):
+                chunk({"reasoning_content": "I need to decide how to start, so let me consider the options for the page once more. "})
+            chunk({"content": "This should never be reached."})
+            chunk({}, "stop")
+        elif "paste the code" in said and last.get("role") == "user":
+            page = "\n".join("<p>line %d</p>" % i for i in range(20))
+            style = "\n".join("p.l%d { color: red; }" % i for i in range(20))
+            chunk({"content": "Here is the page:\n\n```html\n" + page + "\n```\n\nAnd the style:\n\n```css\n" + style + "\n```\n\nSave them as index.html and style.css."})
+            chunk({}, "stop")
+        elif body.get("tools") and "cut the file short" in said and last.get("role") == "user":
+            call = {"index": 0, "id": "call_s", "type": "function", "function": {"name": "write_file", "arguments": json.dumps({"path": "big.txt", "content": "just one line\\n"})}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif body.get("tools") and "search twice" in said and last.get("role") in ("user", "tool") and tools_done < 3:
+            call = {"index": 0, "id": "call_t%d" % tools_done + "", "type": "function", "function": {"name": "search_files", "arguments": json.dumps({"pattern": "needle"})}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif body.get("tools") and "alias" in said and last.get("role") == "user":
+            call = {"index": 0, "id": "call_o", "type": "function", "function": {"name": "open_file", "arguments": json.dumps({"file_path": "raw.txt"})}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif body.get("tools") and "think then look" in said and last.get("role") == "user":
+            chunk({"reasoning_content": "I will look at the folder first."})
+            call = {"index": 0, "id": "call_l", "type": "function", "function": {"name": "list_directory", "arguments": json.dumps({"path": "."})}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif last.get("role") == "tool" and ("cut the file short" in said or "search twice" in said or "think then look" in said):
+            chunk({"content": "Done with the steps."})
             chunk({}, "stop")
         elif "take your time" in said and last.get("role") == "user":
             for i in range(6):

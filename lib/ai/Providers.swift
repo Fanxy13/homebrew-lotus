@@ -16,7 +16,7 @@ struct AIError: Error {
 struct ContextFull: Error {}
 
 // Why an answer ended – the agent lets the AI go on when it stopped before it was done (App.swift)
-enum Stop { case done, ranOut, thoughtsOnly, empty, stepLimit }
+enum Stop { case done, ranOut, thoughtsOnly, empty, stepLimit, overthought }
 
 protocol Provider: AnyObject {
     var label: String { get }
@@ -70,8 +70,11 @@ enum HTTP {
         return URLSession(configuration: c)
     }()
 
+    // Keys sorted: a dictionary of Swift has no fixed order, and a request must read the same every time – a model
+    // server on this Mac reuses what it already read only when the prompt begins exactly the same (the tool list
+    // is near its top: in another order, every step read the whole conversation again)
     static func json(_ object: Any) -> Data {
-        (try? JSONSerialization.data(withJSONObject: object, options: [])) ?? Data()
+        (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
     }
 
     static func parse(_ s: String) -> [String: Any]? {
@@ -708,9 +711,26 @@ final class OpenAIProvider: Provider {
     // (gpt-oss knows low, medium and high; others only thinking on or off)
     private var thinking: [String: Any] {
         guard onThisMac else { return [:] }
-        if briefThinking || effort == "low" { return ["chat_template_kwargs": ["reasoning_effort": "low", "enable_thinking": false]] }
+        // gpt-oss reads its reasoning level at the very top of its prompt: changing it for a "go on" would make the
+        // model read the whole conversation again (a minute in a long one) – it keeps its level, and the shorter
+        // thinking limit and the message tell it to think briefly
+        if (briefThinking && !harmony) || effort == "low" { return ["chat_template_kwargs": ["reasoning_effort": "low", "enable_thinking": false]] }
         return ["chat_template_kwargs": ["reasoning_effort": effort == "medium" ? "medium" : "high", "enable_thinking": true]]
     }
+
+    // The creativity of a model on this Mac (lotus ai local settings) goes with every request – a change counts at
+    // once, without starting the model again. Read from the settings file, so the web chat follows /settings too.
+    private var sampling: [String: Any] {
+        guard onThisMac else { return [:] }
+        let saved = SettingsFile.read(), e = ProcessInfo.processInfo.environment
+        guard let t = Double(saved["LOTUS_AI_TEMP"] ?? e["LOTUS_AI_TEMP"] ?? ""), (0...2).contains(t) else { return [:] }
+        let p = Double(saved["LOTUS_AI_TOP_P"] ?? e["LOTUS_AI_TOP_P"] ?? "") ?? 0.95
+        // it went in circles: more variety for the rest of this answer gets it out (repetition is what low temperatures do)
+        if warmer { return ["temperature": max(t, 1.0), "top_p": 1.0] }
+        return ["temperature": t, "top_p": min(1, max(0.05, p))]
+    }
+    var warmer = false               // set by the agent for one answer, after the thinking went in circles
+    private(set) var circled = false  // the last request was stopped because its thinking repeated itself
 
     // A model on this Mac (lotus ai local) brings its own name and context window
     var label: String {
@@ -718,7 +738,49 @@ final class OpenAIProvider: Provider {
         return "\(model) · \(URL(string: base)?.host ?? base)"
     }
     var budget: Int { Int(ProcessInfo.processInfo.environment["LOTUS_AI_CONTEXT"] ?? "").map { max(4096, $0) } ?? 100_000 }
-    var usedTokens: Int { messages.reduce(0) { $0 + "\($1["content"] ?? "")".count } / 4 }
+    // what a model on this Mac reported for the last request, else an estimate
+    var usedTokens: Int { reported > 0 ? reported : messages.reduce(0) { $0 + "\($1["content"] ?? "")".count + "\($1["thinking"] ?? "")".count } / 4 }
+    private var reported = 0
+
+    // gpt-oss (its harmony format): one tool call per message, and it keeps its thinking for the calls of an answer
+    private var harmony: Bool { model.lowercased().contains("gpt-oss") || label.lowercased().contains("gpt-oss") }
+
+    // Thinking without end: a model on this Mac can think for many minutes – drafting whole files in its head,
+    // or going round in circles. Longer than this (characters) without acting, and Lotus stops it and lets it act.
+    // Measured on gpt-oss-20b (nucifera-20b benchmark): a step that helps rarely needs more than 10,000 characters of
+    // thinking; at about 18 tokens per second, 22,000 are five minutes
+    private var thinkLimit: Int {
+        if briefThinking { return 6_000 }
+        switch effort {
+        case "low": return 6_000
+        case "medium": return 10_000
+        case "max": return 18_000
+        case "ultra": return 22_000
+        default: return 14_000
+        }
+    }
+
+    // The thinking of a step, given back with its tool call (the end of it, where the plan for the next steps is)
+    private static func kept(_ thoughts: String, _ text: String) -> String {
+        var t = (thoughts + (text.isEmpty ? "" : "\n\n" + text)).trimmingCharacters(in: .whitespacesAndNewlines)
+        t = t.replacingOccurrences(of: "<|", with: "<")
+        return t.count > 8000 ? "…" + String(t.suffix(8000)) : t
+    }
+
+    // The thinking repeats itself: the last part of it is already there twice before
+    static func circles(_ thoughts: String) -> Bool {
+        guard thoughts.utf8.count > 6000 else { return false }
+        let tail = String(thoughts.suffix(240))
+        guard tail.trimmingCharacters(in: .whitespacesAndNewlines).count > 120 else { return false }
+        var count = 0
+        var from = thoughts.startIndex
+        while let r = thoughts.range(of: tail, range: from..<thoughts.endIndex) {
+            count += 1
+            if count >= 3 { return true }
+            from = r.upperBound
+        }
+        return false
+    }
     var isSmall: Bool { budget <= 16_384 }
 
     func reset(system: String, history: [Turn]) {
@@ -736,10 +798,11 @@ final class OpenAIProvider: Provider {
         var rawCalls: [[String: Any]] = []
     }
 
-    private func stream(_ msgs: [[String: Any]], tools: Bool, render: Bool, extra: [String: Any] = [:]) async throws -> Reply {
+    private func stream(_ msgs: [[String: Any]], tools: Bool, render: Bool, extra: [String: Any] = [:], thinkLimit: Int = 0) async throws -> Reply {
         guard let url = URL(string: base + "/chat/completions") else { throw AIError(title: "The AI URL is not valid", detail: base) }
         while true {
             var b: [String: Any] = ["model": model, "messages": msgs, "stream": true]
+            if onThisMac { b["stream_options"] = ["include_usage": true] }     // how much of the prompt came from its cache
             b.merge(extra) { _, new in new }
             if tools && toolsWork {
                 b["tools"] = ToolCatalog.all.map {
@@ -748,6 +811,7 @@ final class OpenAIProvider: Provider {
             }
             let req = HTTP.request(url, body: HTTP.json(b), headers: ["Authorization": "Bearer \(key)"])
             let bytes: URLSession.AsyncBytes, status: Int, errBody: String
+            let asked = Date()       // for /performance: a model server on this Mac reads the prompt before it answers
             do {
                 (bytes, status, errBody) = try await HTTP.open(req)
             } catch {
@@ -774,13 +838,39 @@ final class OpenAIProvider: Provider {
                 }
             }
             var ended = false        // [DONE] or a finish reason – without either, the server broke off
+            var nextCheck = 6000     // when to look again whether the thinking goes round in circles
+            let began = Date()       // the answer begins: how long until the first token, and in all
+            var first: Date?
+            var usage: (prompt: Int, cached: Int, made: Int)?
             for try await line in bytes.lines {
                 guard line.hasPrefix("data:") else { continue }
                 let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
                 if payload == "[DONE]" { ended = true; break }
-                guard let j = HTTP.parse(payload), let choice = (j["choices"] as? [[String: Any]])?.first else { continue }
+                guard let j = HTTP.parse(payload) else { continue }
+                if let u = j["usage"] as? [String: Any], let prompt = u["prompt_tokens"] as? Int {
+                    let made = u["completion_tokens"] as? Int ?? 0
+                    let cached = (u["prompt_tokens_details"] as? [String: Any])?["cached_tokens"] as? Int ?? 0
+                    if render { reported = prompt + made }
+                    usage = (prompt, cached, made)
+                    Log.write("DEBUG", "Model: \(prompt) prompt tokens (\(cached) from its cache), \(made) written")
+                }
+                // thinking for too long, or in circles, before it acted or answered: stopped here, the agent lets it act
+                if thinkLimit > 0, reply.text.isEmpty, parts.isEmpty, split.calls.isEmpty {
+                    let n = reply.thoughts.utf8.count
+                    var stop = n > thinkLimit
+                    if !stop && n > nextCheck { nextCheck = n + 3000; stop = OpenAIProvider.circles(reply.thoughts); circled = stop }
+                    if stop {
+                        Log.write("INFO", "The AI thought \(n) characters without acting\(n > thinkLimit ? "" : " and went in circles") – stopped it")
+                        bytes.task.cancel()
+                        reply.finish = "overthought"
+                        ended = true
+                        break
+                    }
+                }
+                guard let choice = (j["choices"] as? [[String: Any]])?.first else { continue }
                 if let f = choice["finish_reason"] as? String { reply.finish = f; ended = true }
                 guard let d = choice["delta"] as? [String: Any] else { continue }
+                if first == nil && !d.isEmpty { first = Date() }
                 if let r = (d["reasoning_content"] ?? d["reasoning"]) as? String, !r.isEmpty {
                     reply.thoughts += r
                     if render { Renderer.shared.thinkingDelta(r) }
@@ -798,6 +888,19 @@ final class OpenAIProvider: Provider {
                 }
             }
             take(split.flush())
+            if render {
+                // what this request cost: kept with the answer for /performance
+                let secs = Date().timeIntervalSince(asked)
+                let ttft = first.map { $0.timeIntervalSince(asked) } ?? secs
+                let calls = split.calls.count + parts.count
+                Renderer.shared.record("model", [
+                    "prompt": usage?.prompt ?? -1, "cached": usage?.cached ?? -1,
+                    "wrote": usage?.made ?? (reply.thoughts.count + reply.text.count) / 4, "estimated": usage == nil,
+                    "first": Run.tenths(ttft), "secs": Run.tenths(secs), "answered": Run.tenths(began.timeIntervalSince(asked)),
+                    "thinking": reply.thoughts.count, "text": reply.text.count,
+                    "calls": calls, "finish": reply.finish.isEmpty ? (ended ? "end" : "broke off") : reply.finish,
+                ])
+            }
             if Task.isCancelled { throw CancellationError() }
             if !ended { throw brokeOff() }
             // gpt-oss writes its tool calls as text (see ChannelSplit)
@@ -826,10 +929,16 @@ final class OpenAIProvider: Provider {
         stopped = .stepLimit
         lastThoughts = ""
         // going on after it ran out of room: a model on this Mac thinks briefly (see rewrite)
-        let thinking = self.thinking
         var acted = false          // a tool call that worked – then a quiet end is the end
+        circled = false
         for _ in 0..<40 {
-            let reply = try await stream(messages, tools: tools != nil, render: true, extra: thinking)
+            let reply = try await stream(messages, tools: tools != nil, render: true, extra: self.thinking.merging(sampling) { a, _ in a }, thinkLimit: thinkLimit)
+            if reply.finish == "overthought" {
+                stopped = .overthought
+                lastThoughts = reply.thoughts
+                Renderer.shared.endBlock()
+                break
+            }
             guard let tools = tools, !reply.calls.isEmpty else {
                 // the end of this message – done, or it stopped too early (the agent lets it go on)
                 stopped = EmptyReply.stop(finish: reply.finish, text: reply.text, thoughts: reply.thoughts, said: acted || !answer.isEmpty)
@@ -840,12 +949,29 @@ final class OpenAIProvider: Provider {
                 }
                 break
             }
-            messages.append(["role": "assistant", "content": reply.text, "tool_calls": reply.rawCalls])
             if !reply.text.isEmpty { answer.append(reply.text) }
             Renderer.shared.endBlock()
-            for (call, out) in await runCalls(reply.calls, tools) {
-                messages.append(["role": "tool", "tool_call_id": call.id, "content": out.isError ? "Error: " + out.text : out.text])
-                if !out.isError { acted = true }
+            let results = await runCalls(reply.calls, tools)
+            if harmony {
+                // gpt-oss: each call in a message of its own, the first with the thinking that led to it – so the
+                // model keeps its plan from step to step instead of starting over after every tool
+                for (i, (call, out)) in results.enumerated() {
+                    var m: [String: Any] = ["role": "assistant", "content": "", "tool_calls": [reply.rawCalls[i]]]
+                    let t = i == 0 ? OpenAIProvider.kept(reply.thoughts, reply.text) : ""
+                    if !t.isEmpty { m["thinking"] = t }
+                    messages.append(m)
+                    messages.append(["role": "tool", "tool_call_id": call.id, "content": out.isError ? "Error: " + out.text : out.text])
+                    if !out.isError { acted = true }
+                }
+            } else {
+                var m: [String: Any] = ["role": "assistant", "content": reply.text, "tool_calls": reply.rawCalls]
+                // other models on this Mac (Qwen …) read their thinking of this answer from reasoning_content
+                if onThisMac && !reply.thoughts.isEmpty { m["reasoning_content"] = OpenAIProvider.kept(reply.thoughts, "") }
+                messages.append(m)
+                for (call, out) in results {
+                    messages.append(["role": "tool", "tool_call_id": call.id, "content": out.isError ? "Error: " + out.text : out.text])
+                    if !out.isError { acted = true }
+                }
             }
             if Task.isCancelled { throw CancellationError() }
             Spinner.shared.start("Thinking")

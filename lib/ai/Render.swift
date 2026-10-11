@@ -414,6 +414,21 @@ final class Renderer: @unchecked Sendable {
     // The web chat (Server.swift): every block becomes an event for the browser instead of terminal output
     var sink: ((String, [String: Any]) -> Void)?
     private var webText = false  // a text block is open in the web chat
+    // /ai in the terminal keeps the same events for /performance (Perf.swift); the web chat keeps them with the answer
+    var recorder: ((String, [String: Any]) -> Void)?
+
+    // To the web chat (true: nothing else to do), or noted for /performance in the terminal
+    private func send(_ type: String, _ data: [String: Any]) -> Bool {
+        if let sink = sink { sink(type, data); return true }
+        recorder?(type, data)
+        return false
+    }
+
+    // Something worth keeping for /performance that is not shown (the numbers of a model request)
+    func record(_ type: String, _ data: [String: Any]) {
+        lock.lock(); defer { lock.unlock() }
+        _ = send(type, data)
+    }
 
     func textDelta(_ s: String) {
         guard !s.isEmpty else { return }
@@ -424,6 +439,7 @@ final class Renderer: @unchecked Sendable {
             sink("text", ["text": s])
             return
         }
+        recorder?("text", ["text": s])
         closeThinking()
         if quiet { emit(s); return }
         if text == nil { text = MarkdownStream(bullet: Style.logo + "● " + Style.reset) }
@@ -441,6 +457,7 @@ final class Renderer: @unchecked Sendable {
             sink("thinking", ["text": s])
             return
         }
+        recorder?("thinking", ["text": s])
         if thinkingStarted == nil {
             closeText()
             thinkingStarted = Date()
@@ -462,6 +479,7 @@ final class Renderer: @unchecked Sendable {
             thinkingStarted = nil
             Stats.thinking(Date().timeIntervalSince(started))
             let secs = Int(Date().timeIntervalSince(started))
+            recorder?("thought", ["secs": max(1, secs)])
             emit("\(Style.dim)✻ thought for \(max(1, secs))s\(Style.reset)\n")
         }
     }
@@ -491,14 +509,14 @@ final class Renderer: @unchecked Sendable {
 
     func toolHeader(_ name: String, _ detail: String) {
         endBlock()
-        if let sink = sink { sink("tool", ["name": name, "detail": String(detail.prefix(2000))]); return }
+        if send("tool", ["name": name, "detail": String(detail.prefix(2000))]) { return }
         let room = max(10, Term.width - cellWidth(name) - 6)
         let args = detail.isEmpty ? "" : "\(Style.dim)(\(Style.reset)\(clip(detail, room))\(Style.dim))\(Style.reset)"
         emit("\(Style.key)●\(Style.reset) \(Style.bold)\(name)\(Style.reset)\(args)\n")
     }
 
     func toolResult(_ summary: String, error: Bool = false) {
-        if let sink = sink { sink("result", ["text": String(summary.prefix(2000)), "error": error]); return }
+        if send("result", ["text": String(summary.prefix(2000)), "error": error]) { return }
         let color = error ? Style.red : Style.dim
         emit("  \(Style.dim)⎿\(Style.reset)  \(color)\(clip(summary, max(20, Term.width - 6)))\(Style.reset)\n\n")
     }
@@ -513,6 +531,7 @@ final class Renderer: @unchecked Sendable {
                            "more": max(0, lines.count - n), "color": kind])
             return
         }
+        recorder?("lines", ["lines": lines.prefix(40).map { String($0.prefix(400)) }, "more": max(0, lines.count - 40)])
         let width = max(20, Term.width - 7)
         for line in lines.prefix(limit) {
             emit("     \(color)\(clip(line.replacingOccurrences(of: "\t", with: "  "), width))\(Style.reset)\n")
@@ -525,7 +544,7 @@ final class Renderer: @unchecked Sendable {
     // The improved prompt before it is sent (/enhance): dimmed, the first lines
     func improvedPrompt(_ text: String, asking: Bool = false) {
         endBlock()
-        if let sink = sink { sink("improved", ["text": text]); return }
+        if send("improved", ["text": text]) { return }
         guard !quiet else { return }
         let (lines, more) = Enhance.rows(text, width: max(20, min(Term.width, 120) - 4), rows: 6)
         var out = "\(Style.dim)✻ Improved prompt\(asking ? " – send it?" : "")\(Style.reset)\n"
@@ -560,13 +579,15 @@ final class Renderer: @unchecked Sendable {
             if !text.isEmpty { sink("info", ["text": text]) }
             return
         }
+        let text = ToolRunner.plain(s).trimmingCharacters(in: CharacterSet(charactersIn: " \n⎿✻"))
+        if !text.isEmpty { recorder?("info", ["text": text]) }
         emit("  \(Style.dim)\(s)\(Style.reset)\n")
     }
 
     func error(_ title: String, _ detail: String = "") {
         Log.write("ERROR", detail.isEmpty ? title : "\(title) – \(detail)")
         endBlock()
-        if let sink = sink { sink("error", ["title": title, "detail": detail]); return }
+        if send("error", ["title": title, "detail": detail]) { return }
         emit("\(Style.red)●\(Style.reset) \(Style.bold)\(title)\(Style.reset)\n")
         if !detail.isEmpty {
             for line in detail.split(separator: "\n", omittingEmptySubsequences: false) {

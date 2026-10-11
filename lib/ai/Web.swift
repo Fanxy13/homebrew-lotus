@@ -19,13 +19,48 @@ enum Web {
     // ── Search ──
 
     static func search(_ query: String) async throws -> (results: [Result], source: String) {
-        // a short hiccup of the network: one more try
+        // DuckDuckGo, its plain version when the first one refuses, Wikipedia – and after a short hiccup of the network one more try
+        var answered = false
         for attempt in 0..<2 {
-            if let r = try? await duckDuckGo(query), !r.isEmpty { return (r, "DuckDuckGo") }
+            if let r = try? await duckDuckGo(query) { answered = true; if !r.isEmpty { return (r, "DuckDuckGo") } }
+            if let r = try? await duckDuckGoLite(query) { answered = true; if !r.isEmpty { return (r, "DuckDuckGo") } }
             if let r = try? await wikipedia(query) { return (r, "Wikipedia") }
             if attempt == 0 { try await Task.sleep(nanoseconds: 1_500_000_000) }
         }
-        throw Failure(message: "The search did not answer – is this Mac online?")
+        // the truth for the AI: nothing found is not the same as offline
+        let online = refusal(URL(string: "https://duckduckgo.com")!) == nil
+        throw Failure(message: answered ? "The search found nothing for these words – try other words, or open a page you know with fetch_url"
+                      : online ? "The search services did not answer right now – try again in a moment, or open a page you know with fetch_url"
+                      : "The search did not answer – is this Mac online?")
+    }
+
+    // lite.duckduckgo.com: the same results as plain HTML, for when the first address refuses
+    private static func duckDuckGoLite(_ query: String) async throws -> [Result] {
+        var req = URLRequest(url: URL(string: "https://lite.duckduckgo.com/lite/")!, timeoutInterval: 15)
+        req.httpMethod = "POST"
+        req.setValue(agent, forHTTPHeaderField: "User-Agent")
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var form = URLComponents()
+        form.queryItems = [URLQueryItem(name: "q", value: query)]
+        req.httpBody = (form.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B").data(using: .utf8)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw Failure(message: "DuckDuckGo did not answer") }
+        let html = String(decoding: data, as: UTF8.self)
+        let links = matches(#"(?is)<a[^>]*href=["']([^"']+)["'][^>]*class=['"]result-link['"][^>]*>(.*?)</a>"#, html)
+        let snippets = matches(#"(?is)<td[^>]*class=['"]result-snippet['"][^>]*>(.*?)</td>"#, html).map { $0[0] }
+        var out: [Result] = []
+        for (i, m) in links.enumerated() {
+            var href = decode(m[0])
+            if href.hasPrefix("//") { href = "https:" + href }
+            if let c = URLComponents(string: href), c.host?.hasSuffix("duckduckgo.com") == true {
+                guard let real = c.queryItems?.first(where: { $0.name == "uddg" })?.value else { continue }
+                href = real
+            }
+            guard href.hasPrefix("http"), !out.contains(where: { $0.url == href }) else { continue }
+            out.append(Result(title: clean(m[1]), url: href, snippet: i < snippets.count ? clean(snippets[i]) : ""))
+            if out.count == 8 { break }
+        }
+        return out
     }
 
     private static func duckDuckGo(_ query: String) async throws -> [Result] {
@@ -169,6 +204,11 @@ enum Web {
             let raw = String(decoding: data, as: UTF8.self)
             if type.contains("html") || type.isEmpty && raw.prefix(500).lowercased().contains("<html") {
                 var r = readable(raw, base: url)
+                if r.text.count >= 200 && data.count > 60_000 && r.text.count < 3000 {
+                    // a big page with little text: most of it is built by its scripts
+                    r.text += "\n\n[This page is built mostly by JavaScript: its HTML has \(data.count / 1024) KB, but only these \(r.text.count) characters "
+                        + "are text. What you look for may not be in it – look for another source: a JSON or API address of the same site, or a plain page.]"
+                }
                 if r.text.count < 200 {
                     // built by JavaScript: at least what the page says about itself
                     let meta = matches(#"(?is)<meta[^>]*(?:name|property)=["'](?:og:)?description["'][^>]*content=["']([^"']*)["']"#, raw).first.map { clean($0[0]) } ?? ""
