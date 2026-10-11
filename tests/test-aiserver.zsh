@@ -276,6 +276,28 @@ check_has "written page: the model hears what is wrong" "$out" 'Lotus opened sit
 check_has "written page: the missing style is named" "$out" 'style.css'
 setting LOTUS_AI_PERM_MODE ask >/dev/null
 
+# it stopped before it was done: Lotus lets it go on, at most 3 times
+setting LOTUS_AI_PERM_MODE auto >/dev/null
+goon=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
+out=$(send_to $goon "please think too long")
+check_has "ran out of room: it goes on" "$out" 'Lotus lets it go on (1\/3)'
+check_has "and finishes" "$out" 'Finished after going on.'
+check "once was enough" eval '[[ $out != *"(2\\/3)"* ]]'
+out=$(send_to $goon "please announce the next step")
+check_has "announced a step and stopped: it goes on" "$out" 'It stopped at the next step it announced'
+check_has "and does it" "$out" 'All done now.'
+out=$(send_to $goon "please ask back")
+check_has "a question to the user: it waits" "$out" 'Shall I also add a footer?'
+check "and does not go on" eval '[[ $out != *"lets it go on"* ]]'
+out=$(send_to $goon "this never ends")
+check_has "never done: three times" "$out" '(3\/3)'
+check "not more" eval '[[ $out != *"(4\\/3)"* ]]'
+check_has "then it says why" "$out" 'The AI keeps running out of room'
+out=$(cd $HOME && lotus ai "please think too long" 2>&1)
+check_has "/ai in the terminal goes on too" "$out" 'Lotus lets it go on (1/3)'
+check_has "/ai: and finishes" "$out" 'Finished after going on.'
+setting LOTUS_AI_PERM_MODE ask >/dev/null
+
 # memory, context, compact
 check_has "memory: empty at first" "$(curl -s -m 5 $H $B/api/memory)" '"facts":[]'
 print -r -- $'# What Lotus AI remembers\n\n- The user likes short answers.' >| $LOTUS_CONF/ai-memory.md

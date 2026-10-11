@@ -162,6 +162,10 @@ The gear opens the settings – who answers, thinking, improving prompts, ask fi
 may do, what it remembers. They are the same Lotus settings as `/settings` in the terminal; the port,
 starting with the terminal and other devices can only be changed there.
 
+**It keeps going.** When the AI stops before it is done – it ran out of room, only thought, or said
+what it would do next and stopped there – Lotus lets it go on by itself, at most three times per
+message, and says so in a line ("↻ … – Lotus lets it go on (1/3)"). A question to you is an end.
+
 **It sees the pages it builds.** When the AI builds a website it looks at it in a real browser –
 WebKit, the engine of Safari, without a window – at desktop and phone width (`view_page`). It gets
 the title and structure, errors in the browser console with file and line, files that did not load,

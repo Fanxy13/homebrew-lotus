@@ -288,11 +288,14 @@ final class Agent {
             await compact(automatic: true)
         }
         var retried = false
+        var message = text          // what goes to the AI: the request, then "go on" when it stopped too early
+        var answer: [String] = []
+        var rounds = 0
         while true {
             Spinner.shared.start("Thinking")
             let runner = tools && usesTools ? self.runner : nil
             let provider = self.provider
-            let work = Task { try await provider.send(text, tools: runner) }
+            let work = Task { try await provider.send(message, tools: runner) }
             currentWork = work
             let watcher = keys.map { k in Task { await self.watch(k, work) } }
             let result = await work.result
@@ -301,10 +304,24 @@ final class Agent {
             Spinner.shared.stop()
             Renderer.shared.endBlock()
             switch result {
-            case .success(let answer):
-                remember(text, answer)
+            case .success(let part):
+                if !part.isEmpty { answer.append(part) }
+                // it stopped before it was done: Lotus lets it go on, a few times
+                if rounds < Agent.goOnRounds, let go = goOn(part, worked: !self.runner.actions.isEmpty) {
+                    rounds += 1
+                    Log.write("INFO", "The AI stopped too early (\(go.why)) – going on \(rounds)/\(Agent.goOnRounds)")
+                    Renderer.shared.info("↻ \(go.why) – Lotus lets it go on (\(rounds)/\(Agent.goOnRounds))")
+                    emit("\n")
+                    provider.briefThinking = go.brief
+                    message = go.message
+                    continue
+                }
+                provider.briefThinking = false
+                if let thoughts = explainStop() { answer.append(thoughts) }
+                remember(text, answer.joined(separator: "\n\n"))
                 return
             case .failure(let error):
+                provider.briefThinking = false
                 if error is ContextFull && !retried {
                     retried = true
                     await compact(automatic: true)
@@ -313,7 +330,7 @@ final class Agent {
                 if isCancellation(error) {
                     Renderer.shared.info("⎿  Stopped")
                     emit("\n")
-                    remember(text, "(The user stopped this answer.)")
+                    remember(text, (answer + ["(The user stopped this answer.)"]).joined(separator: "\n\n"))
                     return
                 }
                 if error is ContextFull {
@@ -323,9 +340,80 @@ final class Agent {
                 } else {
                     Renderer.shared.error("Something went wrong", error.localizedDescription)
                 }
-                _ = self.runner.takeActions()
+                if answer.isEmpty { _ = self.runner.takeActions() } else { remember(text, answer.joined(separator: "\n\n")) }
                 return
             }
+        }
+    }
+
+    // ── Going on when the AI stopped before it was done ──
+
+    static let goOnRounds = 3
+
+    // Why it stopped too early, and what Lotus tells it so it goes on – nil when it is done
+    private func goOn(_ part: String, worked: Bool) -> (why: String, message: String, brief: Bool)? {
+        let language = " Keep answering in the language of the user's request."
+        switch provider.stopped {
+        case .ranOut:
+            return ("It ran out of room before it was done",
+                    "You ran out of room before you were done. Continue exactly where you stopped and finish the task – think briefly, "
+                        + "do one file or step at a time, and do not repeat what is already done." + language, true)
+        case .thoughtsOnly:
+            return ("It only thought and did not act",
+                    "You only thought and did not act or answer. Do it now: carry out the next step with the tools, or give your answer – "
+                        + "keep your thinking short." + language, true)
+        case .empty:
+            return ("It stopped without an answer", "Continue the task where you stopped." + language, false)
+        case .stepLimit:
+            return ("It took many steps and stopped", "Continue the task where you stopped and finish it." + language, false)
+        case .done:
+            guard worked, Agent.announcesMore(part) else { return nil }
+            return ("It stopped at the next step it announced",
+                    "You said what you would do next, but you stopped. Do it now with the tools, then go on until the whole task is done." + language, false)
+        }
+    }
+
+    // The answer ends by promising a next step of the work ("Now I'll create style.css.") – and nothing
+    // follows. A question to the user, or handing over to the user, is an end.
+    static func announcesMore(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, !t.hasSuffix("?") else { return false }
+        let tail = String(t.suffix(260)).lowercased()
+        let handsOver = #"\b(let me know|if you (want|like|need|wish)|if you'd like|would you like|feel free|you can now|sag (mir )?bescheid|wenn du (willst|möchtest)|möchtest du|falls du|du kannst jetzt)\b"#
+        if tail.range(of: handsOver, options: .regularExpression) != nil { return false }
+        let verbs = "create|write|add|update|fix|run|test|check|look|build|make|implement|style|edit|change|move|install|open|continue|finish|start|set up|replace|generate"
+        let verben = "erstell|schreib|füg|änder|bau|test|prüf|mach|korrigier|pass|richte|installier|öffne|ergänz|setz|generier"
+        let promise = "\\b(i'll|i will|i am going to|i'm going to|let me|now i'll|next,? i'll|next,? i will)\\b[^.!?\\n]{0,40}\\b(\(verbs))\\b"
+            + "|\\b(ich werde|lass mich)\\b[^.!?\\n]{0,60}\\b(\(verben))\\w*"
+            + "|\\b(jetzt|nun|als nächstes|als nächstes)\\s+(\(verben))\\w*\\s+ich\\b"
+        guard let r = tail.range(of: promise, options: .regularExpression) else { return false }
+        return tail[r.upperBound...].range(of: #"\b(done|finished|complete|completed|fertig|erledigt|ready)\b"#, options: .regularExpression) == nil
+    }
+
+    // Still not done after going on: say why, so the answer does not end in silence. Returns the
+    // thoughts when they are all the AI wrote
+    private func explainStop() -> String? {
+        switch provider.stopped {
+        case .done:
+            return nil
+        case .ranOut:
+            Renderer.shared.error("The AI keeps running out of room",
+                                  "Its answer length gets used up – by thinking or by long files.\n"
+                                      + "Make it think less with /effort, or raise the answer length: lotus ai local settings (then start /ai again).")
+            return nil
+        case .thoughtsOnly:
+            let thoughts = provider.lastThoughts.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !thoughts.isEmpty else { return nil }
+            Renderer.shared.info("The AI wrote only its thoughts and no answer. Here they are:")
+            Renderer.shared.textDelta(thoughts)
+            Renderer.shared.endBlock()
+            return thoughts
+        case .empty:
+            Renderer.shared.error("The AI did not send an answer", "Try again, or choose another AI with /model.")
+            return nil
+        case .stepLimit:
+            Renderer.shared.info("It took many steps and stopped – say \"go on\" to let it continue.")
+            return nil
         }
     }
 
@@ -1031,7 +1119,15 @@ struct LotusAI {
                 if plain {
                     // Output for other programs: no spinner, no colors
                     do {
-                        _ = try await agent.provider.send(prompt, tools: nil)
+                        let answer = try await agent.provider.send(prompt, tools: nil)
+                        if answer.isEmpty {
+                            switch agent.provider.stopped {
+                            case .thoughtsOnly: print(agent.provider.lastThoughts, terminator: "")
+                            case .ranOut: throw AIError(title: "The AI ran out of room while it was thinking", detail: "Make it think less with /effort.")
+                            case .empty: throw AIError(title: "The AI did not send an answer", detail: "Try again.")
+                            default: break
+                            }
+                        }
                         print("")
                     } catch let e as AIError {
                         FileHandle.standardError.write(Data("\(e.title)\n\(e.detail)\n".utf8))

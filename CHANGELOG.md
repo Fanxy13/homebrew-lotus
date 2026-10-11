@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.11.0 – It keeps going
+
+- When the AI stops before it is done, Lotus lets it go on by itself – at most three times per message, with a line that says why, for example "↻ It ran out of room before it was done – Lotus lets it go on (1/3)". In `/ai` and in the web chat, with every AI
+- It goes on when it ran out of room (its answer length was used up by thinking or a long file – then it thinks briefly), when it only thought and neither acted nor answered, when it stopped without an answer, when it took very many steps, and when it said what it would do next ("Now I'll create style.css.") and stopped right there after working
+- It does not go on when it asks you something or hands over to you ("Let me know if …", "You can now open index.html"); esc or the stop button end it as always. If it still does not get there, it says why – and shows its thoughts when that is all it wrote
+- Tests: running out of room once and every time, a step announced and not done, a question to the user
+
 ## 2.10.0 – The AI sees the pages it builds
 
 - A new tool, `view_page`: the AI opens a web page of the folder in a real browser – WebKit, the engine of Safari, without a window – at desktop and phone width and gets what a person would notice: the title and structure (headings, links, buttons, forms), errors in the browser console with file and line, files that did not load, styles and scripts that are nearly empty, what is wider than the screen and which element it is, images without alt text, form fields without a label. With `inspect` (a CSS selector) it gets the size, position, colors and font of elements – access to the HTML elements of its page

@@ -4,6 +4,8 @@
 # "delete" asks for rm -rf ./nothing-here, "admin" for sudo ls – both must not run without the user.
 # "html" gets an answer with the HTML models like to write into Markdown (<br>, <b>, &nbsp; …).
 # "look at" calls view_page on site/index.html at phone width, "make a page" writes site2/index.html.
+# Stopping too early, so Lotus lets it go on: "think too long" runs out of room once, "never ends"
+# always, "announce" says what it will do next after a step and stops, "ask back" ends with a question.
 # Asked to improve a prompt (data/ai/system.md "## enhance"), it answers "Goal: <the request>" – or fails
 # with an error when the request contains "fail-enhance".
 import json
@@ -20,6 +22,11 @@ class Model(BaseHTTPRequestHandler):
         system = str(messages[0].get("content", "")) if messages[0].get("role") == "system" else ""
         improving = system.startswith("You improve a request")
         request = str(last.get("content", "")).split("The request to improve:\n")[-1]
+        # the user's latest request – not Lotus' "go on" messages
+        asked = [str(m.get("content", "")) for m in messages if m.get("role") == "user"]
+        said = next((t for t in reversed(asked) if not t.startswith(("You ran out of room", "You said what you would do next",
+                                                                        "You only thought", "Continue the task"))), "")
+        nudge = str(last.get("content", "")) if last.get("role") == "user" else ""
         if improving and "fail-enhance" in request:
             self.send_response(500)
             self.send_header("Content-Type", "application/json")
@@ -37,6 +44,26 @@ class Model(BaseHTTPRequestHandler):
 
         if improving:
             chunk({"content": "Goal: " + request})
+            chunk({}, "stop")
+        elif "never ends" in said or ("think too long" in said and not nudge.startswith("You ran out of room")):
+            chunk({"reasoning_content": "Let me think about this for a very long time …"})
+            chunk({}, "length")
+        elif nudge.startswith("You ran out of room"):
+            chunk({"content": "Finished after going on."})
+            chunk({}, "stop")
+        elif nudge.startswith("You said what you would do next"):
+            chunk({"content": "All done now."})
+            chunk({}, "stop")
+        elif body.get("tools") and last.get("role") == "user" and ("announce" in nudge or "ask back" in nudge):
+            call = {"index": 0, "id": "call_a", "type": "function",
+                    "function": {"name": "run_command", "arguments": json.dumps({"command": "echo step-one"})}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif last.get("role") == "tool" and "announce" in said:
+            chunk({"content": "The first step worked. Now I'll create style.css."})
+            chunk({}, "stop")
+        elif last.get("role") == "tool" and "ask back" in said:
+            chunk({"content": "The first step worked. Shall I also add a footer?"})
             chunk({}, "stop")
         elif body.get("tools") and last.get("role") == "user" and "make a page" in str(last.get("content", "")):
             page = '<!doctype html><html lang="en"><head><title>T</title><link rel="stylesheet" href="style.css"></head><body><h1>Hi</h1></body></html>'

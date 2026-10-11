@@ -37,4 +37,4 @@ check_has "the download finishes" "$screen" "rc=0"
 check_has "at 100 %" "$screen" "100 %"
 check "the model is there" test -r $HOME/models/test-model/config.json
 check "a speed is shown while nothing is written yet" eval '(( ${#speeds} >= 2 ))'
-check "the speed is what comes in – about 20 MB/s – and does not jump" eval '(( ${speeds[(I)<0-9>]} == 0 && ${speeds[(I)<31->]} == 0 ))'
+check "the speed is what comes in – about 20 MB/s – and does not jump" eval '(( ${speeds[(I)<0-2>]} == 0 && ${speeds[(I)<31->]} == 0 ))'

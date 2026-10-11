@@ -15,6 +15,9 @@ struct AIError: Error {
 
 struct ContextFull: Error {}
 
+// Why an answer ended – the agent lets the AI go on when it stopped before it was done (App.swift)
+enum Stop { case done, ranOut, thoughtsOnly, empty, stepLimit }
+
 protocol Provider: AnyObject {
     var label: String { get }
     var budget: Int { get }              // tokens the conversation may use before it is compacted
@@ -29,6 +32,11 @@ protocol Provider: AnyObject {
     func complete(system: String, prompt: String) async throws -> String
     // Like complete, but quick – little or no thinking: rewriting a message (/enhance, Enhance.swift)
     func rewrite(system: String, prompt: String) async throws -> String
+    // Why the last send ended, and the thoughts of a reply that had nothing else
+    var stopped: Stop { get }
+    var lastThoughts: String { get }
+    // The next sends think briefly: going on after the AI ran out of room
+    var briefThinking: Bool { get set }
 }
 
 extension Provider {
@@ -39,6 +47,10 @@ extension Provider {
     func rewrite(system: String, prompt: String) async throws -> String {
         try await complete(system: system, prompt: prompt)
     }
+
+    var stopped: Stop { .done }
+    var lastThoughts: String { "" }
+    var briefThinking: Bool { get { false } set {} }
 }
 
 func isCancellation(_ error: Error) -> Bool {
@@ -159,6 +171,8 @@ final class ClaudeProvider: Provider {
     private var messages: [[String: Any]] = []
     private var pendingToolIDs: [String] = []
     private var lastTokens = 0
+    private(set) var stopped = Stop.done
+    var briefThinking = false
 
     init(model: String, key: String, effort: String) {
         self.model = model.isEmpty ? "claude-opus-5-5" : model
@@ -385,8 +399,9 @@ final class ClaudeProvider: Provider {
         let firstIndex = messages.count - 1
         var answer: [String] = []
         defer { closePending() }
+        stopped = .stepLimit
         for step in 0..<60 {
-            let reply = try await stream(body(tools: tools != nil), render: true)
+            let reply = try await stream(body(tools: tools != nil, effort: briefThinking ? "low" : nil), render: true)
             if reply.stop == "refusal" {
                 Renderer.shared.endBlock()
                 if step == 0 && messages.count - 1 == firstIndex { messages.removeLast() }
@@ -394,7 +409,10 @@ final class ClaudeProvider: Provider {
             }
             if !reply.content.isEmpty { messages.append(["role": "assistant", "content": reply.content]) }
             if !reply.text.isEmpty { answer.append(reply.text) }
-            guard let tools = tools, !reply.calls.isEmpty else { break }
+            guard let tools = tools, !reply.calls.isEmpty else {
+                stopped = reply.stop == "max_tokens" ? .ranOut : reply.text.isEmpty && answer.isEmpty ? .empty : .done
+                break
+            }
             pendingToolIDs = reply.calls.map(\.id)
             var results: [(PendingCall, ToolOutcome)]
             if reply.stop == "max_tokens" {
@@ -456,6 +474,9 @@ final class OllamaProvider: Provider {
     private var toolsWork = true
     private var thinkingWorks = true
     private var lastTokens = 0
+    private(set) var stopped = Stop.done
+    private(set) var lastThoughts = ""
+    var briefThinking = false
     let contextSize = 16384
 
     init(model: String, effort: String) {
@@ -557,21 +578,22 @@ final class OllamaProvider: Provider {
     func send(_ text: String, tools: ToolRunner?) async throws -> String {
         messages.append(["role": "user", "content": text])
         var answer: [String] = []
+        stopped = .stepLimit
+        lastThoughts = ""
         for step in 0..<40 {
-            var reply = try await stream(messages, tools: tools != nil, think: true, render: true)
-            if reply.text.isEmpty && reply.calls.isEmpty {
-                do {
-                    reply.text = try EmptyReply.handle(finish: reply.finish, thoughts: reply.thoughts, said: step > 0 || !answer.isEmpty)
-                } catch {
-                    messages.removeLast()        // the question that got no answer
-                    throw error
+            let reply = try await stream(messages, tools: tools != nil, think: !briefThinking, render: true)
+            guard let tools = tools, !reply.calls.isEmpty else {
+                // the end of this message – done, or it stopped too early (the agent lets it go on)
+                stopped = EmptyReply.stop(finish: reply.finish, text: reply.text, thoughts: reply.thoughts, said: step > 0 || !answer.isEmpty)
+                lastThoughts = reply.thoughts
+                if !reply.text.isEmpty {
+                    messages.append(["role": "assistant", "content": reply.text])
+                    answer.append(reply.text)
                 }
+                break
             }
-            var assistant: [String: Any] = ["role": "assistant", "content": reply.text]
-            if !reply.calls.isEmpty { assistant["tool_calls"] = reply.calls }
-            messages.append(assistant)
+            messages.append(["role": "assistant", "content": reply.text, "tool_calls": reply.calls])
             if !reply.text.isEmpty { answer.append(reply.text) }
-            guard let tools = tools, !reply.calls.isEmpty else { break }
             let calls: [PendingCall] = reply.calls.enumerated().map { i, c in
                 let f = c["function"] as? [String: Any] ?? [:]
                 var args = f["arguments"] as? [String: Any]
@@ -602,6 +624,9 @@ final class OpenAIProvider: Provider {
     private let key: String
     private var messages: [[String: Any]] = []
     private var toolsWork = true
+    private(set) var stopped = Stop.done
+    private(set) var lastThoughts = ""
+    var briefThinking = false
 
     init(model: String, base: String, key: String) {
         self.model = model.isEmpty ? "gpt-4o-mini" : model
@@ -718,21 +743,25 @@ final class OpenAIProvider: Provider {
     func send(_ text: String, tools: ToolRunner?) async throws -> String {
         messages.append(["role": "user", "content": text])
         var answer: [String] = []
+        stopped = .stepLimit
+        lastThoughts = ""
+        // going on after it ran out of room: a model on this Mac thinks briefly (see rewrite)
+        let brief: [String: Any] = briefThinking && ["127.0.0.1", "localhost", "::1"].contains(URL(string: base)?.host ?? "")
+            ? ["chat_template_kwargs": ["reasoning_effort": "low", "enable_thinking": false]] : [:]
         for step in 0..<40 {
-            var reply = try await stream(messages, tools: tools != nil, render: true)
-            if reply.text.isEmpty && reply.calls.isEmpty {
-                do {
-                    reply.text = try EmptyReply.handle(finish: reply.finish, thoughts: reply.thoughts, said: step > 0 || !answer.isEmpty)
-                } catch {
-                    messages.removeLast()        // the question that got no answer
-                    throw error
+            let reply = try await stream(messages, tools: tools != nil, render: true, extra: brief)
+            guard let tools = tools, !reply.calls.isEmpty else {
+                // the end of this message – done, or it stopped too early (the agent lets it go on)
+                stopped = EmptyReply.stop(finish: reply.finish, text: reply.text, thoughts: reply.thoughts, said: step > 0 || !answer.isEmpty)
+                lastThoughts = reply.thoughts
+                if !reply.text.isEmpty {
+                    messages.append(["role": "assistant", "content": reply.text])
+                    answer.append(reply.text)
                 }
+                break
             }
-            var assistant: [String: Any] = ["role": "assistant", "content": reply.text]
-            if !reply.rawCalls.isEmpty { assistant["tool_calls"] = reply.rawCalls }
-            messages.append(assistant)
+            messages.append(["role": "assistant", "content": reply.text, "tool_calls": reply.rawCalls])
             if !reply.text.isEmpty { answer.append(reply.text) }
-            guard let tools = tools, !reply.calls.isEmpty else { break }
             Renderer.shared.endBlock()
             for (call, out) in await runCalls(reply.calls, tools) {
                 messages.append(["role": "tool", "tool_call_id": call.id, "content": out.isError ? "Error: " + out.text : out.text])
@@ -761,29 +790,14 @@ final class OpenAIProvider: Provider {
     }
 }
 
-// A reply with neither an answer nor a tool call must not end in silence: say what happened
+// The last reply of a message (no tool call): did the AI finish, or did it stop too early?
+// The agent lets it go on, and says what happened when it still does not get there (App.swift)
 enum EmptyReply {
-    // → the text to show instead (what the model wrote as thoughts), or "" when the turn already
-    // said something; throws what went wrong when the turn would otherwise stay empty
-    static func handle(finish: String, thoughts: String, said: Bool) throws -> String {
-        let ranOut = finish == "length"
-        let thought = thoughts.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !ranOut && !thought.isEmpty {
-            Renderer.shared.info("The AI wrote only its thoughts and no answer. Here they are:")
-            Renderer.shared.textDelta(thoughts)
-            return thoughts
-        }
-        if said {
-            if ranOut { Renderer.shared.info("The AI ran out of room before it could say more. Ask it to go on.") }
-            return ""
-        }
-        if ranOut {
-            throw AIError(title: "The AI ran out of room while it was thinking",
-                          detail: "It used up its whole answer length for thinking and never got to write an answer.\n"
-                              + "Make it think less with /effort, or raise the answer length: lotus ai local settings (then start /ai again).")
-        }
-        throw AIError(title: "The AI did not send an answer",
-                      detail: "It stopped with: \(finish.isEmpty ? "no reason" : finish).\nTry again, or choose another AI with /model.")
+    static func stop(finish: String, text: String, thoughts: String, said: Bool) -> Stop {
+        if finish == "length" { return .ranOut }                 // cut off – by thinking or by a long answer
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .done }
+        if !thoughts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .thoughtsOnly }
+        return said ? .done : .empty
     }
 }
 
