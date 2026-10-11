@@ -37,7 +37,7 @@ struct Config {
         return Config(
             provider: e["LOTUS_AI_PROVIDER"] ?? "apple",
             model: e["LOTUS_AI_MODEL"] ?? "",
-            effort: ["low", "medium", "high", "max"].contains(effort) ? effort : "high",
+            effort: Effort.levels.contains(effort) ? effort : "high",
             claudeKey: e["LOTUS_AI_CLAUDE_KEY"] ?? "",
             openaiKey: e["LOTUS_AI_OPENAI_KEY"] ?? "",
             openaiURL: e["LOTUS_AI_URL"] ?? "",
@@ -48,6 +48,18 @@ struct Config {
             root: e["LOTUS_ROOT"] ?? "",
             version: e["LOTUS_VERSION"] ?? "")
     }
+}
+
+// How hard the AI thinks (LOTUS_AI_EFFORT) – /effort, /settings and the slider in the web chat.
+// Claude gets the matching effort level; ultra also has the AI check its work and go on longer when
+// it stops early, with every provider.
+enum Effort {
+    static let levels = ["low", "medium", "high", "max", "ultra"]
+    static let names = ["low": "quick", "medium": "balanced", "high": "thorough", "max": "maximum", "ultra": "ultra"]
+    static let texts = ["low": "Quick – short answers, fast", "medium": "Balanced – thinks when it helps",
+                        "high": "Thorough – thinks before it answers", "max": "Maximum – thinks longer and deeper",
+                        "ultra": "Ultra – thinks the most, checks its work, takes the longest"]
+    static func name(_ level: String) -> String { names[level] ?? level }
 }
 
 // ── Memory ────────────────────────────────────────────────────
@@ -147,7 +159,7 @@ final class Agent {
             return OllamaProvider(model: c.model, effort: c.effort)
         case "openai":
             guard !c.openaiURL.isEmpty, !c.openaiKey.isEmpty else { throw AIError(title: "The OpenAI-compatible API is not set up", detail: "Set the URL in /settings and the key with: lotus ai key openai") }
-            return OpenAIProvider(model: c.model, base: c.openaiURL, key: c.openaiKey)
+            return OpenAIProvider(model: c.model, base: c.openaiURL, key: c.openaiKey, effort: c.effort)
         default:
             #if canImport(FoundationModels)
             if #available(macOS 26.0, *) {
@@ -202,6 +214,7 @@ final class Agent {
             parts = ["identity"] + (tools ? ["work", "websites"] + (ToolCatalog.lotus.isEmpty ? [] : ["lotus"]) + ["web", "memory"] : []) + ["answer"]
         }
         if browser { parts.append("browser") }
+        if config.effort == "ultra" && !provider.isSmall { parts.append("ultra") }
         var p = parts.compactMap { s[$0] }.map(fill).joined(separator: "\n\n")
         if p.isEmpty {
             // the file is missing: still a sensible start
@@ -307,10 +320,10 @@ final class Agent {
             case .success(let part):
                 if !part.isEmpty { answer.append(part) }
                 // it stopped before it was done: Lotus lets it go on, a few times
-                if rounds < Agent.goOnRounds, let go = goOn(part, worked: !self.runner.actions.isEmpty) {
+                if rounds < goOnRounds, let go = goOn(part, worked: !self.runner.actions.isEmpty, canAct: runner != nil) {
                     rounds += 1
-                    Log.write("INFO", "The AI stopped too early (\(go.why)) – going on \(rounds)/\(Agent.goOnRounds)")
-                    Renderer.shared.info("↻ \(go.why) – Lotus lets it go on (\(rounds)/\(Agent.goOnRounds))")
+                    Log.write("INFO", "The AI stopped too early (\(go.why)) – going on \(rounds)/\(goOnRounds)")
+                    Renderer.shared.info("↻ \(go.why) – Lotus lets it go on (\(rounds)/\(goOnRounds))")
                     emit("\n")
                     provider.briefThinking = go.brief
                     message = go.message
@@ -348,10 +361,11 @@ final class Agent {
 
     // ── Going on when the AI stopped before it was done ──
 
-    static let goOnRounds = 3
+    // ultra lets it go on longer
+    var goOnRounds: Int { config.effort == "ultra" ? 6 : 3 }
 
     // Why it stopped too early, and what Lotus tells it so it goes on – nil when it is done
-    private func goOn(_ part: String, worked: Bool) -> (why: String, message: String, brief: Bool)? {
+    private func goOn(_ part: String, worked: Bool, canAct: Bool) -> (why: String, message: String, brief: Bool)? {
         let language = " Keep answering in the language of the user's request."
         switch provider.stopped {
         case .ranOut:
@@ -367,10 +381,30 @@ final class Agent {
         case .stepLimit:
             return ("It took many steps and stopped", "Continue the task where you stopped and finish it." + language, false)
         case .done:
-            guard worked, Agent.announcesMore(part) else { return nil }
-            return ("It stopped at the next step it announced",
-                    "You said what you would do next, but you stopped. Do it now with the tools, then go on until the whole task is done." + language, false)
+            if worked, Agent.announcesMore(part) {
+                return ("It stopped at the next step it announced",
+                        "You said what you would do next, but you stopped. Do it now with the tools, then go on until the whole task is done." + language, false)
+            }
+            if !worked, canAct, Agent.asksToDo(part) {
+                return ("It asked whether it should instead of doing it",
+                        "Do not ask whether you should – the user asked for it, and Lotus asks the user itself before anything that needs "
+                            + "their permission. Do it now with the tools, completely. Where a detail is open, choose a sensible default "
+                            + "and say which you chose." + language, false)
+            }
+            return nil
         }
+    }
+
+    // A short answer that only asks whether it should do the work ("Would you like me to create the files?",
+    // "Soll ich die Datei anlegen?") – with tools that can do it. A long answer that ends with an offer is
+    // an answer with a suggestion, not a question instead of work.
+    static func asksToDo(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, t.count <= 700, t.hasSuffix("?") else { return false }
+        let tail = String(t.suffix(300)).lowercased()
+        let offer = #"\b(would you like me to|do you want me to|want me to|shall i|should i|may i|can i go ahead|"#
+            + #"soll ich|sollen wir|darf ich|(möchtest|willst) du,? dass ich|(möchten|wollen) sie,? dass ich)\b"#
+        return tail.range(of: offer, options: .regularExpression) != nil
     }
 
     // The answer ends by promising a next step of the work ("Now I'll create style.css.") – and nothing
@@ -638,13 +672,11 @@ enum TUI {
         SlashCommand(name: "/exit", help: "back to the shell"),
     ]
 
-    static let effortNames = ["low": "quick", "medium": "balanced", "high": "thorough", "max": "maximum"]
-
     static func welcome(_ agent: Agent) {
         let width = min(max(40, Term.width - 1), 76)
         let home = NSHomeDirectory()
         let path = agent.cwd.path.hasPrefix(home) ? "~" + agent.cwd.path.dropFirst(home.count) : agent.cwd.path
-        let thinks = "\(agent.provider.label) \(Style.dim)· thinks \(effortNames[agent.config.effort] ?? agent.config.effort)\(Style.reset)"
+        let thinks = "\(agent.provider.label) \(Style.dim)· thinks \(Effort.name(agent.config.effort))\(Style.reset)"
         var rows: [String]
         if let pet = Pet.current {
             // the pet sits on the left, like a little mascot
@@ -804,17 +836,17 @@ enum TUI {
             Renderer.shared.info("Copied the last answer.")
             emit("\n")
         case "/effort":
-            let levels = ["low", "medium", "high", "max"]
-            var pick = levels.firstIndex(of: arg.lowercased())
+            let levels = Effort.levels
+            var pick = levels.firstIndex(of: arg.lowercased()) ?? levels.firstIndex { Effort.names[$0] == arg.lowercased() }
             if pick == nil {
-                let items = ["Quick – short answers, fast", "Balanced", "Thorough – thinks before it answers", "Maximum – takes the most time"]
+                let items = levels.map { Effort.texts[$0] ?? $0 }
                 pick = await menu("How hard should the AI think?", items, selected: levels.firstIndex(of: agent.config.effort) ?? 2, keys: keys)
             }
             if let i = pick {
                 agent.config.effort = levels[i]
                 try? agent.switchTo(provider: agent.config.provider, model: agent.config.model)
                 agent.saveSetting("LOTUS_AI_EFFORT", levels[i])
-                Renderer.shared.info("The AI now thinks \(effortNames[levels[i]] ?? levels[i]).")
+                Renderer.shared.info("The AI now thinks \(Effort.name(levels[i])).")
                 emit("\n")
             }
         case "/enhance", "/improve":

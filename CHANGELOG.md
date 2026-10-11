@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.12.0 – Ultra, and it does more
+
+- Fixed: gpt-oss on this Mac stopped working in the middle of longer tasks – with the memory saver on (`lotus ai local settings`), mlx cannot compress the memory of models with a sliding window (gpt-oss, Gemma), and every answer broke off once a conversation reached about 5000 tokens: after a web search or a few files the AI seemed to only think and then do nothing. These models now run without the memory saver, and a model server an older Lotus started that way is started again by itself the next time `/ai` or the web chat starts
+- When a model server stops in the middle of an answer, Lotus says so – with the error from its log – instead of an empty answer
+- The AI acts instead of asking: the instructions for every AI say to do what was asked right away and completely – write the files, run the commands – instead of asking whether it should, offering it or pasting the code into the chat; where a detail is open it picks a sensible default and says which. Lotus still asks you before anything that needs your permission, as you set it up
+- When it still only asks ("Would you like me to create the files?", "Soll ich …?") and did nothing, Lotus tells it to do it – a short line says so. A long answer that ends with a suggestion stays as it is
+- Nicer web pages: a clear design with a font pairing, a strong first screen, cards and transitions, real content in several sections – and real photos: `fetch_url` now lists the pictures of a page with their addresses, so the AI can put them into the page or download them, instead of making up addresses
+- Fixed: a model on this Mac writing a long file sometimes sent its tool arguments with real line breaks – not valid JSON, so nothing was written. Lotus repairs them now; when they cannot be repaired, the AI is told how to try again (in parts), and a silent stop after that no longer ends the answer with nothing – Lotus lets it go on
+- A slider for how hard the AI thinks in the web chat, like the effort setting of Claude: the bars next to the message box open it – quick, balanced, thorough, maximum, ultra – with what each level means. It saves at once (the same `LOTUS_AI_EFFORT` as `/effort` and `/settings`) and counts from the next message; the settings panel has the same slider. `/effort` without a level opens it, the arrow keys move it
+- A fifth level, ultra: Claude thinks with its highest effort (`max`, maximum is `xhigh`) and gets room for longer answers. With every AI it also gets instructions to plan, check every result – run it, read it back, look at pages – and go over the request once more before it finishes, and Lotus lets it go on up to six times instead of three when it stops early. In `/ai` (`/effort ultra`), in `/settings` and in `lotus ai local settings` too
+- A model on this Mac (`lotus ai local`) gets the thinking level with every message, so a change counts at once without starting the model again
+- Fixed: Claude Opus 4.6 and Sonnet 4.6 were sent an effort level they do not know on maximum (`xhigh`, they get `max` now), and Claude Haiku 5.5 was asked for a fixed thinking budget it no longer takes – it thinks adaptively now like the other current models
+- Tests: ultra from the browser, the levels in the state, the thinking a model on this Mac gets, the ultra instructions in the web chat and in `/ai`; asking instead of acting, a long answer with an offer, repaired and broken tool arguments, a server that breaks off, the memory saver only for models that can use it (`tests/test-llm.zsh`)
+
 ## 2.11.0 – It keeps going
 
 - When the AI stops before it is done, Lotus lets it go on by itself – at most three times per message, with a line that says why, for example "↻ It ran out of room before it was done – Lotus lets it go on (1/3)". In `/ai` and in the web chat, with every AI

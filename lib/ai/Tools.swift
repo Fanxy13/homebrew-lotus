@@ -781,6 +781,10 @@ final class ToolRunner: @unchecked Sendable {
         } else if !page.links.isEmpty && end - from + 1500 < room {
             text += "\n\nLinks on the page:\n" + page.links.prefix(15).map { "- \($0.text): \($0.url)" }.joined(separator: "\n")
         }
+        if !page.images.isEmpty && from == 0 {
+            text += "\n\nPictures on the page (real addresses – use them exactly as written, do not change sizes or names in them; for a web page, link one in <img src> or download it with curl):\n"
+                + page.images.map { "- \($0.alt.isEmpty ? "(no description)" : clip($0.alt, 80)): \($0.url)" }.joined(separator: "\n")
+        }
         let kb = max(1, page.bytes / 1024)
         Renderer.shared.toolResult("\(page.title.isEmpty ? ToolRunner.host(s) : clip(page.title, 50)) · \(kb) KB\(from > 0 ? " · from character \(from)" : "")")
         actions.append("Read \(page.url.absoluteString)")

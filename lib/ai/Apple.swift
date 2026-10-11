@@ -191,7 +191,7 @@ final class AppleProvider: Provider, @unchecked Sendable {
         if kind == .chat, text.range(of: #"(~/|\./|/Users/|\b[\w-]+\.(py|js|ts|tsx|jsx|html|css|md|txt|json|swift|sh|zsh|rb|go|rs|java|kt|c|cpp|h|m|yml|yaml|toml|csv|xml|php|sql|ini|cfg|log)\b)"#, options: .regularExpression) != nil {
             kind = .look
         }
-        guard kind == .look || kind == .change, effort == "high" || effort == "max" else { return (kind, []) }
+        guard kind == .look || kind == .change, ["high", "max", "ultra"].contains(effort) else { return (kind, []) }
 
         let planner = LanguageModelSession(model: model, instructions: """
             You plan work for an assistant in the macOS terminal that can list, read, create and edit files and run commands. \
@@ -276,7 +276,7 @@ final class AppleProvider: Provider, @unchecked Sendable {
             let t = await triage(text, language: language)
             if Task.isCancelled { throw CancellationError() }
             kind = t.kind
-            if kind != .chat && (effort == "high" || effort == "max") && t.steps.count >= 2 {
+            if kind != .chat && (["high", "max", "ultra"].contains(effort)) && t.steps.count >= 2 {
                 Renderer.shared.endBlock()
                 var out = "\(Style.dim)✻ Plan\(Style.reset)\n"
                 for (i, s) in t.steps.enumerated() { out += "  \(Style.dim)\(i + 1). \(s)\(Style.reset)\n" }

@@ -10,7 +10,10 @@ enum Web {
     static let maxBytes = 2_500_000
 
     struct Result { let title: String; let url: String; let snippet: String }
-    struct Page { let url: URL; let title: String; let text: String; let links: [(text: String, url: String)]; let bytes: Int }
+    struct Page {
+        let url: URL; let title: String; let text: String; let links: [(text: String, url: String)]; let bytes: Int
+        var images: [(alt: String, url: String)] = []      // the pictures in the content – for web pages the AI builds
+    }
     struct Failure: Error { let message: String }
 
     // ── Search ──
@@ -172,7 +175,7 @@ enum Web {
                     r.text = (meta.isEmpty ? "" : meta + "\n\n") + r.text
                         + "\n\n[This page is built by JavaScript in the browser, so only this much of it could be read.]"
                 }
-                return Page(url: url, title: r.title, text: r.text, links: r.links, bytes: data.count)
+                return Page(url: url, title: r.title, text: r.text, links: r.links, bytes: data.count, images: r.images)
             }
             return Page(url: url, title: url.lastPathComponent, text: raw, links: [], bytes: data.count)
         }
@@ -248,7 +251,7 @@ enum Web {
     // A tag with its attributes – attributes may hold ">" in quotes
     private static let attrs = #"(?:[^>"']|"[^"]*"|'[^']*')*"#
 
-    static func readable(_ html: String, base: URL) -> (title: String, text: String, links: [(text: String, url: String)]) {
+    static func readable(_ html: String, base: URL) -> (title: String, text: String, links: [(text: String, url: String)], images: [(alt: String, url: String)]) {
         let title = matches(#"(?is)<title[^>]*>(.*?)</title>"#, html).first.map { clean($0[0]) } ?? ""
         var h = html
         // Wikipedia: the article itself, without menus and the list of languages
@@ -271,6 +274,7 @@ enum Web {
             links.append((text, u.absoluteString))
             if links.count == 25 { break }
         }
+        let images = pictures(h, base: base)
         h = replace(#"(?i)<h[1-3]\b"# + attrs + #">"#, h, "\n\n# ")
         h = replace(#"(?i)<h[4-6]\b"# + attrs + #">"#, h, "\n\n## ")
         h = replace(#"(?i)</h[1-6]>"#, h, "\n\n")
@@ -303,7 +307,40 @@ enum Web {
             if l.hasPrefix("- ") && l.count <= 28 { run.append(l) } else { endRun(); tidy.append(l) }
         }
         endRun()
-        return (title, tidy.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines), links)
+        return (title, tidy.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines), links, images)
+    }
+
+    // A Wikimedia picture at 960 pixels: thumbnails exist only in fixed widths (120, 250, 330, 500, 960,
+    // 1280 …) – another one answers 400 – and the original can be many megabytes
+    static func wikimedia(_ address: String) -> String {
+        let pattern = #"^(https://upload\.wikimedia\.org/wikipedia/[^/]+)/(?:thumb/)?([0-9a-f]/[0-9a-f]{2})/([^/]+\.(?:jpe?g|png|webp))(?:/[^/]+)?$"#
+        guard let re = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let m = re.firstMatch(in: address, range: NSRange(address.startIndex..., in: address)), m.numberOfRanges == 4,
+              let base = Range(m.range(at: 1), in: address), let dir = Range(m.range(at: 2), in: address),
+              let name = Range(m.range(at: 3), in: address) else { return address }
+        return "\(address[base])/thumb/\(address[dir])/\(address[name])/960px-\(address[name])"
+    }
+
+    // The photos of the content (not icons, logos of the site or tracking pixels), with their alt text
+    static func pictures(_ html: String, base: URL) -> [(alt: String, url: String)] {
+        var out: [(alt: String, url: String)] = []
+        for m in matches(#"(?is)<img\b("# + attrs + #")>"#, html) {
+            let tag = m[0]
+            func attr(_ name: String) -> String? {
+                matches(#"(?is)\b"# + name + #"\s*=\s*["']([^"']*)["']"#, tag).first.map { decode($0[0]) }
+            }
+            guard let src = attr("src") ?? attr("data-src"), !src.hasPrefix("data:"),
+                  let u = URL(string: src, relativeTo: base)?.absoluteURL, u.scheme?.hasPrefix("http") == true else { continue }
+            let path = u.path.lowercased()
+            if path.hasSuffix(".svg") || path.hasSuffix(".gif") || path.contains("icon") || path.contains("logo") || path.contains("sprite") { continue }
+            if let w = attr("width").flatMap({ Int($0) }), w < 100 { continue }
+            if let h = attr("height").flatMap({ Int($0) }), h < 80 { continue }
+            let address = u.host == "upload.wikimedia.org" ? wikimedia(u.absoluteString) : u.absoluteString
+            guard !out.contains(where: { $0.url == address }) else { continue }
+            out.append((clean(attr("alt") ?? ""), address))
+            if out.count == 10 { break }
+        }
+        return out
     }
 
     // Text without tags and entities, on one line

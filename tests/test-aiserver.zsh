@@ -241,7 +241,37 @@ check_has "sudo never runs" "$out" "Lotus never uses sudo"
 setting LOTUS_AI_PERM_MODE ask >/dev/null
 check_eq "thinking from the browser" "$(setting LOTUS_AI_EFFORT low)" 200
 check_has "the state says it" "$(curl -s -m 5 $H $B/api/state)" '"effort":"quick"'
+check_has "a model on this Mac thinks as set, from the next message on" "$(send_to $auto "how hard do you think")" '"text":"thinking low false, ultra no"'
+check_eq "a level that does not exist: refused" "$(setting LOTUS_AI_EFFORT turbo)" 400
+check_eq "ultra from the slider" "$(setting LOTUS_AI_EFFORT ultra)" 200
+state=$(curl -s -m 5 $H $B/api/state)
+check_has "the state has the level for the slider" "$state" '"level":"ultra"'
+check_has "and the five levels" "$state" '"name":"ultra"'
+check_has "ultra: it thinks as much as it can and gets the ultra instructions" "$(send_to $auto "how hard do you think")" '"text":"thinking high true, ultra yes"'
+check_has "the same setting as /effort in /ai" "$(<$LOTUS_CONF/settings.zsh)" "LOTUS_AI_EFFORT='ultra'"
+out=$(cd $HOME && lotus ai "how hard do you think" 2>&1)
+check_has "/ai thinks ultra too" "$out" "thinking high true, ultra yes"
 setting LOTUS_AI_EFFORT high >/dev/null
+
+# ── It acts instead of asking, and a broken step does not end in silence ──
+setting LOTUS_AI_PERM_MODE auto >/dev/null
+out=$(send_to $auto "please offer to build a page")
+check_has "it only asked whether it should: Lotus tells it to do it" "$out" "It asked whether it should instead of doing it"
+check_has "and it does" "$out" '"text":"Done without asking."'
+out=$(send_to $auto "please explain then offer")
+check "a long answer that ends with an offer stays the answer" eval '[[ $out != *"Done without asking"* && $out == *"Would you like me to build a website about it?"* ]]'
+out=$(send_to $auto "write a file with a raw newline")
+check_has "arguments with real line breaks are repaired" "$out" '"text":"Wrote it."'
+want=$'line one\nline two\tend \' quoted'
+check "and the file is right" eval '[[ "$(<$HOME/work/raw.txt)" == "$want" ]]'
+out=$(send_to $auto "make a broken call")
+check_has "arguments that cannot be repaired: it is told what went wrong" "$out" "not valid JSON"
+check_has "a quiet end after it: Lotus lets it go on" "$out" "It stopped without an answer"
+check_has "and it gets there" "$out" '"text":"Recovered after the broken call."'
+check "nothing was written from the broken call" test ! -e $HOME/work/broken.txt
+out=$(send_to $auto "please break off")
+check_has "a model server that breaks off: it says so instead of nothing" "$out" "stopped in the middle of its answer"
+setting LOTUS_AI_PERM_MODE ask >/dev/null
 check_has "who answers: the test model" "$(curl -s -m 5 $H $B/api/models)" '"current":true'
 check_eq "an AI that is not there: refused" "$(code $H -H 'Content-Type: application/json' -d '{"kind":"claude","model":"claude-nope"}' $B/api/model)" 400
 

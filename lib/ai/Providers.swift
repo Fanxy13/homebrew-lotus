@@ -76,7 +76,45 @@ enum HTTP {
 
     static func parse(_ s: String) -> [String: Any]? {
         guard let d = s.data(using: .utf8) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
+        if let j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] { return j }
+        // models on this Mac often write a long file into the arguments with real line breaks and tabs, or
+        // with \' – not JSON, but clear: repaired, the call works instead of failing
+        guard let fixed = repair(s).data(using: .utf8) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: fixed)) as? [String: Any]
+    }
+
+    // Control characters inside strings escaped, escapes JSON does not know ("\'", "\ ") made plain
+    static func repair(_ s: String) -> String {
+        var out = ""
+        out.reserveCapacity(s.utf8.count + 64)
+        var inString = false
+        var escaped = false
+        for ch in s {
+            if escaped {
+                escaped = false
+                if "\"\\/bfnrtu".contains(ch) { out.append("\\"); out.append(ch) } else { out.append(ch) }
+                continue
+            }
+            guard inString else {
+                if ch == "\"" { inString = true }
+                out.append(ch)
+                continue
+            }
+            switch ch {
+            case "\\": escaped = true
+            case "\"": inString = false; out.append(ch)
+            case "\n": out += "\\n"
+            case "\r", "\r\n": out += ch == "\r" ? "\\r" : "\\n"
+            case "\t": out += "\\t"
+            default:
+                if let v = ch.unicodeScalars.first?.value, v < 0x20, ch.unicodeScalars.count == 1 {
+                    out += String(format: "\\u%04x", v)
+                } else {
+                    out.append(ch)
+                }
+            }
+        }
+        return out
     }
 
     static func request(_ url: URL, body: Data, headers: [String: String]) -> URLRequest {
@@ -152,8 +190,10 @@ func runCalls(_ calls: [PendingCall], _ tools: ToolRunner) async -> [(PendingCal
         guard let args = call.args else {
             Renderer.shared.toolHeader(call.name, "")
             Renderer.shared.toolResult("The model sent arguments that are not valid JSON – it tries again", error: true)
-            let bad = String(decoding: HTTP.json(["INVALID_JSON": call.raw]), as: UTF8.self)
-            results.append((call, ToolOutcome(text: bad, isError: true)))
+            let start = String(call.raw.prefix(300))
+            results.append((call, ToolOutcome(text: "INVALID_JSON: the arguments of \(call.name) were not valid JSON, so nothing happened. "
+                + "Call \(call.name) again with valid JSON (escape quotes and line breaks in strings). For a long file, write it in "
+                + "two or three parts: write_file with the first part, then edit_file to add the rest. They began with: \(start)", isError: true)))
             continue
         }
         results.append((call, await tools.run(call.name, args)))
@@ -194,9 +234,15 @@ final class ClaudeProvider: Provider {
     var usedTokens: Int { lastTokens }
     var isSmall: Bool { false }
 
-    // Claude 4.6 and newer think adaptively and take an effort level
+    // Claude 4.6 and newer think adaptively and take an effort level (Haiku from 5.5 on)
     private var adaptive: Bool {
-        !(model.contains("haiku") || model.contains("-4-5") || model.contains("-4-1") || model.hasSuffix("-4-0") || model.contains("claude-3"))
+        !(model.contains("-4-5") || model.contains("-4-1") || model.hasSuffix("-4-0") || model.contains("claude-3"))
+    }
+
+    // Lotus' levels as Claude's: xhigh came with Opus 4.7, so the 4.6 models get max for maximum
+    private func claudeEffort(_ effort: String) -> String {
+        let xhigh = model.contains("-4-6") ? "max" : "xhigh"
+        return ["low": "low", "medium": "medium", "high": "high", "max": xhigh, "ultra": "max"][effort] ?? "high"
     }
 
     private var withFallbacks: Bool {
@@ -247,10 +293,10 @@ final class ClaudeProvider: Provider {
         }
         if adaptive {
             b["thinking"] = ["type": "adaptive", "display": "summarized"]
-            let level = ["low": "low", "medium": "medium", "high": "high", "max": "xhigh"][effort] ?? "high"
-            b["output_config"] = ["effort": level]
+            b["output_config"] = ["effort": claudeEffort(effort)]
+            if effort == "ultra" && maxTokens == 64000 { b["max_tokens"] = 128_000 }      // room for the longest thinking
         } else if effort != "low" {
-            b["thinking"] = ["type": "enabled", "budget_tokens": effort == "max" ? 32000 : effort == "high" ? 16000 : 6000]
+            b["thinking"] = ["type": "enabled", "budget_tokens": ["ultra": 48000, "max": 32000, "high": 16000][effort] ?? 6000]
         }
         if withFallbacks { b["fallbacks"] = "default" }
         return b
@@ -580,11 +626,12 @@ final class OllamaProvider: Provider {
         var answer: [String] = []
         stopped = .stepLimit
         lastThoughts = ""
-        for step in 0..<40 {
+        var acted = false          // a tool call that worked – then a quiet end is the end
+        for _ in 0..<40 {
             let reply = try await stream(messages, tools: tools != nil, think: !briefThinking, render: true)
             guard let tools = tools, !reply.calls.isEmpty else {
                 // the end of this message – done, or it stopped too early (the agent lets it go on)
-                stopped = EmptyReply.stop(finish: reply.finish, text: reply.text, thoughts: reply.thoughts, said: step > 0 || !answer.isEmpty)
+                stopped = EmptyReply.stop(finish: reply.finish, text: reply.text, thoughts: reply.thoughts, said: acted || !answer.isEmpty)
                 lastThoughts = reply.thoughts
                 if !reply.text.isEmpty {
                     messages.append(["role": "assistant", "content": reply.text])
@@ -603,6 +650,7 @@ final class OllamaProvider: Provider {
             Renderer.shared.endBlock()
             for (call, out) in await runCalls(calls, tools) {
                 messages.append(["role": "tool", "content": out.isError ? "Error: " + out.text : out.text, "tool_name": call.name])
+                if !out.isError { acted = true }
             }
             if Task.isCancelled { throw CancellationError() }
             Spinner.shared.start("Thinking")
@@ -627,11 +675,41 @@ final class OpenAIProvider: Provider {
     private(set) var stopped = Stop.done
     private(set) var lastThoughts = ""
     var briefThinking = false
+    private let effort: String
 
-    init(model: String, base: String, key: String) {
+    init(model: String, base: String, key: String, effort: String = "high") {
         self.model = model.isEmpty ? "gpt-4o-mini" : model
         self.base = base.hasSuffix("/") ? String(base.dropLast()) : base
         self.key = key
+        self.effort = effort
+    }
+
+    private var onThisMac: Bool { ["127.0.0.1", "localhost", "::1"].contains(URL(string: base)?.host ?? "") }
+
+    // The answer ended without an end: the server stopped in the middle. For lotus ai local, the error
+    // from its log (written in the last minute) says why
+    private func brokeOff() -> AIError {
+        guard onThisMac else {
+            return AIError(title: "The AI service stopped in the middle of its answer", detail: "Try again – or choose another AI with /model.")
+        }
+        let cache = ProcessInfo.processInfo.environment["LOTUS_CACHE"] ?? NSHomeDirectory() + "/.cache/lotus"
+        let log = cache + "/llm/server.log"
+        var why = ""
+        if let changed = (try? FileManager.default.attributesOfItem(atPath: log))?[.modificationDate] as? Date, changed.timeIntervalSinceNow > -60,
+           let text = try? String(contentsOfFile: log, encoding: .utf8) {
+            why = text.split(separator: "\n").last { $0.range(of: #"^[A-Za-z]*(Error|Exception)\b"#, options: .regularExpression) != nil }.map(String.init) ?? ""
+        }
+        Log.write("ERROR", "The model server broke off\(why.isEmpty ? "" : ": " + why)")
+        return AIError(title: "The model on this Mac stopped in the middle of its answer",
+                       detail: (why.isEmpty ? "" : "\(why)\n") + "Start it again: end the web chat or /ai and start it again. Details: \(log)")
+    }
+
+    // A model server on this Mac takes the thinking per message, so a new level counts at once
+    // (gpt-oss knows low, medium and high; others only thinking on or off)
+    private var thinking: [String: Any] {
+        guard onThisMac else { return [:] }
+        if briefThinking || effort == "low" { return ["chat_template_kwargs": ["reasoning_effort": "low", "enable_thinking": false]] }
+        return ["chat_template_kwargs": ["reasoning_effort": effort == "medium" ? "medium" : "high", "enable_thinking": true]]
     }
 
     // A model on this Mac (lotus ai local) brings its own name and context window
@@ -695,12 +773,13 @@ final class OpenAIProvider: Provider {
                     else { reply.text += piece; if render { Renderer.shared.textDelta(piece) } }
                 }
             }
+            var ended = false        // [DONE] or a finish reason – without either, the server broke off
             for try await line in bytes.lines {
                 guard line.hasPrefix("data:") else { continue }
                 let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                if payload == "[DONE]" { break }
+                if payload == "[DONE]" { ended = true; break }
                 guard let j = HTTP.parse(payload), let choice = (j["choices"] as? [[String: Any]])?.first else { continue }
-                if let f = choice["finish_reason"] as? String { reply.finish = f }
+                if let f = choice["finish_reason"] as? String { reply.finish = f; ended = true }
                 guard let d = choice["delta"] as? [String: Any] else { continue }
                 if let r = (d["reasoning_content"] ?? d["reasoning"]) as? String, !r.isEmpty {
                     reply.thoughts += r
@@ -720,6 +799,7 @@ final class OpenAIProvider: Provider {
             }
             take(split.flush())
             if Task.isCancelled { throw CancellationError() }
+            if !ended { throw brokeOff() }
             // gpt-oss writes its tool calls as text (see ChannelSplit)
             for c in split.calls {
                 let id = "call_h\(reply.calls.count)"
@@ -746,13 +826,13 @@ final class OpenAIProvider: Provider {
         stopped = .stepLimit
         lastThoughts = ""
         // going on after it ran out of room: a model on this Mac thinks briefly (see rewrite)
-        let brief: [String: Any] = briefThinking && ["127.0.0.1", "localhost", "::1"].contains(URL(string: base)?.host ?? "")
-            ? ["chat_template_kwargs": ["reasoning_effort": "low", "enable_thinking": false]] : [:]
-        for step in 0..<40 {
-            let reply = try await stream(messages, tools: tools != nil, render: true, extra: brief)
+        let thinking = self.thinking
+        var acted = false          // a tool call that worked – then a quiet end is the end
+        for _ in 0..<40 {
+            let reply = try await stream(messages, tools: tools != nil, render: true, extra: thinking)
             guard let tools = tools, !reply.calls.isEmpty else {
                 // the end of this message – done, or it stopped too early (the agent lets it go on)
-                stopped = EmptyReply.stop(finish: reply.finish, text: reply.text, thoughts: reply.thoughts, said: step > 0 || !answer.isEmpty)
+                stopped = EmptyReply.stop(finish: reply.finish, text: reply.text, thoughts: reply.thoughts, said: acted || !answer.isEmpty)
                 lastThoughts = reply.thoughts
                 if !reply.text.isEmpty {
                     messages.append(["role": "assistant", "content": reply.text])
@@ -765,6 +845,7 @@ final class OpenAIProvider: Provider {
             Renderer.shared.endBlock()
             for (call, out) in await runCalls(reply.calls, tools) {
                 messages.append(["role": "tool", "tool_call_id": call.id, "content": out.isError ? "Error: " + out.text : out.text])
+                if !out.isError { acted = true }
             }
             if Task.isCancelled { throw CancellationError() }
             Spinner.shared.start("Thinking")
@@ -783,7 +864,7 @@ final class OpenAIProvider: Provider {
     func rewrite(system: String, prompt: String) async throws -> String {
         let msgs: [[String: Any]] = [["role": "system", "content": system], ["role": "user", "content": prompt]]
         var extra: [String: Any] = [:]
-        if let host = URL(string: base)?.host, ["127.0.0.1", "localhost", "::1"].contains(host) {
+        if onThisMac {
             extra = ["max_tokens": 1500, "chat_template_kwargs": ["reasoning_effort": "low", "enable_thinking": false]]
         }
         return try await stream(msgs, tools: false, render: false, extra: extra).text

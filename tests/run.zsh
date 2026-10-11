@@ -34,8 +34,12 @@ for file in $files; do
     source $file
     print -r -- "$PASSED $FAILED" >| $home/.result
   )
-  local -a r=($(<$home/.result))
-  (( PASSED += r[1], FAILED += r[2] ))
+  if [[ -r $home/.result ]]; then
+    local -a r=($(<$home/.result))
+    (( PASSED += r[1], FAILED += r[2] ))
+  else
+    (( FAILED++ )); print -r -- "  ✗ the test stopped before its end (an error in the test file?)"
+  fi
   rm -rf -- "${home:?}"
 done
 print

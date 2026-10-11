@@ -156,6 +156,11 @@ itself (`lotus-ai --serve`, `lib/ai/Server.swift`) with the same providers, inst
 keeps your conversations (new, history, clear, delete); Markdown, tables and code blocks with a
 copy button; Enter sends, Shift+Enter makes a new line. It works on a phone too, in your theme's colors.
 
+**How hard it thinks.** The bars next to the message box open a slider, like the effort setting of
+Claude: quick, balanced, thorough, maximum, ultra. Ultra is Claude's highest effort; with every AI it
+also plans, checks its work (runs it, reads it back, looks at pages) and goes on longer when it stops
+early. It is the same setting as `/effort` in `/ai` and counts from the next message.
+
 **Commands and settings.** Type `/` for the commands of `/ai`: `/help`, `/new`, `/clear`, `/model`,
 `/effort`, `/enhance`, `/auto`, `/permissions`, `/settings`, `/memory`, `/context`, `/compact`, `/copy`.
 The gear opens the settings – who answers, thinking, improving prompts, ask first or auto, what the AI
@@ -164,7 +169,9 @@ starting with the terminal and other devices can only be changed there.
 
 **It keeps going.** When the AI stops before it is done – it ran out of room, only thought, or said
 what it would do next and stopped there – Lotus lets it go on by itself, at most three times per
-message, and says so in a line ("↻ … – Lotus lets it go on (1/3)"). A question to you is an end.
+message, and says so in a line ("↻ … – Lotus lets it go on (1/3)"). A question to you is an end –
+except a short "Should I create the files?" without doing anything: then Lotus tells it to just do it.
+The AI is told to act rather than offer, to pick sensible defaults, and to finish the whole job.
 
 **It sees the pages it builds.** When the AI builds a website it looks at it in a real browser –
 WebKit, the engine of Safari, without a window – at desktop and phone width (`view_page`). It gets
@@ -174,6 +181,7 @@ without alt text and form fields without a label; with `inspect` (a CSS selector
 position, colors and font of elements. Claude gets a screenshot too; the web chat shows it in the
 step, iTerm2 and WezTerm in the terminal. After the AI writes an HTML, CSS or JS file, Lotus looks at
 the page by itself and tells the AI what it saw – so smaller models notice their mistakes as well.
+For photos it uses real ones: `fetch_url` lists the pictures of a page with their addresses.
 The page only sees its folder (never private files) and cannot send anything away while it is looked at.
 
 **Better prompts.** With `/settings` → AI → "Improve prompts" (or `/enhance` in `/ai`) the AI first

@@ -316,7 +316,7 @@ lotus_ai_command() {
 
 lotus_ai_status() {
   local ok=$'\e[1;'"$LOTUS_C[key]m✓"$'\e[0m' no=$'\e['"$LOTUS_C[dim]m·"$'\e[0m' state
-  local -A effort=(low quick medium balanced high thorough max maximum)
+  local -A effort=(low quick medium balanced high thorough max maximum ultra ultra)
   ui_header AI "provider: ${LOTUS_AI_PROVIDER:-auto} · thinks ${effort[${LOTUS_AI_EFFORT:-high}]:-thorough}"
   local cm=${(M)LOTUS_AI_MODEL:#claude-*}
   if _ai_claude_key; then print -r -- "  $ok Claude              key saved${cm:+ · $cm}"
@@ -631,7 +631,7 @@ _llm_screen() {
     return 0
   fi
   _llm_ram; ram=$REPLY
-  local -A th=(low "quick" medium balanced high thorough max maximum)
+  local -A th=(low "quick" medium balanced high thorough max maximum ultra ultra)
   local g=$'\e['"$LOTUS_C[key]m" y=$'\e['"$LOTUS_C[key2]m" r=$'\e[38;5;203m' d=$'\e['"$LOTUS_C[dim]m" x=$'\e[39m'
   while :; do
     print -n $'\e[H\e[2J'
@@ -743,7 +743,7 @@ _llm_cycle() {   # <value> <values…> → REPLY = the next one
 }
 _llm_settings() {
   local -i sel=1
-  local -A th=(low "quick – no thinking" medium balanced high thorough max maximum) tp=(0.2 precise 0.6 balanced 1.0 creative)
+  local -A th=(low "quick – no thinking" medium balanced high thorough max maximum ultra ultra) tp=(0.2 precise 0.6 balanced 1.0 creative)
   while :; do
     print -n $'\e[H\e[2J'
     ui_hero "AI on this Mac · Settings" "Used when /ai starts a model on this Mac. Thinking counts for Claude and Ollama too."
@@ -752,10 +752,10 @@ _llm_settings() {
       "Context window|$(( ${LOTUS_AI_CONTEXT:-32768} / 1024 ))K tokens – how much of the conversation it keeps; more needs more memory" \
       "Answer length|up to $(( ${LOTUS_AI_MAXTOKENS:-8192} / 1024 ))K tokens per answer, thinking included" \
       "Creativity|${tp[${LOTUS_AI_TEMP:-0.6}]:-$LOTUS_AI_TEMP} – precise for code, creative for texts" \
-      "Memory saver|${${LOTUS_AI_KVBITS:#0}:+on – the context takes half the memory, slightly less exact}${${(M)LOTUS_AI_KVBITS:#0}:+off}" || break
+      "Memory saver|${${LOTUS_AI_KVBITS:#0}:+on – the context takes half the memory, slightly less exact}${${(M)LOTUS_AI_KVBITS:#0}:+off}${$(_llm_slides && print ' – not for this model, it cannot compress its memory')}" || break
     sel=$REPLY
     case $sel in
-      1) _llm_cycle ${LOTUS_AI_EFFORT:-high} low medium high max; LOTUS_AI_EFFORT=$REPLY ;;
+      1) _llm_cycle ${LOTUS_AI_EFFORT:-high} low medium high max ultra; LOTUS_AI_EFFORT=$REPLY ;;
       2) _llm_cycle ${LOTUS_AI_CONTEXT:-32768} 8192 16384 32768 65536 131072; LOTUS_AI_CONTEXT=$REPLY ;;
       3) _llm_cycle ${LOTUS_AI_MAXTOKENS:-8192} 2048 4096 8192 16384 32768; LOTUS_AI_MAXTOKENS=$REPLY ;;
       4) _llm_cycle ${LOTUS_AI_TEMP:-0.6} 0.2 0.6 1.0; LOTUS_AI_TEMP=$REPLY ;;
@@ -807,18 +807,34 @@ _llm_install() {
   ui_dim "  It loads when /ai starts (some seconds) and leaves the memory when /ai ends."
 }
 
+# Models with a sliding window (gpt-oss, Gemma) keep part of their memory in a rotating cache that mlx
+# cannot compress: with the memory saver (--kv-bits) every answer breaks off once a conversation reaches
+# about 5000 tokens – the AI seems to do nothing. They run without it.
+_llm_slides() {
+  grep -qE '"sliding_attention"|"use_sliding_window": *true|"model_type": *"(gpt_oss|gemma[0-9a-z_]*|cohere2)"' \
+    $LLM_MODELS/${1:-$LOTUS_AI_LOCAL}/config.json 2>/dev/null
+}
+
 # Starts the model server (127.0.0.1 only) unless it runs → REPLY = API URL
 _llm_start() {
   local url=http://127.0.0.1:$LLM_PORT/v1 log=$LOTUS_CACHE/llm/server.log
-  curl -fsS -m 1 $url/models >/dev/null 2>&1 && { REPLY=$url; return 0 }
+  if curl -fsS -m 1 $url/models >/dev/null 2>&1; then
+    # started with the memory saver for a model that cannot use it (Lotus before 2.12): start it again without
+    local bad="mlx_lm.server .*--port $LLM_PORT .*--kv-bits"
+    if ! _llm_slides || ! pgrep -qf $bad; then REPLY=$url; return 0; fi
+    lotus_log INFO ai "Model server started again without the memory saver – $LOTUS_AI_LOCAL cannot use it"
+    pkill -f $bad
+    local -i w
+    for (( w = 0; w < 50; w++ )); do curl -fsS -m 1 $url/models >/dev/null 2>&1 || break; zselect -t 10 2>/dev/null || sleep 0.1; done
+  fi
   _llm_row $LOTUS_AI_LOCAL
   zf_mkdir -p ${log:h}
   local effort=${LOTUS_AI_EFFORT:-high} think=true
   [[ $effort == low ]] && think=false
-  [[ $effort == max ]] && effort=high
+  [[ $effort == (max|ultra) ]] && effort=high      # the highest these models know
   local -a opts=(--max-tokens ${LOTUS_AI_MAXTOKENS:-8192} --temp ${LOTUS_AI_TEMP:-0.6} --top-p 0.95
     --chat-template-args "{\"enable_thinking\": $think, \"reasoning_effort\": \"$effort\"}")
-  (( LOTUS_AI_KVBITS )) && opts+=(--kv-bits $LOTUS_AI_KVBITS)
+  (( LOTUS_AI_KVBITS )) && ! _llm_slides && opts+=(--kv-bits $LOTUS_AI_KVBITS)
   $LLM_RUNTIME/bin/mlx_lm.server --model $LLM_MODELS/$LOTUS_AI_LOCAL --host 127.0.0.1 --port $LLM_PORT $opts >| $log 2>&1 &!
   LLM_PID=$!   # bin/lotus' EXIT trap stops it too (Ctrl-C) – a trap set here would run when this function returns
   local -i i

@@ -768,7 +768,8 @@ final class WebServer: @unchecked Sendable {
         let saved = SettingsFile.read()
         let mode = saved["LOTUS_AI_PERM_MODE"] ?? (agent.runner.permissions.auto ? "auto" : "ask")
         let effort = saved["LOTUS_AI_EFFORT"] ?? agent.config.effort
-        return ["version": agent.config.version, "ai": agent.provider.label, "effort": TUI.effortNames[effort] ?? effort,
+        return ["version": agent.config.version, "ai": agent.provider.label, "effort": Effort.name(effort), "level": effort,
+                "efforts": WebServer.efforts.map { ["value": $0.0, "name": Effort.name($0.0), "label": $0.1] },
                 "tools": (saved["LOTUS_AI_TOOLS"] ?? (agent.usesTools ? "1" : "0")) != "0", "mode": mode == "auto" ? "auto" : "ask",
                 "folder": String(folder), "busy": runningChat ?? NSNull(), "lan": lan, "name": agent.config.name,
                 "enhance": saved["LOTUS_AI_ENHANCE"] ?? agent.enhanceMode]
@@ -912,8 +913,7 @@ final class WebServer: @unchecked Sendable {
 
     // ── Settings, the AI, the memory: the same Lotus settings as /settings and /ai ──
 
-    static let efforts = [("low", "Quick – short answers, fast"), ("medium", "Balanced"),
-                          ("high", "Thorough – thinks before it answers"), ("max", "Maximum – takes the most time")]
+    static let efforts = Effort.levels.map { ($0, Effort.texts[$0] ?? $0) }
     static let enhanceModes = [("off", "Off – messages go as you type them"), ("on", "On – improved into a clear prompt, shown and sent"),
                                ("ask", "Ask – improved and shown first, you choose")]
 

@@ -6,6 +6,13 @@
 # "look at" calls view_page on site/index.html at phone width, "make a page" writes site2/index.html.
 # Stopping too early, so Lotus lets it go on: "think too long" runs out of room once, "never ends"
 # always, "announce" says what it will do next after a step and stops, "ask back" ends with a question.
+# Asking instead of acting: "offer to build" only asks whether it should (Lotus tells it to act), "explain then
+# offer" answers at length and ends with an offer (that stays the answer). "raw newline" writes a file with
+# arguments that have real line breaks in a string (Lotus repairs them), "broken call" sends arguments that
+# cannot be repaired and then stops without a word (Lotus lets it go on).
+# "break off" ends the stream in the middle, like a model server that crashed.
+# "how hard" gets back how it was asked to think (a model on this Mac gets it with every message) and
+# whether the ultra instructions are there.
 # Asked to improve a prompt (data/ai/system.md "## enhance"), it answers "Goal: <the request>" – or fails
 # with an error when the request contains "fail-enhance".
 import json
@@ -44,6 +51,42 @@ class Model(BaseHTTPRequestHandler):
 
         if improving:
             chunk({"content": "Goal: " + request})
+            chunk({}, "stop")
+        elif nudge.startswith("Do not ask whether you should"):
+            chunk({"content": "Done without asking."})
+            chunk({}, "stop")
+        elif last.get("role") == "user" and "offer to build" in said:
+            chunk({"content": "I can create two files for you, index.html and style.css. Would you like me to generate them in this folder?"})
+            chunk({}, "stop")
+        elif last.get("role") == "user" and "explain then offer" in said:
+            chunk({"content": "Here is the history in detail. " + "It began in Paris and grew step by step. " * 20})
+            chunk({"content": "Would you like me to build a website about it?"})
+            chunk({}, "stop")
+        elif body.get("tools") and last.get("role") == "user" and "raw newline" in said:
+            args = '{"path": "raw.txt", "content": "line one\nline two\tend \\\' quoted"}'   # a real line break and tab, and a backslash before '
+            call = {"index": 0, "id": "call_r", "type": "function", "function": {"name": "write_file", "arguments": args}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif last.get("role") == "tool" and "raw newline" in said:
+            chunk({"content": "Wrote it."})
+            chunk({}, "stop")
+        elif nudge.startswith("Continue the task") and "broken call" in said:
+            chunk({"content": "Recovered after the broken call."})
+            chunk({}, "stop")
+        elif body.get("tools") and last.get("role") == "user" and "broken call" in said:
+            call = {"index": 0, "id": "call_b", "type": "function",
+                    "function": {"name": "write_file", "arguments": '{"path": "broken.txt", "content": "never closed'}}
+            chunk({"tool_calls": [call]})
+            chunk({}, "tool_calls")
+        elif last.get("role") == "tool" and "broken call" in said:
+            chunk({}, "stop")
+        elif "break off" in said:
+            chunk({"reasoning_content": "Let me start …"})
+            return          # no finish reason, no [DONE]: the server broke off
+        elif "how hard" in said:
+            kw = body.get("chat_template_kwargs") or {}
+            ultra = "yes" if "The user chose ultra effort" in system else "no"
+            chunk({"content": "thinking %s %s, ultra %s" % (kw.get("reasoning_effort", "-"), str(kw.get("enable_thinking", "-")).lower(), ultra)})
             chunk({}, "stop")
         elif "never ends" in said or ("think too long" in said and not nudge.startswith("You ran out of room")):
             chunk({"reasoning_content": "Let me think about this for a very long time …"})

@@ -51,6 +51,7 @@ LOTUS_L+=(
   effort_medium   'balanced'
   effort_high     'thorough'
   effort_max      'maximum'
+  effort_ultra    'ultra'
   ai_model        'Model (optional)'
   ai_url          'API URL (optional)'
   ai_key          'API keys (Claude, OpenAI-compatible)'
