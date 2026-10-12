@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.15.2 – Memory and pictures
+
+From a `/performance` report of a web chat with Nucifera (two messages, 29 minutes):
+- The model on this Mac no longer runs out of memory in a long conversation: mlx kept up to ten conversations in its prompt cache, each a whole conversation – at 37,000 tokens that filled a 24 GB Mac, Metal stopped with "Insufficient Memory" and the answer broke off. Lotus now starts the model server with a cache for four conversations within a sixth of the memory (`--prompt-cache-size 4 --prompt-cache-bytes`)
+- A crashed model server is started again: after running out of memory mlx still answered, but every request failed ("generation thread died") until it was started again by hand. Lotus now starts it again by itself and lets the AI go on where it stopped; `/ai`, the web chat and the new `lotus ai local restart` also start a crashed server again, and one that an older Lotus started without the cache limit
+- Pictures: `fetch_url` on a picture says it loads and works in `<img src>` – before it failed with "That is not a page or text", and the AI tried address after address. A Wikimedia thumbnail in a width Wikimedia does not make (480 px – it answers 400) gets the address that works, in `fetch_url` and in what `view_page` reports
+- When Lotus stops a long thinking and the task has no plan yet, it tells the AI to write one with `plan` – before, it said "do not plan any further", and the AI never made one
+- `/performance` names running out of memory, and an unknown prompt size is no longer shown as "-1 tokens"
+- Tests: the cache limit, a crashed server and one without the limit started again, `lotus ai local restart`, the message when the model ran out of memory
+
 ## 2.15.1 – Fixes from a long run
 
 From a `/performance` report of a website task with Nucifera (23 minutes):

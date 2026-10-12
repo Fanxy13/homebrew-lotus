@@ -1711,6 +1711,13 @@ struct PageReport {
         let noAlt = strings(info["noAlt"]), broken = strings(info["broken"])
         if !noAlt.isEmpty { problems += 1; summary.append("images without alt text"); lines.append("Images without alt text: " + noAlt.joined(separator: ", ")) }
         if !broken.isEmpty { problems += 1; summary.append("\(broken.count) \(broken.count == 1 ? "image does" : "images do") not show"); lines.append("Images that do not show: " + broken.joined(separator: ", ")) }
+        let fixes = broken.filter { Web.oddWidth($0) }.compactMap { b -> String? in
+            let f = Web.wikimedia(b)
+            return f == b ? nil : "\(b) → \(f)"
+        }
+        if !fixes.isEmpty {
+            lines.append("Wikimedia makes thumbnails only in fixed widths (120, 250, 330, 500, 960, 1280 pixels). Addresses that work: " + fixes.joined(separator: " · "))
+        }
         let unlabeled = int(info["unlabeled"])
         if unlabeled > 0 { problems += 1; summary.append("form fields without a label"); lines.append("Form fields without a label: \(unlabeled) of \(int(info["fields"]))") }
         if let lang = info["lang"] as? String, lang.isEmpty { lines.append("<html> has no lang attribute.") }

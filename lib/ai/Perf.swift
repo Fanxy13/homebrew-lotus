@@ -170,6 +170,7 @@ enum Perf {
         var out: [String] = []
         let now = Date().timeIntervalSince1970
         let firstTime = messages.compactMap { $0["time"] as? Double }.min() ?? now
+        let serverLog = modelLog(since: firstTime - 5)
         out.append("LOTUS AI – PERFORMANCE REPORT")
         out.append("Conversation: \(title.isEmpty ? "(no title)" : title)")
         out.append("Made: \(clock(now)) · from \(clock(firstTime))")
@@ -248,6 +249,10 @@ enum Perf {
         // what stands out
         out.append("═══ WHAT STANDS OUT ═══")
         var notes: [String] = []
+        if serverLog.contains(where: { $0.contains("Insufficient Memory") }) {
+            notes.append("The model on this Mac ran out of memory (Metal) – the conversation and the caches of the model server no longer fit. "
+                         + "Lotus limits that cache and starts a crashed model again; a new conversation or /compact needs less.")
+        }
         if slept >= 60 {
             notes.append("The Mac was asleep for \(Stats.duration(slept)) while the AI worked – nothing happens then. Lotus keeps it awake while "
                          + "it answers, but closing the lid on battery still puts it to sleep.")
@@ -259,7 +264,8 @@ enum Perf {
             if hit < 0.2 { notes.append("The model reused only \(Int(hit * 100))% of its prompts from its cache – every step reads most of the conversation again.") }
         }
         if let slow = models.max(by: { num($0["first"]) < num($1["first"]) }), num(slow["first"]) > 20 {
-            notes.append("The slowest start of a model request: \(String(format: "%.0f", num(slow["first"]))) s before the first token (prompt \(Int(num(slow["prompt"]))) tokens).")
+            let size = num(slow["prompt"]) >= 0 ? " (prompt \(Int(num(slow["prompt"]))) tokens)" : ""
+            notes.append("The slowest start of a model request: \(String(format: "%.0f", num(slow["first"]))) s before the first token\(size).")
         }
         if !loops.isEmpty { notes.append("The AI repeated steps \(loops.count) times – it went in circles.") }
         if !overthought.isEmpty { notes.append("Its thinking had to be stopped \(overthought.count) times.") }
@@ -343,7 +349,7 @@ enum Perf {
         // the Lotus log and the model server's log of that time
         out.append("═══ LOTUS LOG (this time) ═══")
         out.append(contentsOf: logLines(since: firstTime - 5))
-        let server = modelLog(since: firstTime - 5)
+        let server = serverLog
         if !server.isEmpty {
             out.append("")
             out.append("═══ MODEL SERVER LOG (this time, without the progress lines) ═══")

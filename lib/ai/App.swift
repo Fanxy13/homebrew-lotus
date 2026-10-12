@@ -368,6 +368,7 @@ final class Agent {
             await compact(automatic: true)
         }
         var retried = false
+        var restarted = false       // the model server on this Mac was started again once in this answer
         var message = text          // what goes to the AI: the request, then "go on" when it stopped too early
         var answer: [String] = []
         var rounds = 0
@@ -408,6 +409,16 @@ final class Agent {
                     await compact(automatic: true)
                     continue
                 }
+                if error is ModelRestarted && !restarted {
+                    restarted = true
+                    Log.write("INFO", "The model ran out of memory – started again, the AI goes on")
+                    Renderer.shared.info("↻ The model on this Mac ran out of memory – Lotus started it again and lets it go on")
+                    emit("\n")
+                    message = "The model had to be started again in the middle of your work, so your last step may be missing. Continue "
+                        + "the task where you stopped – check what is already done instead of doing it again."
+                        + (self.runner.replyLanguage.map { " Keep answering in \($0), the language of the user's request." } ?? "")
+                    continue
+                }
                 if isCancellation(error) {
                     outcome = "stopped"
                     Renderer.shared.info("⎿  Stopped")
@@ -418,6 +429,9 @@ final class Agent {
                 outcome = "failed"
                 if error is ContextFull {
                     Renderer.shared.error("This is too long for \(provider.label)", "Try a shorter message, /clear, or a provider with more room (/model).")
+                } else if error is ModelRestarted {
+                    Renderer.shared.error("The model on this Mac ran out of memory again",
+                                          "Lotus started it again. The conversation may be too big for this Mac now: start a new chat or use /compact, then say \"go on\".")
                 } else if let e = error as? AIError {
                     Renderer.shared.error(e.title, e.detail)
                 } else {
@@ -439,6 +453,8 @@ final class Agent {
     private func goOn(_ part: String, request: String, worked: Bool, wrote: Bool, canAct: Bool) -> (why: String, message: String, brief: Bool)? {
         // the step of its plan (the plan tool) to go on with – so it does not plan everything again
         let next = runner.planTouched ? runner.nextStep.map { " The next step of your plan: \($0)." } ?? "" : ""
+        // no plan yet for a bigger task: writing one is a step with a tool – not more thinking
+        let planFirst = runner.plan.isEmpty && canAct ? " If the task has several steps, write them down with plan first – a short list – then do the first one." : ""
         let language = next + (runner.replyLanguage.map { " Keep answering in \($0), the language of the user's request." }
                                    ?? " Keep answering in the language of the user's request.")
         switch provider.stopped {
@@ -447,14 +463,14 @@ final class Agent {
             if let p = provider as? OpenAIProvider, p.circled {
                 p.warmer = true
                 return ("Its thinking went in circles",
-                        "Your thinking went in circles – you repeated the same words over and over, so it was cut off. Do not plan any "
-                            + "further: take the next step now with a tool (write files directly with write_file) or give your answer, in "
-                            + "different words than before." + language, true)
+                        "Your thinking went in circles – you repeated the same words over and over, so it was cut off. Stop thinking "
+                            + "it over: take the next step now with a tool (write files directly with write_file) or give your answer, in "
+                            + "different words than before." + planFirst + language, true)
             }
             return ("It thought for a long time without acting",
-                    "You thought for a long time without doing anything, so your thinking was cut off. Stop planning and act now: take "
-                        + "the next step with a tool – write files directly with write_file, never draft them in your thinking – or give "
-                        + "your answer. Think briefly from here on. The end of your thinking so far:\n" + plan + language, true)
+                    "You thought for a long time without doing anything, so your thinking was cut off. Stop thinking it over and act "
+                        + "now: take the next step with a tool – write files directly with write_file, never draft them in your thinking – "
+                        + "or give your answer. Think briefly from here on." + planFirst + " The end of your thinking so far:\n" + plan + language, true)
         case .ranOut:
             return ("It ran out of room before it was done",
                     "You ran out of room before you were done. Continue exactly where you stopped and finish the task – think briefly, "

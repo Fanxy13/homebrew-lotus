@@ -98,7 +98,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | AI | `/ai` | The AI terminal: chat, write code, create and change files, run commands – it asks before every change |
 | | `/ai what is a symlink?`, `/ai new` | One question (it remembers the conversation for an hour) · start fresh |
 | | `lotus ai login` or `/login` | Connect Claude in a minute; also Apple Intelligence, Ollama or an OpenAI-compatible API |
-| | `lotus ai local` | Models that run on this Mac with Apple's MLX – no Ollama: download, switch, remove; thinking, context window, answer length, creativity. Nucifera 20B is gpt-oss-20b tuned for Lotus ([nucifera-20b](https://github.com/Fanxy13/nucifera-20b)) |
+| | `lotus ai local` | Models that run on this Mac with Apple's MLX – no Ollama: download, switch, remove; thinking, context window, answer length, creativity; `lotus ai local restart` starts it again. Nucifera 20B is gpt-oss-20b tuned for Lotus ([nucifera-20b](https://github.com/Fanxy13/nucifera-20b)) |
 | | `/ai explain`, `summarize`, `write`, `command` | Explain an error, summarize a file, draft text, suggest a command |
 | | `/enhance` in `/ai`, or `/settings` → AI | Improve your prompts before the AI sees them: off, on, or shown first so you choose |
 | | `/ai server start`, `/ai server` | Lotus AI in your browser: a web chat on this Mac (127.0.0.1:3000) – the same AI, tools and questions · status, stop, port |

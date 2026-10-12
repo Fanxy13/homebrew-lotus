@@ -458,6 +458,7 @@ lotus_ai_logout() {
 # lotus ai local <id|owner/repo>   download and use a model from the list, or any MLX model on Hugging Face
 # lotus ai local use|remove <id>   switch to a downloaded model · delete one (remove all: everything)
 # lotus ai local settings          thinking, context window, answer length, creativity, memory saver
+# lotus ai local restart           start the model server again (after it crashed, or to free its memory)
 # The model runs in Lotus' own Python environment (mlx-lm, pinned) and is started only while /ai
 # runs – it listens on 127.0.0.1 only and leaves the memory when /ai ends.
 
@@ -495,6 +496,7 @@ lotus_ai_local() {
   case $1 in
     ''|list)  _llm_screen ;;
     settings) _llm_settings ;;
+    restart)  _llm_restart && ui_success "The model on this Mac runs again" ;;
     use)      _llm_use "$2" ;;
     remove)   _llm_remove "${2:-all}" ;;
     *)        _llm_install "$1" ;;
@@ -832,19 +834,54 @@ _llm_slides() {
     $LLM_MODELS/${1:-$LOTUS_AI_LOCAL}/config.json 2>/dev/null
 }
 
+# The model server keeps a few conversations in its prompt cache, within a share of the memory: by default mlx keeps
+# ten, each a whole conversation – in a long web chat that filled a 24 GB Mac, and Metal ran out of memory
+_llm_cache_opts() {
+  _llm_ram
+  local -i gb=$(( REPLY / 6 ))
+  (( gb < 2 )) && gb=2
+  reply=(--prompt-cache-size 4 --prompt-cache-bytes ${gb}G)
+}
+
+# Why a running model server has to start again – or nothing when it is fine
+_llm_stale() {
+  local log=$LOTUS_CACHE/llm/server.log pat="mlx_lm.server .*--port $LLM_PORT( |$)"
+  REPLY=
+  # after "Insufficient Memory" its generation thread is gone: it still answers, but every request fails
+  if grep -q "generation thread died" $log 2>/dev/null; then REPLY="it had crashed (out of memory)"
+  elif _llm_slides && pgrep -qf "$pat.*--kv-bits"; then REPLY="without the memory saver – $LOTUS_AI_LOCAL cannot use it"
+  elif pgrep -qf "$pat" && ! pgrep -qf "$pat.*--prompt-cache-bytes"; then REPLY="with a limit for its prompt cache"
+  fi
+  [[ -n $REPLY ]]
+}
+
+# Stops the model server on Lotus' port, whoever started it
+_llm_kill() {
+  local url=http://127.0.0.1:$LLM_PORT/v1
+  pkill -f "mlx_lm.server .*--port $LLM_PORT( |$)"
+  local -i w
+  for (( w = 0; w < 50; w++ )); do curl -fsS -m 1 $url/models >/dev/null 2>&1 || break; zselect -t 10 2>/dev/null || sleep 0.1; done
+  LLM_PID=0
+}
+
+# lotus ai local restart, and the AI itself after the server crashed (lib/ai/Providers.swift)
+_llm_restart() {
+  _llm_ok || { ui_error "No model on this Mac is chosen" "" "Choose one: lotus ai local"; return 1 }
+  lotus_log INFO ai "Model server started again"
+  _llm_kill
+  _llm_start
+}
+
 # Starts the model server (127.0.0.1 only) unless it runs → REPLY = API URL
 _llm_start() {
   local url=http://127.0.0.1:$LLM_PORT/v1 log=$LOTUS_CACHE/llm/server.log
   if curl -fsS -m 1 $url/models >/dev/null 2>&1; then
-    # started with the memory saver for a model that cannot use it (Lotus before 2.12): start it again without
-    local bad="mlx_lm.server .*--port $LLM_PORT .*--kv-bits"
-    if ! _llm_slides || ! pgrep -qf $bad; then REPLY=$url; return 0; fi
-    lotus_log INFO ai "Model server started again without the memory saver – $LOTUS_AI_LOCAL cannot use it"
-    pkill -f $bad
-    local -i w
-    for (( w = 0; w < 50; w++ )); do curl -fsS -m 1 $url/models >/dev/null 2>&1 || break; zselect -t 10 2>/dev/null || sleep 0.1; done
+    _llm_stale || { REPLY=$url; return 0 }
+    lotus_log INFO ai "Model server started again: $REPLY"
+    _llm_kill
   fi
   _llm_row $LOTUS_AI_LOCAL
+  local label=$reply[2]
   zf_mkdir -p ${log:h}
   local effort=${LOTUS_AI_EFFORT:-high} think=true
   [[ $effort == low ]] && think=false
@@ -852,18 +889,20 @@ _llm_start() {
   local -a opts=(--max-tokens ${LOTUS_AI_MAXTOKENS:-8192} --temp ${LOTUS_AI_TEMP:-0.6} --top-p 0.95
     --chat-template-args "{\"enable_thinking\": $think, \"reasoning_effort\": \"$effort\"}")
   (( LOTUS_AI_KVBITS )) && ! _llm_slides && opts+=(--kv-bits $LOTUS_AI_KVBITS)
+  _llm_cache_opts
+  opts+=($reply)
   $LLM_RUNTIME/bin/mlx_lm.server --model $LLM_MODELS/$LOTUS_AI_LOCAL --host 127.0.0.1 --port $LLM_PORT $opts >| $log 2>&1 &!
   LLM_PID=$!   # bin/lotus' EXIT trap stops it too (Ctrl-C) – a trap set here would run when this function returns
   local -i i
   for (( i = 0; i < 360; i++ )); do
-    print -rn -- $'\r\e[K'"  "$'\e['"$LOTUS_C[dim]m… Loading $reply[2] into memory ($(( i / 2 ))s)"$'\e[0m' >&2
+    print -rn -- $'\r\e[K'"  "$'\e['"$LOTUS_C[dim]m… Loading $label into memory ($(( i / 2 ))s)"$'\e[0m' >&2
     curl -fsS -m 1 $url/models >/dev/null 2>&1 && { print -rn -- $'\r\e[K' >&2; REPLY=$url; return 0 }
     kill -0 $LLM_PID 2>/dev/null || break
     zselect -t 50 2>/dev/null || sleep 0.5
   done
   print -rn -- $'\r\e[K' >&2
   _llm_stop
-  ui_error "The local model did not start" "$reply[2]" "${(f)$(tail -3 $log 2>/dev/null)}" "Details: $log" >&2
+  ui_error "The local model did not start" "$label" "${(f)$(tail -3 $log 2>/dev/null)}" "Details: $log" >&2
   return 1
 }
 

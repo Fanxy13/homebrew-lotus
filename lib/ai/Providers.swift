@@ -15,6 +15,46 @@ struct AIError: Error {
 
 struct ContextFull: Error {}
 
+// The model server on this Mac crashed in the middle of an answer and Lotus started it again: the agent lets the
+// AI go on (once)
+struct ModelRestarted: Error { let why: String }
+
+// lotus ai local: mlx can run out of memory (Metal: Insufficient Memory). Its generation thread is gone then – the
+// server still answers, but every request fails – so Lotus starts it again (lib/cmd/ai.zsh, _llm_restart)
+enum LocalServer {
+    static var log: String {
+        (ProcessInfo.processInfo.environment["LOTUS_CACHE"] ?? NSHomeDirectory() + "/.cache/lotus") + "/llm/server.log"
+    }
+
+    // The error in its log of the last minutes, and whether it is the crash that needs a new start
+    static func trouble() -> (why: String, crashed: Bool) {
+        guard let changed = (try? FileManager.default.attributesOfItem(atPath: log))?[.modificationDate] as? Date,
+              changed.timeIntervalSinceNow > -180, let text = try? String(contentsOfFile: log, encoding: .utf8) else { return ("", false) }
+        let recent = text.split(separator: "\n").suffix(80)
+        let memory = recent.contains { $0.contains("Insufficient Memory") || $0.contains("OutOfMemory") }
+        let crashed = recent.contains { $0.contains("generation thread died") }
+        if memory { return ("Metal: Insufficient Memory – the model ran out of memory", crashed) }
+        let why = recent.last { $0.range(of: #"^[A-Za-z]*(Error|Exception)\b"#, options: .regularExpression) != nil }.map(String.init) ?? ""
+        return (why, crashed)
+    }
+
+    // A new start with Lotus' own settings – only for the model Lotus runs (lotus ai local)
+    static func restart() -> Bool {
+        let e = ProcessInfo.processInfo.environment
+        guard let root = e["LOTUS_ROOT"], !root.isEmpty else { return false }
+        Spinner.shared.start("Starting the model on this Mac again")
+        defer { Spinner.shared.stop() }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        p.arguments = ["-fc", #"setopt extendedglob; source "$1/lib/core.zsh" && source "$1/lib/ui.zsh" && lotus_load && source "$1/lib/cmd/ai.zsh" && { zmodload zsh/zselect 2>/dev/null; _llm_restart }"#, "lotus", root]
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return false }
+        p.waitUntilExit()
+        return p.terminationStatus == 0
+    }
+}
+
 // Why an answer ended – the agent lets the AI go on when it stopped before it was done (App.swift)
 enum Stop { case done, ranOut, thoughtsOnly, empty, stepLimit, overthought }
 
@@ -691,20 +731,20 @@ final class OpenAIProvider: Provider {
 
     // The answer ended without an end: the server stopped in the middle. For lotus ai local, the error
     // from its log (written in the last minute) says why
-    private func brokeOff() -> AIError {
+    private func brokeOff() -> Error {
         guard onThisMac else {
             return AIError(title: "The AI service stopped in the middle of its answer", detail: "Try again – or choose another AI with /model.")
         }
-        let cache = ProcessInfo.processInfo.environment["LOTUS_CACHE"] ?? NSHomeDirectory() + "/.cache/lotus"
-        let log = cache + "/llm/server.log"
-        var why = ""
-        if let changed = (try? FileManager.default.attributesOfItem(atPath: log))?[.modificationDate] as? Date, changed.timeIntervalSinceNow > -60,
-           let text = try? String(contentsOfFile: log, encoding: .utf8) {
-            why = text.split(separator: "\n").last { $0.range(of: #"^[A-Za-z]*(Error|Exception)\b"#, options: .regularExpression) != nil }.map(String.init) ?? ""
-        }
+        let (why, crashed) = LocalServer.trouble()
         Log.write("ERROR", "The model server broke off\(why.isEmpty ? "" : ": " + why)")
-        return AIError(title: "The model on this Mac stopped in the middle of its answer",
-                       detail: (why.isEmpty ? "" : "\(why)\n") + "Start it again: end the web chat or /ai and start it again. Details: \(log)")
+        // crashed (out of memory): a new start, and the agent lets the AI go on
+        if crashed && LocalServer.restart() {
+            Log.write("INFO", "The model server on this Mac was started again")
+            return ModelRestarted(why: why)
+        }
+        return AIError(title: why.contains("memory") ? "The model on this Mac ran out of memory" : "The model on this Mac stopped in the middle of its answer",
+                       detail: (why.isEmpty ? "" : "\(why)\n") + "Start it again – lotus ai local restart – or end the web chat or /ai and start it "
+                           + "again. A new conversation (or /compact) needs less memory. Details: \(LocalServer.log)")
     }
 
     // A model server on this Mac takes the thinking per message, so a new level counts at once
@@ -827,6 +867,7 @@ final class OpenAIProvider: Provider {
                     continue
                 }
                 if status == 401 { throw AIError(title: "The API key was not accepted", detail: "Add a new key with: lotus ai key openai") }
+                if status >= 500 && onThisMac && LocalServer.trouble().crashed { throw brokeOff() }
                 throw AIError(title: "The AI service answered with an error (\(status))", detail: msg)
             }
             var reply = Reply()

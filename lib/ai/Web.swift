@@ -189,8 +189,24 @@ enum Web {
                 url = next
                 continue
             }
-            guard (200...299).contains(http.statusCode) else { throw Failure(message: "The page answered with \(http.statusCode)") }
+            guard (200...299).contains(http.statusCode) else {
+                // a Wikimedia thumbnail in a width it does not make: the address that works
+                let fixed = wikimedia(url.absoluteString)
+                if http.statusCode == 400, oddWidth(url.absoluteString), fixed != url.absoluteString {
+                    throw Failure(message: "The page answered with 400 – Wikimedia makes thumbnails only in fixed widths (120, 250, 330, 500, "
+                        + "960, 1280 pixels), not in this one. This address works: \(fixed)")
+                }
+                throw Failure(message: "The page answered with \(http.statusCode)")
+            }
             let type = (http.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
+            // a picture: the AI checks whether an address for its page works – it does
+            if type.hasPrefix("image/") {
+                let kb = http.expectedContentLength > 0 ? " · \(max(1, Int(http.expectedContentLength) / 1024)) KB" : ""
+                return Page(url: url, title: "A picture (\(type.split(separator: ";").first ?? "image")\(kb))",
+                            text: "This address is a picture (\(type.split(separator: ";").first ?? "image")\(kb)) and it loads – it works in "
+                                + "<img src=\"\(url.absoluteString)\">. (fetch_url reads pages; a picture cannot be read as text.)",
+                            links: [], bytes: max(0, Int(http.expectedContentLength)))
+            }
             if type.contains("pdf") { throw Failure(message: "That is a PDF – Lotus reads web pages and text, not PDFs from the web.") }
             if !type.isEmpty && !(type.hasPrefix("text/") || type.contains("json") || type.contains("xml") || type.contains("javascript")) {
                 throw Failure(message: "That is not a page or text (\(type.split(separator: ";").first ?? ""))")
@@ -352,6 +368,16 @@ enum Web {
 
     // A Wikimedia picture at 960 pixels: thumbnails exist only in fixed widths (120, 250, 330, 500, 960,
     // 1280 …) – another one answers 400 – and the original can be many megabytes
+    // A width Wikimedia makes thumbnails in: an address in another one is replaced (wikimedia), one in these is kept
+    static let thumbWidths: Set<Int> = [20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920, 3840]
+
+    // A Wikimedia thumbnail in a width it does not make ("…/480px-…") – it answers 400
+    static func oddWidth(_ address: String) -> Bool {
+        guard address.contains("wikimedia.org"), let r = address.range(of: #"/(\d+)px-[^/]+$"#, options: .regularExpression) else { return false }
+        let n = Int(address[r].dropFirst().prefix { $0.isNumber }) ?? 0
+        return !thumbWidths.contains(n)
+    }
+
     static func wikimedia(_ raw: String) -> String {
         // Wikipedia now links thumb.wikimedia.org with tracking parameters (?utm_source=…): without them, at upload.wikimedia.org
         let address = raw.components(separatedBy: "?")[0].replacingOccurrences(of: "://thumb.wikimedia.org/", with: "://upload.wikimedia.org/")

@@ -30,6 +30,7 @@ curl() { pgrep -qf "$LLM_RUNTIME/bin/mlx_lm.server" && [[ -e $HOME/args ]] }    
 LOTUS_AI_KVBITS=8 LOTUS_AI_LOCAL=qwen
 _llm_start 2>/dev/null
 check_has "Qwen gets the memory saver" "$(<$HOME/args)" "--kv-bits 8"
+check_has "and a limit for the prompt cache – ten whole conversations filled the memory" "$(<$HOME/args)" "--prompt-cache-size 4 --prompt-cache-bytes"
 # a server that an older Lotus started with it, now for gpt-oss: Lotus starts it again without
 LOTUS_AI_LOCAL=gpt-oss-20b
 _llm_start 2>/dev/null
@@ -39,5 +40,23 @@ check_has "and the log says why" "$(<$LOTUS_STATE/lotus.log)" "without the memor
 args=$(<$HOME/args)
 _llm_start 2>/dev/null
 check_eq "a right one is kept as it is" "$(<$HOME/args)" "$args"
+# out of memory: mlx still answers, but its generation thread is gone – it starts again
+print -r -- "RuntimeError: generation thread died" >> $LOTUS_CACHE/llm/server.log
+before=$(pgrep -f "$LLM_RUNTIME/bin/mlx_lm.server")
+_llm_start 2>/dev/null
+check "a server that crashed is started again" eval '[[ -n $before && $(pgrep -f "$LLM_RUNTIME/bin/mlx_lm.server") != $before ]]'
+check_has "and the log says why" "$(<$LOTUS_STATE/lotus.log)" "it had crashed (out of memory)"
+# one an older Lotus started without the limit
+pkill -f "$LLM_RUNTIME/bin/mlx_lm.server"; for i in {1..50}; do curl || break; sleep 0.1; done
+rm -f $HOME/args
+$LLM_RUNTIME/bin/mlx_lm.server --model $LLM_MODELS/gpt-oss-20b --host 127.0.0.1 --port 18999 --max-tokens 8192 >/dev/null 2>&1 &!
+for i in {1..50}; do curl && break; sleep 0.1; done
+_llm_start 2>/dev/null
+check_has "a server without the limit is started again with it" "$(<$HOME/args)" "--prompt-cache-bytes"
+# lotus ai local restart
+before=$(pgrep -f "$LLM_RUNTIME/bin/mlx_lm.server")
+_llm_ok() { true }
+_llm_restart 2>/dev/null
+check "lotus ai local restart: a new server" eval '[[ $(pgrep -f "$LLM_RUNTIME/bin/mlx_lm.server") != $before && -e $HOME/args ]]'
 _llm_stop
 pkill -f "$LLM_RUNTIME/bin/mlx_lm.server" 2>/dev/null

@@ -284,6 +284,14 @@ check "a plan ticked off in the answer counts – it is not sent on" eval '[[ $o
 check_has "and the list shows it" "$out" '"text":"All steps done"'
 out=$(send_to $auto "please break off")
 check_has "a model server that breaks off: it says so instead of nothing" "$out" "stopped in the middle of its answer"
+# it broke off because it ran out of memory: named as such (Lotus starts only its own model again – none here)
+zf_mkdir -p $LOTUS_CACHE/llm
+print -r -- "RuntimeError: [METAL] Command buffer execution failed: Insufficient Memory (00000008:kIOGPUCommandBufferCallbackErrorOutOfMemory).
+RuntimeError: generation thread died" >| $LOTUS_CACHE/llm/server.log
+out=$(send_to $auto "please break off")
+check_has "out of memory: it says so" "$out" "The model on this Mac ran out of memory"
+check_has "and how to start it again" "$out" "lotus ai local restart"
+rm -f $LOTUS_CACHE/llm/server.log
 setting LOTUS_AI_PERM_MODE ask >/dev/null
 check_has "who answers: the test model" "$(curl -s -m 5 $H $B/api/models)" '"current":true'
 check_eq "an AI that is not there: refused" "$(code $H -H 'Content-Type: application/json' -d '{"kind":"claude","model":"claude-nope"}' $B/api/model)" 400
