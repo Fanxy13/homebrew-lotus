@@ -142,7 +142,7 @@ class Model(BaseHTTPRequestHandler):
             start = max(i for i, m in enumerate(messages) if m.get("role") == "user" and "plan in text" in str(m.get("content", "")))
             done = sum(1 for m in messages[start:] if m.get("role") == "tool")
             nudged = any(str(m.get("content", "")).startswith("Your plan still has open steps") for m in messages[start:])
-            steps = [("plan", {"steps": "[>] Write text-a.txt\n[ ] Write text-b.txt"}),
+            steps = [("plan", {"steps": "[>] The first part\n[ ] The second part"}),
                      ("write_file", {"path": "text-a.txt", "content": "A"}), ("write_file", {"path": "text-b.txt", "content": "B"})]
             if done < len(steps):
                 name, args = steps[done]
@@ -150,7 +150,7 @@ class Model(BaseHTTPRequestHandler):
                 chunk({"tool_calls": [c]})
                 chunk({}, "tool_calls")
             else:
-                chunk({"content": "Nudged again." if nudged else "Done:\n\n```\n[x] Write text-a.txt\n[x] Write text-b.txt\n```"})
+                chunk({"content": "Nudged again." if nudged else "Done:\n\n```\n[x] The first part\n[x] The second part\n```"})
                 chunk({}, "stop")
         elif "plan two files" in said and body.get("tools"):
             # a plan, the first file, a stop with a step still open – after Lotus' nudge the second file and the ticked-off plan
@@ -166,10 +166,12 @@ class Model(BaseHTTPRequestHandler):
             elif done == 1:
                 call("write_file", {"path": "plan-a.txt", "content": "A"})
             elif done == 2 and not nudged:
-                chunk({"content": "Wrote plan-a.txt."})
+                told = "Next: Write plan-b.txt" in str(last.get("content", ""))      # Lotus ticked the step off and named the next
+                chunk({"content": "Wrote plan-a.txt" + (", told the next step." if told else ".")})
                 chunk({}, "stop")
             elif done == 2:
-                call("write_file", {"path": "plan-b.txt", "content": "B"})
+                # Lotus names the language of the request when it sends the AI on
+                call("write_file", {"path": "plan-b.txt", "content": "B in English" if "Keep answering in English" in nudge else "B"})
             elif done == 3:
                 call("plan", {"steps": "- [x] Write plan-a.txt\n- [x] Write plan-b.txt"})
             else:

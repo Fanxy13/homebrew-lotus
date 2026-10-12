@@ -529,8 +529,15 @@ final class Renderer: @unchecked Sendable {
     }
 
     // The plan (the plan tool) as a checklist: done, the step in work, still to do
-    func plan(_ steps: [(text: String, state: String)]) {
-        if send("plan", ["steps": steps.map { ["text": $0.text, "state": $0.state] }]) { return }
+    // update: Lotus ticked off a step itself – the web chat changes the list that is there, the terminal adds a line
+    func plan(_ steps: [(text: String, state: String)], update: Bool = false) {
+        if send("plan", ["steps": steps.map { ["text": $0.text, "state": $0.state] }, "update": update]) { return }
+        if update {
+            if let last = steps.last(where: { $0.state == "done" }) {
+                emit("     \(Style.green)✓\(Style.reset) \(Style.dim)\(clip(last.text, max(20, Term.width - 9)))\(Style.reset)\n")
+            }
+            return
+        }
         let width = max(20, Term.width - 9)
         for s in steps {
             switch s.state {

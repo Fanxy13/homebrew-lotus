@@ -269,10 +269,13 @@ check_has "arguments that cannot be repaired: it is told what went wrong" "$out"
 check_has "a quiet end after it: Lotus lets it go on" "$out" "It stopped without an answer"
 check_has "and it gets there" "$out" '"text":"Recovered after the broken call."'
 check "nothing was written from the broken call" test ! -e $HOME/work/broken.txt
-out=$(send_to $auto "please plan two files")
+out=$(send_to $auto "please plan two files for me in this folder")
 check_has "a plan: the to-do list reaches the browser" "$out" '"type":"plan"'
 check_has "with the step in work" "$out" '"state":"doing"'
+check_has "a file of the plan written: Lotus ticks the step off itself" "$out" '"update":true'
+check_has "and tells the AI the next step" "$out" 'Wrote plan-a.txt, told the next step.'
 check_has "it stopped with a step still open: Lotus sends it on" "$out" "Its plan still has open steps"
+check_eq "in the language of the request" "$(<$HOME/work/plan-b.txt)" "B in English"
 check_has "and it finishes the plan" "$out" '"text":"Both files are done."'
 check "both files are there" eval '[[ -e $HOME/work/plan-a.txt && -e $HOME/work/plan-b.txt ]]'
 check "the ticked-off plan" eval '[[ $out == *"\"state\":\"done\",\"text\":\"Write plan-b.txt\""* || $out == *"\"text\":\"Write plan-b.txt\",\"state\":\"done\""* ]]'
@@ -390,7 +393,18 @@ check_has "every model request is measured" "$out" '"type":"model"'
 check_has "with the time to the first token" "$out" '"first":'
 
 # ── /performance: the conversation as a report in a text file ──
+# the model server's log of that time: its harmless notes are summed up, not repeated
+zf_mkdir -p $LOTUS_CACHE/llm
+now=$(date '+%Y-%m-%d %H:%M:%S')
+print -r -- "$now,100 - WARNING - Received tools but model does not support tool calling. If you think this is an error, file an issue
+$now,200 - WARNING - Received tools but model does not support tool calling. If you think this is an error, file an issue
+Traceback (most recent call last):
+  File \"/x/mlx_lm/server.py\", line 1200, in do_POST
+BrokenPipeError: [Errno 32] Broken pipe" >| $LOTUS_CACHE/llm/server.log
 rep=$(curl -s -m 10 $H $B/api/chats/$stuck/performance)
+check_has "the model server's note about tool calls: counted, not an error" "$rep" '(2× "Received tools but model does not support tool calling" – not an error'
+check_has "a request Lotus ended itself is named as such" "$rep" "a request that Lotus ended itself"
+check "and the raw lines are left out" eval '[[ $rep != *"WARNING - Received tools"* && $rep != *"Traceback"* ]]'
 check_has "the report: the setup" "$rep" "═══ SETUP ═══"
 check_has "the AI and this Mac" "$rep" "AI:"
 check_has "the totals" "$rep" "Model requests:"

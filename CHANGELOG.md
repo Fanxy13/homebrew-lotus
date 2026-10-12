@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.15.1 – Fixes from a long run
+
+From a `/performance` report of a website task with Nucifera (23 minutes):
+- The Mac stays awake while the AI answers: a long answer of a model on this Mac no longer stalls when the Mac goes to sleep because nobody touches it. Closing the lid on battery still puts it to sleep – `/performance` now measures how long the Mac slept and no longer counts that time as thinking (the report said "thinking took 94% of the time" for 14 minutes of a closed lid)
+- The plan stays right: when the AI writes a file of its plan, looks at the page or runs the script, Lotus ticks that step off itself and tells the AI the next one – in the web chat the checklist changes where it is. Before, the AI forgot to tick off, and when Lotus had to stop a thinking it sent the AI back to a step that was already done (it wrote style.css a second time)
+- When `view_page` finds nothing to fix, the AI is told the check is done – no more checking in its thinking until it goes in circles
+- The last answer in the language of the request: after many steps gpt-oss answered in Spanish. Lotus now names the language of the request in its notes to the AI (the summary when the plan is done, going on)
+- Pictures from Wikipedia: it links them at thumb.wikimedia.org with tracking parameters now, so the AI got 250-pixel thumbnails for the page. They are given at 960 pixels again, without the parameters
+- `/performance`: the model server's note "Received tools but model does not support tool calling" (on every request with gpt-oss – mlx leaves the tool calls to Lotus) is counted in one line instead of repeated, and a `BrokenPipeError` is named for what it is – a request Lotus ended itself when it stopped a thinking
+- Tests: the steps Lotus ticks off itself, the next step it names, the language of the request, the model server's log in the report
+
 ## 2.15.0 – Step by step
 
 - The AI works in steps: a bigger task – or several things in one message – starts with a short to-do list, written with a new tool, `plan`: one line per step, in order, each small enough for one or two tool calls. It takes the step marked as in work, does it, ticks it off and marks the next one. The list is shown as a checklist – in the terminal with ✓ and ▸, in the web chat with rings that fill as steps get done – and in `/performance`

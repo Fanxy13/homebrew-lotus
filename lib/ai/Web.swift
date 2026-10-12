@@ -352,7 +352,9 @@ enum Web {
 
     // A Wikimedia picture at 960 pixels: thumbnails exist only in fixed widths (120, 250, 330, 500, 960,
     // 1280 …) – another one answers 400 – and the original can be many megabytes
-    static func wikimedia(_ address: String) -> String {
+    static func wikimedia(_ raw: String) -> String {
+        // Wikipedia now links thumb.wikimedia.org with tracking parameters (?utm_source=…): without them, at upload.wikimedia.org
+        let address = raw.components(separatedBy: "?")[0].replacingOccurrences(of: "://thumb.wikimedia.org/", with: "://upload.wikimedia.org/")
         let pattern = #"^(https://upload\.wikimedia\.org/wikipedia/[^/]+)/(?:thumb/)?([0-9a-f]/[0-9a-f]{2})/([^/]+\.(?:jpe?g|png|webp))(?:/[^/]+)?$"#
         guard let re = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
               let m = re.firstMatch(in: address, range: NSRange(address.startIndex..., in: address)), m.numberOfRanges == 4,
@@ -375,7 +377,7 @@ enum Web {
             if path.hasSuffix(".svg") || path.hasSuffix(".gif") || path.contains("icon") || path.contains("logo") || path.contains("sprite") { continue }
             if let w = attr("width").flatMap({ Int($0) }), w < 100 { continue }
             if let h = attr("height").flatMap({ Int($0) }), h < 80 { continue }
-            let address = u.host == "upload.wikimedia.org" ? wikimedia(u.absoluteString) : u.absoluteString
+            let address = ["upload.wikimedia.org", "thumb.wikimedia.org"].contains(u.host ?? "") ? wikimedia(u.absoluteString) : u.absoluteString
             guard !out.contains(where: { $0.url == address }) else { continue }
             out.append((clean(attr("alt") ?? ""), address))
             if out.count == 10 { break }

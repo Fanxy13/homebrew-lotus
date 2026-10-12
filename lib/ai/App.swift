@@ -14,6 +14,8 @@
 // Keys are never written to disk by this program.
 
 import Foundation
+import IOKit.pwr_mgt
+import NaturalLanguage
 
 struct Config {
     var provider: String
@@ -61,6 +63,47 @@ enum Effort {
                         "high": "Thorough – thinks before it answers", "max": "Maximum – thinks longer and deeper",
                         "ultra": "Ultra – thinks the most, checks its work, takes the longest"]
     static func name(_ level: String) -> String { names[level] ?? level }
+}
+
+// ── Awake while the AI works ──────────────────────────────────
+// A long answer of a model on this Mac must not stall because the Mac went to sleep when nobody touched it.
+// Closing the lid on battery still puts it to sleep – how long it slept is measured, so /performance does not
+// count that time as thinking.
+enum Awake {
+    static func begin(_ why: String) -> IOPMAssertionID? {
+        var id = IOPMAssertionID(0)
+        let ok = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
+                                             IOPMAssertionLevel(kIOPMAssertionLevelOn), why as CFString, &id)
+        return ok == kIOReturnSuccess ? id : nil
+    }
+
+    static func end(_ id: IOPMAssertionID?) {
+        if let id = id { IOPMAssertionRelease(id) }
+    }
+
+    // The clock that stops while the Mac sleeps, and the one that goes on
+    static func clocks() -> (awake: UInt64, all: UInt64) {
+        (clock_gettime_nsec_np(CLOCK_UPTIME_RAW), clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW))
+    }
+
+    static func slept(since c: (awake: UInt64, all: UInt64)) -> Double {
+        let now = clocks()
+        let all = Double(now.all &- c.all), awake = Double(now.awake &- c.awake)
+        return max(0, (all - awake) / 1e9)
+    }
+}
+
+// ── The language of the request ───────────────────────────────
+// gpt-oss sometimes answers in another language after many steps; Lotus names the language in its notes to it
+enum Language {
+    static func name(of text: String) -> String? {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard t.split(whereSeparator: { $0.isWhitespace }).count >= 4 else { return nil }
+        let r = NLLanguageRecognizer()
+        r.processString(t)
+        guard let lang = r.dominantLanguage, let p = r.languageHypotheses(withMaximum: 1)[lang], p > 0.6 else { return nil }
+        return Locale(identifier: "en").localizedString(forLanguageCode: lang.rawValue)
+    }
 }
 
 // ── Memory ────────────────────────────────────────────────────
@@ -314,7 +357,10 @@ final class Agent {
         // counted for /stats: how long, how many steps, how it ended
         var outcome = "done"
         runner.beginAnswer()
+        runner.replyLanguage = Language.name(of: text)
         planNudged = false
+        let awake = Awake.begin("Lotus AI is answering")
+        defer { Awake.end(awake) }
         (provider as? OpenAIProvider)?.warmer = false
         Stats.begin(browser ? "web" : "terminal")
         defer { Stats.end(outcome, ai: provider.label) }
@@ -393,7 +439,8 @@ final class Agent {
     private func goOn(_ part: String, request: String, worked: Bool, wrote: Bool, canAct: Bool) -> (why: String, message: String, brief: Bool)? {
         // the step of its plan (the plan tool) to go on with – so it does not plan everything again
         let next = runner.planTouched ? runner.nextStep.map { " The next step of your plan: \($0)." } ?? "" : ""
-        let language = next + " Keep answering in the language of the user's request."
+        let language = next + (runner.replyLanguage.map { " Keep answering in \($0), the language of the user's request." }
+                                   ?? " Keep answering in the language of the user's request.")
         switch provider.stopped {
         case .overthought:
             let plan = provider.lastThoughts.trimmingCharacters(in: .whitespacesAndNewlines).suffix(2500)

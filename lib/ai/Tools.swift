@@ -364,6 +364,7 @@ final class ToolRunner: @unchecked Sendable {
     // The plan of a bigger task (the plan tool): kept for the conversation, so a follow-up can go on with it
     private(set) var plan: [PlanStep] = []
     private(set) var planTouched = false       // written in this answer – then open steps mean it is not done yet
+    var replyLanguage: String?                 // the language of the user's request ("English"), when it is clear
 
     init(cwd: URL, ui: Interaction, outputLimit: Int) {
         self.cwd = cwd
@@ -415,6 +416,38 @@ final class ToolRunner: @unchecked Sendable {
         return true
     }
 
+    // A step of the plan that this tool call did – a file written, the page looked at, the script run – is
+    // ticked off by Lotus, so the plan stays right when the AI forgets to (and a note never sends it back to a
+    // step that is done). Returns the note for the AI.
+    private func tickPlan(_ tool: String, _ args: [String: Any]) -> String? {
+        guard planTouched, !plan.isEmpty, ["write_file", "edit_file", "view_page", "run_command"].contains(tool) else { return nil }
+        let checks = #"^(run|execute|start|test|check|verify|view|look|open|preview|führ|starte|teste|prüf|öffne|schau|ejecut|prueb|lanc|teste|vérifi)"#
+        let target = (str(args, "path") ?? str(args, "command") ?? "").lowercased()
+        let files = Set(target.components(separatedBy: CharacterSet(charactersIn: " /\"'`;|&<>()"))
+            .filter { $0.range(of: #"^[\w.-]+\.[a-z0-9]{1,5}$"#, options: .regularExpression) != nil })
+        func names(_ text: String) -> Bool { files.contains { text.contains($0) } }
+        let order = plan.indices.filter { plan[$0].state == .doing } + plan.indices.filter { plan[$0].state == .open }
+        let hit = order.first { i in
+            let t = plan[i].text.lowercased()
+            let check = t.range(of: checks, options: .regularExpression) != nil
+            switch tool {
+            case "write_file", "edit_file": return names(t) && !check
+            case "view_page": return t.contains("view_page") || (check && (names(t) || t.range(of: #"\b(page|site|website|seite|html|layout|browser)\b"#, options: .regularExpression) != nil))
+            default: return check && names(t)
+            }
+        }
+        guard let i = hit else { return nil }
+        let wasDoing = plan[i].state == .doing
+        plan[i].state = .done
+        if wasDoing || !plan.contains(where: { $0.state == .doing }), let n = plan.firstIndex(where: { $0.state == .open }) { plan[n].state = .doing }
+        Renderer.shared.plan(plan.map { ($0.text, $0.state.rawValue) }, update: true)
+        let done = plan[i].text
+        if let next = nextStep {
+            return "\n\n(Your plan: \"\(done)\" is ticked off. Next: \(next))"
+        }
+        return "\n\n(Your plan: \"\(done)\" is ticked off – all steps are done. Give the user a short summary\(replyLanguage.map { " in \($0)" } ?? "").)"
+    }
+
     // The step to do now: the one marked [>], else the first open one
     var nextStep: String? { (plan.first { $0.state == .doing } ?? plan.first { $0.state == .open })?.text }
     var openSteps: [PlanStep] { plan.filter { $0.state != .done } }
@@ -437,6 +470,7 @@ final class ToolRunner: @unchecked Sendable {
             let before = actions.count
             result = await execute(name, args)
             if actions.count > before && !ToolRunner.lookOnly.contains(name) { changes += 1 }
+            if !result.isError, let note = tickPlan(name, args) { result.text += note }
             if name != called && !result.isError {
                 result.text += "\n\n(There is no tool \(called) – this ran as \(name). Use the names of the tools you were given.)"
             }
@@ -1124,7 +1158,7 @@ final class ToolRunner: @unchecked Sendable {
         guard let next = nextStep else {
             Renderer.shared.toolResult("All steps done")
             return ToolOutcome(text: "Plan saved – all \(steps.count) steps are done. Check that every part of the request is done, then give "
-                + "the user a short summary of the result.")
+                + "the user a short summary of the result\(replyLanguage.map { ", in \($0) (the language of the request)" } ?? "").")
         }
         Renderer.shared.toolResult("Now: \(clip(next, 80))")
         return ToolOutcome(text: "Plan saved (\(done) of \(steps.count) done). Now: \(next)\nDo this step now with the tools. Think only about "
@@ -1713,7 +1747,8 @@ struct PageReport {
                 }
             }
         }
-        lines.append(problems == 0 ? "Nothing to fix found." : "Fix these, then look again with view_page.")
+        lines.append(problems == 0 ? "Nothing to fix found – this check is done. Do not check the page again, not with a tool and not in your "
+                     + "thinking: take the next step, or finish." : "Fix these, then look again with view_page.")
         text = lines.joined(separator: "\n")
     }
 }

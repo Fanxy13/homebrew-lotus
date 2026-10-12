@@ -188,16 +188,22 @@ enum Perf {
         let events = answers.flatMap { $0["events"] as? [[String: Any]] ?? [] }
         func of(_ type: String) -> [[String: Any]] { events.filter { $0["type"] as? String == type } }
         let summaries = of("answer"), models = of("model"), tools = of("tool"), results = of("result"), infos = of("info")
-        let working = summaries.isEmpty ? answers.map { a in num((a["events"] as? [[String: Any]])?.last?["t"]) }.reduce(0, +)
+        let workedAll = summaries.isEmpty ? answers.map { a in num((a["events"] as? [[String: Any]])?.last?["t"]) }.reduce(0, +)
                                         : summaries.map { num($0["secs"]) }.reduce(0, +)
-        let thought = of("thought").map { num($0["secs"]) }.reduce(0, +)
-        let modelTime = models.map { num($0["secs"]) }.reduce(0, +)
+        // the Mac asleep (lid closed): measured per model request, and taken out of the thinking and the waiting
+        let slept = models.map { num($0["slept"]) }.reduce(0, +)
+        let working = max(0, workedAll - slept)
+        let thought = max(0, of("thought").map { num($0["secs"]) }.reduce(0, +) - slept)
+        let modelTime = max(0, models.map { num($0["secs"]) }.reduce(0, +) - slept)
         out.append("═══ TOTALS ═══")
         out.append("Messages: \(users.count) · answers: \(answers.count) · \(summaries.filter { $0["outcome"] as? String == "stopped" }.count) stopped, "
                    + "\(summaries.filter { $0["outcome"] as? String == "failed" }.count) failed, \(of("error").count) errors shown")
         out.append("Working: \(Stats.duration(working)) · thinking: \(Stats.duration(thought))"
                    + (working > 0 ? " (\(Int(thought * 100 / working))%)" : "")
                    + " · waiting for the model: \(Stats.duration(modelTime))" + (working > 0 ? " (\(Int(min(modelTime, working) * 100 / working))%)" : ""))
+        if slept >= 5 {
+            out.append("The Mac slept: \(Stats.duration(slept)) during the answer (lid closed or sleep) – not counted above")
+        }
         var byTool: [String: Int] = [:]
         for t in tools { byTool[t["name"] as? String ?? "?", default: 0] += 1 }
         out.append("Steps: \(tools.count)" + (byTool.isEmpty ? "" : " · " + byTool.sorted { $0.value > $1.value }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))
@@ -242,6 +248,10 @@ enum Perf {
         // what stands out
         out.append("═══ WHAT STANDS OUT ═══")
         var notes: [String] = []
+        if slept >= 60 {
+            notes.append("The Mac was asleep for \(Stats.duration(slept)) while the AI worked – nothing happens then. Lotus keeps it awake while "
+                         + "it answers, but closing the lid on battery still puts it to sleep.")
+        }
         if working > 0 && thought / working > 0.5 { notes.append("Thinking took \(Int(thought * 100 / working))% of the time – lower the thinking (/effort) or give smaller steps.") }
         let measured = models.filter { num($0["prompt"]) > 0 }
         if measured.count >= 2 {
@@ -363,12 +373,28 @@ enum Perf {
         f.dateFormat = "yyyy-MM-dd HH:mm:ss"
         let start = f.string(from: Date(timeIntervalSince1970: since))
         var out: [String] = []
+        var noTools = 0, ended = false
         for l in text.split(separator: "\n").suffix(20_000) {
             let s = String(l)
+            // mlx says this on every request for gpt-oss: it does not read tool calls itself – Lotus does, from the text
+            if s.contains("Received tools but model does not support tool calling") {
+                if s.count < 19 || String(s.prefix(19)) >= start { noTools += 1 }
+                continue
+            }
+            // a request that Lotus ended itself (stopped thinking, the stop button): the server could not write on
+            if s.contains("BrokenPipeError") {
+                if !ended { out.append("(BrokenPipeError: a request that Lotus ended itself – when it stopped a thinking or you pressed stop)") }
+                ended = true
+                continue
+            }
             if s.contains("Prompt processing progress") || s.contains("Prompt Cache:") || s.hasPrefix("2") && s.contains(" - INFO - - ") { continue }
             if s.count >= 19, s.first?.isNumber == true, String(s.prefix(19)) < start { continue }
             if s.first?.isNumber != true && !s.contains("POST") && !s.contains("Error") && !s.contains("Traceback") { continue }
+            if s.hasPrefix("Traceback") || s.contains("socketserver.py") || s.contains("mlx_lm/server.py\", line") { continue }
             out.append(String(s.prefix(400)))
+        }
+        if noTools > 0 {
+            out.insert("(\(noTools)× \"Received tools but model does not support tool calling\" – not an error: mlx leaves the tool calls of gpt-oss to Lotus)", at: 0)
         }
         return Array(out.suffix(200))
     }

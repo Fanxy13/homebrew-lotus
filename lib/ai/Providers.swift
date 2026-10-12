@@ -812,6 +812,7 @@ final class OpenAIProvider: Provider {
             let req = HTTP.request(url, body: HTTP.json(b), headers: ["Authorization": "Bearer \(key)"])
             let bytes: URLSession.AsyncBytes, status: Int, errBody: String
             let asked = Date()       // for /performance: a model server on this Mac reads the prompt before it answers
+            let awake = Awake.clocks()   // and whether the Mac slept meanwhile (lid closed) – that time is not the model's
             do {
                 (bytes, status, errBody) = try await HTTP.open(req)
             } catch {
@@ -899,6 +900,7 @@ final class OpenAIProvider: Provider {
                     "first": Run.tenths(ttft), "secs": Run.tenths(secs), "answered": Run.tenths(began.timeIntervalSince(asked)),
                     "thinking": reply.thoughts.count, "text": reply.text.count,
                     "calls": calls, "finish": reply.finish.isEmpty ? (ended ? "end" : "broke off") : reply.finish,
+                    "slept": Run.tenths(Awake.slept(since: awake)),
                 ])
             }
             if Task.isCancelled { throw CancellationError() }
