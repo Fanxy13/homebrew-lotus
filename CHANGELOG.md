@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.17.1 – Plugin uninstaller
+
+- `lotus plugin uninstall [name …]` (`/plugin uninstall`): a plugin goes again – its folder, its data, its commands, AI tools and start screen line. Lotus shows what goes, with the size of its data, and asks once. The name in any case (`lotus plugin uninstall RSVM`), several at once, or no name for a list to choose them from; `remove` does the same
+- The pets know it too
+- Tests: uninstalling by name in capitals, a name that is not there, several at once, choosing from the list, without a terminal
+
 ## 2.17.0 – Plugin installer and packs
 
 - `lotus plugin installer` (`/plugin installer`): drag one or more plugin folders or packs from the Finder into the window – like Remove BG – or paste a git link (one on the clipboard is installed with Enter alone). Lotus checks each one, shows what it brings and may do, lets you leave some out with the space bar and asks once, naming the plugins with full access; then the next ones

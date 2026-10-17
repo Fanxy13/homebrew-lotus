@@ -11,6 +11,7 @@ lotus plugin check my-tool        is its plugin.conf right?
 lotus plugin install <git URL>    someone else's plugin – Lotus shows what it may do and asks
 lotus plugin installer            drag plugin folders and packs into the window – several at once
 lotus plugin install <pack>       a plugin pack: several plugins with their settings, from one GitHub repository
+lotus plugin uninstall <name>     it goes again, with its data – Lotus shows what and asks
 ```
 
 ## What a plugin can bring
@@ -198,7 +199,7 @@ from: [packs/examples](packs/examples/pack.conf), installed with
 | `lotus plugin on\|off <name>` | turn it on or off (its files stay) |
 | `lotus plugin allow <name>` | allow a full plugin again after its files changed |
 | `lotus plugin update <name>` | the newest version of a plugin installed from git |
-| `lotus plugin remove <name>` | delete it and its data (asks) |
+| `lotus plugin uninstall [name …]` | uninstall plugins with their data (asks) – a name in any case, several at once, or none to choose them from a list |
 | `lotus features plugins off` | turn off all plugins at once |
 
 A plugin's commands are `lotus <word>` and, in a Lotus shell, `/<word>` (in new shell windows). A plugin cannot

@@ -10,10 +10,11 @@ Core	-	version	lotus version	Print the installed version	lotus version	0
 Core	/clock	clock	/clock [design]	A clock in your theme: minimal, big, retro, matrix, analog or world – ←→ switches, s seconds, z a second time zone	/clock retro	0
 Keep awake	/caffeine	caffeine	/caffeine [on [minutes]|off|status]	Keep your Mac awake for a while (macOS' caffeinate), then it may sleep again	/caffeine on 90	0
 Keep awake	/awake	caffeine	/awake	The same as /caffeine	/awake	1
-Plugins	/plugin	plugin	/plugin [list|installer|new|install|pack|info|check|on|off|allow|update|remove|help]	Your plugins: own commands, AI tools and start screen lines – limited or with full access	/plugin new my-tool	0
+Plugins	/plugin	plugin	/plugin [list|installer|new|install|uninstall|pack|info|check|on|off|allow|update|help]	Your plugins: own commands, AI tools and start screen lines – limited or with full access	/plugin new my-tool	0
 Plugins	-	plugin installer	/plugin installer	The plugin installer: drag plugin folders and packs in – several at once – or paste a GitHub link; it shows what each may do and asks	/plugin installer	0
 Plugins	-	plugin	lotus plugin new <name> [full]	Make a plugin to start from, in ~/.config/lotus/plugins	lotus plugin new weather-art	0
 Plugins	-	plugin install	/plugin install <folder|git URL|pack>	Install plugins, or a whole plugin pack (a GitHub repository with a pack.conf) with its settings – it shows what they may do and asks first	/plugin install https://github.com/you/lotus-todo	0
+Plugins	-	plugin uninstall	/plugin uninstall [name …]	Uninstall plugins with their data, after a yes – a name in any case, or none to choose them from a list	/plugin uninstall rsvm	0
 Plugins	-	plugin pack	/plugin pack <name>	Make a plugin pack from your plugins and their settings – put it on GitHub, and others install all of it at once	/plugin pack my-setup	0
 Core	-	features	lotus features	Turn Lotus features on or off	lotus features	0
 Core	-	features	lotus features <name> on|off	Switch one feature, e.g. for scripts	lotus features minecraft off	0

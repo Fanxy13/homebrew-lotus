@@ -145,3 +145,19 @@ _pet_rank "how do I install a plugin pack"
 hits=; for i in $reply; do hits+=$PET_CMDS[i]$'\n'; done
 check_has "and finds packs" "$hits" "plugin pack"
 _pet_tip; check_eq "a tip works (broken from 2.3 to 2.16)" $? 0
+
+# ── uninstalling ──
+out=$(answer y "$LOTUS_ROOT/bin/lotus plugin uninstall HELLO")
+check_has "uninstall: a name in capitals, what goes, and a question" "$out" 'Remove the plugin "hello"'
+check_has "uninstalled" "$out" 'The plugin "hello" is uninstalled'
+check "its folder and its entry are gone" eval '[[ ! -e $P/hello && "$(<$LOTUS_CONF/plugins.tsv)" != *hello* ]]'
+out=$(answer n "$LOTUS_ROOT/bin/lotus plugin uninstall nope todo github")
+check_has "a name that is not there" "$out" 'There is no plugin "nope"'
+check_has "several at once: one question" "$out" "Uninstall 2 plugins and their data? [y/N] no"
+check "no: they stay" eval '[[ -r $P/todo/plugin.conf && -r $P/github/plugin.conf ]]'
+out=$(answer $' \ry' "$LOTUS_ROOT/bin/lotus plugin uninstall")
+check_has "without a name: a list to choose from" "$out" "uninstall – choose the ones that go"
+check "the one chosen is gone, the other stays" eval '[[ ! -e $P/github && -r $P/todo/plugin.conf ]]'
+check_has "without a terminal it asks for a name" "$(lotus plugin uninstall </dev/null 2>&1 | plain)" "lotus plugin uninstall <name>"
+answer y "$LOTUS_ROOT/bin/lotus plugin remove todo" >/dev/null
+check "remove is the same" eval '[[ ! -e $P/todo && ! -e $D/todo ]]'

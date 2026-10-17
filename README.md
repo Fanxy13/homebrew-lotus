@@ -256,7 +256,8 @@ lotus plugin install <git URL>    # someone else's – Lotus shows what it may d
 lotus plugin installer            # drag plugin folders and packs into the window, several at once
 lotus plugin install <pack>       # a plugin pack from GitHub: several plugins with their settings
 lotus plugin pack my-setup        # your plugins as a pack to share
-lotus plugin                      # your plugins · on|off|allow|update|remove <name>
+lotus plugin uninstall rsvm       # uninstall one with its data (asks) – without a name: choose them
+lotus plugin                      # your plugins · on|off|allow|update <name>
 ```
 
 Every plugin says how much it may do. **Limited** (the default) runs in a macOS sandbox: only its own

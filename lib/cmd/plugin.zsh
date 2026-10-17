@@ -5,7 +5,8 @@
 #   lotus plugin installer                drag plugin folders and packs in, or paste a git link
 #   lotus plugin pack <name> [folder]     your plugins as a pack to share (pack.conf), with their settings
 #   lotus plugin info|check <name>        what it brings and may do · check its plugin.conf
-#   lotus plugin on|off <name>            turn it on or off · lotus plugin remove <name> deletes it (asks)
+#   lotus plugin on|off <name>            turn it on or off
+#   lotus plugin uninstall [name …]       uninstall plugins with their data (asks) – without a name: choose them
 #   lotus plugin allow <name>             allow it again after its files changed (full access)
 #   lotus plugin update <name>            a plugin installed from git: its newest version
 #   lotus plugin help                     how to build one (PLUGINS.md has all of it)
@@ -39,7 +40,7 @@ lotus_cmd_plugin() {
     on|enable)        _plg_switch "$1" on ;;
     off|disable)      _plg_switch "$1" off ;;
     allow|trust)      _plg_allow "$1" ;;
-    remove|rm|delete) _plg_remove "$1" ;;
+    uninstall|remove|rm|delete|uninstaller) _plg_uninstall "$@" ;;
     update)           _plg_update "$1" ;;
     help|-h|--help)   _plg_help ;;
     run)              local n=$1; (( $# )) && shift; _plg_run_command "$n" "" "$@" ;;
@@ -471,7 +472,7 @@ _plg_list() {
     print -r -- "  ${(r:16:)} $d${what:-nothing} · $access · $state$x"
   done
   print
-  ui_dim "  lotus plugin installer · info|on|off|remove <name> · new <name> · pack <name> · help"
+  ui_dim "  lotus plugin installer · uninstall · info|on|off <name> · new <name> · pack <name> · help"
 }
 
 _plg_info() {
@@ -1112,15 +1113,64 @@ _plg_switch() {   # <name> <on|off>
   ui_success "The plugin \"$name\" is $2"
 }
 
-_plg_remove() {
-  local name=$1
-  [[ $name == [a-z][a-z0-9-](#c1,30) && -d $LOTUS_PLUGINS/$name ]] || { ui_error "There is no plugin \"$name\""; return 1 }
-  local data=$LOTUS_PLUGIN_DATA/$name
-  ui_confirm "Remove the plugin \"$name\"${${:-}:+}$([[ -d $data ]] && print " and its data")?" n || return 0
-  rm -rf -- "${LOTUS_PLUGINS:?}/${name:?}" "${LOTUS_PLUGIN_DATA:?}/${name:?}" "$LOTUS_PLUGIN_DATA/.$name-source"
-  _plg_drop_entry $name
-  lotus_log INFO plugin "Removed $name"
-  ui_success "The plugin \"$name\" is removed"
+# lotus plugin uninstall [name …]: plugins go – their folder, their data, their commands, AI tools and start screen
+# line – after a yes. A name in any case (RSVM is rsvm); without a name, a list to choose from.
+_plg_uninstall() {
+  local n want size
+  local -a names=() have=() missing=() opts=()
+  local -i i
+  _plg_names; have=($reply)
+  if (( ! $# )); then
+    if (( ! ${#have} )); then ui_dim "  There are no plugins to uninstall."; return 0; fi
+    if ! { [[ -t 1 ]] && ui_has_tty }; then ui_error "Which plugin?" "" "lotus plugin uninstall <name> …"; return 2; fi
+    ui_header Plugins "uninstall – choose the ones that go"
+    typeset -ga LOTUS_TOGGLES=()
+    for n in $have; do
+      _plg_read $LOTUS_PLUGINS/$n
+      _plg_what
+      opts+=("$n|${${(M)PLG[access]:#full}:+full access · }${REPLY:-${PLG[title]:-$n}}")
+      LOTUS_TOGGLES+=(0)
+    done
+    print
+    ui_toggles "${opts[@]}" || { ui_dim "  Nothing uninstalled."; return 1 }
+    for (( i = 1; i <= ${#have}; i++ )); do (( LOTUS_TOGGLES[i] )) && names+=($have[i]); done
+    (( ${#names} )) || { ui_dim "  None chosen – nothing uninstalled."; return 1 }
+  else
+    for want in "$@"; do
+      n=${(L)${want%/}:t}
+      if (( ${have[(Ie)$n]} )); then (( ${names[(Ie)$n]} )) || names+=($n)
+      elif _plg_entry $n; then _plg_drop_entry $n     # its folder was gone already: only the entry
+      else missing+=($want); fi
+    done
+    (( ${#missing} )) && ui_error "There is no plugin \"${(j:", ":)missing}\"" "" "lotus plugin lists the ones you have"
+    (( ${#names} )) || return 1
+  fi
+  # what goes
+  print
+  for n in $names; do
+    _plg_read $LOTUS_PLUGINS/$n
+    _plg_what
+    size=
+    [[ -d $LOTUS_PLUGIN_DATA/$n ]] && size=$(du -sh $LOTUS_PLUGIN_DATA/$n 2>/dev/null | cut -f1 | tr -d ' ')
+    ui_kv $n "${PLG[title]:-$n}${REPLY:+ – $REPLY}${size:+ · its data, $size}"
+  done
+  print
+  local q
+  if (( ${#names} == 1 )); then
+    q="Remove the plugin \"$names[1]\"$([[ -d $LOTUS_PLUGIN_DATA/$names[1] ]] && print " and its data")?"
+  else
+    q="Uninstall ${#names} plugins and their data?"
+  fi
+  ui_confirm "$q" n || { ui_dim "  Nothing uninstalled."; return 1 }
+  for n in $names; do
+    [[ $n == [a-z][a-z0-9-](#c1,30) ]] || continue
+    rm -rf -- "${LOTUS_PLUGINS:?}/${n:?}" "${LOTUS_PLUGIN_DATA:?}/${n:?}" "$LOTUS_PLUGIN_DATA/.$n-source"
+    _plg_drop_entry $n
+    lotus_log INFO plugin "Uninstalled $n"
+  done
+  if (( ${#names} == 1 )); then ui_success "The plugin \"$names[1]\" is uninstalled"
+  else ui_success "${#names} plugins are uninstalled: ${(j:, :)names}"; fi
+  ui_dim "  Their commands are gone in new Lotus shells."
 }
 
 _plg_update() {
@@ -1156,6 +1206,7 @@ _plg_help() {
   Check:     lotus plugin check <name>
   Share:     put the folder on GitHub – others install it with: lotus plugin install <git URL>
   Install:   lotus plugin installer – drag plugin folders and packs in, several at once
+  Uninstall: lotus plugin uninstall <name> – with its data, after a yes; without a name: choose them
   Packs:     a pack.conf lists plugins and their settings; lotus plugin install <pack> installs them all,
              lotus plugin pack <name> makes one from your plugins
   Examples:  the plugins folder of the Lotus repository (todo, hello)
