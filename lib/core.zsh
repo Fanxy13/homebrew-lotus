@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.15.2
+typeset -g LOTUS_VERSION=2.16.0
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -526,6 +526,13 @@ lotus_caffeine_note() {
     text+=" · $(( (v[3] - EPOCHSECONDS + 59) / 60 )) min"
   fi
   print -r -- "  "$'\e['"$LOTUS_C[dim]m$text · lotus caffeine off"$'\e[0m'
+}
+
+# Lines of plugins under the start screen (lib/cmd/plugin.zsh is only loaded when there are plugins)
+lotus_plugin_startup() {
+  [[ -t 1 && -d $LOTUS_CONF/plugins ]] && lotus_feature_on plugins || return 0
+  (( ${+functions[lotus_plugin_lines]} )) || source $LOTUS_ROOT/lib/cmd/plugin.zsh
+  lotus_plugin_lines
 }
 
 # Pets (lib/cmd/pets.zsh is only loaded when there is a pet to show)

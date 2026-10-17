@@ -205,6 +205,16 @@ class Model(BaseHTTPRequestHandler):
         elif last.get("role") == "tool" and "ask back" in said:
             chunk({"content": "The first step worked. Shall I also add a footer?"})
             chunk({}, "stop")
+        elif body.get("tools") and last.get("role") == "user" and "on my todo list" in str(last.get("content", "")):
+            # a tool of a plugin (tests/test-plugin.zsh): the to-do plugin's add
+            names = [t.get("function", {}).get("name") for t in body.get("tools", [])]
+            if "todo_add" in names:
+                call = {"index": 0, "id": "call_t", "type": "function", "function": {"name": "todo_add", "arguments": json.dumps({"text": "bread"})}}
+                chunk({"tool_calls": [call]})
+                chunk({}, "tool_calls")
+            else:
+                chunk({"content": "There is no to-do tool."})
+                chunk({}, "stop")
         elif body.get("tools") and last.get("role") == "user" and "make a page" in str(last.get("content", "")):
             page = '<!doctype html><html lang="en"><head><title>T</title><link rel="stylesheet" href="style.css"></head><body><h1>Hi</h1></body></html>'
             call = {"index": 0, "id": "call_w", "type": "function",

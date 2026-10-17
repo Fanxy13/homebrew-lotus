@@ -241,6 +241,27 @@ never reach the browser. Other devices in your network only when you turn that o
 link with your key, and the connection is not encrypted. An occupied port gets a clear message and an
 offer of the next free one; Lotus never changes the port without asking.
 
+## Plugins
+
+Add your own things to Lotus – and share them. A plugin is a folder with a `plugin.conf` and programs in
+any language (zsh, Python, Node, Ruby …). It can bring **commands** (`lotus todo add milk`, `/todo`),
+**tools for the AI** (`/ai` and the web chat call them: "put milk on my list") and **a line under the
+start screen**.
+
+```bash
+lotus plugin new my-tool          # a working plugin to start from, in ~/.config/lotus/plugins/my-tool
+lotus my-tool                     # its command
+lotus plugin check my-tool        # is its plugin.conf right?
+lotus plugin install <git URL>    # someone else's – Lotus shows what it may do and asks
+lotus plugin                      # your plugins · on|off|allow|update|remove <name>
+```
+
+Every plugin says how much it may do. **Limited** (the default) runs in a macOS sandbox: only its own
+folder and data folder, no internet unless it says `network = yes`, no keychain, no other apps, nothing of
+your files, Lotus' settings or the AI's keys. **Full** runs with your rights and Lotus' own functions –
+Lotus asks you before it installs one, and again whenever its files change. Everything about building one:
+[PLUGINS.md](PLUGINS.md); examples (todo, github, hello): [plugins/](plugins/).
+
 ## Remove BG
 
 ```bash
@@ -343,6 +364,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 - What the AI remembers between conversations (`remember`, `/memory`) is a plain text file next to your settings (`~/.config/lotus/ai-memory.md`); passwords and keys are never kept.
 - The web chat (`/ai server`) listens on 127.0.0.1 only and never starts unless you start it. The browser signs in with an access key (`~/.local/state/lotus/ai-server.key`, only you can read it); the server answers only to its own address, checks a per-page token and the origin of every change, and never sends API keys to the browser. Commands from the web follow the same permissions as in the terminal – dangerous ones always ask, `sudo` never runs – and the port and other devices can only be changed in the terminal. Conversations are kept in `~/.local/state/lotus/ai-chats`, readable only by you. `/ai stats` answers the web chat's questions with the access key in a header, only from this Mac, and can do nothing but answer or stop; the statistics (`ai-stats.tsv`) keep counts and times, never what was said.
 - Links, package names, city names and shortcut names are validated; shortcuts cannot run shell commands.
+- Plugins (`lotus plugin`) show what they may do before they are installed and need a yes. Limited plugins run in a macOS sandbox (only their own folders, no internet unless they ask for it, no keychain, no Apple Events, a clean environment without API keys); full ones run with your rights and must be allowed again after any change to their files. What you allowed is kept in `~/.config/lotus/plugins.tsv`.
 - `/convert` is meant for content you have the right to download. It does not bypass DRM or paywalls.
 - `/ios` only downloads official releases and checks compatibility before it does.
 - Remove BG runs on your Mac only. Images are never uploaded; models come from their official
@@ -363,6 +385,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/ai/download.py` | Downloads a model for `lotus ai local` and reports the bytes received, for Lotus' progress line |
 | `lib/ai/Page.swift` | `view_page`: renders a web page in WebKit without a window and reports what a person would notice |
 | `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
+| `lib/cmd/plugin.zsh`, `plugins/`, `PLUGINS.md` | Plugins: the sandbox, the commands, AI tools and start screen lines of plugins – the examples and the guide |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |
 | `logos/` | Built-in logos (`scripts/make-logos.py` derives them from the classic lotus) |

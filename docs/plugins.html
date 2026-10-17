@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plugins — Lotus</title>
+  <meta name="description" content="Add your own commands, AI tools and start screen lines to Lotus – in any language, limited in a sandbox or with full access – and share them.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.16.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.16.0">
+  <script src="js/lotus.js?v=2.16.0"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap article">
+    <header class="page-head">
+      <p class="eyebrow">Plugins</p>
+      <h1>Build your own <span>Lotus</span></h1>
+      <p class="lead">A plugin adds commands, tools for the AI and a line under the start screen – written in zsh, Python, Node or anything that runs on a Mac. Make one in a minute, install the ones others made, and share yours.</p>
+    </header>
+
+    <h2 class="section" id="start">Start in a minute</h2>
+    <ol class="steps compact">
+      <li><h3>Make one</h3><div class="codeblock small"><code><span class="dollar">$</span> lotus plugin new my-tool</code><button class="copy" data-copy="lotus plugin new my-tool" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div><p>A working plugin in <code>~/.config/lotus/plugins/my-tool</code>: a command, a tool for the AI and a start screen line.</p></li>
+      <li><h3>Run it</h3><div class="codeblock small"><code><span class="dollar">$</span> lotus my-tool</code><button class="copy" data-copy="lotus my-tool" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div><p>In a new Lotus shell also as <code>/my-tool</code>. Ask <code>/ai</code> to greet someone, and it uses the plugin's tool.</p></li>
+      <li><h3>Change it</h3><div class="codeblock small"><code><span class="dollar">$</span> lotus plugin check my-tool</code><button class="copy" data-copy="lotus plugin check my-tool" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div><p>Edit its <code>plugin.conf</code> and programs; <code>check</code> says what is wrong and how to fix it.</p></li>
+    </ol>
+
+    <h2 class="section" id="what">What a plugin can bring</h2>
+    <div class="grid">
+      <div class="card"><h3>Commands</h3><div class="codeblock small"><code>command todo = todo.zsh</code></div><p class="muted small"><code>lotus todo add milk</code> runs <code>todo.zsh add milk</code>. As many commands as it needs – but not one of Lotus' own names.</p></div>
+      <div class="card"><h3>Tools for the AI</h3><div class="codeblock small"><code>tool add = todo.zsh add</code></div><p class="muted small"><code>/ai</code> and the web chat use them when they help: "put milk on my list". Lotus checks every value and asks first when the tool changes something.</p></div>
+      <div class="card"><h3>A start screen line</h3><div class="codeblock small"><code>startup = todo.zsh count</code></div><p class="muted small">One line under the start screen. It is made in the background, so a slow program never slows down the start.</p></div>
+    </div>
+
+    <h2 class="section" id="conf">plugin.conf</h2>
+    <p>One setting per line. The example is the <a href="https://github.com/Fanxy13/homebrew-lotus/tree/main/plugins/todo">todo</a> plugin.</p>
+    <div class="term"><div class="term-bar"><i></i><i></i><i></i><span>plugin.conf</span></div><pre><span class="t-dim"># what you see</span>
+name        = todo
+title       = To-do
+version     = 1.0
+description = A small to-do list in the terminal
+
+<span class="t-dim"># what it may do: limited (a sandbox) or full</span>
+access      = limited
+network     = no
+
+<span class="t-dim"># lotus todo …</span>
+command todo = todo.zsh
+
+<span class="t-dim"># a tool for the AI, with its parameters</span>
+tool add               = todo.zsh add
+tool add.level         = act
+tool add.description   = Add a to-do to the user's list.
+tool add.param text    = text, required, What there is to do
+
+<span class="t-dim"># under the start screen, at most every 60 seconds</span>
+startup       = todo.zsh count
+startup.every = 60</pre></div>
+    <p class="muted small" style="margin-top:12px">A tool's program gets its values as arguments and as <code>LOTUS_ARG_&lt;NAME&gt;</code>, prints its answer for the AI and ends with 0 (done), 1 (failed), 2 (wrong arguments) or 3 (the user has to decide). Parameter types: <code>text</code>, <code>int(1,999)</code>, <code>enum(a|b|c)</code>, <code>path</code>. Every program finds its own data folder in <code>LOTUS_PLUGIN_DATA</code> and the theme's colors in <code>LOTUS_COLOR_KEY</code> and friends.</p>
+
+    <h2 class="section" id="access">Limited or full access</h2>
+    <div class="grid">
+      <div class="card"><h3>limited</h3><p class="muted small">The default. The plugin runs in a macOS sandbox: it reads only its own folder and writes only its data folder. No internet unless it says <code>network = yes</code>, no keychain, no controlling other apps, nothing of your files or Lotus' settings – and never the AI's API keys.</p></div>
+      <div class="card"><h3>full</h3><p class="muted small">For plugins that work with Lotus itself or your files. It runs with your rights and can load Lotus' own functions: its settings, colors and look. Lotus asks you before it installs one, and again whenever one of its files changes.</p></div>
+    </div>
+    <div class="callout warn" style="margin-top:18px"><p>A plugin is code that runs on your Mac. Lotus always shows what a plugin brings and may do before it installs it. Give full access only to plugins from people you trust.</p></div>
+
+    <h2 class="section" id="share">Share it</h2>
+    <p>Put your plugin's folder in a git repository, with its <code>plugin.conf</code> at the top. Anyone can install it:</p>
+    <div class="codeblock"><code><span class="dollar">$</span> lotus plugin install https://github.com/you/lotus-todo</code><button class="copy" data-copy="lotus plugin install https://github.com/you/lotus-todo" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+    <p class="muted">and gets your newest version with <code>lotus plugin update todo</code>. Lotus is open source under the MIT license – open a pull request to list your plugin in <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/plugins/README.md">plugins/README.md</a>.</p>
+
+    <h3 style="margin-top:30px">Examples to start from</h3>
+    <div class="grid">
+      <div class="card"><h3>todo</h3><p class="muted small">Limited. A command, three AI tools (add, list, done) and a start screen line; its list lives in its data folder.</p></div>
+      <div class="card"><h3>github</h3><p class="muted small">Limited, with the internet, in Python: stars, forks and the newest release of a repository, and GitHub's zen on the start screen.</p></div>
+      <div class="card"><h3>hello</h3><p class="muted small">Full access: Lotus' own look, your theme and the features that are on.</p></div>
+    </div>
+
+    <h3 style="margin-top:34px">All plugin commands</h3>
+    <div class="table-wrap">
+      <table class="docs">
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr><td><code>lotus plugin</code></td><td>Your plugins: what they bring, what they may do, whether they are on</td></tr>
+        <tr><td><code>lotus plugin new &lt;name&gt; [full]</code></td><td>A working plugin to start from, limited or with full access</td></tr>
+        <tr><td><code>lotus plugin check &lt;name&gt;</code></td><td>Check its <code>plugin.conf</code> – what is wrong and how to fix it</td></tr>
+        <tr><td><code>lotus plugin install &lt;folder or git URL&gt;</code></td><td>Install one – it shows what it brings and may do, and asks</td></tr>
+        <tr><td><code>lotus plugin info &lt;name&gt;</code></td><td>Everything about one plugin</td></tr>
+        <tr><td><code>lotus plugin on</code> / <code>off &lt;name&gt;</code></td><td>Turn it on or off; its files stay</td></tr>
+        <tr><td><code>lotus plugin allow &lt;name&gt;</code></td><td>Allow a plugin with full access again after its files changed</td></tr>
+        <tr><td><code>lotus plugin update &lt;name&gt;</code></td><td>The newest version of a plugin installed from git</td></tr>
+        <tr><td><code>lotus plugin remove &lt;name&gt;</code></td><td>Delete it and its data (asks first)</td></tr>
+        <tr><td><code>lotus features plugins off</code></td><td>Turn off all plugins at once</td></tr>
+      </table>
+    </div>
+    <p class="muted small" style="margin-top:14px">Everything about building one – every setting, the sandbox, what a program gets: <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/PLUGINS.md">PLUGINS.md</a>.</p>
+  </main>
+  <lotus-footer></lotus-footer>
+</body>
+</html>

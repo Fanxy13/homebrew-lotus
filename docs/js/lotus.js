@@ -11,6 +11,7 @@ const Lotus = (() => {
     ['ios.html', 'iOS Tools'],
     ['minecraft.html', 'Minecraft'],
     ['shortcuts.html', 'Shortcuts'],
+    ['plugins.html', 'Plugins'],
     ['docs.html', 'Docs'],
   ];
   const PRIMARY = 5; // the rest goes into "More"

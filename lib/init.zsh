@@ -86,6 +86,7 @@ lotus_show() {
   print -n $'\e[H\e[2J'
   lotus_render live
   lotus_startup_details
+  lotus_plugin_startup
   lotus_pet_start
 }
 
@@ -93,7 +94,8 @@ lotus_show() {
 
 # /weather, /skip, … from data/commands.tsv, plus the user's shortcuts → aliases
 _lotus_aliases() {
-  local line trig sub
+  setopt localoptions extendedglob
+  local line trig sub conf w
   local -a f
   (( ${+_lotus_alias_names} )) && unalias ${_lotus_alias_names} 2>/dev/null
   typeset -ga _lotus_alias_names=()
@@ -112,6 +114,17 @@ _lotus_aliases() {
     [[ ${LOTUS_SHORTCUTS[$trig]##*|} == on && -z ${aliases[/$trig]} ]] || continue
     alias "/$trig=noglob lotus run $trig"
     _lotus_alias_names+=(/$trig)
+  done
+  # the commands of plugins: /word runs lotus word (lib/cmd/plugin.zsh checks the rest)
+  lotus_feature_on plugins || return 0
+  for conf in $LOTUS_CONF/plugins/*/plugin.conf(N); do
+    for line in "${(@M)${(@f)$(<$conf)}:#[[:space:]]#command[[:space:]]#*=*}"; do
+      w=${${${line%%=*}##[[:space:]]#command}//[[:space:]]/}
+      [[ -n $w ]] || w=${conf:h:t}
+      [[ $w == [a-z][a-z0-9-]## && -z ${aliases[/$w]} ]] || continue
+      alias "/$w=noglob lotus $w"
+      _lotus_alias_names+=(/$w)
+    done
   done
 }
 
@@ -263,4 +276,4 @@ if (( ! LOTUS_CONFIGURED )) && [[ -t 0 && -t 1 ]]; then
 fi
 _lotus_ai_server_boot
 lotus_log DEBUG startup "Shell ready (Lotus $LOTUS_VERSION, $LOTUS_ROOT)"
-(( LOTUS_STARTUP )) && [[ -t 1 ]] && lotus_render live && lotus_startup_details && lotus_pet_start
+(( LOTUS_STARTUP )) && [[ -t 1 ]] && lotus_render live && lotus_startup_details && lotus_plugin_startup && lotus_pet_start

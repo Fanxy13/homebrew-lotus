@@ -42,7 +42,7 @@ LOTUS_L+=(
   feat_on_now 'Jetzt einschalten?'  feat_now_on '%s ist eingeschaltet.'
   feat_core 'Basis'  feat_apps 'Apps öffnen'  feat_homebrew 'Homebrew'  feat_web 'Websuche'  feat_weather 'Wetter'
   feat_ai 'KI-Terminal'  feat_music 'Musik'  feat_visualizer 'Visualizer'  feat_media 'Video-Downloads'
-  feat_ios 'iOS-Tools'  feat_minecraft 'Minecraft'  feat_bg 'Hintergrund entfernen'
+  feat_ios 'iOS-Tools'  feat_minecraft 'Minecraft'  feat_bg 'Hintergrund entfernen'  feat_plugins 'Plugins'
   head_pets 'Haustiere'  pet_start 'Haustier auf dem Startschirm'  pet_help '/help fragt dein Haustier'
   pet_react 'Haustiere reagieren'  pet_brain 'Haustiere denken mit'
   pet_brain_ai 'der KI von /ai'  pet_brain_off 'nichts (kurze Sätze)'  pet_manage 'Deine Haustiere'  feat_pets 'Haustiere'

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.16.0 – Plugins
+
+- Plugins: add your own things to Lotus – and install the ones others made. A plugin is a folder with a `plugin.conf` and programs in any language (zsh, sh, Python, Node, Ruby, or any program). It can bring commands (`lotus todo add milk`, `/todo` in a Lotus shell), tools for the AI in `/ai` and the web chat (Lotus checks every value, and a tool that changes something asks first), and a line under the start screen (made in the background, so the start stays fast)
+- Two kinds of access, shown before a plugin is installed: limited – the default – runs in a macOS sandbox that sees only the plugin's own folder and data folder, with no internet unless the plugin says `network = yes`, no keychain, no Apple Events, nothing of your files or Lotus' settings and never the AI's API keys; full runs with your rights and Lotus' own functions, is allowed by you, and has to be allowed again whenever one of its files changes
+- `lotus plugin` lists them; `new <name> [full]` makes a working plugin to start from, `check` says what is wrong in a `plugin.conf`, `install <folder or git URL>` shows what a plugin brings and may do and asks, `info`, `on`/`off`, `allow`, `update` (git), `remove`. `lotus features plugins off` turns them all off
+- Open source and made to share: the guide [PLUGINS.md](PLUGINS.md), three examples in [plugins/](plugins/) – todo (limited: a command, three AI tools, a start screen line), github (limited with the internet, in Python), hello (full: Lotus' own functions) – a new page on the website, and the AI knows how to make a plugin for you
+- Tests: making, checking and installing plugins, the sandbox (your files, writing, settings, keychain, Apple Events, API keys, the network with and without `network = yes`, one file given to a tool), full access allowed again after a change, the AI's list of tools and a tool the AI calls, the start screen line, on/off and remove
+
 ## 2.15.2 – Memory and pictures
 
 From a `/performance` report of a web chat with Nucifera (two messages, 29 minutes):

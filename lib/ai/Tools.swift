@@ -56,7 +56,7 @@ enum ToolCatalog {
               let j = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return ([], []) }
         var tools: [ToolSpec] = []
         for t in j["tools"] as? [[String: Any]] ?? [] {
-            guard let name = t["name"] as? String, name.range(of: #"^[a-z_]{2,40}$"#, options: .regularExpression) != nil,
+            guard let name = t["name"] as? String, name.range(of: #"^[a-z][a-z0-9_]{1,63}$"#, options: .regularExpression) != nil,
                   !builtin.contains(where: { $0.name == name }) else { continue }
             let params = (t["params"] as? [[String: Any]] ?? []).compactMap { p -> ToolParam? in
                 guard let n = p["name"] as? String else { return nil }

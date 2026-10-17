@@ -94,6 +94,12 @@ lotus_ai_toolkit() {
     _ait_json $missing; mj=$REPLY
     tools+=("{\"name\":\"$f[1]\",\"feature\":\"$f[2]\",\"level\":\"$f[3]\",\"mode\":\"$f[4]\",\"label\":$label,\"argv\":[${(j:,:)aj}],\"params\":[$pj],\"description\":$desc,\"missing\":$mj}")
   done
+  # the tools of plugins (lib/cmd/plugin.zsh): only the ones that may run now
+  if [[ -d $LOTUS_CONF/plugins ]] && lotus_feature_on plugins; then
+    (( ${+functions[lotus_plugin_ai_tools]} )) || source $LOTUS_ROOT/lib/cmd/plugin.zsh
+    lotus_plugin_ai_tools
+    tools+=("${reply[@]}")
+  fi
   for id in ${LOTUS_FEATURE_IDS:#core}; do
     lotus_feature_on $id && continue
     lotus_feature_label $id

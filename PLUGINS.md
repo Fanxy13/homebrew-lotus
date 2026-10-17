@@ -1,0 +1,172 @@
+# Lotus plugins
+
+Add your own things to Lotus – commands, tools for the AI and lines on the start screen – and share them.
+A plugin is a folder with a `plugin.conf` and its programs, in any language. Lotus is open source (MIT), and
+so is every example here: copy one, change it, put it on GitHub.
+
+```
+lotus plugin new my-tool          a plugin to start from, ready to run
+lotus my-tool                     its command
+lotus plugin check my-tool        is its plugin.conf right?
+lotus plugin install <git URL>    someone else's plugin – Lotus shows what it may do and asks
+```
+
+## What a plugin can bring
+
+| | How you use it | In `plugin.conf` |
+|---|---|---|
+| **Commands** | `lotus todo add milk`, or `/todo` in a Lotus shell | `command todo = todo.zsh` |
+| **AI tools** | `/ai` and the web chat call them when they help – "put milk on my list" | `tool add = todo.zsh add` |
+| **A start screen line** | one line under the start screen, e.g. "2 open – lotus todo" | `startup = todo.zsh count` |
+
+A plugin can bring any of them, and as many commands and tools as it likes.
+
+## Access: limited or full
+
+Every plugin says how much it may do. Lotus shows it before you install a plugin and asks you.
+
+**`access = limited`** – the default, and the right choice for most plugins. The plugin runs in a macOS sandbox:
+
+- it reads only its own folder, and writes only its data folder (`~/.local/share/lotus/plugins/<name>`) and the
+  temporary folder – nothing of your home folder or other disks
+- no internet, unless it says `network = yes`
+- no keychain, no `osascript` or Apple Events (it cannot control other apps), no `sudo`
+- nothing of Lotus' settings, and never the API keys of the AI – it starts with a clean environment
+
+**`access = full`** – for plugins that work with Lotus itself or with your files. The plugin runs with your rights
+and can use Lotus' own functions (its settings, colors, `ui_*` helpers, the log). Lotus asks you before it installs
+one, and **again whenever one of its files changes** – a full plugin that was changed after you allowed it does not
+run until you allow it again with `lotus plugin allow <name>`. The AI tools of a full plugin always count as `act`:
+they ask before they run, unless you let Lotus tools run (in `/permissions`) or use auto mode.
+
+## plugin.conf
+
+One setting per line, `key = value`. Lines that start with `#` are comments.
+
+```
+name        = todo                 # the plugin's name: letters, digits and -, the same as its folder
+title       = To-do                # what you see
+version     = 1.0
+author      = Your Name
+description = A small to-do list in the terminal
+homepage    = https://github.com/you/lotus-todo     # optional
+access      = limited              # limited (default) or full
+network     = no                   # limited plugins: may it use the internet? yes or no (default no)
+
+command todo = todo.zsh            # lotus todo … runs todo.zsh with the arguments
+command      = todo.zsh            # the same, for a command with the plugin's own name
+
+tool add               = todo.zsh add          # a tool for the AI: the program and words that come first
+tool add.label         = To-do                 # what you see in the step: ● To-do(milk)
+tool add.level         = act                   # read: runs right away · act: asks first (default)
+tool add.description   = Add a to-do to the user's list. Use it when the user asks you to remember a task.
+tool add.param text    = text, required, What there is to do
+
+startup       = todo.zsh count     # one line under the start screen
+startup.every = 60                 # make it again at most every 60 seconds (default 300)
+```
+
+Programs are files in the plugin's folder. Lotus starts them by their ending: `.zsh` (zsh), `.sh` (sh),
+`.py` (python3), `.js` (node), `.rb` (ruby) – anything else must be executable. Words after the program
+(`todo.zsh add`) come before the arguments.
+
+### Parameters of AI tools
+
+`tool <tool>.param <name> = <type>, required|optional, <description>`
+
+| Type | What the AI may give |
+|---|---|
+| `text` | a short text (at most 120 characters, no control characters) |
+| `int(1,999)` | a whole number from 1 to 999 |
+| `enum(small\|medium\|large)` | one of these words |
+| `path` | a file on this Mac that exists – read like `read_file` (it asks outside the folder); a limited plugin may read this one file |
+
+Lotus checks every value against the type before your program runs, and asks you first when the tool's level is
+`act`. Your program gets the values twice: as arguments in the order of the parameters, and as environment
+variables `LOTUS_ARG_<NAME>` (`LOTUS_ARG_TEXT`). An optional parameter that the AI left out is empty.
+
+What the program prints is what the AI reads – plain text, short and to the point. Its exit status tells Lotus how
+it went: `0` done, `1` failed, `2` the arguments were wrong, `3` the user has to decide (the AI asks them). A tool
+gets 60 seconds.
+
+The AI sees a tool as `<plugin>_<tool>` (`todo_add`), with its description and parameters. Write the description
+for the AI: what the tool does and when to use it.
+
+### The start screen line
+
+The program prints one short line. Lotus shows the line it printed last time right away and makes a new one in the
+background when the old one is older than `startup.every` seconds – so a slow program never slows down the start
+screen. Print nothing, and there is no line.
+
+## What a program gets
+
+| Variable | |
+|---|---|
+| `LOTUS_PLUGIN` | the plugin's name |
+| `LOTUS_PLUGIN_DIR` | its folder (programs start there) |
+| `LOTUS_PLUGIN_DATA` | its own data folder – keep your files here |
+| `LOTUS_ARG_<NAME>` | the values of an AI tool's parameters |
+| `LOTUS_VERSION`, `LOTUS_LANG` | Lotus' version, the language of its interface (`en`, `de`, `fr`, `es`) |
+| `LOTUS_COLOR_KEY`, `LOTUS_COLOR_ACCENT`, `LOTUS_COLOR_DIM`, `LOTUS_COLOR_LOGO` | the colors of the theme, as color codes like `38;5;147`: `$'\e['$LOTUS_COLOR_KEY'm'` |
+| `COLUMNS`, `TERM`, `HOME`, `PATH`, `TMPDIR`, `LANG` | as usual |
+
+Full plugins also get `LOTUS_ROOT`, `LOTUS_CONF`, `LOTUS_CACHE`, `LOTUS_DATA`, `LOTUS_STATE`, `LOTUS_NAME`, `USER`
+and `SHELL`, and can load Lotus:
+
+```zsh
+source $LOTUS_ROOT/lib/core.zsh && source $LOTUS_ROOT/lib/ui.zsh && lotus_load
+ui_success "Hello, $LOTUS_NAME"          # Lotus' own look
+lotus_feature_on weather && …            # what is turned on
+LOTUS_THEME=rose; lotus_save             # change a setting
+lotus_log INFO my-plugin "something"     # Lotus' log (lotus log)
+```
+
+## The commands
+
+| | |
+|---|---|
+| `lotus plugin` | your plugins: what they bring, what they may do, whether they are on |
+| `lotus plugin new <name> [full]` | a plugin to start from in `~/.config/lotus/plugins/<name>`, with a command, a tool and a start screen line |
+| `lotus plugin check <name\|folder>` | check a `plugin.conf` – with what is wrong and how to fix it |
+| `lotus plugin install <folder\|git URL>` | install a plugin: Lotus shows what it brings and may do, and asks |
+| `lotus plugin info <name>` | everything about one plugin |
+| `lotus plugin on\|off <name>` | turn it on or off (its files stay) |
+| `lotus plugin allow <name>` | allow a full plugin again after its files changed |
+| `lotus plugin update <name>` | the newest version of a plugin installed from git |
+| `lotus plugin remove <name>` | delete it and its data (asks) |
+| `lotus features plugins off` | turn off all plugins at once |
+
+A plugin's commands are `lotus <word>` and, in a Lotus shell, `/<word>` (in new shell windows). A plugin cannot
+take a name of Lotus' own commands. What you allowed is kept in `~/.config/lotus/plugins.tsv`.
+
+## Share it
+
+Put the plugin's folder in a git repository – the `plugin.conf` at the top – and others install it with:
+
+```
+lotus plugin install https://github.com/you/lotus-todo
+```
+
+and get your newest version with `lotus plugin update todo`. Want it in the list of plugins in Lotus' repository?
+Open a pull request that adds it to [plugins/README.md](plugins/README.md).
+
+## Examples
+
+In [plugins/](plugins/): **todo** (limited – a command, three AI tools and a start screen line, its list in its data
+folder), **github** (limited with the internet, in Python – a repository's stars and releases), **hello** (full –
+Lotus' own functions and settings).
+
+```
+lotus plugin install ~/path/to/homebrew-lotus/plugins/todo
+```
+
+## Good to know
+
+- Start from `lotus plugin new` – it is a working plugin – and run `lotus plugin check` after each change.
+- A limited plugin that needs your files cannot have them – that is the point. Ask yourself whether it really needs
+  them before you make it full.
+- In the sandbox, programs from Homebrew (`/opt/homebrew`) and macOS work; ones in your home folder (a Node from
+  nvm, a Python from pyenv) cannot be read – use a full plugin for those, or the ones of Homebrew.
+- A plugin is code that runs on your Mac. Install full plugins only from people you trust, and read what
+  `lotus plugin install` shows you.
+- Lotus' log (`lotus log`) records when a plugin runs; the plugin's own messages go to its output.

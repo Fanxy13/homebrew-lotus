@@ -42,6 +42,7 @@ typeset -A LOTUS_MODULES=(
   ios ios  minecraft minecraft  mc minecraft  convert convert  visual visual
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
   bg bg  log log  features setup  pets pets  pet pets  feed pets  clock clock  caffeine caffeine  awake caffeine  ai-tool aitools
+  plugin plugin  plugins plugin  plugin-tool plugin
 )
 
 # -V / --verbose: every log line is printed while the command runs
@@ -59,6 +60,7 @@ case $cmd in
     lotus_render
     lotus_startup_details
     lotus_caffeine_note
+    lotus_plugin_startup
     lotus_pet_start ;;
   settings|config)
     lotus_log DEBUG cli "Settings opened"
@@ -67,6 +69,16 @@ case $cmd in
     print -r -- $LOTUS_VERSION ;;
   *)
     module=$LOTUS_MODULES[$cmd]
+    # not one of Lotus' own: maybe the command of a plugin (lib/cmd/plugin.zsh)
+    if [[ -z $module && $cmd == [a-z][a-z0-9-]## && -d $LOTUS_CONF/plugins ]]; then
+      lotus_features
+      if lotus_feature_on plugins; then
+        source $LOTUS_ROOT/lib/cmd/plugin.zsh
+        lotus_plugin_command $cmd "$@"
+        rc=$?
+        (( rc != 127 )) && exit $rc
+      fi
+    fi
     if [[ -z $module ]]; then
       lotus_log INFO cli "Unknown command: $cmd"
       source $LOTUS_ROOT/lib/cmd/help.zsh
