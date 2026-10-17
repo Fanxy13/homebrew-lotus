@@ -253,6 +253,9 @@ lotus plugin new my-tool          # a working plugin to start from, in ~/.config
 lotus my-tool                     # its command
 lotus plugin check my-tool        # is its plugin.conf right?
 lotus plugin install <git URL>    # someone else's – Lotus shows what it may do and asks
+lotus plugin installer            # drag plugin folders and packs into the window, several at once
+lotus plugin install <pack>       # a plugin pack from GitHub: several plugins with their settings
+lotus plugin pack my-setup        # your plugins as a pack to share
 lotus plugin                      # your plugins · on|off|allow|update|remove <name>
 ```
 
@@ -260,7 +263,8 @@ Every plugin says how much it may do. **Limited** (the default) runs in a macOS 
 folder and data folder, no internet unless it says `network = yes`, no keychain, no other apps, nothing of
 your files, Lotus' settings or the AI's keys. **Full** runs with your rights and Lotus' own functions –
 Lotus asks you before it installs one, and again whenever its files change. Everything about building one:
-[PLUGINS.md](PLUGINS.md); examples (todo, github, hello): [plugins/](plugins/).
+[PLUGINS.md](PLUGINS.md); examples (todo, github, hello): [plugins/](plugins/), all three at once as a pack:
+`lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
 
 ## Remove BG
 
@@ -385,7 +389,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/ai/download.py` | Downloads a model for `lotus ai local` and reports the bytes received, for Lotus' progress line |
 | `lib/ai/Page.swift` | `view_page`: renders a web page in WebKit without a window and reports what a person would notice |
 | `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
-| `lib/cmd/plugin.zsh`, `plugins/`, `PLUGINS.md` | Plugins: the sandbox, the commands, AI tools and start screen lines of plugins – the examples and the guide |
+| `lib/cmd/plugin.zsh`, `plugins/`, `packs/`, `PLUGINS.md` | Plugins: the sandbox, the commands, AI tools and start screen lines of plugins, the installer and packs – the examples and the guide |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |
 | `logos/` | Built-in logos (`scripts/make-logos.py` derives them from the classic lotus) |

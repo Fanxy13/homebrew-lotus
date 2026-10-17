@@ -61,18 +61,7 @@ bg_help() {
 # ── Paths ─────────────────────────────────────────────────────
 
 # One path as typed or dropped → REPLY (absolute). file:// links and ~ work, nothing is executed.
-bg_clean_path() {
-  setopt localoptions extendedglob
-  local p=${1##[[:space:]]##}
-  p=${p%%[[:space:]]##}
-  if [[ $p == file://* ]]; then
-    p=${p#file://}; p=${p#localhost}
-    p=${(g::)${p//\%/\\x}}
-  fi
-  [[ $p == '~' || $p == '~/'* ]] && p=$HOME${p#\~}
-  [[ $p == /* ]] || p=$PWD/$p
-  REPLY=${p:a}
-}
+bg_clean_path() { ui_clean_path "$@" }
 
 # Arguments → reply (existing paths). Paths typed with spaces but without quotes are put back together.
 # Folders become the images inside them. Not found → BG_MISSING.
@@ -170,29 +159,7 @@ bg_clipboard_take() {
 }
 
 # The dashed frame with a plus in the middle.  _bg_drop_zone <width>
-_bg_drop_zone() {
-  local -i w=$1 inner=$(( $1 - 2 ))
-  local b=$'\e['"$LOTUS_C[border]m" k=$'\e[1;'"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" B=$'\e[1m' R=$_UI_R
-  local dash=${${(l:inner::x:)}//x/╌}
-  _row() {   # <plain text> [<colored text>] – centered between the side lines
-    local plain=$1 shown=${2:-$1}
-    local -i left=$(( (inner - ${#plain}) / 2 ))
-    print -r -- "    ${b}┆${R}${(l:left:)}${shown}${(l:inner - left - ${#plain}:)}${b}┆${R}"
-  }
-  local title=$LOTUS_L[bg_drop_here] types=$LOTUS_L[bg_drop_types]
-  (( ${#types} > inner - 2 )) && types="${types[1,inner-3]}…"
-  print -r -- "    ${b}╭${dash}╮${R}"
-  _row ""
-  _row "  ┃  " "  ${k}┃${R}  "
-  _row "━━╋━━" "${k}━━╋━━${R}"
-  _row "  ┃  " "  ${k}┃${R}  "
-  _row ""
-  _row "$title" "${B}${title}${R}"
-  _row "$types" "${d}${types}${R}"
-  _row ""
-  print -r -- "    ${b}╰${dash}╯${R}"
-  unfunction _row
-}
+_bg_drop_zone() { ui_drop_zone $1 "$LOTUS_L[bg_drop_here]" "$LOTUS_L[bg_drop_types]" }
 
 # ── Running the worker ────────────────────────────────────────
 

@@ -269,6 +269,45 @@ ui_select() {
   REPLY=$sel
 }
 
+# A path typed or dropped in → REPLY, absolute: file:// URLs, ~ and folders of their own work
+ui_clean_path() {
+  setopt localoptions extendedglob
+  local p=${1##[[:space:]]##}
+  p=${p%%[[:space:]]##}
+  if [[ $p == file://* ]]; then
+    p=${p#file://}; p=${p#localhost}
+    p=${(g::)${p//\%/\\x}}
+  fi
+  [[ $p == '~' || $p == '~/'* ]] && p=$HOME${p#\~}
+  [[ $p == /* ]] || p=$PWD/$p
+  REPLY=${p:a}
+}
+
+# A dashed frame with a plus to drop files on (Remove BG, the plugin installer).  ui_drop_zone <width> <title> <types>
+ui_drop_zone() {
+  local -i w=$1 inner=$(( $1 - 2 ))
+  local b=$'\e['"$LOTUS_C[border]m" k=$'\e[1;'"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" B=$'\e[1m' R=$_UI_R
+  local dash=${${(l:inner::x:)}//x/╌} title=$2 types=$3
+  _ui_drop_row() {   # <plain text> [<colored text>] – centered between the side lines
+    local plain=$1 shown=${2:-$1}
+    local -i left=$(( (inner - ${#plain}) / 2 ))
+    print -r -- "    ${b}┆${R}${(l:left:)}${shown}${(l:inner - left - ${#plain}:)}${b}┆${R}"
+  }
+  (( ${#title} > inner - 2 )) && title="${title[1,inner-3]}…"
+  (( ${#types} > inner - 2 )) && types="${types[1,inner-3]}…"
+  print -r -- "    ${b}╭${dash}╮${R}"
+  _ui_drop_row ""
+  _ui_drop_row "  ┃  " "  ${k}┃${R}  "
+  _ui_drop_row "━━╋━━" "${k}━━╋━━${R}"
+  _ui_drop_row "  ┃  " "  ${k}┃${R}  "
+  _ui_drop_row ""
+  _ui_drop_row "$title" "${B}${title}${R}"
+  _ui_drop_row "$types" "${d}${types}${R}"
+  _ui_drop_row ""
+  print -r -- "    ${b}╰${dash}╯${R}"
+  unfunction _ui_drop_row
+}
+
 # Checklist: Space turns entries on and off, Enter continues, Esc goes back.
 #   ui_toggles "Label|Description|locked" …   with the states in the array LOTUS_TOGGLES (1/0, changed in place)
 ui_toggles() {

@@ -439,16 +439,61 @@ _pet_instructions() {
   if (( hour < 12 )); then part=morning; elif (( hour < 18 )); then part=afternoon; elif (( hour < 23 )); then part=evening; else part=night; fi
   case $LOTUS_LANG in de) lang=German ;; fr) lang=French ;; es) lang=Spanish ;; *) lang=English ;; esac
   _pet_mood $idx awake
-  local mood=$REPLY
+  local mood=$REPLY know=
+  # /help lists the commands itself (<mode> help); a chat gets what the pet knows about Lotus
+  [[ $2 == help ]] || { _pet_knowledge; know=$REPLY }
   REPLY="You are $name, a little ${(L)label} who lives in Lotus, a start screen in the macOS terminal. You belong to $owner and you like $owner a lot.
 Your personality: $persona.
 Talk like a ${(L)label} would: short, warm, playful sentences, and now and then you say \"$sound\". It is $part."
   case $mood in
     starving|hungry) REPLY+=" You are hungry and would love some $food – you may say so, or that $owner can type /feed ${(L)name}." ;;
   esac
-  REPLY+="
-Rules: reply directly to what $owner just said – answer the question if there is one. Use 1 or 2 short sentences, at most 35 words. Plain text only: no emojis, no lists, no markdown. You cannot run commands or change files and never say you did. If $owner asks how to do something in the terminal or with Lotus, suggest typing /help. Always answer in $lang.${3:+
+  REPLY+="${know:+
+What you know about Lotus: $know}
+Rules: reply directly to what $owner just said – answer the question if there is one. Use 1 or 2 short sentences, at most 35 words. Plain text only: no emojis, no lists, no markdown. You cannot run commands or change files and never say you did. When $owner asks about Lotus or how to do something with it, answer from what you know and name the command; when you do not know it, suggest typing /help. Do not bring Lotus up when $owner talks about something else. Always answer in $lang.${3:+
 $3}"
+}
+
+# What a pet knows about Lotus → REPLY: data/pets/lotus.tsv (the lines of the features that are on) and the
+# plugins you have
+_pet_knowledge() {
+  if (( ! ${+PET_KNOW} )); then
+    local line
+    local -a know=()
+    lotus_features
+    if [[ -r $LOTUS_ROOT/data/pets/lotus.tsv ]]; then
+      for line in "${(@f)$(<$LOTUS_ROOT/data/pets/lotus.tsv)}"; do
+        [[ $line == \#* || $line != *$'\t'* ]] && continue
+        lotus_feature_on ${line%%$'\t'*} && know+=("${line#*$'\t'}")
+      done
+    fi
+    _pet_plugins
+    (( ${#reply} )) && know+=("The plugins ${LOTUS_NAME:-your human} has: ${(j:; :)reply}.")
+    typeset -g PET_KNOW=${(j: :)know}
+  fi
+  REPLY=$PET_KNOW
+}
+
+# The commands of the plugins you have that are on → reply ("lotus todo: A small to-do list …") and PET_PLUGIN_ROWS
+# (lines like those of data/commands.tsv, so /help and the tips know them too)
+_pet_plugins() {
+  setopt localoptions extendedglob
+  reply=()
+  typeset -ga PET_PLUGIN_ROWS=()
+  lotus_feature_on plugins && [[ -d $LOTUS_CONF/plugins ]] || return 0
+  (( ${+functions[_plg_read]} )) || source $LOTUS_ROOT/lib/cmd/plugin.zsh
+  local n w
+  local -a names out=()
+  _plg_names; names=($reply)
+  for n in $names; do
+    _plg_entry $n && [[ $reply[2] == on ]] || continue
+    _plg_read $LOTUS_PLUGINS/$n || continue
+    for w in ${(ko)PLG_CMDS}; do
+      out+=("lotus $w: $PLG[description]")
+      PET_PLUGIN_ROWS+=("Plugins"$'\t'"/$w"$'\t'"plugin"$'\t'"/$w"$'\t'"$PLG[description] – the plugin ${PLG[title]:-$n}"$'\t'"lotus $w"$'\t'"0")
+    done
+  done
+  reply=("${out[@]}")
 }
 
 # What a pet remembers: the last three exchanges
@@ -656,7 +701,8 @@ _pet_tip() {
   local line
   local -a f all=()
   lotus_features
-  for line in "${(@f)$(<$LOTUS_ROOT/data/commands.tsv)}"; do
+  _pet_plugins
+  for line in "${(@f)$(<$LOTUS_ROOT/data/commands.tsv)}" $PET_PLUGIN_ROWS; do
     [[ $line == \#* ]] && continue
     f=("${(@ps:\t:)line}")
     [[ $f[7] == 1 || $f[4] == lotus* || $f[3] == pet ]] && continue
@@ -664,7 +710,7 @@ _pet_tip() {
     all+=("$f[6] – ${(L)f[5][1]}${f[5][2,-1]}")
   done
   (( ${#all} )) || return 1
-  REPLY=$all[RANDOM % ${#all} + 1]
+  REPLY=${all[RANDOM % ${#all} + 1]}
 }
 
 # ── Reactions (typos, finished work) ──────────────────────────
@@ -707,7 +753,8 @@ _pet_commands() {
   local line
   local -a f
   lotus_features
-  for line in "${(@f)$(<$LOTUS_ROOT/data/commands.tsv)}"; do
+  _pet_plugins
+  for line in "${(@f)$(<$LOTUS_ROOT/data/commands.tsv)}" $PET_PLUGIN_ROWS; do
     [[ $line == \#* ]] && continue
     f=("${(@ps:\t:)line}")
     [[ $f[7] == 1 ]] && continue
@@ -759,7 +806,7 @@ _pet_help_think() {   # <pet> <question>
     f=("${(@ps:\t:)PET_CMDS[i]}")
     list+="$i. $f[4] – $f[5]"$'\n'
   done
-  _pet_instructions $idx "" "You help ${LOTUS_NAME:-your human} use Lotus. These are the Lotus commands, numbered:
+  _pet_instructions $idx help "You help ${LOTUS_NAME:-your human} use Lotus. These are the Lotus commands, numbered:
 $list
 Answer in exactly this form. First line: the numbers of the 1 to 3 commands that help most, separated by commas, or 0 when none fits. Then one or two short sentences in your voice that say what to do."
   local sys=${REPLY//at most 35 words/at most 40 words}

@@ -9,6 +9,8 @@ lotus plugin new my-tool          a plugin to start from, ready to run
 lotus my-tool                     its command
 lotus plugin check my-tool        is its plugin.conf right?
 lotus plugin install <git URL>    someone else's plugin – Lotus shows what it may do and asks
+lotus plugin installer            drag plugin folders and packs into the window – several at once
+lotus plugin install <pack>       a plugin pack: several plugins with their settings, from one GitHub repository
 ```
 
 ## What a plugin can bring
@@ -41,7 +43,7 @@ they ask before they run, unless you let Lotus tools run (in `/permissions`) or 
 
 ## plugin.conf
 
-One setting per line, `key = value`. Lines that start with `#` are comments.
+One setting per line, `key = value`. Lines that start with `#` are comments, and so is ` # …` after a value.
 
 ```
 name        = todo                 # the plugin's name: letters, digits and -, the same as its folder
@@ -121,14 +123,77 @@ LOTUS_THEME=rose; lotus_save             # change a setting
 lotus_log INFO my-plugin "something"     # Lotus' log (lotus log)
 ```
 
+## A plugin's settings
+
+Keep what the user chooses in `$LOTUS_PLUGIN_DATA/settings`, one `KEY=value` per line – then a pack can set them
+(below) and `lotus plugin pack` takes them along. Read the file line by line; never `source` it:
+
+```zsh
+typeset -A cfg=()
+[[ -r $LOTUS_PLUGIN_DATA/settings ]] && for line in "${(@f)$(<$LOTUS_PLUGIN_DATA/settings)}"; do cfg[${line%%=*}]=${line#*=}; done
+print -r -- "Saves to ${cfg[OUT]:-$HOME/Movies}"
+```
+
+## Installing them
+
+`lotus plugin install` takes a folder, a git URL, or a folder in a git repository: `<git URL>#<folder>`
+(`lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/todo`). Give it several, or a folder with
+plugins in it, and Lotus shows each one short, lets you choose which ones (space), and asks once – naming the ones
+with full access.
+
+**`lotus plugin installer`** does the same by dragging: it shows a drop zone, you drag one or more plugin folders or
+packs from the Finder into the window (or paste a git link – one on the clipboard is installed with Enter alone),
+press Enter, and Lotus checks and shows them and asks. Then the next ones, or Enter to finish.
+
+## Plugin packs
+
+A pack installs several plugins at once, with the settings that make them work together – a "preset" to share. It is
+a folder or a git repository with a `pack.conf`:
+
+```
+name        = creator-kit
+title       = Creator kit
+version     = 1.0
+author      = Your Name
+description = Videos from YouTube songs, a to-do list and GitHub on the start screen
+
+plugin = https://github.com/you/lotus-rsvm                         # a git URL
+plugin = https://github.com/Fanxy13/homebrew-lotus#plugins/todo    # a folder in a repository
+plugin = ./weather-art                                             # a folder of this pack (. is the pack itself)
+plugin = https://github.com/you/lotus-github off                   # installed, but turned off
+
+set rsvm.RSVM_OUT  = ~/Movies/RSVM     # a line RSVM_OUT=… in rsvm's settings file (~ and {data} work)
+files rsvm         = ./rsvm            # the files of this folder go into rsvm's data folder
+```
+
+```
+lotus plugin install https://github.com/you/creator-kit
+```
+
+shows the pack, each of its plugins with what it may do and the settings it brings, and asks once. A pack cannot
+give a plugin more access than its own `plugin.conf` asks for. `{data}` is the plugin's data folder; a pack's
+settings replace the same keys in the settings file and leave the others. `lotus plugin check <folder>` checks a
+`pack.conf`, and
+
+```
+lotus plugin pack my-setup
+```
+
+makes one from the plugins you have: the ones from git by their link, your own copied in, the ones that are off
+marked `off`, and their settings – check the `set` lines before you share it, they are yours. An example to start
+from: [packs/examples](packs/examples/pack.conf), installed with
+`lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
+
 ## The commands
 
 | | |
 |---|---|
 | `lotus plugin` | your plugins: what they bring, what they may do, whether they are on |
 | `lotus plugin new <name> [full]` | a plugin to start from in `~/.config/lotus/plugins/<name>`, with a command, a tool and a start screen line |
-| `lotus plugin check <name\|folder>` | check a `plugin.conf` – with what is wrong and how to fix it |
-| `lotus plugin install <folder\|git URL>` | install a plugin: Lotus shows what it brings and may do, and asks |
+| `lotus plugin check <name\|folder>` | check a `plugin.conf` or a `pack.conf` – with what is wrong and how to fix it |
+| `lotus plugin install <folder\|git URL\|pack> …` | install plugins or a pack: Lotus shows what they bring and may do, and asks |
+| `lotus plugin installer` | drag plugin folders and packs in, or paste a git link – several at once |
+| `lotus plugin pack <name> [folder]` | a pack of your plugins and their settings, to share |
 | `lotus plugin info <name>` | everything about one plugin |
 | `lotus plugin on\|off <name>` | turn it on or off (its files stay) |
 | `lotus plugin allow <name>` | allow a full plugin again after its files changed |

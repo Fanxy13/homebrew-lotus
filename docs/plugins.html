@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plugins — Lotus</title>
-  <meta name="description" content="Add your own commands, AI tools and start screen lines to Lotus – in any language, limited in a sandbox or with full access – and share them.">
+  <meta name="description" content="Add your own commands, AI tools and start screen lines to Lotus – in any language, limited in a sandbox or with full access – drag them into the installer, install whole packs from GitHub, and share them.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.16.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.16.0">
-  <script src="js/lotus.js?v=2.16.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.17.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.17.0">
+  <script src="js/lotus.js?v=2.17.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -18,7 +18,7 @@
     <header class="page-head">
       <p class="eyebrow">Plugins</p>
       <h1>Build your own <span>Lotus</span></h1>
-      <p class="lead">A plugin adds commands, tools for the AI and a line under the start screen – written in zsh, Python, Node or anything that runs on a Mac. Make one in a minute, install the ones others made, and share yours.</p>
+      <p class="lead">A plugin adds commands, tools for the AI and a line under the start screen – written in zsh, Python, Node or anything that runs on a Mac. Make one in a minute, drag the ones others made into the installer, install whole packs from GitHub, and share yours.</p>
     </header>
 
     <h2 class="section" id="start">Start in a minute</h2>
@@ -68,6 +68,45 @@ startup.every = 60</pre></div>
     </div>
     <div class="callout warn" style="margin-top:18px"><p>A plugin is code that runs on your Mac. Lotus always shows what a plugin brings and may do before it installs it. Give full access only to plugins from people you trust.</p></div>
 
+    <h2 class="section" id="installer">The installer: drag them in</h2>
+    <div class="codeblock"><code><span class="dollar">$</span> lotus plugin installer</code><button class="copy" data-copy="lotus plugin installer" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+    <div class="term" style="margin-top:14px"><div class="term-bar"><i></i><i></i><i></i><span>lotus plugin installer</span></div><pre>    <span class="t-dim">╭╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╮</span>
+    <span class="t-dim">┆</span>                    ┃                     <span class="t-dim">┆</span>
+    <span class="t-dim">┆</span>                  ━━╋━━                   <span class="t-dim">┆</span>
+    <span class="t-dim">┆</span>                    ┃                     <span class="t-dim">┆</span>
+    <span class="t-dim">┆</span>         Drag plugin folders here         <span class="t-dim">┆</span>
+    <span class="t-dim">┆</span>  <span class="t-dim">plugins · packs · or paste a git link</span>   <span class="t-dim">┆</span>
+    <span class="t-dim">╰╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯</span>
+
+  ● RSVM  1.1 · by Fanxy13
+    lotus rsvm  ·  full access – your files, the internet, Lotus' settings
+  ● To-do  1.0
+    lotus todo · 3 AI tools · a start screen line  ·  limited – only its own folder
+
+  Install 2 plugins, rsvm with full access to your Mac and Lotus? <span class="t-dim">[y/N]</span></pre></div>
+    <p class="muted" style="margin-top:12px">Drag one or more plugin folders or packs from the Finder into the window, or paste a git link – one on the clipboard is installed with Enter alone. Lotus checks each one, shows what it brings and may do, lets you leave some out and asks once, naming the ones with full access. <code>lotus plugin install</code> does the same with folders, git links and <code>&lt;git URL&gt;#&lt;folder&gt;</code> on the command line.</p>
+
+    <h2 class="section" id="packs">Plugin packs</h2>
+    <p>A pack installs several plugins at once, with the settings that make them work together – a preset to share. It is a GitHub repository (or a folder) with a <code>pack.conf</code>:</p>
+    <div class="term"><div class="term-bar"><i></i><i></i><i></i><span>pack.conf</span></div><pre>name        = creator-kit
+title       = Creator kit
+description = Videos from YouTube songs, a to-do list and GitHub
+
+<span class="t-dim"># the plugins: a git URL, a folder in a repository, or a folder of the pack</span>
+plugin = https://github.com/you/lotus-rsvm
+plugin = https://github.com/Fanxy13/homebrew-lotus#plugins/todo
+plugin = ./weather-art
+plugin = https://github.com/you/lotus-github off
+
+<span class="t-dim"># their settings and files</span>
+set rsvm.RSVM_OUT = ~/Movies/RSVM
+files rsvm        = ./rsvm</pre></div>
+    <div class="grid" style="margin-top:18px">
+      <div class="card"><h3>Install one</h3><div class="codeblock small"><code>lotus plugin install https://github.com/you/creator-kit</code></div><p class="muted small">Lotus shows the pack and each plugin with what it may do and the settings it brings, and asks once. A pack never gives a plugin more access than its own plugin.conf asks for.</p></div>
+      <div class="card"><h3>Make one</h3><div class="codeblock small"><code>lotus plugin pack my-setup</code></div><p class="muted small">Your plugins as a pack: the ones from git by their link, your own copied in, with their settings. Put the folder on GitHub and share the link.</p></div>
+      <div class="card"><h3>Try one</h3><div class="codeblock small"><code>lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples</code></div><p class="muted small">The three example plugins at once – hello with full access stays off until you turn it on.</p></div>
+    </div>
+
     <h2 class="section" id="share">Share it</h2>
     <p>Put your plugin's folder in a git repository, with its <code>plugin.conf</code> at the top. Anyone can install it:</p>
     <div class="codeblock"><code><span class="dollar">$</span> lotus plugin install https://github.com/you/lotus-todo</code><button class="copy" data-copy="lotus plugin install https://github.com/you/lotus-todo" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
@@ -86,8 +125,10 @@ startup.every = 60</pre></div>
         <tr><th>Command</th><th>What it does</th></tr>
         <tr><td><code>lotus plugin</code></td><td>Your plugins: what they bring, what they may do, whether they are on</td></tr>
         <tr><td><code>lotus plugin new &lt;name&gt; [full]</code></td><td>A working plugin to start from, limited or with full access</td></tr>
-        <tr><td><code>lotus plugin check &lt;name&gt;</code></td><td>Check its <code>plugin.conf</code> – what is wrong and how to fix it</td></tr>
-        <tr><td><code>lotus plugin install &lt;folder or git URL&gt;</code></td><td>Install one – it shows what it brings and may do, and asks</td></tr>
+        <tr><td><code>lotus plugin check &lt;name or folder&gt;</code></td><td>Check a <code>plugin.conf</code> or a <code>pack.conf</code> – what is wrong and how to fix it</td></tr>
+        <tr><td><code>lotus plugin installer</code></td><td>Drag plugin folders and packs in, or paste a git link – several at once</td></tr>
+        <tr><td><code>lotus plugin install &lt;folder, git URL or pack&gt;</code></td><td>Install plugins or a whole pack – it shows what they bring and may do, and asks</td></tr>
+        <tr><td><code>lotus plugin pack &lt;name&gt;</code></td><td>A pack of your plugins and their settings, to share</td></tr>
         <tr><td><code>lotus plugin info &lt;name&gt;</code></td><td>Everything about one plugin</td></tr>
         <tr><td><code>lotus plugin on</code> / <code>off &lt;name&gt;</code></td><td>Turn it on or off; its files stay</td></tr>
         <tr><td><code>lotus plugin allow &lt;name&gt;</code></td><td>Allow a plugin with full access again after its files changed</td></tr>

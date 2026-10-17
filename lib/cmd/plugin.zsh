@@ -1,7 +1,9 @@
 # Plugins – your own things in Lotus: commands, tools for the AI and lines on the start screen.
 #   lotus plugin                          the plugins you have, and what they may do
 #   lotus plugin new <name> [full]        a new plugin to start from, in ~/.config/lotus/plugins/<name>
-#   lotus plugin install <folder|git URL> install one – it shows what it brings and may do, and asks
+#   lotus plugin install <folder|git URL> install one, several or a pack – it shows what they may do, and asks
+#   lotus plugin installer                drag plugin folders and packs in, or paste a git link
+#   lotus plugin pack <name> [folder]     your plugins as a pack to share (pack.conf), with their settings
 #   lotus plugin info|check <name>        what it brings and may do · check its plugin.conf
 #   lotus plugin on|off <name>            turn it on or off · lotus plugin remove <name> deletes it (asks)
 #   lotus plugin allow <name>             allow it again after its files changed (full access)
@@ -14,6 +16,7 @@
 #   full                   with your rights and Lotus' own functions (source $LOTUS_ROOT/lib/core.zsh) – you
 #                          allow it when you install it, and again whenever its files change
 # The list of plugins and what you allowed: ~/.config/lotus/plugins.tsv (name, on/off, access, fingerprint).
+# A pack is a folder or git repository with a pack.conf: plugins (git URLs or folders of the pack) and their settings.
 
 typeset -g LOTUS_PLUGINS=$LOTUS_CONF/plugins LOTUS_PLUGINS_TSV=$LOTUS_CONF/plugins.tsv
 typeset -g LOTUS_PLUGIN_DATA=$LOTUS_DATA/plugins
@@ -29,6 +32,8 @@ lotus_cmd_plugin() {
     list|ls)          _plg_list ;;
     new|create)       _plg_new "$@" ;;
     install|add)      _plg_install "$@" ;;
+    installer|drop)   _plg_installer ;;
+    pack)             _plg_pack_new "$@" ;;
     info|show)        _plg_info "$1" ;;
     check)            _plg_check_cmd "$1" ;;
     on|enable)        _plg_switch "$1" on ;;
@@ -62,7 +67,7 @@ _plg_read() {
     line=${line//$'\r'/}
     [[ $line == [[:space:]]#\#* || $line != *=* ]] && continue
     key=${${line%%=*}//[[:space:]]##/ }; key=${${key## }%% }
-    value=${${line#*=}## #}; value=${value%% #}
+    value=${${line#*=}## #}; value=${value%%[[:space:]]##\#[[:space:]]*}; value=${value%% #}
     case $key in
       command\ *)
         PLG_CMDS[${key#command }]=$value ;;
@@ -448,7 +453,8 @@ _plg_list() {
     print
     ui_dim "  No plugins yet."
     print -r -- "  Make your own:   lotus plugin new <name>"
-    print -r -- "  Install one:     lotus plugin install <folder or git URL>"
+    print -r -- "  Install one:     lotus plugin install <folder, git URL or pack>"
+    print -r -- "  Drag them in:    lotus plugin installer"
     print -r -- "  How it works:    lotus plugin help"
     return 0
   fi
@@ -465,7 +471,7 @@ _plg_list() {
     print -r -- "  ${(r:16:)} $d${what:-nothing} · $access · $state$x"
   done
   print
-  ui_dim "  lotus plugin info <name> · on|off <name> · remove <name> · new <name> · help"
+  ui_dim "  lotus plugin installer · info|on|off|remove <name> · new <name> · pack <name> · help"
 }
 
 _plg_info() {
@@ -508,6 +514,7 @@ _plg_summary() {
 _plg_check_cmd() {
   local name=$1 dir
   [[ -n $name ]] || { ui_error "Which plugin?" "" "lotus plugin check <name or folder>"; return 2 }
+  if [[ -d $name && -r $name/pack.conf ]]; then _plg_check_pack ${name:A}; return; fi
   dir=$LOTUS_PLUGINS/$name
   [[ -d $name && -r $name/plugin.conf ]] && dir=${name:A}
   _plg_read $dir || { ui_error "No plugin.conf in $dir"; return 1 }
@@ -519,6 +526,19 @@ _plg_check_cmd() {
   fi
   _plg_what
   ui_success "plugin.conf is fine – ${REPLY:-it brings nothing}"
+}
+
+_plg_check_pack() {   # <folder>
+  local r
+  _plg_read_pack $1
+  if (( ${#reply} )); then
+    ui_error "pack.conf has ${#reply} problem$( (( ${#reply} > 1 )) && print s)" "$1/pack.conf"
+    for r in $reply; do print -r -- "    – $r"; done
+    return 1
+  fi
+  local -i n=${#PACK_PLUGINS} s=${#PACK_SET}
+  ui_success "pack.conf is fine – $n plugin${${n:#1}:+s}${${s:#0}:+, settings for $s of them}"
+  ui_dim "  Its plugins are checked when you install it: lotus plugin install ${1/#$HOME/~}"
 }
 
 # ── New, install, allow, on/off, remove, update ───────────────
@@ -587,53 +607,481 @@ A plugin for [Lotus](https://github.com/Fanxy13/homebrew-lotus).
   return 0
 }
 
-_plg_install() {
-  local src=$1
-  [[ -n $src ]] || { ui_error "Install what?" "" "lotus plugin install <folder or git URL>"; return 2 }
-  local tmp=$LOTUS_PLUGINS/.lotus-plugin-$$ from=
-  rm -rf -- "$tmp"
+# ── Getting plugins and packs ─────────────────────────────────
+# A source is a folder, a git URL (https:// or git@…) or a folder in a git repository: <git URL>#<folder>.
+# Everything is fetched into one work folder first ($LOTUS_PLUGINS/.lotus-plugin-<pid>), checked there and shown;
+# only what you say yes to is moved into place. A pack is a folder (or a repository) with a pack.conf: a list of
+# plugins and their settings.
+
+_plg_begin() {
+  typeset -g PLG_WORK=$LOTUS_PLUGINS/.lotus-plugin-$$ PLG_WHY= PLG_FROM= PLG_IN_PACK=
+  typeset -gA PLG_CLONES=() PLG_STI=() PLG_PSET=() PLG_PFILES=()
+  typeset -ga PLG_ST=() PLG_ST_NAMES=() PLG_PACKS=()
   zf_mkdir -p $LOTUS_PLUGINS
+  rm -rf -- $LOTUS_PLUGINS/.lotus-plugin-*(N/mh+1) "$PLG_WORK"     # left over from an install that was stopped
+  zf_mkdir -p $PLG_WORK
+}
+_plg_end() { [[ -n $PLG_WORK ]] && rm -rf -- "$PLG_WORK"; PLG_WORK= }
+
+# <source> → REPLY (the folder it is in), PLG_FROM (git or folder). Status 1 with the reason in PLG_WHY.
+_plg_fetch() {
+  local src=$1 url sub= dir
+  PLG_WHY=
   if [[ $src == (https://|git@)* ]]; then
-    (( $+commands[git] )) || { ui_error "Installing from git needs git" "" "xcode-select --install"; return 1 }
-    ui_dim "  Getting ${src} …"
-    git clone -q --depth 1 -- "$src" $tmp 2>/dev/null || { rm -rf -- "$tmp"; ui_error "Could not get the plugin" "$src"; return 1 }
-    from=git
+    url=${src%%\#*}
+    [[ $src == *\#* ]] && sub=${${${src#*\#}#./}%/}
+    [[ $sub == . ]] && sub=
+    if [[ $sub == /* || /$sub/ == */../* || $sub == *[[:cntrl:]]* ]]; then PLG_WHY="Not a folder in the repository: $sub"; return 1; fi
+    dir=$PLG_CLONES[$url]
+    if [[ -z $dir ]]; then
+      (( $+commands[git] )) || { PLG_WHY="Installing from git needs git – xcode-select --install"; return 1 }
+      dir=$PLG_WORK/git-$(( ${#PLG_CLONES} + 1 ))
+      ui_dim "  Getting $url …"
+      if ! GIT_TERMINAL_PROMPT=0 git clone -q --depth 1 -- "$url" $dir </dev/null 2>/dev/null; then
+        rm -rf -- $dir; PLG_WHY="Could not get $url"; return 1
+      fi
+      PLG_CLONES[$url]=$dir
+    fi
+    REPLY=$dir${sub:+/$sub} PLG_FROM=git
+    # a link in the repository must not lead out of it
+    [[ -d $REPLY && ${REPLY:A} == ${dir:A}(|/*) ]] || { PLG_WHY="There is no folder \"$sub\" in $url"; return 1 }
+    REPLY=${REPLY:A}
   elif [[ -d $src ]]; then
-    [[ ${src:A} == ${LOTUS_PLUGINS:A}/* ]] && { ui_error "It is in the plugins folder already" "" "lotus plugin allow ${src:A:t}"; return 1 }
-    cp -R -- "${src:A}" $tmp || return 1
-    from=folder
+    [[ ${src:A} == ${LOTUS_PLUGINS:A}(|/*) ]] && { PLG_WHY="It is in the plugins folder already – lotus plugin allow ${src:A:t}"; return 1 }
+    REPLY=${src:A} PLG_FROM=folder
   else
-    ui_error "Not a folder or a git URL" "$src"; return 2
+    PLG_WHY="Not a folder or a git URL: $src"; return 1
   fi
-  _plg_read $tmp || { rm -rf -- "$tmp"; ui_error "There is no plugin.conf" "$src" "A plugin is a folder with a plugin.conf – lotus plugin help"; return 1 }
-  local name=$PLG[name]
+}
+
+# The source of <folder> inside <source> → REPLY: "<git URL>#<path>" for git, empty for a folder on this Mac
+_plg_child_src() {   # <source> <folder>
+  REPLY=
+  [[ $1 == (https://|git@)* ]] || return 0
+  local url=${1%%\#*} sub= child=${${2#./}%/}
+  [[ $1 == *\#* ]] && sub=${${${1#*\#}#./}%/}
+  [[ $sub == . ]] && sub=
+  [[ $child == . ]] && child=
+  sub=${sub:+$sub${child:+/}}$child
+  REPLY=$url${sub:+#$sub}
+}
+
+# A source → plugins ready to install (PLG_ST): a plugin, a pack, or a folder with plugins in it.
+# With the mode "plugin" only a plugin. Status 1 when nothing of it can be installed (it says why).
+_plg_stage() {   # <source> [on|off] [any|plugin]
+  local src=$1 state=${2:-on} mode=${3:-any} dir from remember= s
+  _plg_fetch "$src" || { ui_error "$PLG_WHY"; return 1 }
+  dir=$REPLY from=$PLG_FROM
+  if [[ $mode == any && -r $dir/pack.conf ]]; then _plg_stage_pack $dir "$src"; return; fi
+  if [[ -r $dir/plugin.conf ]]; then
+    [[ $from == git ]] && remember=$src
+    _plg_stage_one $dir "$remember" $from $state
+    return
+  fi
+  local -a subs=($dir/*/plugin.conf(N:h))
+  if [[ $mode == any ]] && (( ${#subs} )); then
+    local -i ok=0
+    for s in $subs; do
+      _plg_child_src "$src" ${s:t}
+      _plg_stage_one $s "$REPLY" $from $state && ok=1
+    done
+    (( ok )); return
+  fi
+  ui_error "There is no plugin.conf" "$src" "A plugin is a folder with a plugin.conf – lotus plugin help"
+  return 1
+}
+
+# One plugin folder → a copy in the work folder, checked there (what is checked is what gets installed)
+_plg_stage_one() {   # <folder> <source to remember> <git|folder> <on|off>
+  local dir=$1 tmp r
+  local -i i=$(( ${#PLG_ST} + 1 ))
+  _plg_read $dir || { ui_error "There is no plugin.conf" "$dir"; return 1 }
+  tmp=$PLG_WORK/plugin-$i
+  rm -rf -- $tmp
+  cp -R -- $dir $tmp 2>/dev/null || { ui_error "Could not copy the plugin" "$dir"; return 1 }
+  rm -rf -- $tmp/.git
+  _plg_read $tmp
   _plg_problems $tmp
   if (( ${#reply} )); then
-    rm -rf -- "$tmp"
-    ui_error "This plugin cannot be installed" "$src"
-    local r; for r in $reply; do print -r -- "    – $r"; done
+    rm -rf -- $tmp
+    ui_error "This plugin cannot be installed" "${PLG[title]:-${PLG[name]:-${dir:t}}}"
+    for r in $reply; do print -r -- "    – $r"; done
     return 1
   fi
-  [[ $name == [a-z][a-z0-9-](#c1,30) ]] || { rm -rf -- "$tmp"; return 1 }
-  local dest=$LOTUS_PLUGINS/$name
-  _plg_summary
+  if (( ${PLG_ST_NAMES[(Ie)$PLG[name]]} )); then rm -rf -- $tmp; return 0; fi   # the same one twice: once
+  PLG_ST+=($tmp) PLG_ST_NAMES+=($PLG[name])
+  PLG_STI[$i.src]=$2 PLG_STI[$i.from]=$3 PLG_STI[$i.state]=$4 PLG_STI[$i.pack]=$PLG_IN_PACK
+  return 0
+}
+
+# ── Packs ─────────────────────────────────────────────────────
+# <folder>/pack.conf → PACK (name title version author description homepage), PACK_PLUGINS ("<source> <on|off>"),
+# PACK_SET (plugin → "KEY=value" lines), PACK_FILES (plugin → a folder of the pack); the problems → reply.
+#   plugin = https://github.com/you/lotus-todo     a git URL, <git URL>#<folder>, or a folder of the pack (./todo;
+#   plugin = ./weather off                         . is the pack's own folder) – "off": installed, but turned off
+#   set todo.SORT = newest                         a line SORT=newest in the plugin's settings file (~ and {data} work)
+#   files rsvm = ./rsvm                            the files of this folder go into the plugin's data folder
+_plg_read_pack() {
+  local dir=${1:A} line key value p k f
+  local -a w probs=()
+  typeset -gA PACK=() PACK_SET=() PACK_FILES=()
+  typeset -ga PACK_PLUGINS=()
+  reply=()
+  [[ -r $dir/pack.conf ]] || return 1
+  for line in "${(@f)$(<$dir/pack.conf)}"; do
+    line=${line//$'\r'/}
+    [[ $line == [[:space:]]#\#* || $line != *=* ]] && continue
+    key=${${line%%=*}//[[:space:]]##/ }; key=${${key## }%% }
+    value=${${line#*=}## #}; value=${value%%[[:space:]]##\#[[:space:]]*}; value=${value%% #}
+    case $key in
+      plugin)
+        w=(${=value})
+        if (( ${#w} < 1 || ${#w} > 2 )) || [[ -n $w[2] && $w[2] != (on|off) ]]; then
+          probs+=("plugin = $value: a git URL or a folder of the pack, then on or off"); continue
+        fi
+        if [[ $w[1] != (https://|git@)* ]]; then
+          f=${${w[1]#./}%/}; [[ -z $f ]] && f=.
+          if [[ $f == /* || /$f/ == */../* || ! -r $dir/$f/plugin.conf || ${${:-$dir/$f}:A} != $dir(|/*) ]]; then
+            probs+=("plugin = $w[1]: not a plugin folder of the pack"); continue
+          fi
+          w[1]=./$f
+        fi
+        PACK_PLUGINS+=("$w[1] ${w[2]:-on}") ;;
+      set\ *)
+        p=${${key#set }%%.*} k=${key#set *.}
+        if [[ $key != set\ *.* || $p != [a-z][a-z0-9-](#c1,30) || $k != [A-Za-z_][A-Za-z0-9_](#c0,63) ]]; then
+          probs+=("$key: write set <plugin>.<SETTING> = <value>"); continue
+        fi
+        if [[ $value == *[[:cntrl:]]* ]] || (( ${#value} > 1000 )); then probs+=("$key: the value must be one line"); continue; fi
+        [[ $value == '~' || $value == '~/'* ]] && value=$HOME${value#\~}
+        value=${value//\{data\}/$LOTUS_PLUGIN_DATA/$p}
+        PACK_SET[$p]+="$k=$value"$'\n' ;;
+      files\ *)
+        p=${key#files } f=${${value#./}%/}
+        if [[ $p != [a-z][a-z0-9-](#c1,30) || -z $f || $f == /* || /$f/ == */../* || ! -d $dir/$f || ${${:-$dir/$f}:A} != $dir/* ]]; then
+          probs+=("files $p = $value: it must be a folder of the pack"); continue
+        fi
+        if [[ -n $(find $dir/$f -type l -print -quit 2>/dev/null) ]]; then probs+=("files $p = $value: links are not allowed in it"); continue; fi
+        PACK_FILES[$p]=${${:-$dir/$f}:A} ;;
+      name|title|version|author|description|homepage)
+        PACK[$key]=$value ;;
+    esac
+  done
+  [[ $PACK[name] == [a-z][a-z0-9-](#c1,30) ]] || probs+=("name must be 2–31 letters, digits or -, starting with a letter (it is \"$PACK[name]\")")
+  [[ -n $PACK[description] ]] || probs+=("a description is missing (description = what the pack is for)")
+  (( ${#PACK_PLUGINS} )) || probs+=("it has no plugins: plugin = <git URL or a folder of the pack>")
+  (( ${#PACK_PLUGINS} <= 30 )) || probs+=("a pack has at most 30 plugins")
+  reply=("${probs[@]}")
+  return 0
+}
+
+_plg_stage_pack() {   # <folder> <source>
+  local dir=$1 src=$2 e s state f r k p
+  _plg_read_pack $dir
+  if (( ${#reply} )); then
+    ui_error "This pack cannot be installed" "$src"
+    for r in $reply; do print -r -- "    – $r"; done
+    return 1
+  fi
+  local name=$PACK[name]
+  local -i ok=0
+  PLG_PACKS+=($name)
+  for k in title version author description homepage; do PLG_STI[pack.$name.$k]=$PACK[$k]; done
+  for p in ${(k)PACK_SET}; do PLG_PSET[$p]+=$PACK_SET[$p]; done
+  for p in ${(k)PACK_FILES}; do PLG_PFILES[$p]=$PACK_FILES[$p]; done
+  local -a list=("${PACK_PLUGINS[@]}")
+  local from=folder
+  [[ $src == (https://|git@)* ]] && from=git
+  PLG_IN_PACK=$name
+  for e in $list; do
+    s=${e% *} state=${e##* }
+    if [[ $s == ./* ]]; then
+      f=${s#./}; [[ $f == . ]] && f=
+      _plg_child_src "$src" ${f:-.}
+      _plg_stage_one $dir${f:+/$f} "$REPLY" $from $state && ok=1
+    else
+      _plg_stage "$s" $state plugin && ok=1
+    fi
+  done
+  PLG_IN_PACK=
+  (( ok ))
+}
+
+# A plugin's settings from a pack: its files, then its settings file ($LOTUS_PLUGIN_DATA/settings, KEY=value lines –
+# the pack's keys replace the ones there, the rest stays)
+_plg_apply_settings() {   # <name>
+  local name=$1 data=$LOTUS_PLUGIN_DATA/$1 line key
+  local f=$data/settings
+  if [[ -n $PLG_PFILES[$name] ]]; then
+    zf_mkdir -p $data && cp -R -- $PLG_PFILES[$name]/. $data/ 2>/dev/null
+  fi
+  [[ -n $PLG_PSET[$name] ]] || return 0
+  zf_mkdir -p $data
+  local -A set=()
+  local -a order=()
+  for line in ${(f)PLG_PSET[$name]}; do key=${line%%=*}; set[$key]=${line#*=}; order+=($key); done
+  {
+    [[ -r $f ]] && for line in "${(@f)$(<$f)}"; do
+      [[ -n $line ]] && (( ! ${+set[${line%%=*}]} )) && print -r -- $line
+    done
+    for key in ${(u)order}; do print -r -- "$key=$set[$key]"; done
+  } >| $f.tmp && zf_mv -f $f.tmp $f
+}
+
+# ── Showing what is ready and installing it ───────────────────
+
+_plg_pack_head() {   # <pack>
+  local p=$1 d=$'\e['"$LOTUS_C[dim]m" a=$'\e['"$LOTUS_C[accent]m"
   print
-  if [[ -e $dest ]]; then ui_dim "  This replaces the plugin \"$name\" you have."; fi
-  local q="Install the plugin \"$name\"?"
-  [[ $PLG[access] == full ]] && q="Install \"$name\" with full access to your Mac and Lotus?"
-  if ! ui_confirm "$q" n; then
-    rm -rf -- "$tmp"
-    ui_dim "  Not installed."
+  print -r -- "  ${a}◆${_UI_R} ${_UI_B}${PLG_STI[pack.$p.title]:-$p}${_UI_R}  ${d}pack${PLG_STI[pack.$p.version]:+ $PLG_STI[pack.$p.version]}${PLG_STI[pack.$p.author]:+ · by $PLG_STI[pack.$p.author]}${_UI_R}"
+  print -r -- "    ${d}$PLG_STI[pack.$p.description]${_UI_R}"
+  [[ -n $PLG_STI[pack.$p.homepage] ]] && print -r -- "    ${d}$PLG_STI[pack.$p.homepage]${_UI_R}"
+}
+
+# One plugin that is ready, short – read by _plg_read
+_plg_brief() {   # <i>
+  local i=$1 name=$PLG[name] line k=$'\e[1;'"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" x=$_UI_R
+  _plg_what; local what=$REPLY
+  _plg_access_text; local access=$REPLY
+  [[ $PLG[access] == full ]] && access=$'\e[38;5;203m'"$access"$x
+  local in=${PLG_STI[$i.pack]:+    }
+  print
+  print -r -- "$in  ${k}●${x} ${_UI_B}${PLG[title]:-$name}${x}  ${d}${PLG[version]}${PLG[author]:+ · by $PLG[author]}${x}"
+  print -r -- "$in    ${d}$PLG[description]${x}"
+  print -r -- "$in    ${what:-nothing}  ${d}·${x}  $access"
+  local v
+  for line in ${(f)PLG_PSET[$name]}; do
+    v=${line#*=}; v=${v//"$LOTUS_PLUGIN_DATA/$name"/(its data folder)}
+    print -r -- "$in    ${d}setting${x} ${line%%=*} = ${v//"$HOME"/~}"
+  done
+  [[ -n $PLG_PFILES[$name] ]] && print -r -- "$in    ${d}files for its data folder${x}"
+  [[ $PLG_STI[$i.state] == off ]] && print -r -- "$in    ${d}installed turned off${x}"
+  [[ -e $LOTUS_PLUGINS/$name ]] && print -r -- "$in    ${d}replaces the one you have${x}"
+  return 0
+}
+
+# A ready plugin → its place, what you allowed, its settings
+_plg_commit() {   # <i>
+  local i=$1 tmp=$PLG_ST[$1]
+  _plg_read $tmp || return 1
+  local name=$PLG[name]
+  local dest=$LOTUS_PLUGINS/$name
+  rm -rf -- "$dest"
+  zf_mv $tmp $dest || return 1
+  zf_mkdir -p $LOTUS_PLUGIN_DATA
+  if [[ -n $PLG_STI[$i.src] ]]; then print -r -- $PLG_STI[$i.src] >| $LOTUS_PLUGIN_DATA/.$name-source
+  else rm -f -- $LOTUS_PLUGIN_DATA/.$name-source; fi
+  _plg_fingerprint $dest
+  _plg_save_entry $name ${PLG_STI[$i.state]:-on} $PLG[access] $REPLY
+  _plg_apply_settings $name
+  lotus_log INFO plugin "Installed $name ($PLG[access], from $PLG_STI[$i.from]${PLG_STI[$i.pack]:+, pack $PLG_STI[$i.pack]})"
+}
+
+# What is ready, then the question; installs what you chose. Status 1 = nothing installed.
+_plg_offer() {
+  local -i n=${#PLG_ST} i
+  (( n )) || return 1
+  local name q p
+  # one plugin on its own: everything about it
+  if (( n == 1 && ! ${#PLG_PACKS} )); then
+    _plg_read $PLG_ST[1]; name=$PLG[name]
+    _plg_summary
+    print
+    [[ -e $LOTUS_PLUGINS/$name ]] && ui_dim "  This replaces the plugin \"$name\" you have."
+    q="Install the plugin \"$name\"?"
+    [[ $PLG[access] == full ]] && q="Install \"$name\" with full access to your Mac and Lotus?"
+    ui_confirm "$q" n || { ui_dim "  Not installed."; return 1 }
+    _plg_commit 1 || { ui_error "Could not install \"$name\""; return 1 }
+    _plg_read $LOTUS_PLUGINS/$name; _plg_what
+    ui_success "The plugin \"$name\" is installed" "$REPLY"
+    return 0
+  fi
+  # several, or a pack: each one short, then which ones
+  local -a opts=() shown=() pick=() full=()
+  for (( i = 1; i <= n; i++ )); do
+    p=$PLG_STI[$i.pack]
+    if [[ -n $p ]] && (( ! ${shown[(Ie)$p]} )); then _plg_pack_head $p; shown+=($p); fi
+    _plg_read $PLG_ST[i]
+    _plg_brief $i
+    _plg_what
+    opts+=("$PLG[name]|${${(M)PLG[access]:#full}:+full access · }${REPLY:-…}")
+  done
+  typeset -ga LOTUS_TOGGLES=()
+  for (( i = 1; i <= n; i++ )); do LOTUS_TOGGLES+=(1); done
+  if (( n > 1 )) && [[ -t 1 ]] && ui_has_tty; then
+    print
+    ui_dim "  Which ones? All are chosen."
+    ui_toggles "${opts[@]}" || { ui_dim "  Not installed."; return 1 }
+  fi
+  for (( i = 1; i <= n; i++ )); do (( LOTUS_TOGGLES[i] )) && pick+=($i); done
+  (( ${#pick} )) || { ui_dim "  None chosen – nothing installed."; return 1 }
+  for i in $pick; do _plg_read $PLG_ST[i]; [[ $PLG[access] == full ]] && full+=($PLG[name]); done
+  local what="${#pick} plugins"
+  (( ${#pick} == 1 )) && what="1 plugin"
+  if (( ${#PLG_PACKS} == 1 )); then q="Install the pack \"${PLG_STI[pack.$PLG_PACKS[1].title]:-$PLG_PACKS[1]}\" – $what"
+  else q="Install $what"; fi
+  (( ${#full} )) && q+=", ${(j:, :)full} with full access to your Mac and Lotus"
+  print
+  ui_confirm "$q?" n || { ui_dim "  Not installed."; return 1 }
+  local -i got=0
+  local k=$'\e[1;'"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m"
+  print
+  for i in $pick; do
+    name=$PLG_ST_NAMES[i]
+    if ! _plg_commit $i; then ui_warn "Could not install \"$name\""; continue; fi
+    _plg_read $LOTUS_PLUGINS/$name; _plg_what
+    print -r -- "  ${k}✓${_UI_R} ${(r:16:)name} ${d}${REPLY:-…}${${PLG_STI[$i.state]:#on}:+ · turned off}${_UI_R}"
+    (( got++ ))
+  done
+  (( got )) || return 1
+  print
+  if (( ${#PLG_PACKS} == 1 )); then ui_success "The pack \"${PLG_STI[pack.$PLG_PACKS[1].title]:-$PLG_PACKS[1]}\" is installed – $got plugin${${got:#1}:+s}"
+  else ui_success "$got plugin${${got:#1}:+s} installed"; fi
+  ui_dim "  lotus plugin lists them · their commands work in new Lotus shells as /<command> too"
+  return 0
+}
+
+_plg_install() {
+  (( $# )) || { ui_error "Install what?" "" "lotus plugin install <folder, git URL or pack>" "or drag them in: lotus plugin installer"; return 2 }
+  local s
+  local -i st
+  _plg_begin
+  for s in "$@"; do _plg_stage "$s"; done
+  _plg_offer; st=$?
+  _plg_end
+  return st
+}
+
+# ── lotus plugin installer: drag them in ──────────────────────
+
+# A dropped line → reply: folders and git links. Terminal gives /a/b\ c or '/a/b c'; file:// and ~ work too, and
+# paths typed with spaces but without quotes are put back together. What is not there → PLG_DROP_MISSING.
+_plg_drop_items() {
+  # (z) splits like the shell would, (Q) removes the quotes and backslashes – no expansion, no commands
+  local -a w=(${(Q)${(z)1}}) out=()
+  local -i i=1 j
+  local p
+  typeset -ga PLG_DROP_MISSING=()
+  while (( i <= ${#w} )); do
+    if [[ $w[i] == (https://|git@)* ]]; then out+=($w[i]); (( i++ )); continue; fi
+    ui_clean_path "$w[i]"; p=$REPLY
+    if [[ ! -e $p ]]; then
+      for (( j = i + 1; j <= ${#w}; j++ )); do
+        ui_clean_path "${(j: :)w[i,j]}"
+        [[ -e $REPLY ]] && { p=$REPLY; i=j; break }
+      done
+    fi
+    [[ -f $p && ${p:t} == (plugin|pack).conf ]] && p=${p:h}
+    if [[ -d $p ]]; then out+=($p); else PLG_DROP_MISSING+=($w[i]); fi
+    (( i++ ))
+  done
+  reply=("${out[@]}")
+}
+
+_plg_installer() {
+  if ! { [[ -t 1 ]] && ui_has_tty }; then
+    ui_error "The installer needs a terminal window" "" "Without one: lotus plugin install <folder, git URL or pack>"
     return 1
   fi
-  rm -rf -- "$dest"
-  zf_mv $tmp $dest
-  [[ $from == git ]] && print -r -- $src >| $LOTUS_PLUGIN_DATA/.$name-source 2>/dev/null
-  _plg_fingerprint $dest
-  _plg_save_entry $name on $PLG[access] $REPLY
-  lotus_log INFO plugin "Installed $name ($PLG[access], from $from)"
-  _plg_read $dest; _plg_what
-  ui_success "The plugin \"$name\" is installed" "$REPLY"
+  local line clip used= key item c
+  local -a items
+  local -i W
+  while :; do
+    print -n $'\e[H\e[2J'
+    ui_hero "Plugin installer" "Plugins and packs, one or several at once – Lotus shows what each one may do and asks."
+    W=${COLUMNS:-80}
+    (( W > 20 )) || W=80
+    if (( W >= 44 )); then
+      ui_drop_zone $(( W - 8 > 60 ? 60 : W - 8 )) "Drag plugin folders here" "plugins · packs · or paste a git link"
+    else
+      ui_text "Drag plugin folders or packs here, or paste a git link"
+    fi
+    # a git link on the clipboard: Enter alone installs it
+    clip= c=$(pbpaste 2>/dev/null | head -c 400)
+    c=${${c##[[:space:]]##}%%[[:space:]]##}
+    [[ $c == (https://|git@)[^[:space:]]## && $c != $used ]] && clip=$c
+    ui_blank
+    if [[ -n $clip ]]; then
+      print -r -- "    "$'\e['"$LOTUS_C[key]m✓"$_UI_R" On the clipboard: $clip"
+      ui_dim "  Drop them here, then press Enter · Enter alone: the link on the clipboard · q: done"
+    else
+      ui_dim "  Drop them here, then press Enter · Enter alone: done"
+    fi
+    ui_blank
+    print -rn -- "    "$'\e['"$LOTUS_C[accent]m›"$_UI_R" "
+    line=
+    read -r line < /dev/tty || return 0
+    if [[ -z ${line//[[:space:]]/} ]]; then
+      [[ -n $clip ]] || return 0
+      line=$clip used=$clip
+    fi
+    [[ ${(L)line} == (q|quit|exit|done) ]] && return 0
+    _plg_drop_items "$line"; items=("${reply[@]}")
+    print
+    for item in $PLG_DROP_MISSING; do ui_warn "Not found: $item"; done
+    if (( ${#items} )); then
+      _plg_begin
+      for item in $items; do _plg_stage "$item"; done
+      _plg_offer
+      _plg_end
+    fi
+    print
+    print -rn -- "  "$'\e['"$LOTUS_C[dim]m"'Enter: more plugins · q: done'"$_UI_R "
+    read -rsk1 key < /dev/tty || return 0
+    print
+    [[ $key == (q|Q|$'\e') ]] && return 0
+  done
+}
+
+# lotus plugin pack <name> [folder]: your plugins as a pack to share – the ones from git by their link, your own
+# copied in, with their settings
+_plg_pack_new() {
+  local name=$1 dest n src state line k v f
+  [[ $name == [a-z][a-z0-9-](#c1,30) ]] || { ui_error "A pack needs a name" "letters, digits and -, starting with a letter" "lotus plugin pack my-setup [folder]"; return 2 }
+  ui_clean_path "${2:-$PWD}"
+  dest=$REPLY/$name
+  [[ -e $dest ]] && { ui_error "It is there already" "${dest/#$HOME/~}"; return 1 }
+  _plg_names
+  local -a names=($reply)
+  (( ${#names} )) || { ui_error "You have no plugins to put in a pack" "" "lotus plugin installer"; return 1 }
+  zf_mkdir -p $dest || return 1
+  {
+    print -r -- "# A Lotus plugin pack – install it with: lotus plugin install <this folder or its git URL>"
+    print -r -- "name        = $name"
+    print -r -- "title       = $name"
+    print -r -- "version     = 1.0"
+    print -r -- "author      = ${LOTUS_NAME:-}"
+    print -r -- "description = My Lotus plugins"
+    print
+    print -r -- "# the plugins: a git URL, <git URL>#<folder>, or a folder of this pack – \"off\" installs it turned off"
+    for n in $names; do
+      state=on
+      _plg_entry $n && state=$reply[2]
+      if [[ -r $LOTUS_PLUGIN_DATA/.$n-source ]]; then
+        src=$(<$LOTUS_PLUGIN_DATA/.$n-source)
+      else
+        cp -R -- $LOTUS_PLUGINS/$n $dest/$n && rm -rf -- $dest/$n/.git
+        src=./$n
+      fi
+      print -r -- "plugin = $src${${state:#on}:+ off}"
+    done
+    for n in $names; do
+      f=$LOTUS_PLUGIN_DATA/$n/settings
+      [[ -r $f ]] || continue
+      print
+      print -r -- "# the settings of $n (set <plugin>.<SETTING> = <value> – ~ is the home folder, {data} the plugin's data folder)"
+      for line in "${(@f)$(<$f)}"; do
+        [[ $line == [A-Za-z_][A-Za-z0-9_]#=* ]] || continue
+        k=${line%%=*} v=${line#*=}
+        [[ $v == $LOTUS_PLUGIN_DATA/$n(|/*) ]] && v="{data}${v#$LOTUS_PLUGIN_DATA/$n}"
+        print -r -- "set $n.$k = ${v/#$HOME/~}"
+      done
+    done
+  } >| $dest/pack.conf
+  lotus_log INFO plugin "Made the pack $name (${#names} plugins)"
+  ui_success "Your pack \"$name\" is ready" "${dest/#$HOME/~} – ${#names} plugin$( (( ${#names} > 1 )) && print s)"
+  ui_kv Check "its pack.conf: the title, the description – and the settings, they are yours"
+  ui_kv Share "put the folder on GitHub; others install it with: lotus plugin install <its git URL>"
 }
 
 _plg_allow() {
@@ -676,10 +1124,16 @@ _plg_remove() {
 }
 
 _plg_update() {
-  local name=$1 src
+  local name=$1 src state=on
+  local -i st
   [[ -r $LOTUS_PLUGIN_DATA/.$name-source ]] || { ui_error "\"$name\" was not installed from git" "" "Install the new version: lotus plugin install <folder>"; return 1 }
   src=$(<$LOTUS_PLUGIN_DATA/.$name-source)
-  _plg_install $src
+  _plg_entry $name && state=$reply[2]
+  _plg_begin
+  _plg_stage "$src" $state plugin && _plg_offer
+  st=$?
+  _plg_end
+  return st
 }
 
 _plg_help() {
@@ -701,6 +1155,9 @@ _plg_help() {
   Start:     lotus plugin new <name>        (lotus plugin new <name> full for full access)
   Check:     lotus plugin check <name>
   Share:     put the folder on GitHub – others install it with: lotus plugin install <git URL>
+  Install:   lotus plugin installer – drag plugin folders and packs in, several at once
+  Packs:     a pack.conf lists plugins and their settings; lotus plugin install <pack> installs them all,
+             lotus plugin pack <name> makes one from your plugins
   Examples:  the plugins folder of the Lotus repository (todo, hello)
   Everything else: PLUGINS.md – https://github.com/Fanxy13/homebrew-lotus/blob/main/PLUGINS.md
 "

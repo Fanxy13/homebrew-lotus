@@ -10,9 +10,11 @@ Core	-	version	lotus version	Print the installed version	lotus version	0
 Core	/clock	clock	/clock [design]	A clock in your theme: minimal, big, retro, matrix, analog or world – ←→ switches, s seconds, z a second time zone	/clock retro	0
 Keep awake	/caffeine	caffeine	/caffeine [on [minutes]|off|status]	Keep your Mac awake for a while (macOS' caffeinate), then it may sleep again	/caffeine on 90	0
 Keep awake	/awake	caffeine	/awake	The same as /caffeine	/awake	1
-Plugins	/plugin	plugin	/plugin [list|new|install|info|check|on|off|allow|update|remove|help]	Your plugins: own commands, AI tools and start screen lines – limited or with full access	/plugin new my-tool	0
+Plugins	/plugin	plugin	/plugin [list|installer|new|install|pack|info|check|on|off|allow|update|remove|help]	Your plugins: own commands, AI tools and start screen lines – limited or with full access	/plugin new my-tool	0
+Plugins	-	plugin installer	/plugin installer	The plugin installer: drag plugin folders and packs in – several at once – or paste a GitHub link; it shows what each may do and asks	/plugin installer	0
 Plugins	-	plugin	lotus plugin new <name> [full]	Make a plugin to start from, in ~/.config/lotus/plugins	lotus plugin new weather-art	0
-Plugins	-	plugin	lotus plugin install <folder|git URL>	Install a plugin – it shows what it brings and may do, and asks first	lotus plugin install https://github.com/you/lotus-todo	0
+Plugins	-	plugin install	/plugin install <folder|git URL|pack>	Install plugins, or a whole plugin pack (a GitHub repository with a pack.conf) with its settings – it shows what they may do and asks first	/plugin install https://github.com/you/lotus-todo	0
+Plugins	-	plugin pack	/plugin pack <name>	Make a plugin pack from your plugins and their settings – put it on GitHub, and others install all of it at once	/plugin pack my-setup	0
 Core	-	features	lotus features	Turn Lotus features on or off	lotus features	0
 Core	-	features	lotus features <name> on|off	Switch one feature, e.g. for scripts	lotus features minecraft off	0
 Core	-	goat	who is the goat?	-	who is the goat?	1
@@ -39,7 +41,7 @@ Audio	/mute	audio mute	/mute	Mute or unmute the Mac	/mute	0
 Audio	/vu	audio up	/vu	Volume up	/vu	0
 Audio	/vd	audio down	/vd	Volume down	/vd	0
 Weather	/weather	weather	/weather [city]	Weather with ASCII art and a 3-day forecast	/weather Tokyo	0
-AI	/ai	ai	/ai	Open the AI terminal: chat, code, create and change files – it asks before every change	/ai	0
+AI	/ai	ai	/ai	Open the AI terminal: chat, code, create and change files – it plans bigger tasks step by step and asks before every change; /effort sets how hard it thinks, up to ultra	/ai	0
 AI	-	ai	/ai <question>	One question; the AI remembers the conversation for an hour	/ai what is a symlink?	0
 AI	-	ai new	/ai new	Start a new conversation, forget the last one	/ai new	0
 AI	-	ai explain	/ai explain <text>	Explain a command, error or idea	/ai explain chmod 755	0
@@ -47,8 +49,9 @@ AI	-	ai summarize	/ai summarize [file]	Summarize a file or the clipboard	/ai sum
 AI	-	ai write	/ai write <what>	Help writing text	/ai write a short bio	0
 AI	-	ai command	/ai command <task>	Suggest a shell command, never runs it	/ai command find big files	0
 AI	-	ai local	lotus ai local	A model that runs on this Mac – Apple's MLX, no Ollama; shows what fits your memory	lotus ai local	0
+AI	-	ai local restart	lotus ai local restart	Start the model on this Mac again – after it stopped, or to free its memory	lotus ai local restart	0
 AI	-	ai status	/ai status	Show which AI providers are available	/ai status	0
-AI	-	ai server	/ai server [start|stop|status|open]	Lotus AI in your browser: a web chat on this Mac (127.0.0.1) with the same AI, tools and questions – it never starts by itself	/ai server start	0
+AI	-	ai server	/ai server [start|stop|status|open]	Lotus AI in your browser: a web chat on this Mac (127.0.0.1) with the same AI, tools and questions, an effort slider and a code panel to read, copy and download code – it never starts by itself	/ai server start	0
 AI	-	ai server port	/ai server port <n>	The web chat's port (default 3000), kept in the settings	/ai server port 3001	0
 AI	-	ai stats	/ai stats	What the web chat is doing right now and what the AI did: answers, time, steps by tool – live, and it answers the web chat's questions	/ai stats	0
 AI	-	ai login	lotus ai login	Connect Claude: opens the key page, paste the key once	lotus ai login	0
