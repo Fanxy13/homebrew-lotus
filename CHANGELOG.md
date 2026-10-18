@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.18.0 – Album covers and new logos
+
+- While a song plays, its album cover takes the logo's place on the start screen: colored character art, two pixels per character in 24-bit color (or the nearest of 256), as big as the logo's room – 48 × 24 characters in a wide window, smaller in a narrow one, never over the info. Always in the cover's own colors, never the theme's. It comes and goes live: another song shows its cover, a pause or the end brings the logo back. `/settings` → Now playing → Album cover instead of the logo (on)
+- Two new logos: Apple and the Flag of Earth (Oskar Pernefeldt's seven interlocking rings), drawn with quadrant blocks
+- Logos in their own colors: `/settings` → Logo in theme colors (on by default) – off shows the lotus in pink from tip to base, the Apple in its six stripes of 1977 and the flag in blue and white. Your own logo keeps the theme's color
+- Block art in Terminal.app: it leaves a thin gap above every block character, which cut pictures into stripes – lit top halves are now drawn as background, so logos and covers are solid
+- `/convert`: when yt-dlp could not read a link, Lotus said "private, removed or not supported" and stopped – yt-dlp's real reason was thrown away. Now it says why in yt-dlp's words (also in the log), tries once more by itself (YouTube often refuses once), offers a newer yt-dlp when the site changed, and stops at once for private or removed videos. A message of a single line showed only its first letter
+- The pets know about covers and the new logos
+- Tests: painting in theme, own and 256 colors, the cover from a picture, which art fits the window, live swaps between cover and logo; `/convert` with a yt-dlp that fails in different ways
+
 ## 2.17.1 – Plugin uninstaller
 
 - `lotus plugin uninstall [name …]` (`/plugin uninstall`): a plugin goes again – its folder, its data, its commands, AI tools and start screen line. Lotus shows what goes, with the size of its data, and asks once. The name in any case (`lotus plugin uninstall RSVM`), several at once, or no name for a list to choose them from; `remove` does the same

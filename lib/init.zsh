@@ -40,6 +40,7 @@ _lotus_live_start() {
       last=$cur
       print -n -- $'\e7\e[?7l'"\e[${LOTUS_NP_ROW};${LOTUS_NP_COL}H"$'\e[0m\e[K'"${reply[1]}\e[$((LOTUS_NP_ROW + 1));${LOTUS_NP_COL}H"$'\e[0m\e[K'"${reply[2]}"$'\e[0m\e[?7h\e8' \
         > /dev/tty 2>/dev/null || exit
+      lotus_art_live "$reply[1]" "$reply[2]"    # another song → its cover, stopped → the logo
     done
   } &!
   _lotus_live_pid=$!

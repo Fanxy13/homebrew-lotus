@@ -5,6 +5,7 @@
 typeset -g LOTUS_DOWNLOADS=${LOTUS_DOWNLOADS:-~/Downloads/Lotus}
 typeset -g LOTUS_LOG_COMP=convert
 typeset -gi LOTUS_YTDLP_OLD=60    # days – sites change often, an older yt-dlp is the usual cause of failures
+typeset -gi LOTUS_CONVERT_PAUSE=2 # seconds before the second try – YouTube often fails once and then works
 
 lotus_cmd_convert() {
   shift
@@ -52,11 +53,11 @@ lotus_cmd_convert() {
     [[ -n $fps ]] && ui_dim "Changing the frame rate re-encodes the video, which takes a while."
   fi
 
-  zf_mkdir -p $LOTUS_DOWNLOADS
-  ui_step "Checking the video …"
-  local file=$(yt-dlp "${args[@]}" -o "$tpl" --print filename --skip-download -- "$link" 2>/dev/null | tail -1)
-  [[ -z $file ]] && { ui_error "yt-dlp cannot read this link" "$link" "The video may be private, removed or not supported."; return 1 }
-  file=${file:r}.$ext
+  zf_mkdir -p $LOTUS_DOWNLOADS $LOTUS_CACHE
+  # yt-dlp's own messages are kept: when something fails, they say why
+  local errs=$LOTUS_CACHE/convert-errors.txt
+  lotus_convert_probe $errs "$link" "$tpl" $args || return 1
+  local file=${REPLY:r}.$ext
   if [[ -e $file ]]; then
     ui_choose "${file:t} already exists" "Keep both (new name)" "Replace it" "Cancel" || return 0
     case $REPLY in
@@ -70,12 +71,10 @@ lotus_cmd_convert() {
 
   ui_blank
   ui_info "Saving to ${file/#$HOME/~}"
-  # yt-dlp's own messages stay visible; a copy of them tells Lotus what went wrong
-  local errs=$LOTUS_CACHE/convert-errors.txt
+  # yt-dlp's own messages stay visible here; a copy of them tells Lotus what went wrong
   local -i try=1
-  zf_mkdir -p $LOTUS_CACHE
   while ! yt-dlp --no-update "${args[@]}" -o "$tpl" -- "$link" 2> >(tee $errs >&2); do
-    lotus_convert_failed $errs $try || return 1
+    lotus_convert_failed $errs $try download || return 1
     (( try++ ))
     ui_blank
     ui_info "Trying again …"
@@ -100,29 +99,63 @@ lotus_convert_finish() {   # <file.mp4> [fps]
     || { rm -f "${file:r}.tmp.mp4"; ui_error "Conversion failed" "The downloaded video was kept as it is."; return 1 }
 }
 
-# What went wrong, and whether a newer yt-dlp is likely to help. Status 0 = try again.
-lotus_convert_failed() {   # <file with yt-dlp's messages> <attempt>
-  local errs=$1 why=
+# Asks yt-dlp what the file will be called – the first look at the video → REPLY = file name.
+# Its messages go to <errs> instead of the screen; when it fails they say why (lotus_convert_failed).
+lotus_convert_probe() {   # <errs> <link> <template> <yt-dlp arguments…>
+  local errs=$1 link=$2 tpl=$3
+  shift 3
+  local -i try=1
+  ui_step "Checking the video …"
+  until REPLY=$(yt-dlp --no-update "$@" -o "$tpl" --print filename --skip-download -- "$link" 2>$errs | tail -1); [[ -n $REPLY ]]; do
+    lotus_convert_failed $errs $try check || return 1
+    (( try++ ))
+    ui_step "Checking the video again …"
+  done
+}
+
+# What went wrong – in yt-dlp's own words – and what helps. Status 0 = try again.
+#   lotus_convert_failed <file with yt-dlp's messages> <attempt> <check|download>
+# A video that is private or gone ends it. A newer yt-dlp is offered when the site changed;
+# anything else (YouTube refusing once, the network) gets one more try by itself.
+lotus_convert_failed() {
+  local errs=$1 what=$3 why= first= kind=other
   local -i try=$2
   [[ -s $errs ]] || sleep 0.2      # the copy may still be on its way
   [[ -r $errs ]] && why=$(<$errs)
-  local first=${${(M)${(f)why}:#ERROR:*}[1]}
+  local -a lines=("${(@f)why}")                    # an array: one line alone stays a line, not letters
+  local -a errors=(${(M)lines:#ERROR:*})
+  first=${errors[1]:-$lines[-1]}                     # no ERROR line: its last words
   first=${first#ERROR: }
-  lotus_log ERROR convert "yt-dlp failed: ${first:-no message}"
-  if [[ $why == *(HTTP Error 403|HTTP Error 429|Sign in to confirm|nsig extraction|Unable to extract|Precondition check failed|Requested format is not available)* ]]; then
-    lotus_ytdlp_info
-    local -i age=${REPLY:--1}
-    ui_error "The download did not finish" "$first" \
-      "YouTube and other sites change how they deliver videos – yt-dlp needs updates to keep up." \
-      "Your yt-dlp: ${reply[1]:-unknown}${${(M)age:#<0->}:+ ($age days old)}"
-    if (( try == 1 )) && ui_has_tty && ui_confirm "Update yt-dlp and try again?" y; then
-      lotus_ytdlp_update && return 0
-    fi
-    ui_dim "  If it still fails: check that the video plays in your browser, or try again later."
-    ui_blank
-    return 1
+  case $why in
+    *(ideo unavailable|ideo is unavailable|rivate video|video is private|been removed|members-only|Join this channel|confirm your age|age-restricted|copyright|not available in your country|not made this video available)*) kind=gone ;;
+    *(Unsupported URL)*) kind=unsupported ;;
+    *(HTTP Error 403|HTTP Error 429|Sign in to confirm|not a bot|nsig extraction|n challenge|Signature extraction|Unable to extract|Precondition check failed|Requested format is not available|PO Token)*) kind=outdated ;;
+  esac
+  local title="The download did not finish"
+  [[ $what == check ]] && title="yt-dlp cannot read this link"
+  lotus_log ERROR convert "yt-dlp failed ($what, try $try, $kind): ${first:-no message}"
+  case $kind in
+    gone)        ui_error $title "$first" "The video is private, removed, age-restricted or not available here."; return 1 ;;
+    unsupported) ui_error $title "$first" "yt-dlp does not know this site."; return 1 ;;
+    outdated)
+      lotus_ytdlp_info
+      local -i age=${REPLY:--1}
+      ui_error $title "$first" \
+        "YouTube and other sites change how they deliver videos – yt-dlp needs updates to keep up." \
+        "Your yt-dlp: ${reply[1]:-unknown}${${(M)age:#<0->}:+ ($age days old)}"
+      if (( try == 1 )) && ui_has_tty && ui_confirm "Update yt-dlp and try again?" y; then
+        lotus_ytdlp_update && return 0
+      fi ;;
+  esac
+  if (( try == 1 )); then
+    # (while downloading, yt-dlp's messages are on screen already)
+    [[ $kind == outdated || $what == download ]] || ui_warn "yt-dlp: ${first:-it stopped without a reason} – trying once more"
+    sleep $LOTUS_CONVERT_PAUSE
+    return 0
   fi
-  ui_error "The download did not finish" "${first:-yt-dlp's message is shown above.}"
+  [[ $kind == outdated ]] || ui_error $title "${first:-yt-dlp stopped without a reason.}"
+  ui_dim "  If it still fails: check that the video plays in your browser, or try again later."
+  ui_blank
   return 1
 }
 

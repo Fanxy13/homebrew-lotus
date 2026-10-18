@@ -18,7 +18,7 @@ lotus_settings_ui() {
     local -a feats=()
     lotus_features
     for n in $LOTUS_THEME_NAMES; do themes+="$n=$LOTUS_THEME_LABELS[$n];"; done
-    for n in lotus minimal large terminal custom none; do logos+="$n=$LOTUS_LOGO_LABELS[$n];"; done
+    for n in $LOTUS_LOGOS; do logos+="$n=$LOTUS_LOGO_LABELS[$n];"; done
     for n in ${LOTUS_FEATURE_IDS:#core}; do lotus_feature_label $n; feats+=("feature|$n|$REPLY|"); done
     _on() { lotus_feature_on $1 }
     items=(
@@ -27,6 +27,7 @@ lotus_settings_ui() {
       "choice|LOTUS_LANG|$LOTUS_L[lang]|en=English;de=Deutsch;fr=Français;es=Español"
       "bool|LOTUS_STARTUP|$LOTUS_L[startup]|"
       "choice|LOTUS_LOGO|$LOTUS_L[logo]|${logos%;}"
+      "bool|LOTUS_LOGO_THEME|${LOTUS_L[logo_theme]:-Logo in theme colors}|"
       "action|logos|$LOTUS_L[logos_action]|"
       "choice|LOTUS_THEME|$LOTUS_L[theme]|${themes%;}"
       "bool|LOTUS_PROMPT|$LOTUS_L[prompt]|"
@@ -45,6 +46,7 @@ lotus_settings_ui() {
       "bool|LOTUS_SHOW_MUSIC|$LOTUS_L[sec_music]|"
       "head||$LOTUS_L[head_np]|"
       "bool|LOTUS_LIVE|$LOTUS_L[live]|"
+      "bool|LOTUS_COVER|${LOTUS_L[cover]:-Album cover instead of the logo}|"
       "choice|LOTUS_INTERVAL|$LOTUS_L[interval]|1=$LOTUS_L[sec1];2=2 $LOTUS_L[secs];3=3 $LOTUS_L[secs];5=5 $LOTUS_L[secs]")
     items+=("choice|LOTUS_COLORS|$LOTUS_L[colors]|auto=$LOTUS_L[col_auto];truecolor=$LOTUS_L[col_tc];256=$LOTUS_L[col_256]")
     items+=(

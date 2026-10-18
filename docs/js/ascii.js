@@ -3,7 +3,8 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const MAX_W = 80, MAX_H = 40;   // same limits as "lotus logo import"
-  const EXAMPLES = [['lotus', 'Lotus Classic'], ['minimal', 'Lotus Minimal'], ['large', 'Lotus Large'], ['terminal', 'Lotus Terminal']];
+  const EXAMPLES = [['lotus', 'Lotus Classic'], ['minimal', 'Lotus Minimal'], ['large', 'Lotus Large'], ['terminal', 'Lotus Terminal'],
+    ['apple', 'Apple'], ['earth', 'Flag of Earth']];
 
   // ── Prompt builder ──────────────────────────────────────────
   function buildPrompt() {

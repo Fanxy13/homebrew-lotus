@@ -59,4 +59,5 @@ LOTUS_L+=(
   ai_p_web 'Chercher et lire sur le web'
   ai_p_mode 'Mode'  ai_p_mode_ask 'demander d’abord'  ai_p_mode_auto 'auto – demande seulement en cas de doute'
   ai_p_write 'Modifier les fichiers du dossier'  ai_p_write_out 'Modifier les fichiers ailleurs'  ai_p_run 'Exécuter des commandes'  ai_p_allow 'autorisé'  ai_p_ask 'demander d’abord'  ai_p_never 'jamais'
+  logo_theme 'Logo aux couleurs du thème'  cover 'Pochette à la place du logo'
 )

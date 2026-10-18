@@ -153,4 +153,5 @@ LOTUS_L+=(
   ai_p_web 'Search and read the web'
   ai_p_mode 'Mode'  ai_p_mode_ask 'ask first'  ai_p_mode_auto 'auto – asks only when unsure'
   ai_p_write 'Change files in the folder'  ai_p_write_out 'Change files elsewhere'  ai_p_run 'Run commands'  ai_p_allow 'allowed'  ai_p_ask 'ask first'  ai_p_never 'never'
+  logo_theme 'Logo in theme colors'  cover 'Album cover instead of the logo'
 )

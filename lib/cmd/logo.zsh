@@ -15,16 +15,15 @@ lotus_cmd_logo() {
   esac
 }
 
-lotus_logo_preview() {   # <logo name>
-  lotus_logo_file $1
-  [[ -z $REPLY ]] && { ui_dim "(no logo)"; return }
-  local line c=$'\e[1;'"$LOTUS_C[logo]m"
-  for line in "${(@f)$(<$REPLY)}"; do print -r -- "  $c${line//\$\$/\$}"$'\e[0m'; done
+lotus_logo_preview() {   # <logo name> – in the theme's color or its own (lib/art.zsh)
+  lotus_logo_paint $1 || { ui_dim "(no logo)"; return }
+  local line
+  for line in "${(@f)$(<$REPLY)}"; do print -r -- "  $line"; done
 }
 
 lotus_logo_pick() {
   local n
-  local -a names=(lotus minimal large terminal) labels=()
+  local -a names=(lotus minimal large terminal apple earth) labels=()
   [[ -r $LOTUS_CONF/logo.txt ]] && names+=(custom)
   names+=(none)
   for n in $names; do labels+=("$LOTUS_LOGO_LABELS[$n]${${(M)n:#$LOTUS_LOGO}:+  (current)}"); done

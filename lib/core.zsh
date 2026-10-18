@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.17.1
+typeset -g LOTUS_VERSION=2.18.0
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -11,14 +11,15 @@ zmodload zsh/datetime
 zmodload -F zsh/stat b:zstat
 zmodload -F zsh/files b:zf_mv b:zf_mkdir
 source $LOTUS_ROOT/lib/log.zsh
+source $LOTUS_ROOT/lib/art.zsh
 
 # ── Settings ──────────────────────────────────────────────────
 
 typeset -ga LOTUS_KEYS=(
-  LOTUS_NAME LOTUS_LANG LOTUS_STARTUP LOTUS_LOGO LOTUS_THEME LOTUS_PROMPT LOTUS_COLORS
+  LOTUS_NAME LOTUS_LANG LOTUS_STARTUP LOTUS_LOGO LOTUS_LOGO_THEME LOTUS_THEME LOTUS_PROMPT LOTUS_COLORS
   LOTUS_GREETING LOTUS_SALUTE
   LOTUS_SHOW_HARDWARE LOTUS_SHOW_SESSION LOTUS_SHOW_TIME LOTUS_SHOW_MUSIC
-  LOTUS_LIVE LOTUS_INTERVAL
+  LOTUS_LIVE LOTUS_INTERVAL LOTUS_COVER
   LOTUS_WEATHER_LOCATION LOTUS_WEATHER_UNITS LOTUS_SEARCH_ENGINE LOTUS_VISUAL_MODE
   LOTUS_AI_PROVIDER LOTUS_AI_MODEL LOTUS_AI_URL LOTUS_AI_EFFORT LOTUS_AI_LOCAL
   LOTUS_AI_CONTEXT LOTUS_AI_MAXTOKENS LOTUS_AI_TEMP LOTUS_AI_KVBITS LOTUS_AI_ENHANCE
@@ -34,6 +35,8 @@ typeset -ga LOTUS_KEYS=(
 
 lotus_defaults() {
   typeset -g LOTUS_NAME= LOTUS_LANG=en LOTUS_STARTUP=1 LOTUS_LOGO=lotus LOTUS_THEME=matcha
+  # the logo in the theme's color (0: its own colors) · the album cover in its place while a song plays
+  typeset -g LOTUS_LOGO_THEME=1 LOTUS_COVER=1
   typeset -g LOTUS_PROMPT=0 LOTUS_COLORS=auto LOTUS_GREETING=rotate LOTUS_SALUTE=off
   typeset -g LOTUS_SHOW_HARDWARE=1 LOTUS_SHOW_SESSION=1 LOTUS_SHOW_TIME=1 LOTUS_SHOW_MUSIC=1
   typeset -g LOTUS_LIVE=1 LOTUS_INTERVAL=2
@@ -67,6 +70,8 @@ lotus_load() {
     (( ${#full[1]} > 1 )) && LOTUS_NAME=$full[1] || LOTUS_NAME=${(C)${USER:-${LOGNAME:-$(id -un)}}}
   fi
   [[ $LOTUS_INTERVAL == <1-60> ]] || LOTUS_INTERVAL=2
+  [[ $LOTUS_LOGO_THEME == 0 ]] || LOTUS_LOGO_THEME=1
+  [[ $LOTUS_COVER == 0 ]] || LOTUS_COVER=1
   [[ $LOTUS_AI_SERVER_PORT == <1024-65535> ]] || LOTUS_AI_SERVER_PORT=3000
   [[ $LOTUS_AI_ENHANCE == (off|on|ask) ]] || LOTUS_AI_ENHANCE=off
   [[ $LOTUS_AI_SERVER_BOOT == 1 ]] || LOTUS_AI_SERVER_BOOT=0
@@ -314,10 +319,10 @@ lotus_jq() {
 
 # ── Logos ─────────────────────────────────────────────────────
 
-# Built-in logos live in logos/<name>.txt; "custom" is the user's own file
-typeset -ga LOTUS_LOGOS=(lotus minimal large terminal custom none)
+# Built-in logos live in logos/<name>.txt; "custom" is the user's own file. Colors: lib/art.zsh
+typeset -ga LOTUS_LOGOS=(lotus minimal large terminal apple earth custom none)
 typeset -gA LOTUS_LOGO_LABELS=(lotus 'Lotus Classic' minimal 'Lotus Minimal' large 'Lotus Large'
-  terminal 'Lotus Terminal' custom 'Custom' none 'None')
+  terminal 'Lotus Terminal' apple 'Apple' earth 'Flag of Earth' custom 'Custom' none 'None')
 
 lotus_logo_file() {   # $1 logo name → REPLY = path ("" for none or missing)
   case $1 in
@@ -326,13 +331,6 @@ lotus_logo_file() {   # $1 logo name → REPLY = path ("" for none or missing)
     *)      REPLY=$LOTUS_ROOT/logos/$1.txt ;;
   esac
   [[ -n $REPLY && ! -r $REPLY ]] && REPLY=
-}
-
-lotus_logo_size() {   # $1 path → reply=(width height)
-  local l
-  local -i w=0 h=0
-  for l in "${(@f)$(<$1)}"; do (( ${#l} > w )) && w=${#l}; (( h++ )); done
-  reply=($w $h)
 }
 
 # ── Generate the fastfetch config (only when something changed) ──
@@ -401,16 +399,9 @@ lotus_build() {
     m+=('{ "type": "custom", "format": "@@LOTUS_NP1@@" }' '{ "type": "custom", "format": "@@LOTUS_NP2@@" }'); n+=2
   fi
   [[ ${m[-1]} == '"break"' ]] && { m[-1]=(); n=n-1 }
+  print -r -- $n >| $cfg.lines   # the art next to the info is as tall (lotus_render → lib/art.zsh)
 
-  local logo='{ "type": "none" }' file
-  lotus_logo_file $LOTUS_LOGO; file=$REPLY
-  if [[ -n $file && -r $file ]]; then
-    local -a ll=("${(@f)$(<$file)}")
-    local -i top=$(( ${#ll} >= n - 2 ? 2 : (n - ${#ll}) / 2 ))
-    logo="{ \"type\": \"file\", \"source\": \"${file//\"/\\\"}\", \"color\": { \"1\": \"$C[logo]\" }, \"padding\": { \"top\": $top, \"left\": 2, \"right\": 6 } }"
-  elif [[ $LOTUS_LOGO != none ]]; then
-    want=incomplete   # logo file missing right now → build again next time
-  fi
+  local logo='{ "type": "none" }'   # the logo or the album cover come from lotus_render
 
   local bar="\"bar\": { \"char\": { \"elapsed\": \"■\", \"total\": \"·\" }, \"border\": { \"left\": \"[\", \"right\": \"]\" }, \"color\": { \"elapsed\": \"$C[key]\", \"total\": \"$C[dim]\", \"border\": \"97\" }, \"width\": 10 }"
 
@@ -571,21 +562,6 @@ lotus_render() {
   zf_mkdir -p $LOTUS_CACHE
 
   local -a args=(-c $LOTUS_CACHE/fastfetch-$LOTUS_MODE.jsonc --pipe false)
-  # Window too narrow for the logo → the minimal lotus, or no logo at all
-  lotus_logo_file $LOTUS_LOGO
-  if [[ -n $REPLY ]]; then
-    lotus_logo_size $REPLY
-    if (( ${COLUMNS:-200} < reply[1] + 60 )); then
-      lotus_logo_file minimal
-      local small=$REPLY
-      lotus_logo_size $small
-      if [[ $LOTUS_LOGO != minimal ]] && (( ${COLUMNS:-200} >= reply[1] + 60 )); then
-        args+=(--logo $small --logo-padding-top 4)
-      else
-        args+=(--logo none)
-      fi
-    fi
-  fi
 
   # Fetch the song in parallel to the main run
   local -i np_pid=0
@@ -598,6 +574,12 @@ lotus_render() {
     fi
   fi
 
+  # The logo (smaller or none in a narrow window), or the cover of the song that plays
+  local -i info=22
+  [[ -r $LOTUS_CACHE/fastfetch-$LOTUS_MODE.jsonc.lines ]] && info=$(<$LOTUS_CACHE/fastfetch-$LOTUS_MODE.jsonc.lines)
+  lotus_art_pick $info
+  args+=($reply)
+
   local out=$($LOTUS_FF $args 2>/dev/null)
   local -a lines=("${(@f)out}")
   local -i i
@@ -608,6 +590,8 @@ lotus_render() {
   if (( LOTUS_NP_ON )); then
     lotus_np_get
     LOTUS_NP_LAST=${(F)reply}
+    LOTUS_ART_KEY=
+    [[ $reply[2] == *▶* ]] && LOTUS_ART_KEY=$reply[1]   # the song the art belongs to (lotus_art_live)
     for (( i = 1; i <= ${#lines}; i++ )); do
       [[ ${lines[i]} == *@@LOTUS_NP1@@* ]] || continue
       local plain=${lines[i]//$'\e['[0-9;?]#[a-zA-Z]/}

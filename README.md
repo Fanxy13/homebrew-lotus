@@ -330,7 +330,8 @@ manual refinement (offer, always, never), preview after processing, model cache.
 `/settings` – arrow keys to move, Enter or left/right to change, `v` to preview, `q` to close.
 
 - Name, interface language (English, Deutsch, Français, Español), auto-start
-- Logo: Classic, Minimal, Large, Terminal or your own ASCII art (`lotus logo import`)
+- Logo: Classic, Minimal, Large, Terminal, Apple, Flag of Earth or your own ASCII art (`lotus logo import`) – in the theme's colors or their own
+- While a song plays, its album cover takes the logo's place: colored character art (two pixels per character, 24-bit color), always in the cover's own colors
 - 13 themes: Matcha, Sakura, Ocean, Sunset, Mono, Midnight, Terminal, Lavender, Arctic, Graphite, Neon, Crimson, Retro
 - Greetings, sections, now playing and live updates
 - Features: turn each part of Lotus on or off (its settings disappear while it is off)
@@ -384,6 +385,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/core.zsh`, `lib/init.zsh` | Start screen, settings file, shell integration |
 | `lib/ui.zsh`, `lib/fuzzy.zsh` | Shared UI components and fuzzy matching |
 | `lib/log.zsh` | The log (levels, rotation, masking) – the AI and Remove BG write to the same file |
+| `lib/art.zsh`, `lib/cover.pl` | The art left of the start screen: logos in theme or own colors, the album cover of the song that plays, swapped live |
 | `lib/cmd/*.zsh` | One module per feature (app, brew, weather, ai, ios, bg, log, …) |
 | `lib/ai/*.swift` | The AI terminal (Claude, Apple Intelligence, Ollama, OpenAI-compatible), built once on first use; `Server.swift` is the web chat |
 | `lib/ai/web/` | The web chat's page (HTML, CSS, JavaScript – no libraries, nothing from other servers) |
@@ -393,7 +395,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/cmd/plugin.zsh`, `plugins/`, `packs/`, `PLUGINS.md` | Plugins: the sandbox, the commands, AI tools and start screen lines of plugins, the installer and packs – the examples and the guide |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |
-| `logos/` | Built-in logos (`scripts/make-logos.py` derives them from the classic lotus) |
+| `logos/` | Built-in logos (`scripts/make-logos.py` derives them from the classic lotus, `scripts/make-logo-art.py` draws the Apple and the flag of Earth) |
 | `docs/` | Website, deployed with `data/` and `logos/` by `.github/workflows/pages.yml` |
 
 
