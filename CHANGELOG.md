@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.18.3 – Live Server
+
+- A new plugin, Live Server – like the one in VS Code. Install it with `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver`, then type `/liveserver` in a project folder, in VS Code's terminal too. It serves the folder on this Mac (port 5500, or the next free one), opens `index.html` – or, when there is none, a menu of all the folder's pages with their titles, by folder, with a filter – and reloads the page whenever you save a file. When only CSS changed, just the style sheets swap and the page keeps its place. The terminal shows every change and the files a page asked for that are not there; Ctrl-C stops it
+- `/liveserver about.html` opens that page, `/liveserver docs` serves another folder, `--port 8080`, `--no-open`. A second `/liveserver` in the same folder opens the one that runs; `/liveserver stop` stops the ones in other windows
+- Only yours: it listens on 127.0.0.1 and answers only to 127.0.0.1 and localhost, serves nothing outside the folder (no `..`, no links that point out of it), no hidden files like `.git` or `.env`, and never your whole home folder. It has full access because it reads the folder you start it in and opens the browser – a limited plugin sees only its own folder. Python's standard library, nothing to install
+- Plugins with full access know the folder their command was called in: `LOTUS_PWD` (their programs start in the plugin's own folder)
+- Tests: the menu, index.html and folders, parts of a video, reloads over the WebSocket (styles only, then the page), what stays out (`..`, `%2e%2e`, links, hidden files, other host names, the home folder), one server per folder, stop; limited plugins do not learn the folder
+
 ## 2.18.2 – Theme Studio
 
 - A new page on the website: the [Theme Studio](https://fanxy13.github.io/homebrew-lotus/studio.html). Pick the eight colors of a theme – start from a built-in one or shuffle – and a start screen and the `/settings` menu change with every color, the logo drawn cell by cell with its gradient like in the terminal. Colors that are hard to read on a dark terminal are marked. A link shares the theme, and the page remembers yours

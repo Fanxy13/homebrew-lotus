@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='{{icon}}'/%3E%3C/svg%3E">
+<style>
+/* Lotus Live Server – the menu of a folder's pages and the "not here" page. The colors of your Lotus theme. */
+:root {
+  --key: {{key}}; --accent: {{accent}}; --logo: {{logo}};
+  --bg: #05070a; --card: rgba(255, 255, 255, .035); --card-hover: rgba(255, 255, 255, .06);
+  --line: rgba(255, 255, 255, .08); --line-strong: rgba(255, 255, 255, .18);
+  --text: #eef2ee; --muted: #8a938f; --ink: var(--key); --from: var(--logo); --to: var(--key);
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f6f3; --card: #fff; --card-hover: #fff;
+    --line: rgba(0, 0, 0, .08); --line-strong: rgba(0, 0, 0, .2);
+    --text: #15191a; --muted: #67706c; --ink: color-mix(in oklab, var(--key) 55%, #000);
+    --from: color-mix(in oklab, var(--logo) 72%, #000); --to: color-mix(in oklab, var(--key) 58%, #000);
+    color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+main { width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: clamp(40px, 9vh, 88px) 0 40px; }
+a { color: inherit; }
+
+.eyebrow { margin: 0; font: 600 11px/1 var(--mono); letter-spacing: .28em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 14px 0 12px; font: italic 400 clamp(42px, 8vw, 68px)/1.02 var(--serif); letter-spacing: -.02em; overflow-wrap: anywhere; }
+h1 span { background: linear-gradient(100deg, var(--from), var(--to)); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: .06em; }
+.where { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; color: var(--muted); font: 13px/1.4 var(--mono); }
+.where .sep { opacity: .5; }
+.where a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line-strong); }
+.where a:hover { color: var(--text); }
+
+.live { display: none; align-items: center; gap: 7px; }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--key); box-shadow: 0 0 0 0 var(--key); animation: pulse 2.4s ease-out infinite; }
+.live b { font-weight: 400; }
+.live .off { display: none; }
+html[data-lotus-live] .live { display: inline-flex; }
+html[data-lotus-live="off"] .live i { background: var(--muted); animation: none; }
+html[data-lotus-live="off"] .live .on { display: none; }
+html[data-lotus-live="off"] .live .off { display: inline; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--key) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
+
+.filter { display: block; width: 100%; margin: 34px 0 6px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--card); color: var(--text); font: inherit; outline: none; transition: border-color .15s; }
+.filter::placeholder { color: var(--muted); }
+.filter:focus { border-color: color-mix(in oklab, var(--key) 60%, transparent); }
+
+.group { margin-top: 30px; }
+.group h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font: 500 12px/1.4 var(--mono); color: var(--muted); }
+.group h2 a { text-decoration: none; }
+.group h2 a:hover { color: var(--text); }
+.group h2 small { font-size: inherit; opacity: .6; }
+.pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.page { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 14px 40px 14px 16px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card); text-decoration: none;
+  transition: border-color .15s, background .15s, transform .15s; }
+.page::after { content: "↗"; position: absolute; top: 13px; right: 15px; color: var(--muted); transition: color .15s, transform .15s; }
+.page:hover, .page:focus-visible { outline: none; border-color: color-mix(in oklab, var(--key) 55%, transparent); background: var(--card-hover); transform: translateY(-1px); }
+.page:hover::after, .page:focus-visible::after { color: var(--ink); transform: translate(1px, -1px); }
+.page .name { font-weight: 600; overflow-wrap: anywhere; }
+.page .file { font: 12px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.page.home .name::after { content: "index"; margin-left: 8px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line-strong);
+  font: 500 10px/1.5 var(--mono); letter-spacing: .06em; color: var(--muted); vertical-align: 2px; }
+
+.empty, .none { margin-top: 34px; padding: 26px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--muted); }
+.empty strong { color: var(--text); font-weight: 600; }
+.none { display: none; }
+code { font: 13px var(--mono); color: var(--ink); }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+footer kbd { font: 12px var(--mono); padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 6px; }
+@media (max-width: 520px) { .pages { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+{{body}}
+<footer>Lotus Live Server · pages reload when you save a file · <kbd>Ctrl-C</kbd> in the terminal stops it</footer>
+</main>
+<script src="/__lotus/reload.js"></script>
+<script>
+// Type to filter, Enter opens the first page, ↑ ↓ move between pages, / jumps back to the filter
+(() => {
+  const input = document.querySelector(".filter");
+  if (!input) return;
+  const pages = [...document.querySelectorAll(".page")];
+  input.focus({ preventScroll: true });
+  const shown = () => pages.filter(p => !p.hidden);
+  input.addEventListener("input", () => {
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const p of pages) p.hidden = !words.every(w => p.dataset.q.includes(w));
+    for (const g of document.querySelectorAll(".group")) g.hidden = !g.querySelector(".page:not([hidden])");
+    document.querySelector(".none").style.display = shown().length ? "none" : "block";
+  });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && shown()[0]) location.href = shown()[0].href;
+    if (e.key === "ArrowDown" && shown()[0]) { e.preventDefault(); shown()[0].focus(); }
+  });
+  document.addEventListener("keydown", e => {
+    const list = shown(), i = list.indexOf(document.activeElement);
+    if (e.key === "/" && document.activeElement !== input) { e.preventDefault(); input.focus(); input.select(); }
+    if (i < 0) return;
+    if (e.key === "ArrowDown" && list[i + 1]) { e.preventDefault(); list[i + 1].focus(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); (list[i - 1] || input).focus(); }
+  });
+})();
+</script>
+</body>
+</html>

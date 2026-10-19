@@ -113,8 +113,9 @@ screen. Print nothing, and there is no line.
 | `LOTUS_COLOR_KEY`, `LOTUS_COLOR_ACCENT`, `LOTUS_COLOR_DIM`, `LOTUS_COLOR_LOGO` | the colors of the theme, as color codes like `38;5;147`: `$'\e['$LOTUS_COLOR_KEY'm'` |
 | `COLUMNS`, `TERM`, `HOME`, `PATH`, `TMPDIR`, `LANG` | as usual |
 
-Full plugins also get `LOTUS_ROOT`, `LOTUS_CONF`, `LOTUS_CACHE`, `LOTUS_DATA`, `LOTUS_STATE`, `LOTUS_NAME`, `USER`
-and `SHELL`, and can load Lotus:
+Full plugins also get `LOTUS_ROOT`, `LOTUS_CONF`, `LOTUS_CACHE`, `LOTUS_DATA`, `LOTUS_STATE`, `LOTUS_NAME`, `USER`,
+`SHELL` and `LOTUS_PWD` – the folder the command was called in (a program starts in its plugin's folder) – and can
+load Lotus:
 
 ```zsh
 source $LOTUS_ROOT/lib/core.zsh && source $LOTUS_ROOT/lib/ui.zsh && lotus_load
@@ -220,7 +221,8 @@ Open a pull request that adds it to [plugins/README.md](plugins/README.md).
 
 In [plugins/](plugins/): **todo** (limited – a command, three AI tools and a start screen line, its list in its data
 folder), **github** (limited with the internet, in Python – a repository's stars and releases), **hello** (full –
-Lotus' own functions and settings).
+Lotus' own functions and settings), **liveserver** (full – like Live Server in VS Code: `/liveserver` serves the
+folder you are in and reloads the browser when you save; it reads that folder with `LOTUS_PWD`).
 
 ```
 lotus plugin install ~/path/to/homebrew-lotus/plugins/todo

@@ -282,7 +282,7 @@ _plg_exec() {
   )
   if [[ $PLG[access] == full ]]; then
     env+=(LOTUS_ROOT=$LOTUS_ROOT LOTUS_CONF=$LOTUS_CONF LOTUS_CACHE=$LOTUS_CACHE LOTUS_DATA=$LOTUS_DATA LOTUS_STATE=$LOTUS_STATE
-          LOTUS_NAME=$LOTUS_NAME USER=$USER SHELL=$SHELL)
+          LOTUS_NAME=$LOTUS_NAME USER=$USER SHELL=$SHELL LOTUS_PWD=$PWD)    # LOTUS_PWD: the folder you called it in
     (cd $dir && exec env -i $env $run $fixed[2,-1] "$@")
   else
     _plg_profile $dir $data $PLG[network]

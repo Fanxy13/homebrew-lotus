@@ -264,8 +264,17 @@ Every plugin says how much it may do. **Limited** (the default) runs in a macOS 
 folder and data folder, no internet unless it says `network = yes`, no keychain, no other apps, nothing of
 your files, Lotus' settings or the AI's keys. **Full** runs with your rights and Lotus' own functions –
 Lotus asks you before it installs one, and again whenever its files change. Everything about building one:
-[PLUGINS.md](PLUGINS.md); examples (todo, github, hello): [plugins/](plugins/), all three at once as a pack:
-`lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
+[PLUGINS.md](PLUGINS.md); examples (todo, github, hello, liveserver): [plugins/](plugins/), the first three at once as
+a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
+
+**Live Server**, like the one in VS Code: install it once, then type `/liveserver` in a project folder (in VS Code's
+terminal too). It serves the folder on 127.0.0.1, opens `index.html` – or a menu of all its pages when there is none –
+and reloads the browser whenever you save a file (only the styles when you change CSS). Ctrl-C stops it.
+
+```bash
+lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver
+/liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · stop
+```
 
 ## Remove BG
 

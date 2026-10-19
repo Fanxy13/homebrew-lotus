@@ -41,6 +41,7 @@ cat $LOTUS_PLUGIN_DIR/plugin.conf >/dev/null && print "own folder: read"
 /usr/bin/security list-keychains >/dev/null 2>&1 && print "keychain: OPEN" || print "keychain: blocked"
 /usr/bin/osascript -e 1 >/dev/null 2>&1 && print "apple events: OPEN" || print "apple events: blocked"
 env | grep -q -e sk-test-secret -e GITHUB_TOKEN && print "keys: VISIBLE" || print "keys: none"
+[[ -n $LOTUS_PWD ]] && print "folder: SHOWN" || print "folder: hidden"
 python3 -c "import socket,sys; s=socket.create_connection(('127.0.0.1', int(sys.argv[1])), 3); print('network: OPEN')" $(<$LOTUS_PLUGIN_DIR/port) 2>/dev/null || print "network: blocked"
 EOF
 # a local server, so the internet test needs no internet
@@ -62,6 +63,7 @@ check_has "Lotus' settings are hidden" "$out" "settings: hidden"
 check_has "no keychain" "$out" "keychain: blocked"
 check_has "no controlling other apps" "$out" "apple events: blocked"
 check_has "the AI's API keys never reach a plugin" "$out" "keys: none"
+check_has "nor the folder it was called in" "$out" "folder: hidden"
 check_has "no network unless it says so" "$out" "network: blocked"
 check "a local server for the network test" eval '(( port > 0 ))'
 _plg_net yes
