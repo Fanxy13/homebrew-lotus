@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.2 – Theme Studio
+
+- A new page on the website: the [Theme Studio](https://fanxy13.github.io/homebrew-lotus/studio.html). Pick the eight colors of a theme – start from a built-in one or shuffle – and a start screen and the `/settings` menu change with every color, the logo drawn cell by cell with its gradient like in the terminal. Colors that are hard to read on a dark terminal are marked. A link shares the theme, and the page remembers yours
+- Your own themes in Lotus: `lotus themes add <name> <8 colors>` – the line the studio gives you – saves it in `~/.config/lotus/themes.tsv` and uses it at once; it shows up in `/settings` → Theme and `/lotus themes` next to the built-in ones. `lotus themes remove <name>` takes it out again (back to Matcha if it was in use). A built-in theme is never replaced
+- Tests: adding with hex or r;g;b colors, the same name again, wrong names and colors, a running shell that sees the new colors, removing
+
 ## 2.18.1 – Logo gradient
 
 - The logo fades through the colors of your theme, from top to bottom – in every theme: Matcha goes from yellow over pink to green, Neon from yellow over magenta to cyan, Ocean from mint to blue. `/settings` → Logo gradient, right under Logo in theme colors (on by default; off gives the logo one color again, and it only shows while the logo takes the theme's colors). Your own logo gets it too

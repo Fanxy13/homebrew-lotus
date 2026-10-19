@@ -6,6 +6,7 @@ const Lotus = (() => {
     ['commands.html', 'Commands'],
     ['pets.html', 'Pets'],
     ['themes.html', 'Themes'],
+    ['studio.html', 'Theme Studio'],
     ['ascii.html', 'ASCII Art'],
     ['apps.html', 'Apps'],
     ['ios.html', 'iOS Tools'],
@@ -14,7 +15,7 @@ const Lotus = (() => {
     ['plugins.html', 'Plugins'],
     ['docs.html', 'Docs'],
   ];
-  const PRIMARY = 5; // the rest goes into "More"
+  const PRIMARY = 6; // the rest goes into "More"
 
   // The Lotus mark: a lotus flower drawn as SVG (no emoji)
   const MARK = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true">

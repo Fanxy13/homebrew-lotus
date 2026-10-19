@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.18.1
+typeset -g LOTUS_VERSION=2.18.2
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -263,20 +263,29 @@ lotus_sgr() {
   fi
 }
 
-# Themes come from data/themes.tsv (shared with the website)
+# Themes come from data/themes.tsv (shared with the website), your own ones from
+# ~/.config/lotus/themes.tsv (same columns – lotus themes add, the Theme Studio on the website)
 #   LOTUS_THEMES[name]="logo key accent key2 salute border dim music", LOTUS_THEME_NAMES, LOTUS_THEME_LABELS
 lotus_themes() {
-  (( ${+LOTUS_THEMES} )) && return
+  local own=$LOTUS_CONF/themes.tsv stamp=
+  local -A st
+  [[ -r $own ]] && zstat -H st $own 2>/dev/null && stamp="$st[mtime] $st[size]"
+  (( ${+LOTUS_THEMES} )) && [[ $_lotus_themes_own == $stamp ]] && return    # read again when yours changed
+  typeset -g _lotus_themes_own=$stamp
   typeset -gA LOTUS_THEMES=() LOTUS_THEME_LABELS=()
   typeset -ga LOTUS_THEME_NAMES=()
-  local line
+  local line file
   local -a f
-  for line in "${(@f)$(<$LOTUS_ROOT/data/themes.tsv)}"; do
-    [[ $line == \#* ]] && continue
-    f=("${(@ps:\t:)line}")
-    LOTUS_THEME_NAMES+=($f[1])
-    LOTUS_THEME_LABELS[$f[1]]=$f[2]
-    LOTUS_THEMES[$f[1]]="${f[3,10]}"
+  for file in $LOTUS_ROOT/data/themes.tsv ${stamp:+$own}; do
+    for line in "${(@f)$(<$file)}"; do
+      [[ $line == \#* || -z $line ]] && continue
+      f=("${(@ps:\t:)line}")
+      (( ${#f} >= 10 )) || continue
+      [[ $file == $own && -n ${LOTUS_THEMES[$f[1]]} ]] && continue    # never instead of a built-in one
+      LOTUS_THEME_NAMES+=($f[1])
+      LOTUS_THEME_LABELS[$f[1]]=$f[2]
+      LOTUS_THEMES[$f[1]]="${f[3,10]}"
+    done
   done
 }
 

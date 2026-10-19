@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Theme Studio — Lotus</title>
+  <meta name="description" content="Make your own Lotus theme and watch the start screen change as you pick the colors.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/lotus.css?v=2.18.2">
+  <link rel="stylesheet" href="css/pages.css?v=2.18.2">
+  <script src="js/lotus.js?v=2.18.2"></script>
+</head>
+<body>
+  <lotus-nav></lotus-nav>
+  <main class="wrap">
+    <header class="page-head">
+      <p class="eyebrow">Theme Studio</p>
+      <h1>Your own <span>colors</span></h1>
+      <p class="lead">Pick eight colors and watch the start screen change as you go. When you like it, one line puts it into your terminal.</p>
+    </header>
+
+    <section class="studio">
+      <div class="studio-side">
+        <div class="card">
+          <div class="form-row">
+            <label>Start from <select id="base"></select></label>
+            <label>Name <input id="name" maxlength="24" placeholder="My theme" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="roles" id="roles"></div>
+          <div class="btn-row">
+            <button class="btn" id="shuffle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Shuffle</button>
+            <button class="btn" id="reset">Back to the start</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Logo in the preview</h3>
+          <div class="form-row">
+            <label>Logo <select id="logo"></select></label>
+            <label class="switch"><input type="checkbox" id="fade" checked><span></span>Logo gradient</label>
+          </div>
+          <p class="muted small">In Lotus: <code>/settings</code> → Logo and Logo gradient.</p>
+        </div>
+      </div>
+
+      <div class="studio-main" id="preview">
+        <div class="term studio-term">
+          <div class="term-bar"><i></i><i></i><i></i><span>Terminal — zsh</span></div>
+          <div class="screen"><canvas class="art" id="art" role="img" aria-label="Logo"></canvas><pre class="info" id="info"></pre></div>
+          <pre class="below" id="below"></pre>
+        </div>
+        <div class="term studio-mini">
+          <div class="term-bar"><i></i><i></i><i></i><span>/settings</span></div>
+          <pre id="menu"></pre>
+        </div>
+        <div class="card studio-out">
+          <h3>Use it in Lotus</h3>
+          <p class="muted small">Paste this into your terminal – the theme is saved and used at once. It needs Lotus 2.18.2 or newer (<code>lotus update</code>).</p>
+          <div class="codeblock"><code id="cmd"></code><button class="copy" id="copy-cmd" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-label">Copy</span></button></div>
+          <div class="btn-row"><button class="btn" id="share"><span class="copy-label">Copy a link to this theme</span></button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <lotus-footer></lotus-footer>
+  <script src="js/studio.js?v=2.18.2" defer></script>
+</body>
+</html>

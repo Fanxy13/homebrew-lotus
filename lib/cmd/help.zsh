@@ -3,7 +3,12 @@
 lotus_cmd_help() {
   local cmd=$1; shift
   case $cmd in
-    themes)  lotus_themes_preview ;;
+    themes)
+      case $1 in
+        add)                 shift; lotus_theme_add "$@" ;;
+        remove|rm|delete)    shift; lotus_theme_remove "$@" ;;
+        *)                   lotus_themes_preview ;;
+      esac ;;
     suggest) lotus_cmd_suggest "$@" ;;
     help|-h|--help)
       # with a pet: it asks what you need (/help all shows every command)
@@ -114,6 +119,81 @@ lotus_cmd_suggest() {
     print
   fi
   return 1
+}
+
+# Your own theme – made in the Theme Studio on the website, which writes this line:
+#   lotus themes add <name> <logo> <key> <accent> <key2> <salute> <border> <dim> <music>
+# Colors as ff8800, #ff8800 or 255;136;0. Kept in ~/.config/lotus/themes.tsv and used at once.
+lotus_theme_add() {
+  setopt localoptions extendedglob
+  local label=${${1##[[:space:]]#}%%[[:space:]]#} c id file=$LOTUS_CONF/themes.tsv
+  (( $# )) && shift
+  if [[ -z $label ]] || (( $# != 8 )); then
+    ui_error "A theme needs a name and 8 colors" "lotus themes add <name> <logo> <key> <accent> <key2> <salute> <border> <dim> <music>" \
+      "Make one with a live preview in the Theme Studio: ${LOTUS_P[website]}studio.html"
+    return 1
+  fi
+  if [[ $label == *[[:cntrl:]\|]* ]] || (( ${#label} > 24 )); then
+    ui_error "That name does not work for a theme" "$label" "Up to 24 letters, digits and spaces."
+    return 1
+  fi
+  local -a rgb=()
+  for c in "$@"; do
+    c=${c#\#}
+    if [[ $c == [[:xdigit:]](#c6) ]]; then
+      rgb+=("$(( 16#${c[1,2]} ));$(( 16#${c[3,4]} ));$(( 16#${c[5,6]} ))")
+    elif [[ $c == (#b)(<0-255>)[\;,](<0-255>)[\;,](<0-255>) ]]; then
+      rgb+=("$(( match[1] ));$(( match[2] ));$(( match[3] ))")
+    else
+      ui_error "That is not a color" "$c" "Colors look like ff8800 or 255;136;0."
+      return 1
+    fi
+  done
+  id=${(L)label//[^A-Za-z0-9]##/-}; id=${${id##-#}%%-#}
+  [[ -n $id ]] || id=own
+  local -a builtin=(${${(f)"$(<$LOTUS_ROOT/data/themes.tsv)"}%%$'\t'*})
+  if (( ${builtin[(Ie)$id]} )); then
+    ui_error "$label is a built-in theme" "" "Give yours another name."
+    return 1
+  fi
+  local line out=
+  if [[ -r $file ]]; then
+    for line in "${(@f)$(<$file)}"; do [[ ${line%%$'\t'*} == $id || -z $line ]] || out+=$line$'\n'; done
+  fi
+  out+="$id"$'\t'"$label"$'\t'"${(pj:\t:)rgb}"$'\n'
+  zf_mkdir -p $LOTUS_CONF
+  print -rn -- $out >| $file.$$ && zf_mv -f $file.$$ $file
+  LOTUS_THEME=$id
+  lotus_save
+  lotus_colors
+  source $LOTUS_ROOT/lib/cmd/setup.zsh
+  _lotus_swatch $id
+  ui_success "Theme: $label  $REPLY"
+  ui_dim "Change it again in /settings → Theme · lotus themes remove ${(q-)label} takes it out"
+  lotus_log INFO themes "Own theme $id added"
+}
+
+lotus_theme_remove() {   # <name>
+  setopt localoptions extendedglob
+  local name="$*" file=$LOTUS_CONF/themes.tsv line out= found=
+  local id=${(L)name//[^A-Za-z0-9]##/-}     # the name may come as several words: lotus themes remove night sea
+  id=${${id##-#}%%-#}
+  if [[ -r $file ]]; then
+    for line in "${(@f)$(<$file)}"; do
+      [[ -z $line ]] && continue
+      if [[ ${line%%$'\t'*} == $id ]]; then found=${${line#*$'\t'}%%$'\t'*}; else out+=$line$'\n'; fi
+    done
+  fi
+  if [[ -z $found ]]; then
+    ui_error "No own theme called ${*:-that}" "" "Your themes: ${(j:, :)${(@)${(f)"$(<$file 2>/dev/null)"}#*$'\t'}%%$'\t'*}"
+    return 1
+  fi
+  print -rn -- $out >| $file.$$ && zf_mv -f $file.$$ $file
+  [[ $LOTUS_THEME == $id ]] && LOTUS_THEME=matcha
+  lotus_save
+  lotus_colors
+  ui_success "Removed: $found"
+  lotus_log INFO themes "Own theme $id removed"
 }
 
 lotus_themes_preview() {

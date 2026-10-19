@@ -332,7 +332,7 @@ manual refinement (offer, always, never), preview after processing, model cache.
 - Name, interface language (English, Deutsch, Français, Español), auto-start
 - Logo: Classic, Minimal, Large, Terminal, Apple, Flag of Earth or your own ASCII art (`lotus logo import`) – in the theme's colors (as a gradient through them, or one color) or their own
 - While a song plays, its album cover takes the logo's place: colored character art (two pixels per character, 24-bit color), always in the cover's own colors
-- 13 themes: Matcha, Sakura, Ocean, Sunset, Mono, Midnight, Terminal, Lavender, Arctic, Graphite, Neon, Crimson, Retro
+- 13 themes: Matcha, Sakura, Ocean, Sunset, Mono, Midnight, Terminal, Lavender, Arctic, Graphite, Neon, Crimson, Retro – or your own from the [Theme Studio](https://fanxy13.github.io/homebrew-lotus/studio.html) on the website, with a live preview (`lotus themes add <name> <8 colors>`)
 - Greetings, sections, now playing and live updates
 - Features: turn each part of Lotus on or off (its settings disappear while it is off)
 - Weather city and units, search engine, AI provider, model and how hard it thinks, improving prompts, visualizer mode

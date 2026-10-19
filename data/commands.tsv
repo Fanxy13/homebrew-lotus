@@ -75,7 +75,7 @@ Shortcuts	-	shortcut add	lotus shortcut add <name> <target>	Add a shortcut to a 
 Shortcuts	-	shortcut rm	lotus shortcut rm <name>	Delete a shortcut	lotus shortcut rm yt	0
 Settings	/settings	settings	/settings	Open the settings menu	/settings	0
 Settings	-	logo	lotus logo import	Paste your own ASCII logo	lotus logo import	0
-Settings	-	themes	/lotus themes	Preview every theme	/lotus themes	0
+Settings	-	themes	/lotus themes	Preview every theme · add your own: lotus themes add (from the Theme Studio on the website)	/lotus themes	0
 Developer tools	-	doctor	lotus doctor	Check the installation	lotus doctor	0
 Developer tools	-	log	/lotus log	What Lotus did: filter, search, details	/lotus log	0
 Developer tools	-	log live	/lotus log live	Follow new log entries as they happen	/lotus log live	0
