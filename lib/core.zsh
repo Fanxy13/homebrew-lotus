@@ -1,6 +1,6 @@
 # lotus – core functions. Loaded by init.zsh (shell) and bin/lotus (command).
 
-typeset -g LOTUS_VERSION=2.18.0
+typeset -g LOTUS_VERSION=2.18.1
 typeset -g LOTUS_ROOT=${${(%):-%x}:A:h:h}
 typeset -g LOTUS_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/lotus
 typeset -g LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
@@ -16,7 +16,7 @@ source $LOTUS_ROOT/lib/art.zsh
 # ── Settings ──────────────────────────────────────────────────
 
 typeset -ga LOTUS_KEYS=(
-  LOTUS_NAME LOTUS_LANG LOTUS_STARTUP LOTUS_LOGO LOTUS_LOGO_THEME LOTUS_THEME LOTUS_PROMPT LOTUS_COLORS
+  LOTUS_NAME LOTUS_LANG LOTUS_STARTUP LOTUS_LOGO LOTUS_LOGO_THEME LOTUS_LOGO_FADE LOTUS_THEME LOTUS_PROMPT LOTUS_COLORS
   LOTUS_GREETING LOTUS_SALUTE
   LOTUS_SHOW_HARDWARE LOTUS_SHOW_SESSION LOTUS_SHOW_TIME LOTUS_SHOW_MUSIC
   LOTUS_LIVE LOTUS_INTERVAL LOTUS_COVER
@@ -35,8 +35,8 @@ typeset -ga LOTUS_KEYS=(
 
 lotus_defaults() {
   typeset -g LOTUS_NAME= LOTUS_LANG=en LOTUS_STARTUP=1 LOTUS_LOGO=lotus LOTUS_THEME=matcha
-  # the logo in the theme's color (0: its own colors) · the album cover in its place while a song plays
-  typeset -g LOTUS_LOGO_THEME=1 LOTUS_COVER=1
+  # the logo in the theme's colors (0: its own colors), as a gradient across them · the album cover in its place while a song plays
+  typeset -g LOTUS_LOGO_THEME=1 LOTUS_LOGO_FADE=1 LOTUS_COVER=1
   typeset -g LOTUS_PROMPT=0 LOTUS_COLORS=auto LOTUS_GREETING=rotate LOTUS_SALUTE=off
   typeset -g LOTUS_SHOW_HARDWARE=1 LOTUS_SHOW_SESSION=1 LOTUS_SHOW_TIME=1 LOTUS_SHOW_MUSIC=1
   typeset -g LOTUS_LIVE=1 LOTUS_INTERVAL=2
@@ -71,6 +71,7 @@ lotus_load() {
   fi
   [[ $LOTUS_INTERVAL == <1-60> ]] || LOTUS_INTERVAL=2
   [[ $LOTUS_LOGO_THEME == 0 ]] || LOTUS_LOGO_THEME=1
+  [[ $LOTUS_LOGO_FADE == 0 ]] || LOTUS_LOGO_FADE=1
   [[ $LOTUS_COVER == 0 ]] || LOTUS_COVER=1
   [[ $LOTUS_AI_SERVER_PORT == <1024-65535> ]] || LOTUS_AI_SERVER_PORT=3000
   [[ $LOTUS_AI_ENHANCE == (off|on|ask) ]] || LOTUS_AI_ENHANCE=off

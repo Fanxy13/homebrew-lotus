@@ -62,4 +62,5 @@ LOTUS_L+=(
   ai_p_mode 'Modus'  ai_p_mode_ask 'erst fragen'  ai_p_mode_auto 'auto – fragt nur, wenn unsicher'
   ai_p_write 'Dateien im Ordner ändern'  ai_p_write_out 'Dateien woanders ändern'  ai_p_run 'Befehle ausführen'  ai_p_allow 'erlaubt'  ai_p_ask 'erst fragen'  ai_p_never 'nie'
   logo_theme 'Logo im Farbschema'  cover 'Albumcover statt Logo'
+  logo_fade 'Logo mit Farbübergang'
 )

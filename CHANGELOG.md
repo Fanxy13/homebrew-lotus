@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.1 – Logo gradient
+
+- The logo fades through the colors of your theme, from top to bottom – in every theme: Matcha goes from yellow over pink to green, Neon from yellow over magenta to cyan, Ocean from mint to blue. `/settings` → Logo gradient, right under Logo in theme colors (on by default; off gives the logo one color again, and it only shows while the logo takes the theme's colors). Your own logo gets it too
+- The colors are mixed in OKLab, so the shades in between stay clear (pink to green is no muddy brown), and solid parts get a step every half character
+- Tests: the gradient's colors and steps in two themes, solid blocks without gaps
+
 ## 2.18.0 – Album covers and new logos
 
 - While a song plays, its album cover takes the logo's place on the start screen: colored character art, two pixels per character in 24-bit color (or the nearest of 256), as big as the logo's room – 48 × 24 characters in a wide window, smaller in a narrow one, never over the info. Always in the cover's own colors, never the theme's. It comes and goes live: another song shows its cover, a pause or the end brings the logo back. `/settings` → Now playing → Album cover instead of the logo (on)

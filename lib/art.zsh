@@ -1,9 +1,10 @@
 # lotus – the art left of the start screen: the logo, or the album cover while a song plays.
 #
-#   Logo   logos/*.txt hold shapes only. Lotus paints them into the cache: in the theme's logo
-#          color, or in their own colors (/settings → Logo in theme colors off) – the lotus pink
-#          from tip to base, the Apple in the six stripes of 1977, the flag of Earth as white rings
-#          on blue. Your own logo always takes the theme's color.
+#   Logo   logos/*.txt hold shapes only. Lotus paints them into the cache: in the theme's colors –
+#          a gradient from its second key color over the logo color to its key color, or the logo
+#          color alone (/settings → Logo gradient) – or in their own colors (Logo in theme colors
+#          off): the lotus pink from tip to base, the Apple in the six stripes of 1977, the flag of
+#          Earth as white rings on blue. Your own logo always takes the theme's colors.
 #   Cover  the cover of the song that plays, always in its own colors, never the theme's: two
 #          pixels per character (▄), 24-bit color or the nearest of 256. It takes the logo's place
 #          and as much room as the logo has (the whole height of the info). macOS gives the cover
@@ -43,7 +44,9 @@ lotus_logo_paint() {
   local -a st
   zstat -A st +mtime $src 2>/dev/null || return 1
   local rule=theme
-  (( LOTUS_LOGO_THEME )) || rule=${LOTUS_LOGO_OWN[$1]:-theme}
+  local -a th=(${=LOTUS_THEMES[$LOTUS_THEME]:-$LOTUS_THEMES[matcha]})   # logo key accent key2 …
+  (( LOTUS_LOGO_FADE )) && rule="fade $th[4] $th[1] $th[2]"
+  (( LOTUS_LOGO_THEME )) || rule=${LOTUS_LOGO_OWN[$1]:-$rule}
   local dir=$LOTUS_CACHE/art out=$LOTUS_CACHE/art/$1.txt
   local key="$LOTUS_VERSION $src $st[1] $LOTUS_MODE $rule $LOTUS_C[logo]"
   if [[ -r $out && -r $out.key ]]; then
@@ -60,56 +63,63 @@ lotus_logo_paint() {
   done
   h=${#lines}
   (( h )) || return 1
+  # One color per half line (the top and the bottom pixel of a character): a gradient gets
+  # twice as many steps where the shape is solid
   local -a r=(${=rule})
-  local back=
+  local back= stop
+  local -i k
   case $r[1] in
     fade)
+      # mixed in OKLab: the colors in between stay clear (pink → green is no muddy brown)
       local -F t u
-      local -i s cr cg cb
-      local -a a b
-      (( n = ${#r} - 2 ))      # number of steps between the colors
-      for (( i = 1; i <= h; i++ )); do
-        if (( n < 1 )); then lotus_sgr $r[2]; codes+=("1;$REPLY"); continue; fi
-        (( t = h > 1 ? (i - 1.0) / (h - 1) * n : 0, s = t, u = t - s ))
+      local -i s
+      local -a ok=() a b
+      for stop in ${r[2,-1]}; do _lotus_oklab $stop; ok+=("$reply"); done
+      (( n = ${#ok} - 1 ))     # number of steps between the colors
+      for (( k = 1; k <= 2 * h; k++ )); do
+        if (( n < 1 )); then lotus_sgr $r[2]; codes+=($REPLY); continue; fi
+        (( t = (k - 1.0) / (2 * h - 1) * n, s = t, u = t - s ))
         (( s >= n )) && (( s = n - 1, u = 1 ))
-        a=(${(s:;:)r[s + 2]}) b=(${(s:;:)r[s + 3]})
-        (( cr = a[1] + (b[1] - a[1]) * u, cg = a[2] + (b[2] - a[2]) * u, cb = a[3] + (b[3] - a[3]) * u ))
-        lotus_sgr "$cr;$cg;$cb"
-        codes+=("1;$REPLY")
+        a=(${=ok[s + 1]}) b=(${=ok[s + 2]})
+        _lotus_oklab_rgb $(( a[1] + (b[1] - a[1]) * u )) $(( a[2] + (b[2] - a[2]) * u )) $(( a[3] + (b[3] - a[3]) * u ))
+        lotus_sgr $REPLY
+        codes+=($REPLY)
       done ;;
     stripes)
-      local -i first=$r[2] k
+      local -i first=$r[2]
       c=(${r[3,-1]})
       for (( i = 1; i <= h; i++ )); do
         (( k = i < first ? 1 : (i - first) * ${#c} / (h - first + 1) + 1 ))
-        lotus_sgr $c[k]; codes+=("1;$REPLY")
+        lotus_sgr $c[k]; codes+=($REPLY $REPLY)
       done ;;
     box)
       lotus_sgr $r[3]; back=$REPLY
       lotus_sgr $r[2]
-      for (( i = 1; i <= h; i++ )); do codes+=("1;$REPLY"); done ;;
+      for (( i = 1; i <= h; i++ )); do codes+=($REPLY $REPLY); done ;;
     *)
-      for (( i = 1; i <= h; i++ )); do codes+=("1;$LOTUS_C[logo]"); done ;;
+      for (( i = 1; i <= h; i++ )); do codes+=($LOTUS_C[logo] $LOTUS_C[logo]); done ;;
   esac
 
   # Every line as wide as the logo: fastfetch puts the info right after it.
   # Block characters whose top half is lit are drawn the other way round – the color as the
   # background, the dark part as the character: terminals that draw them with the font (Terminal.app)
-  # leave a gap above each character, which would cut the picture into stripes.
-  local norm inv ch want state fg
+  # leave a gap above each character, which would cut the picture into stripes. A full block is
+  # ▄ in the bottom color on the top color.
+  local norm inv full ch want state top bot
   local -i j q
   for (( i = 1; i <= h; i++ )); do
-    line=$lines[i]
-    fg=${codes[i]#1;}
+    line=$lines[i] top=${codes[2 * i - 1]} bot=${codes[2 * i]}
     if [[ -n $back ]]; then
-      line=${(r:w:: :)line} norm="1;$fg;48${back#38}" inv="1;$back;48${fg#38}"
+      line=${(r:w:: :)line} norm="1;$top;48${back#38}" inv="1;$back;48${top#38}" full=$inv
     else
-      norm="1;$fg" inv="1;7;$fg"
+      norm="1;$bot" inv="1;7;$top" full="1;$bot;48${top#38}"
     fi
     state=
     for (( j = 1; j <= ${#line}; j++ )); do
       ch=$line[j] want=$norm
-      if (( q = ${LOTUS_QUADS[(Ie)$ch]} - 1, q > 0 && q & 3 )); then
+      if (( q = ${LOTUS_QUADS[(Ie)$ch]} - 1, q == 15 )) && [[ -z $back ]]; then
+        want=$full ch=▄
+      elif (( q > 0 && q & 3 )); then
         want=$inv ch=${LOTUS_QUADS[16 - q]}     # the dark quarters
       fi
       [[ $want == $state ]] || { text+=$'\e[0;'"${want}m"; state=$want }
@@ -121,6 +131,35 @@ lotus_logo_paint() {
   print -rn -- $text >| $out.$$ && zf_mv -f $out.$$ $out
   print -rl -- $key "$w $h" >| $out.key.$$ && zf_mv -f $out.key.$$ $out.key
   REPLY=$out reply=($w $h)
+}
+
+# OKLab (Björn Ottosson), a color space where mixing two colors looks even to the eye
+#   _lotus_oklab "r;g;b" → reply = (L a b)      _lotus_oklab_rgb L a b → REPLY = "r;g;b"
+_lotus_oklab() {
+  local -a c=(${(s:;:)1}) v=()
+  local -F x l m s
+  for x in $c; do (( x /= 255.0, x = x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 )); v+=($x); done
+  (( l = (0.4122214708 * v[1] + 0.5363325363 * v[2] + 0.0514459929 * v[3]) ** (1.0 / 3),
+     m = (0.2119034982 * v[1] + 0.6806995451 * v[2] + 0.1073969566 * v[3]) ** (1.0 / 3),
+     s = (0.0883024619 * v[1] + 0.2817188376 * v[2] + 0.6299787005 * v[3]) ** (1.0 / 3) ))
+  reply=($(( 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s ))
+         $(( 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s ))
+         $(( 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s )))
+}
+_lotus_oklab_rgb() {
+  local -F l m s x
+  local -i i
+  local -a out=()
+  (( l = ($1 + 0.3963377774 * $2 + 0.2158037573 * $3) ** 3,
+     m = ($1 - 0.1055613458 * $2 - 0.0638541728 * $3) ** 3,
+     s = ($1 - 0.0894841775 * $2 - 1.2914855480 * $3) ** 3 ))
+  for x in $(( 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s )) \
+           $(( -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s )) \
+           $(( -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s )); do
+    (( x = x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055, i = x * 255 + 0.5, i = i < 0 ? 0 : (i > 255 ? 255 : i) ))
+    out+=($i)
+  done
+  REPLY=${(j:;:)out}
 }
 
 # ── Album cover ───────────────────────────────────────────────

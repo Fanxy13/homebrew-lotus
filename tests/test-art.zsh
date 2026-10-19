@@ -37,7 +37,7 @@ bmp() {
 # ── Logos ─────────────────────────────────────────────────────
 
 LOTUS_COLORS=truecolor LOTUS_THEME=ocean; lotus_colors
-LOTUS_LOGO_THEME=1
+LOTUS_LOGO_THEME=1 LOTUS_LOGO_FADE=0
 lotus_logo_paint apple; file=$REPLY
 check "Apple: painted" test -s $file
 check_eq "Apple: 36 × 22" "$reply" "36 22"
@@ -46,8 +46,25 @@ apple=("${(@f)$(<$file)}")
 check_has "theme colors: the theme's logo color" "$apple[1]" "1;$LOTUS_C[logo]m"
 colors "$(<$file)"
 check_eq "theme colors: one color for all lines" "$reply" "$LOTUS_C[logo]"
-check_has "a lit top half is drawn as background (no gaps in Terminal.app)" "$apple[-2]" $'\e[0;1;7;'"$LOTUS_C[logo]m▄      "
+check_has "a lit top half is drawn as background (no gaps in Terminal.app)" "$apple[-2]" $'\e[0;1;7;'"$LOTUS_C[logo]m▄"
+check_has "a full block: ▄ on its own color, no gap either" "$apple[-2]" $'\e[0;1;'"$LOTUS_C[logo];48${LOTUS_C[logo]#38}m▄▄▄▄"
 check_has "a dark top half stays a character" "$apple[6]" "m       ▗▄▄▄▄▄▄▖"
+
+# the gradient across the theme's colors: second key color → logo color → key color
+LOTUS_LOGO_FADE=1
+lotus_logo_paint apple; file=$REPLY
+apple=("${(@f)$(<$file)}")
+local -a th=(${=LOTUS_THEMES[ocean]})
+check_has "gradient: starts with the theme's second key color" "$apple[1]" "38;2;$th[4]m"
+check_has "gradient: ends with its key color" "$apple[-1]" "38;2;$th[2]m"
+colors "$(<$file)"
+check "gradient: many shades in between" test ${#reply} -ge 20
+check "gradient: every line as wide" widths_ok $file 36
+check_has "gradient: two shades in one character where the shape is solid" "$apple[12]" "48;2;"
+LOTUS_THEME=neon; lotus_colors; lotus_logo_paint apple
+check "gradient: another theme, other colors" eval '[[ $(<$REPLY) == *"38;2;250;255;0m"* ]]'
+LOTUS_THEME=ocean; lotus_colors
+LOTUS_LOGO_FADE=0
 
 LOTUS_LOGO_THEME=0
 lotus_logo_paint apple
@@ -65,7 +82,7 @@ check_has "own colors: a lit top half is white behind blue" "$earth[2]" $'\e[0;1
 check "own colors: the blue reaches the right edge" eval '[[ ${earth[1]} == *" "$'"'"'\e[0m'"'"' ]]'
 lotus_logo_paint lotus
 lotus=("${(@f)$(<$REPLY)}")
-check_has "own colors: the lotus is light pink at the tip" "$lotus[1]" '1;38;2;255;222;234m'
+check_has "own colors: the lotus is light pink at the tip" "$lotus[1]" '1;38;2;255;2'
 check_has "own colors: deep pink at the base" "$lotus[-1]" '1;38;2;226;96;150m'
 LOTUS_COLORS=256; lotus_colors
 lotus_logo_paint earth

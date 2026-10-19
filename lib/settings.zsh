@@ -27,7 +27,10 @@ lotus_settings_ui() {
       "choice|LOTUS_LANG|$LOTUS_L[lang]|en=English;de=Deutsch;fr=Français;es=Español"
       "bool|LOTUS_STARTUP|$LOTUS_L[startup]|"
       "choice|LOTUS_LOGO|$LOTUS_L[logo]|${logos%;}"
-      "bool|LOTUS_LOGO_THEME|${LOTUS_L[logo_theme]:-Logo in theme colors}|"
+      "bool|LOTUS_LOGO_THEME|${LOTUS_L[logo_theme]:-Logo in theme colors}|")
+    # the gradient is made of the theme's colors – shown while the logo takes them
+    (( LOTUS_LOGO_THEME )) && items+=("bool|LOTUS_LOGO_FADE|${LOTUS_L[logo_fade]:-Logo gradient}|")
+    items+=(
       "action|logos|$LOTUS_L[logos_action]|"
       "choice|LOTUS_THEME|$LOTUS_L[theme]|${themes%;}"
       "bool|LOTUS_PROMPT|$LOTUS_L[prompt]|"
@@ -258,7 +261,7 @@ lotus_settings_ui() {
       _lotus_log_max=-1
       lotus_lang
       lotus_colors
-      [[ $k == LOTUS_LANG ]] && _ls_items
+      [[ $k == (LOTUS_LANG|LOTUS_LOGO_THEME) ]] && _ls_items
     fi
     msg=$'\e['"${LOTUS_C[key]}m$LOTUS_L[saved]"$'\e[0m'
   }

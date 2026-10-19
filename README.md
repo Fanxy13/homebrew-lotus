@@ -330,7 +330,7 @@ manual refinement (offer, always, never), preview after processing, model cache.
 `/settings` – arrow keys to move, Enter or left/right to change, `v` to preview, `q` to close.
 
 - Name, interface language (English, Deutsch, Français, Español), auto-start
-- Logo: Classic, Minimal, Large, Terminal, Apple, Flag of Earth or your own ASCII art (`lotus logo import`) – in the theme's colors or their own
+- Logo: Classic, Minimal, Large, Terminal, Apple, Flag of Earth or your own ASCII art (`lotus logo import`) – in the theme's colors (as a gradient through them, or one color) or their own
 - While a song plays, its album cover takes the logo's place: colored character art (two pixels per character, 24-bit color), always in the cover's own colors
 - 13 themes: Matcha, Sakura, Ocean, Sunset, Mono, Midnight, Terminal, Lavender, Arctic, Graphite, Neon, Crimson, Retro
 - Greetings, sections, now playing and live updates
