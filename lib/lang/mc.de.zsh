@@ -69,4 +69,13 @@ LOTUS_L+=(
   mc_err_remove 'Das Plugin konnte nicht entfernt werden'  mc_err_search 'Modrinth antwortet nicht – ist das Internet da?'
   mc_still_stopping 'Stoppt noch – s beendet ihn jetzt (die Welt wird gespeichert)'
   mc_forced 'Dem Server gesagt, dass er jetzt enden soll'
+  mc_s_delete 'Server löschen'  mc_s_delete_d '⏎ stoppt ihn und löscht seinen Ordner – Welt, Plugins, Einstellungen, Log'
+  mc_del_title '%s löschen'  mc_del_what 'Das löscht den Server %s mit allem in seinem Ordner: die Welt, Plugins, Einstellungen und das Log.'
+  mc_del_where 'Der Ordner kommt in den Papierkorb – bis du ihn leerst, lässt er sich zurückholen.'
+  mc_del_running 'Er läuft gerade – er wird zuerst gestoppt (die Welt wird gespeichert).'
+  mc_del_type 'Tippe %s, um ihn zu löschen'  mc_del_wrong 'Das war nicht der Name – nichts wurde gelöscht.'
+  mc_del_stopping 'Der Server wird gestoppt, dann gelöscht …'  mc_del_off 'Nicht gelöscht – der Server bleibt (er ist gestoppt)'
+  mc_del_still 'Er läuft noch – stoppe ihn und versuch es dann noch einmal.'
+  mc_del_trash 'Der Server %s ist gelöscht – sein Ordner liegt im Papierkorb.'  mc_del_gone 'Der Server %s ist gelöscht.'
+  mc_err_del 'Der Server %s wurde nicht gelöscht'
 )

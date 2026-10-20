@@ -13,11 +13,12 @@ lotus_cmd_minecraft() {
     return
   fi
   ui_header Minecraft "server assistant"
-  ui_choose "What do you want to do?" "Set up a new server" "Open a server – control center" "Port forwarding and firewall guide" "Cancel" || return 0
+  ui_choose "What do you want to do?" "Set up a new server" "Open a server – control center" "Port forwarding and firewall guide" "Delete a server" "Cancel" || return 0
   case $REPLY in
     1) lotus_mc_new ;;
     2) lotus_mc_start ;;
     3) lotus_mc_guide ;;
+    4) lotus_mc_delete ;;
   esac
 }
 
@@ -147,8 +148,8 @@ exec \"$java_home/bin/java\" -Xms$ram -Xmx$ram -jar server.jar nogui" >| $dir/st
   fi
 }
 
-# A server to open in the control center; the ones running are marked
-lotus_mc_start() {
+# Picks one of the servers; the ones running are marked → REPLY = its folder
+_mc_pick() {
   local -a servers=($MC_HOME/*/start.command(N:h)) labels=()
   (( ${#servers} )) || { ui_error "No server found" "Lotus looks in $MC_HOME" "Set one up first: /minecraft → 1"; return 1 }
   local running=$(lsof -a -d cwd -c java -Fn 2>/dev/null) s
@@ -156,9 +157,22 @@ lotus_mc_start() {
     if [[ $'\n'$running$'\n' == *$'\n'n$s$'\n'* ]]; then labels+=("${s:t}  "$'\e['"$LOTUS_C[key]m● running"$'\e[0m')
     else labels+=("${s:t}"); fi
   done
-  ui_choose "Which server?" $labels || return 0
+  ui_choose "$1" $labels || return 1
+  REPLY=$servers[REPLY]
+}
+
+# A server to open in the control center
+lotus_mc_start() {
+  _mc_pick "Which server?" || return 0
   source $LOTUS_ROOT/lib/mc/control.zsh
-  lotus_mcc $servers[REPLY]
+  lotus_mcc $REPLY
+}
+
+# A server to delete – it is not started for that (stopped first when it runs)
+lotus_mc_delete() {
+  _mc_pick "Which server should be deleted?" || return 0
+  source $LOTUS_ROOT/lib/mc/control.zsh
+  lotus_mcc_delete $REPLY
 }
 
 lotus_mc_guide() {

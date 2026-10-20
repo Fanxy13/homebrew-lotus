@@ -3,7 +3,8 @@
 #   Stats     the server's state, players online with their ping, TPS, memory, CPU, the world's size,
 #             the newest events – and a little Minecraft world drifting by (lib/mc/world.zsh)
 #   Settings  the server icon, the description (MOTD), the folder, plugins: search Modrinth for the
-#             server's version, install with one key, or drag your own .jar in (lib/mc/plugins.zsh)
+#             server's version, install with one key, or drag your own .jar in (lib/mc/plugins.zsh),
+#             and deleting the server: stopped first, then its folder goes to the Trash
 #   Log       the console, filtered and colored, with a command line (/ like in Minecraft, t to chat)
 # The server runs in the background (lib/mc/run.zsh): leaving the control center can keep it
 # running, and opening it again later finds it. A server started some other way (start.command)
@@ -19,11 +20,11 @@ typeset -ga MCC_LOG MCC_EVENTS MCC_PORDER MCC_HIST MCC_RES MCC_INST MCC_ICON
 typeset -gA MCC_PLAYERS MCC_BR MCC_PROP MCC_C
 typeset -g MCC_DIR= MCC_S= MCC_NAME= MCC_TYPE= MCC_VER= MCC_MODE= MCC_STATE=stopped MCC_PROBLEM=
 typeset -g MCC_LOGF= MCC_PART= MCC_FILTER=all MCC_IN= MCC_INTEXT= MCC_INLABEL= MCC_ASK= MCC_TOAST= MCC_TOASTK=ok
-typeset -g MCC_SUB= MCC_Q= MCC_QSENT=- MCC_QFILE= MCC_RSTATE=idle MCC_LAN= MCC_PROPSTAMP= MCC_ICONKEY= MCC_TPS=- MCC_MSPT=-
+typeset -g MCC_DELETED= MCC_SUB= MCC_Q= MCC_QSENT=- MCC_QFILE= MCC_RSTATE=idle MCC_LAN= MCC_PROPSTAMP= MCC_ICONKEY= MCC_TPS=- MCC_MSPT=-
 typeset -gi MCC_FD=0 MCC_OFF=0 MCC_PID=0 MCC_XPID=0 MCC_WRAP=0 MCC_READY=0 MCC_PROGRESS=0 MCC_LOGSTOP=0 MCC_EXIT=-1
 typeset -gi MCC_PAGE=1 MCC_SEL=1 MCC_SSEL=1 MCC_PSEL=1 MCC_BACK=0 MCC_HISTI=0 MCC_TOAST_AT=0
 typeset -gi MCC_RSS=0 MCC_CPU=0 MCC_UP=0 MCC_XMX=0 MCC_WORLDKB=-1 MCC_BRIDGE=0 MCC_BR_AT=0 MCC_RTOTAL=0 MCC_RLOADING=0
-typeset -gi MCC_STOP_AT=0 MCC_RESTART=0 MCC_LEAVE=0 MCC_WANTSTOP=0 MCC_CHANGED=0 MCC_H=24 MCC_W=80
+typeset -gi MCC_STOP_AT=0 MCC_RESTART=0 MCC_LEAVE=0 MCC_WANTSTOP=0 MCC_CHANGED=0 MCC_DELETE=0 MCC_H=24 MCC_W=80
 typeset -gF MCC_QAT=0 MCC_T1=0 MCC_T2=0 MCC_T30=0 MCC_T5=0
 
 # ── Entry ─────────────────────────────────────────────────────
@@ -60,6 +61,13 @@ lotus_mcc() {
   }
   (( MCC_FD )) && exec {MCC_FD}<&-
   MCC_FD=0
+  if (( MCC_DELETE )); then
+    ui_blank
+    if [[ -n $MCC_DELETED ]]; then _mcc_deleted_text; ui_success $REPLY
+    else ui_error "${LOTUS_L[mc_err_del]//\%s/$MCC_NAME}" "$MCP_ERR"; fi
+    ui_blank
+    return 0
+  fi
   if [[ $MCC_STATE == (running|starting|preparing) ]]; then
     ui_blank
     ui_info "${LOTUS_L[mc_bg_running]//\%s/$MCC_NAME}"
@@ -72,7 +80,7 @@ lotus_mcc() {
 _mcc_init() {
   MCC_DIR=$1 MCC_S=$1/.lotus MCC_NAME=${1:t}
   zf_mkdir -p $MCC_S
-  MCC_PAGE=1 MCC_SUB= MCC_IN= MCC_ASK= MCC_TOAST= MCC_BACK=0 MCC_FILTER=all MCC_LEAVE=0 MCC_RESTART=0
+  MCC_PAGE=1 MCC_SUB= MCC_IN= MCC_ASK= MCC_TOAST= MCC_BACK=0 MCC_FILTER=all MCC_LEAVE=0 MCC_RESTART=0 MCC_DELETE=0 MCC_DELETED=
   MCC_LAN=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
   _mcc_colors
   _mcc_detect
@@ -205,6 +213,9 @@ _mcc_motd() {
 
 # Is a process there? (kill -0 asks without doing anything)
 _mcc_alive() { (( $1 > 0 )) && kill -0 $1 2>/dev/null }
+
+# …and is it the server or its run.zsh? (a pid file from before a restart of the Mac can name another program)
+_mcc_is_ours() { _mcc_alive $1 && [[ $(ps -o comm= -p $1 2>/dev/null) == *(java|start.command|zsh)* ]] }
 
 # What runs, once a second: our server (pid files of run.zsh), or one started elsewhere
 _mcc_probe() {
@@ -566,6 +577,7 @@ _mcc_loop() {
       _mcc_props
       # after a stop: leave, or start again for a restart
       if [[ $MCC_STATE == (stopped|crashed) ]]; then
+        (( MCC_DELETE )) && { _mcc_delete_now; break }
         (( MCC_LEAVE )) && break
         (( MCC_RESTART )) && { MCC_RESTART=0; _mcc_start }
       fi
@@ -661,6 +673,8 @@ _mcc_handle() {
 }
 
 _mcc_quit() {
+  # leaving while a delete waits for the stop: the delete is called off, the server stays stopped
+  (( MCC_DELETE )) && { MCC_DELETE=0 MCC_LEAVE=0; _mcc_toast info "$LOTUS_L[mc_del_off]"; return 0 }
   if [[ $MCC_MODE == ours && $MCC_STATE == (running|starting|preparing) ]]; then MCC_ASK=quit; return 0; fi
   if [[ $MCC_STATE == stopping ]]; then MCC_LEAVE=1; return 0; fi
   return 9
@@ -789,7 +803,114 @@ _mcc_input_done() {   # <kind> <text>
       _mcc_inst_load ;;
     search)
       MCC_Q=$text MCC_QAT=0 ;;
+    delete)
+      # only the exact name deletes – anything else changes nothing
+      if [[ $text != $MCC_NAME ]]; then
+        _mcc_toast info "$LOTUS_L[mc_del_wrong]"
+        return
+      fi
+      MCC_DELETE=1 MCC_LEAVE=1 MCC_RESTART=0 MCC_T1=0
+      if [[ $MCC_STATE == (stopped|crashed) ]]; then return; fi
+      _mcc_toast info "$LOTUS_L[mc_del_stopping]"
+      _mcc_stop ;;
   esac
+}
+
+# ── Deleting a server ────────────────────────────────────────
+
+# The folder of a server goes to the Trash (it can come back from there), or – where there is no
+# Trash – is removed. Only a folder right in the Minecraft folder that is a server (start.command)
+# and not running: never the Minecraft folder itself, the home folder or anything else.
+#   _mcc_trash <server dir>   → REPLY = where it went ("" when removed for good); MCP_ERR on failure
+_mcc_trash() {
+  local dir=${1:A} home=${${LOTUS_MC_HOME:-$HOME/Minecraft}:A} trash=$HOME/.Trash target
+  MCP_ERR= REPLY=
+  if [[ -z $1 || $dir != $home/[^/]## || ! -d $dir || -L $1 || ! -e $dir/start.command ]]; then
+    MCP_ERR="not a server folder in ${home/#$HOME/~}: $1"
+    return 1
+  fi
+  local f
+  for f in $dir/.lotus/pid(N) $dir/.lotus/wrapper(N); do
+    _mcc_is_ours $(<$f) && { MCP_ERR="the server still runs"; return 1 }
+  done
+  if [[ -d $trash && -w $trash ]]; then
+    target=$trash/${dir:t}
+    [[ -e $target ]] && target="$trash/${dir:t} $(date +%Y-%m-%d\ %H.%M.%S)"
+    if command mv -- $dir $target 2>/dev/null; then REPLY=$target; return 0; fi
+  fi
+  rm -rf -- $dir 2>/dev/null
+  [[ ! -e $dir ]] || { MCP_ERR="the folder could not be removed: ${dir/#$HOME/~}"; return 1 }
+  return 0
+}
+
+# Deletes the server of this control center once it is stopped → MCC_DELETED ("trash:…" or "gone")
+_mcc_delete_now() {
+  (( MCC_FD )) && exec {MCC_FD}<&-
+  MCC_FD=0
+  if _mcc_trash $MCC_DIR; then
+    [[ -n $REPLY ]] && MCC_DELETED="trash:$REPLY" || MCC_DELETED=gone
+    lotus_log INFO minecraft "Server deleted: $MCC_NAME (${MCC_DELETED%%:*})"
+  else
+    MCC_DELETED=
+    lotus_log WARN minecraft "Server $MCC_NAME not deleted: $MCP_ERR"
+  fi
+}
+
+# "… is in the Trash" or "… is deleted" → REPLY
+_mcc_deleted_text() {
+  if [[ $MCC_DELETED == trash:* ]]; then REPLY="${LOTUS_L[mc_del_trash]//\%s/$MCC_NAME}"
+  else REPLY="${LOTUS_L[mc_del_gone]//\%s/$MCC_NAME}"; fi
+}
+
+# Without the control center (/minecraft → Delete a server): what goes, the name typed to be sure,
+# a running server stopped first, then the folder to the Trash.
+lotus_mcc_delete() {
+  emulate -L zsh
+  setopt extendedglob
+  local dir=${1:A}
+  lotus_lang_group mc
+  [[ -x $dir/start.command ]] || { ui_error "$LOTUS_L[mc_noserver]" "$dir"; return 1 }
+  _mcc_init $dir
+  _mcc_probe
+  local size=${$(du -sh -- $dir 2>/dev/null)[1]}
+  ui_header Minecraft "${LOTUS_L[mc_del_title]//\%s/$MCC_NAME}"
+  ui_text "${LOTUS_L[mc_del_what]//\%s/$MCC_NAME}"
+  ui_path $dir
+  ui_dim "  $REPLY${size:+  ·  $size}"
+  [[ $MCC_STATE == (running|starting|preparing|stopping) ]] && ui_warn "$LOTUS_L[mc_del_running]"
+  ui_dim "  $LOTUS_L[mc_del_where]"
+  ui_blank
+  if ! ui_has_tty; then ui_dim "  (no keyboard – nothing was deleted)"; return 1; fi
+  ui_input "${LOTUS_L[mc_del_type]//\%s/$MCC_NAME}" || return 1
+  if [[ $REPLY != $MCC_NAME ]]; then ui_info "$LOTUS_L[mc_del_wrong]"; return 1; fi
+  if [[ $MCC_STATE == (running|starting|preparing|stopping) ]]; then
+    ui_step "$LOTUS_L[mc_del_stopping]"
+    MCC_DELETE=1
+    _mcc_stop
+    local -i i
+    for (( i = 0; i < 900; i++ )); do
+      sleep 0.1
+      _mcc_probe
+      [[ $MCC_STATE == (stopped|crashed) ]] && break
+      # after a minute: told to end now (the world is saved on SIGTERM)
+      (( i == 600 && MCC_PID )) && kill -TERM $MCC_PID 2>/dev/null
+    done
+    if [[ $MCC_STATE != (stopped|crashed) ]]; then
+      ui_error "${LOTUS_L[mc_err_del]//\%s/$MCC_NAME}" "$LOTUS_L[mc_del_still]"
+      return 1
+    fi
+  fi
+  (( MCC_FD )) && exec {MCC_FD}<&-
+  MCC_FD=0
+  MCC_DELETE=1
+  _mcc_delete_now
+  if [[ -z $MCC_DELETED ]]; then
+    ui_error "${LOTUS_L[mc_err_del]//\%s/$MCC_NAME}" "$MCP_ERR"
+    return 1
+  fi
+  _mcc_deleted_text
+  ui_success $REPLY
+  ui_blank
 }
 
 # ── Page 1: Stats ────────────────────────────────────────────
@@ -965,8 +1086,8 @@ _mcc_page_stats() {
 
 _mcc_settings_key() {
   case $1 in
-    up)   (( MCC_SSEL = MCC_SSEL > 1 ? MCC_SSEL - 1 : 4 )) ;;
-    down) (( MCC_SSEL = MCC_SSEL < 4 ? MCC_SSEL + 1 : 1 )) ;;
+    up)   (( MCC_SSEL = MCC_SSEL > 1 ? MCC_SSEL - 1 : 5 )) ;;
+    down) (( MCC_SSEL = MCC_SSEL < 5 ? MCC_SSEL + 1 : 1 )) ;;
     enter|right)
       case $MCC_SSEL in
         1) _mcc_input icon "$LOTUS_L[mc_icon_drop]" ;;
@@ -974,6 +1095,7 @@ _mcc_settings_key() {
         3) MCC_SUB=plugins MCC_PSEL=1; _mcc_inst_load
            [[ $MCC_TYPE == paper && $MCC_QSENT == - ]] && MCC_Q= MCC_QAT=0 ;;
         4) _mcc_open_folder ;;
+        5) (( MCC_DELETE )) || _mcc_input delete "${LOTUS_L[mc_del_type]//\%s/$MCC_NAME}" ;;
       esac ;;
     x|X|del|back) (( MCC_SSEL == 1 )) && [[ -f $MCC_DIR/server-icon.png ]] && MCC_ASK=icondel ;;
   esac
@@ -1074,17 +1196,21 @@ _mcc_page_settings() {
     "$LOTUS_L[mc_s_icon]|$icon|$LOTUS_L[mc_s_icon_d]"
     "$LOTUS_L[mc_s_motd]|$motd|$LOTUS_L[mc_s_motd_d]"
     "$LOTUS_L[mc_s_plugins]|$plug|$LOTUS_L[mc_s_plugins_d]"
-    "$LOTUS_L[mc_s_folder]|$folder|$LOTUS_L[mc_s_folder_d]")
+    "$LOTUS_L[mc_s_folder]|$folder|$LOTUS_L[mc_s_folder_d]"
+    "$LOTUS_L[mc_s_delete]||$LOTUS_L[mc_s_delete_d]")
   out+=("  ${a}${(U)LOTUS_L[mc_server]}$r")
   out+=("")
   local -a f
-  for (( i = 1; i <= 4; i++ )); do
+  for (( i = 1; i <= 5; i++ )); do
     f=("${(@s:|:)items[i]}")
+    # deleting stands apart, in red
+    local lc=
+    (( i == 5 )) && { out+=(""); lc=$MCC_C[red] }
     if (( i == MCC_SSEL )); then
-      out+=("  $MCC_C[accent]›$r $MCC_C[B]${(r:14:)f[1]}$r $f[2]")
+      out+=("  $MCC_C[accent]›$r $MCC_C[B]$lc${(r:14:)f[1]}$r $f[2]")
       out+=("                   $d$f[3]$r")
     else
-      out+=("    ${(r:14:)f[1]} $d$f[2]$r")
+      out+=("    $lc${(r:14:)f[1]}$r $d$f[2]$r")
     fi
   done
   out+=("")

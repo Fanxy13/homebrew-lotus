@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.19.1 – Delete a Minecraft server
+
+- A server can be deleted: in its control center under Settings → Delete server, or with `/minecraft` → Delete a server (which does not start it first). Lotus shows what goes – the folder with the world, plugins, settings and log, and its size – and deletes only when you type the server's name
+- A running server is stopped first, the world saved; only then its folder goes – to the Trash, so it can come back until you empty it (where there is no Trash, it is removed). q while it is still stopping calls the delete off
+- Only a server folder right in `~/Minecraft` is ever deleted: never the Minecraft folder itself, your home folder, a folder without `start.command`, a link, or a server that still runs
+- Tests: what may never be deleted, a wrong name, a running server stopped and then deleted, the Trash with two servers of the same name, no Trash, no keyboard; a log test that checked the console before the fake server had written its last line now waits for it
+
 ## 2.19.0 – Minecraft control center
 
 - A control center for your Minecraft server: `/mc <name>`, or `/minecraft` → Open a server (a new server opens in it too). Full screen, in your theme's colors, three pages – Tab switches, or 1, 2, 3

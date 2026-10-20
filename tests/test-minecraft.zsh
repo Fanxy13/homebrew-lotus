@@ -156,6 +156,8 @@ check_eq "color codes are left out of the preview" "$REPLY" "Green bold"
 
 # ── the pages fit into the window ──
 _mcc_start; wait_for 5 ready
+said_hello() { _mcc_log_poll; [[ ${(F)MCC_LOG} == *"hello there"* ]] }
+wait_for 3 said_hello
 for size in "60 18" "80 24" "100 30" "160 45"; do
   MCC_W=${size% *} MCC_H=${size#* }
   for page in 1 2 3; do
@@ -321,3 +323,72 @@ _mcc_ping_bars 400; strip $REPLY; check_eq "bad ping: one bar" $REPLY ▂···
 
 # no terminal: one line
 check_eq "no terminal: the state in one line" "$(lotus_mcc $S < /dev/null 2>&1)" "paper-1.21.4: stopped"
+
+# ── deleting a server ──
+# only a server folder right in ~/Minecraft, never anything else
+mkdir -p $HOME/Minecraft/not-a-server $HOME/elsewhere/x
+touch $HOME/elsewhere/x/start.command
+ln -s $S $HOME/Minecraft/link-to-server
+check "delete: not the Minecraft folder itself" eval '! _mcc_trash $HOME/Minecraft'
+check "delete: not the home folder" eval '! _mcc_trash $HOME'
+check "delete: not a folder without start.command" eval '! _mcc_trash $HOME/Minecraft/not-a-server'
+check "delete: not a folder outside ~/Minecraft" eval '! _mcc_trash $HOME/elsewhere/x'
+check "delete: not through a link" eval '! _mcc_trash $HOME/Minecraft/link-to-server'
+check "delete: not an empty path" eval '! _mcc_trash ""'
+check "  all of them still there" eval '[[ -d $HOME/Minecraft/not-a-server && -e $HOME/elsewhere/x/start.command && -d $S ]]'
+rm -f $HOME/Minecraft/link-to-server
+
+# from the control center: Settings → Delete server, the name typed, the running server stopped first
+mkdir -p $HOME/.Trash
+_mcc_init $S
+_mcc_start
+check "delete: a running server to delete" wait_for 5 ready
+MCC_PAGE=2 MCC_SUB= MCC_SSEL=4
+_mcc_handle down
+check_eq "delete: the fifth entry in the settings" $MCC_SSEL 5
+_mcc_handle enter
+check_eq "delete: asks for the name" $MCC_IN delete
+MCC_IN=; _mcc_input_done delete "paper"
+check_eq "delete: a wrong name deletes nothing" "$MCC_DELETE" 0
+check "  and the server runs on" eval '[[ -d $S ]] && _mcc_alive $MCC_PID'
+_mcc_handle enter
+MCC_IN=; _mcc_input_done delete "paper-1.21.4"
+check_eq "delete: the right name – stopping first" "$MCC_DELETE $MCC_STATE" "1 stopping"
+check "delete: while it runs, nothing is deleted" test -d $S
+check "delete: the server stops" wait_for 5 stopped
+_mcc_delete_now
+check "delete: the folder is gone from ~/Minecraft" test ! -e $S
+check "delete: it is in the Trash, with the world and the log" eval '[[ -e $HOME/.Trash/paper-1.21.4/start.command && -s $HOME/.Trash/paper-1.21.4/.lotus/console.log ]]'
+_mcc_deleted_text
+check_has "delete: says where it went" "$REPLY" "Trash"
+
+# q while a delete waits for the stop: called off
+MCC_DELETE=1 MCC_LEAVE=1
+_mcc_handle q
+check_eq "delete: q calls it off and stays" "$MCC_DELETE $MCC_LEAVE" "0 0"
+
+# a second server of the same name goes next to the first one in the Trash
+mkdir -p $S; cp $HOME/.Trash/paper-1.21.4/start.command $S/
+_mcc_trash $S
+check "delete: the same name again – both in the Trash" eval '[[ ! -e $S && -e $HOME/.Trash/paper-1.21.4 && -n $HOME/.Trash/paper-1.21.4\ 2*(#qN) ]]'
+
+# no Trash (not a Mac): removed
+rm -rf $HOME/.Trash
+mkdir -p $S; touch $S/start.command
+_mcc_trash $S
+check_eq "delete: without a Trash it is removed" "$(print -r -- $S(N))" ""
+
+# a running server is never removed by _mcc_trash itself
+mkdir -p $S/.lotus; touch $S/start.command
+print -r -- $$ > $S/.lotus/pid
+check "delete: refused while its pid file names a running server" eval '! _mcc_trash $S'
+rm -f $S/.lotus/pid
+
+# /minecraft → Delete a server without a keyboard: nothing happens
+cat > $S/start.command <<'X'
+#!/bin/zsh
+exit 0
+X
+chmod +x $S/start.command
+lotus_mcc_delete $S < /dev/null > /dev/null 2>&1
+check "delete without a keyboard: nothing deleted" test -d $S

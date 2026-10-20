@@ -69,4 +69,13 @@ LOTUS_L+=(
   mc_err_remove 'Le plugin n’a pas pu être supprimé'  mc_err_search 'Modrinth ne répond pas – vérifie Internet'
   mc_still_stopping 'S’arrête encore – s le termine maintenant (le monde est enregistré)'
   mc_forced 'Le serveur doit s’arrêter maintenant'
+  mc_s_delete 'Supprimer le serveur'  mc_s_delete_d '⏎ l’arrête et supprime son dossier – monde, plugins, réglages, journal'
+  mc_del_title 'supprimer %s'  mc_del_what 'Cela supprime le serveur %s avec tout son dossier : le monde, les plugins, les réglages et le journal.'
+  mc_del_where 'Le dossier va dans la corbeille – tant qu’elle n’est pas vidée, il peut revenir.'
+  mc_del_running 'Il tourne – il est d’abord arrêté (le monde est enregistré).'
+  mc_del_type 'Tape %s pour le supprimer'  mc_del_wrong 'Ce n’était pas le nom – rien n’a été supprimé.'
+  mc_del_stopping 'Arrêt du serveur, puis suppression …'  mc_del_off 'Pas supprimé – le serveur reste (il est arrêté)'
+  mc_del_still 'Il tourne encore – arrête-le, puis réessaie.'
+  mc_del_trash 'Le serveur %s est supprimé – son dossier est dans la corbeille.'  mc_del_gone 'Le serveur %s est supprimé.'
+  mc_err_del 'Le serveur %s n’a pas été supprimé'
 )

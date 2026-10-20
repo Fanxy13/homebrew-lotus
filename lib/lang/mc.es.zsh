@@ -69,4 +69,13 @@ LOTUS_L+=(
   mc_err_remove 'No se pudo quitar el plugin'  mc_err_search 'Modrinth no responde – revisa Internet'
   mc_still_stopping 'Aún deteniéndose – s lo termina ya (el mundo se guarda)'
   mc_forced 'Se le pidió al servidor que termine ya'
+  mc_s_delete 'Borrar servidor'  mc_s_delete_d '⏎ lo detiene y borra su carpeta – mundo, plugins, ajustes, registro'
+  mc_del_title 'borrar %s'  mc_del_what 'Esto borra el servidor %s con todo lo de su carpeta: el mundo, los plugins, los ajustes y el registro.'
+  mc_del_where 'La carpeta va a la papelera – hasta que la vacíes, se puede recuperar.'
+  mc_del_running 'Está en marcha – primero se detiene (el mundo se guarda).'
+  mc_del_type 'Escribe %s para borrarlo'  mc_del_wrong 'Ese no era el nombre – no se borró nada.'
+  mc_del_stopping 'Deteniendo el servidor, luego se borra …'  mc_del_off 'No se borró – el servidor se queda (está detenido)'
+  mc_del_still 'Sigue en marcha – detenlo y vuelve a intentarlo.'
+  mc_del_trash 'El servidor %s está borrado – su carpeta está en la papelera.'  mc_del_gone 'El servidor %s está borrado.'
+  mc_err_del 'El servidor %s no se borró'
 )
