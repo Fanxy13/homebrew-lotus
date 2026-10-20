@@ -328,10 +328,20 @@ _ait_minecraft_start() {
   [[ $name == [A-Za-z0-9._\ -]## && $name != *..* ]] || { print -r -- "That is not a server name: $name"; return 2 }
   local cmd=$home/$name/start.command
   [[ -x $cmd ]] || { print -r -- "There is no server \"$name\". minecraft_servers lists them."; return 2 }
-  if open -a Terminal "$cmd" 2>/dev/null; then
-    print -r -- "Started $name in a new Terminal window. It is running when the window says \"Done\"; type stop there to shut it down."
+  # in the background, like the control center starts it (lib/mc/control.zsh)
+  source $LOTUS_ROOT/lib/mc/control.zsh
+  lotus_lang_group mc
+  _mcc_init $home/$name
+  _mcc_probe
+  if [[ $MCC_STATE == (running|starting|preparing) ]]; then
+    print -r -- "$name is already running. The user can watch it with /mc $name."
     return 0
   fi
-  print -r -- "macOS could not open a Terminal window for $name."
+  if _mcc_start; then
+    print -r -- "Started $name in the background. The user can see the players, the log and type commands with /mc $name (its control center)."
+    return 0
+  fi
+  [[ $MCC_PROBLEM == eula ]] && { print -r -- "$name cannot start yet: the Minecraft EULA is not accepted. The user has to open /mc $name and accept it there."; return 1 }
+  print -r -- "$name could not be started."
   return 1
 }

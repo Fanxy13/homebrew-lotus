@@ -1,12 +1,19 @@
 # lotus – Minecraft server setup assistant (/minecraft, /mc)
 # Server files come only from the official sources: Mojang (Vanilla) and PaperMC (Paper).
+# A server runs in the control center (lib/mc/control.zsh): /mc <name> opens it directly.
 
 typeset -g MC_HOME=${LOTUS_MC_HOME:-~/Minecraft}
 
 lotus_cmd_minecraft() {
   shift
+  # /mc <name>: straight into that server's control center
+  if [[ -n $1 && $1 == [A-Za-z0-9._\ -]## && $1 != *..* && -x $MC_HOME/$1/start.command ]]; then
+    source $LOTUS_ROOT/lib/mc/control.zsh
+    lotus_mcc $MC_HOME/$1
+    return
+  fi
   ui_header Minecraft "server assistant"
-  ui_choose "What do you want to do?" "Set up a new server" "Start a server I set up" "Port forwarding and firewall guide" "Cancel" || return 0
+  ui_choose "What do you want to do?" "Set up a new server" "Open a server – control center" "Port forwarding and firewall guide" "Cancel" || return 0
   case $REPLY in
     1) lotus_mc_new ;;
     2) lotus_mc_start ;;
@@ -125,20 +132,33 @@ white-list=false" >| $dir/server.properties
 cd \"\${0:A:h}\"
 exec \"$java_home/bin/java\" -Xms$ram -Xmx$ram -jar server.jar nogui" >| $dir/start.command
   chmod +x $dir/start.command
+  zf_mkdir -p $dir/.lotus
+  print -r -- "type=$type"$'\n'"version=$version" >| $dir/.lotus/server.conf
   ui_success "Server ready in $dir"
   ui_blank
   local lan=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
   ui_card "How to join" "THIS MAC|localhost" "SAME WI-FI|${lan:-your Mac's IP}:25565" "INTERNET|needs port forwarding (guide: /minecraft → 3)"
   ui_blank
-  ui_confirm "Start the server now?" y && "$dir/start.command"
+  ui_dim "Next time: /mc $name opens its control center."
+  ui_blank
+  if ui_confirm "Start the server now?" y; then
+    source $LOTUS_ROOT/lib/mc/control.zsh
+    lotus_mcc $dir
+  fi
 }
 
+# A server to open in the control center; the ones running are marked
 lotus_mc_start() {
-  local -a servers=($MC_HOME/*/start.command(N))
+  local -a servers=($MC_HOME/*/start.command(N:h)) labels=()
   (( ${#servers} )) || { ui_error "No server found" "Lotus looks in $MC_HOME" "Set one up first: /minecraft → 1"; return 1 }
-  ui_choose "Which server?" ${servers:h:t} || return 0
-  ui_dim "Type 'stop' to shut it down."
-  "${servers[REPLY]}"
+  local running=$(lsof -a -d cwd -c java -Fn 2>/dev/null) s
+  for s in $servers; do
+    if [[ $'\n'$running$'\n' == *$'\n'n$s$'\n'* ]]; then labels+=("${s:t}  "$'\e['"$LOTUS_C[key]m● running"$'\e[0m')
+    else labels+=("${s:t}"); fi
+  done
+  ui_choose "Which server?" $labels || return 0
+  source $LOTUS_ROOT/lib/mc/control.zsh
+  lotus_mcc $servers[REPLY]
 }
 
 lotus_mc_guide() {

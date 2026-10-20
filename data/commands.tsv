@@ -82,8 +82,8 @@ Developer tools	-	log live	/lotus log live	Follow new log entries as they happen
 Developer tools	-	log level	/lotus log level <level>	How much is logged: off, warn, info, debug, trace	/lotus log level debug	0
 Developer tools	-	log clear	/lotus log clear	Delete the log	/lotus log clear	0
 Developer tools	-	-V	lotus -V <command>	Run a command and print every log line while it runs	lotus -V bg remove photo.jpg	0
-Developer tools	/minecraft	minecraft	/minecraft	Minecraft server setup assistant	/minecraft	0
-Developer tools	/mc	minecraft	/mc	Short for /minecraft	/mc	0
+Developer tools	/minecraft	minecraft	/minecraft	Set up a Minecraft server, open its control center	/minecraft	0
+Developer tools	/mc	minecraft	/mc [server]	Short for /minecraft – with a name, that server's control center: players, ping, plugins, log	/mc survival	0
 Pets	/pets	pets	/pets	Your pets: adopt up to 3, talk, feed, rename, personality, settings	/pets	0
 Pets	-	pet	<name> [message]	Type a pet's name to talk to it – alone for a chat, or with a message	mochi how was your day?	0
 Pets	/feed	feed	/feed <name>	Feed a pet – pets get hungry after half a day	/feed mochi	0

@@ -108,7 +108,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | Media | `/lotus visual` | Audio visualizer with 8 modes (space: next mode, `q`: quit) |
 | | `/convert <link>` | Save MP3 or MP4 (resolution, frame rate) to `~/Downloads/Lotus` |
 | Device tools | `/ios`, `/ios devices` | AirCard, Nugget, Sideloadly, Dopamine with compatibility checks |
-| Minecraft | `/minecraft` | Create and start a server, port forwarding guide |
+| Minecraft | `/minecraft`, `/mc <server>` | Create a server, its control center (players, ping, plugins, log), port forwarding guide |
 | Images | `/bg remove <image>` | Remove the background on this Mac, save a transparent PNG |
 | | `/bg remove`, `/bg remove <folder>` | Drop images into the window · a whole folder with one model load |
 | | `/bg paste` | The image in the clipboard – a screenshot, "Copy Image", or files copied in the Finder |

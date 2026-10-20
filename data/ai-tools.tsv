@@ -24,5 +24,5 @@ keep_awake	caffeine	act	run	Keep awake	ai-tool keep_awake {minutes}	minutes:int(
 keep_awake_off	caffeine	act	run	Keep awake	ai-tool keep_awake_off	-	Let the Mac sleep again.
 set_feature	core	act	run	Features	ai-tool set_feature {feature} {state}	feature:enum(@features):1:The feature;state:enum(on|off):1:on or off	Turn a Lotus feature on or off. A feature that is off has no commands and downloads nothing.
 minecraft_servers	minecraft	read	run	Minecraft	ai-tool minecraft_servers	-	The Minecraft servers set up with Lotus, and whether they are running.
-minecraft_start	minecraft	act	run	Minecraft	ai-tool minecraft_start {server}	server:text:1:The server's folder name from minecraft_servers	Start a Minecraft server set up with Lotus, in its own Terminal window.
+minecraft_start	minecraft	act	run	Minecraft	ai-tool minecraft_start {server}	server:text:1:The server's folder name from minecraft_servers	Start a Minecraft server set up with Lotus in the background – the user watches it with /mc <name>.
 remove_background	bg	act	tty	Remove BG	bg remove {image}	image:path:1:The image file	Remove the background of an image on this Mac. Lotus shows its progress and saves a new PNG next to it; the original stays.

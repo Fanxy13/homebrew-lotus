@@ -1,0 +1,6 @@
+name: LotusBridge
+version: '1'
+main: lotus.bridge.LotusBridge
+api-version: '1.13'
+author: Lotus
+description: Shares ping, TPS and players with the Lotus control center – writes one file, nothing else

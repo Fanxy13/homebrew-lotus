@@ -11,7 +11,7 @@ music	/np shows what is playing; /play, /pause, /skip, /back control it. While a
 visualizer	/lotus visual shows an animated audio visualizer.
 media	/convert <link> saves a video as MP3 or MP4.
 ios	/ios has tools for iPhones and iPads.
-minecraft	/minecraft sets up a Minecraft server step by step.
+minecraft	/minecraft sets up a Minecraft server step by step, /mc <name> opens its control center – players with their ping, plugins from Modrinth, the log and a tiny world that drifts by.
 bg	/bg remove takes the background off an image on this Mac – drag the image into the window.
 pets	Type a pet's name to talk to it; /feed <name> feeds it; /pets to adopt up to three. Pets come along into /ai.
 caffeine	/caffeine keeps the Mac awake for a while.

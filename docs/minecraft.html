@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.18.3">
-  <link rel="stylesheet" href="css/pages.css?v=2.18.3">
-  <script src="js/lotus.js?v=2.18.3"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.19.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.19.0">
+  <script src="js/lotus.js?v=2.19.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -22,7 +22,7 @@
     </header>
 
     <nav class="toc card">
-      <a href="#need">What you need</a><a href="#quick">The quick way</a><a href="#manual">Step by step</a>
+      <a href="#need">What you need</a><a href="#quick">The quick way</a><a href="#control">Control center</a><a href="#manual">Step by step</a>
       <a href="#wifi">Play on the same Wi-Fi</a><a href="#firewall">Firewall</a><a href="#forward">Port forwarding</a>
       <a href="#safe">Stay safe</a><a href="#trouble">Troubleshooting</a>
     </nav>
@@ -47,8 +47,18 @@
       <li><h3>Memory</h3><p>Pick how much RAM the server may use.</p></li>
       <li><h3>Download</h3><p>From Mojang or PaperMC only. Lotus verifies the checksum, so a broken or changed file is never used.</p></li>
       <li><h3>EULA and settings</h3><p>You read and accept the Minecraft EULA yourself. Then name, player limit and difficulty.</p></li>
-      <li><h3>Start script</h3><p>A <code>start.command</code> file you can double-click. Stop the server by typing <code>stop</code>.</p></li>
+      <li><h3>Start script</h3><p>A <code>start.command</code> file you can double-click. Lotus itself starts the server in its control center.</p></li>
     </ol>
+
+    <h2 class="section" id="control">The control center</h2>
+    <p>Open a server with <code>/mc</code> → <em>Open a server</em>, or straight away with <code>/mc &lt;name&gt;</code>. The server runs in the background: leave the control center and it keeps running, open it again and you are back. <kbd>Tab</kbd> switches between three pages, all in the colors of your Lotus theme.</p>
+    <div class="grid">
+      <div class="card"><h3>1 · Stats</h3><p class="muted">Whether the server runs and for how long, players online with their ping, TPS and tick time, memory, CPU, the size of the world and the address friends join with – next to a little Minecraft world that drifts by, with a day and a night and one figure for every player online. <kbd>Enter</kbd> on a player: op, kick, ban, game mode, whitelist.</p></div>
+      <div class="card"><h3>2 · Settings</h3><p class="muted">The server icon (drag in any picture – Lotus cuts the middle square to 64 × 64), the description under the name in the server list, the folder in Finder, and plugins. A preview shows the server the way your friends see it in their list.</p></div>
+      <div class="card"><h3>3 · Log</h3><p class="muted">The console, colored: chat, joins, warnings and errors. <kbd>f</kbd> shows only chat and players, or only problems. Type <kbd>/</kbd> for a command like in Minecraft, <kbd>t</kbd> to chat as the server; <kbd>↑</kbd> brings earlier commands back.</p></div>
+      <div class="card"><h3>Plugins</h3><p class="muted">On a Paper server: search Modrinth – it lists only plugins for your server's version, the most downloaded first – and install with <kbd>Enter</kbd>. Required plugins come along, every file is checked against its SHA-512. Your own <code>.jar</code>: press <kbd>d</kbd> and drag it into the window. <kbd>x</kbd> removes one.</p></div>
+    </div>
+    <p class="muted">Ping and TPS: only the server knows them. For Paper servers Lotus builds a tiny plugin, LotusBridge, on your Mac (it writes one file with the numbers, nothing else). Vanilla servers do not tell them. Keys: <kbd>s</kbd> stop or start, <kbd>r</kbd> restart, <kbd>o</kbd> open the folder, <kbd>q</kbd> leave. While the server runs, your Mac stays awake (the display may still sleep).</p>
 
     <h2 class="section" id="manual">Step by step, without Lotus</h2>
     <ol class="steps">
