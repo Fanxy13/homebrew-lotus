@@ -392,3 +392,75 @@ X
 chmod +x $S/start.command
 lotus_mcc_delete $S < /dev/null > /dev/null 2>&1
 check "delete without a keyboard: nothing deleted" test -d $S
+
+# ── deleting: what the review found ──
+mkdir -p $HOME/.Trash
+newserver() { rm -rf $S; mkdir -p $S/.lotus $S/world; print -r -- $'#!/bin/zsh\nexit 0' > $S/start.command; chmod +x $S/start.command; print -r -- region > $S/world/r.mca }
+
+# a move into the Trash that fails deletes nothing (it used to fall back to rm -rf)
+newserver
+mkdir -p $HOME/fakebin
+print -r -- $'#!/bin/zsh\n# copies a little, then fails – like mv across disks when the room runs out\nmkdir -p "$3"; cp "$2/start.command" "$3/"; exit 1' > $HOME/fakebin/mv
+chmod +x $HOME/fakebin/mv
+path=($HOME/fakebin $path)
+check "delete: a failing move is a failure" eval '! _mcc_trash $S'
+path=(${path:#$HOME/fakebin})
+check "  the server and its world are still there" test -s $S/world/r.mca
+check "  no half copy in the Trash" eval '[[ -z $HOME/.Trash/paper-1.21.4*(#qN) ]]'
+check_has "  and it says nothing was deleted" "$MCP_ERR" "nothing was deleted"
+
+# stopped while still preparing: the whole process group of run.zsh ends, not only run.zsh
+newserver
+perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' zsh -fc "print \$\$ > $S/.lotus/wrapper; cd $S; zsh -fc 'print \$\$ > $S/.lotus/child; exec sleep 30' & wait" &
+wait_for 3 test -s $S/.lotus/child
+child=$(<$S/.lotus/child)
+_mcc_init $S; _mcc_probe
+check_eq "preparing: seen as preparing" $MCC_STATE preparing
+_mcc_stop
+childgone() { ! kill -0 $child 2>/dev/null }
+check "preparing: its patcher ends with it" wait_for 3 childgone
+
+# something of the server still runs in its folder (a start.command with a restart loop): not deleted
+newserver
+print -r -- $'#!/bin/zsh\nwhile :; do sleep 0.2; done' > $S/start.command
+( cd $S && exec zsh ./start.command ) &
+loop=$!
+sleep 0.4
+check "delete: refused while a start.command runs in the folder" eval '! _mcc_trash $S'
+check_has "  and says what to do" "$MCP_ERR" "start.command"
+check "  the folder stays" test -d $S
+kill $loop 2>/dev/null; wait $loop 2>/dev/null
+# a terminal that only sits in the folder does not keep it
+( cd $S && exec zsh -fc 'sleep 3' ) &
+sitter=$!
+sleep 0.3
+check "delete: a shell that only sits in the folder does not stop it" _mcc_trash $S
+kill $sitter 2>/dev/null; wait $sitter 2>/dev/null
+
+# a server that cannot be deleted is said so before anything is stopped
+newserver
+mkdir -p $HOME/bigdisk; mv $S $HOME/bigdisk/; ln -s $HOME/bigdisk/paper-1.21.4 $S
+check "delete: a linked server cannot be deleted" eval '! _mcc_can_delete $S'
+out=$(lotus_mcc_delete $S < /dev/null 2>&1)
+check_has "  /minecraft says so at once" "$out" "Only a server folder"
+_mcc_init ${S:A}; MCC_PAGE=2 MCC_SUB= MCC_SSEL=5 MCC_IN= MCC_TOAST=
+_mcc_handle enter
+check_eq "  the control center does not ask for the name" "$MCC_IN" ""
+check_has "  but says why" "$MCC_TOAST" "Only a server folder"
+rm -f $S; mv $HOME/bigdisk/paper-1.21.4 $S
+
+# the settings page: preview at 80 × 24, a long label, the end of a long name typed
+newserver; _mcc_init $S
+MCC_PAGE=2 MCC_SUB= MCC_IN= MCC_W=80 MCC_H=24
+for MCC_SSEL in 1 5; do
+  strip "$(_mcc_draw)"
+  check_has "settings at 80 × 24 (entry $MCC_SSEL): the preview still shows" "$REPLY" "how friends see it"
+done
+LOTUS_LANG=fr; lotus_lang; _lotus_lang_groups=(); lotus_lang_group mc
+strip "$(_mcc_draw)"
+check_has "French: the delete label is not cut" "$REPLY" "Supprimer le serveur"
+LOTUS_LANG=en; lotus_lang; _lotus_lang_groups=(); lotus_lang_group mc
+MCC_W=60 MCC_H=18 MCC_IN=delete MCC_INLABEL="${LOTUS_L[mc_del_type]//\%s/$MCC_NAME}" MCC_INTEXT="survival-world-with-friends-and-more"
+strip "$(_mcc_draw)"
+check_has "a long name typed: its end shows" "$REPLY" "friends-and-more▏"
+MCC_IN=

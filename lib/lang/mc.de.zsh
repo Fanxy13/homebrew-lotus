@@ -78,4 +78,10 @@ LOTUS_L+=(
   mc_del_still 'Er läuft noch – stoppe ihn und versuch es dann noch einmal.'
   mc_del_trash 'Der Server %s ist gelöscht – sein Ordner liegt im Papierkorb.'  mc_del_gone 'Der Server %s ist gelöscht.'
   mc_err_del 'Der Server %s wurde nicht gelöscht'
+  mc_del_where_rm 'Hier gibt es keinen Papierkorb – er wird endgültig gelöscht.'
+  mc_del_notserver 'Gelöscht werden kann nur ein Serverordner direkt in %s (kein Link).'
+  mc_del_busy 'In seinem Ordner läuft noch etwas vom Server – stoppe es (oder schließe das start.command-Fenster) und lösche dann noch einmal.'
+  mc_del_otherdisk 'Der Server liegt auf einem anderen Laufwerk ohne Papierkorb, den Lotus nutzen kann – lösche seinen Ordner im Finder.'
+  mc_del_nomove 'Er konnte nicht in den Papierkorb gelegt werden – nichts wurde gelöscht.'
+  mc_del_norm 'Der Ordner konnte nicht entfernt werden: %s'
 )

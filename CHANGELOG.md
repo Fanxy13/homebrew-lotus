@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.19.2 – Deleting a server, made safe
+
+- A move into the Trash that failed (a server on an external disk and too little room on the Mac for the copy) deleted the folder for good anyway and said it was in the Trash. Now a failing move deletes nothing, takes back what it had copied, and says so; a server on another disk goes to that disk's own Trash, or Lotus asks you to delete it in Finder
+- A server deleted while it was still preparing (Paper's first start, LotusBridge being built) left the patcher running in the deleted folder – stopping now ends run.zsh's whole process group
+- A server started by its own start.command with a restart loop came back from the Trash after the delete. Before deleting, Lotus now looks for anything of the server still running in its folder – java, start.command, run.zsh, the patcher – and stops short until it is gone. A terminal that merely sits in the folder does not count
+- A server that cannot be deleted (a link, a folder outside `~/Minecraft`) is said so before anything is stopped, not after the players were kicked
+- The settings page: the preview of the server list shows again at 80 × 24, "Supprimer le serveur" and "Borrar servidor" are no longer cut off, and typing a long name shows its end – where the cursor is
+- Tests for each of these
+
 ## 2.19.1 – Delete a Minecraft server
 
 - A server can be deleted: in its control center under Settings → Delete server, or with `/minecraft` → Delete a server (which does not start it first). Lotus shows what goes – the folder with the world, plugins, settings and log, and its size – and deletes only when you type the server's name

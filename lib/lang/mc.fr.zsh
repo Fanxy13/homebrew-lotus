@@ -78,4 +78,10 @@ LOTUS_L+=(
   mc_del_still 'Il tourne encore – arrête-le, puis réessaie.'
   mc_del_trash 'Le serveur %s est supprimé – son dossier est dans la corbeille.'  mc_del_gone 'Le serveur %s est supprimé.'
   mc_err_del 'Le serveur %s n’a pas été supprimé'
+  mc_del_where_rm 'Il n’y a pas de corbeille ici – il est supprimé pour de bon.'
+  mc_del_notserver 'Seul un dossier de serveur directement dans %s peut être supprimé (pas de lien).'
+  mc_del_busy 'Quelque chose du serveur tourne encore dans son dossier – arrête-le (ou ferme la fenêtre de start.command), puis supprime à nouveau.'
+  mc_del_otherdisk 'Le serveur est sur un autre disque sans corbeille utilisable par Lotus – supprime son dossier dans le Finder.'
+  mc_del_nomove 'Il n’a pas pu être mis à la corbeille – rien n’a été supprimé.'
+  mc_del_norm 'Le dossier n’a pas pu être supprimé : %s'
 )

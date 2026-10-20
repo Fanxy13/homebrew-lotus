@@ -78,4 +78,10 @@ LOTUS_L+=(
   mc_del_still 'It is still running – stop it, then try again.'
   mc_del_trash 'The server %s is deleted – its folder is in the Trash.'  mc_del_gone 'The server %s is deleted.'
   mc_err_del 'The server %s was not deleted'
+  mc_del_where_rm 'There is no Trash here – it is deleted for good.'
+  mc_del_notserver 'Only a server folder right in %s can be deleted (no link).'
+  mc_del_busy 'Something of the server still runs in its folder – stop it (or close its start.command window), then delete again.'
+  mc_del_otherdisk 'The server is on another disk without a Trash Lotus can use – delete its folder in Finder.'
+  mc_del_nomove 'It could not be moved to the Trash – nothing was deleted.'
+  mc_del_norm 'The folder could not be removed: %s'
 )

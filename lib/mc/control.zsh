@@ -81,6 +81,7 @@ _mcc_init() {
   MCC_DIR=$1 MCC_S=$1/.lotus MCC_NAME=${1:t}
   zf_mkdir -p $MCC_S
   MCC_PAGE=1 MCC_SUB= MCC_IN= MCC_ASK= MCC_TOAST= MCC_BACK=0 MCC_FILTER=all MCC_LEAVE=0 MCC_RESTART=0 MCC_DELETE=0 MCC_DELETED=
+  MCC_MODE= MCC_STATE=stopped MCC_PID=0 MCC_WRAP=0 MCC_XPID=0 MCC_WANTSTOP=0 MCC_T5=0
   MCC_LAN=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
   _mcc_colors
   _mcc_detect
@@ -303,7 +304,8 @@ _mcc_stop() {
   MCC_WANTSTOP=1 MCC_STOP_AT=$EPOCHSECONDS MCC_STATE=stopping
   if [[ $MCC_MODE == ours ]] && (( MCC_PID )); then _mcc_send stop
   elif (( MCC_PID )); then kill -TERM $MCC_PID 2>/dev/null
-  elif (( MCC_WRAP )); then kill -TERM $MCC_WRAP 2>/dev/null; fi
+  # still preparing (the Paper patcher, javac): run.zsh leads its own process group – all of it ends
+  elif (( MCC_WRAP )); then kill -TERM -- -$MCC_WRAP 2>/dev/null || kill -TERM $MCC_WRAP 2>/dev/null; fi
   lotus_log INFO minecraft "Server stopped: $MCC_NAME"
 }
 
@@ -485,6 +487,13 @@ _mcc_cut() {
   (( n < 1 )) && { REPLY=; return }
   if (( ${#1} > n )); then REPLY="${1[1,n-1]}…"; else REPLY=$1; fi
 }
+# What is being typed: its end when it is too long (that is where the cursor is) → REPLY
+_mcc_tail() {
+  local -i n=$2
+  (( n < 2 )) && n=2
+  if (( ${#1} > n )); then REPLY="…${1[-(n-1),-1]}"; else REPLY=$1; fi
+}
+
 # Plain text padded (and cut) to exactly a width → REPLY
 _mcc_pad() { _mcc_cut "$1" $2; REPLY=${(r:$2:)REPLY} }
 
@@ -818,28 +827,69 @@ _mcc_input_done() {   # <kind> <text>
 
 # ── Deleting a server ────────────────────────────────────────
 
-# The folder of a server goes to the Trash (it can come back from there), or – where there is no
-# Trash – is removed. Only a folder right in the Minecraft folder that is a server (start.command)
-# and not running: never the Minecraft folder itself, the home folder or anything else.
-#   _mcc_trash <server dir>   → REPLY = where it went ("" when removed for good); MCP_ERR on failure
-_mcc_trash() {
-  local dir=${1:A} home=${${LOTUS_MC_HOME:-$HOME/Minecraft}:A} trash=$HOME/.Trash target
-  MCP_ERR= REPLY=
-  if [[ -z $1 || $dir != $home/[^/]## || ! -d $dir || -L $1 || ! -e $dir/start.command ]]; then
-    MCP_ERR="not a server folder in ${home/#$HOME/~}: $1"
+# Can this folder be deleted at all? Only a server folder right in the Minecraft folder
+# (start.command in it), no link: never the Minecraft folder itself, the home folder or anything
+# else. Asked before anything is stopped.   _mcc_can_delete <server dir>   → MCP_ERR when not
+_mcc_can_delete() {
+  local dir=${1:A} home=${${LOTUS_MC_HOME:-$HOME/Minecraft}:A}
+  MCP_ERR=
+  if [[ -z $1 || -L ${1%/} || $dir != $home/[^/]## || ! -d $dir || ! -e $dir/start.command ]]; then
+    MCP_ERR="${${LOTUS_L[mc_del_notserver]:-Only a server folder right in %s can be deleted (no link)}//\%s/${home/#$HOME/~}}"
     return 1
   fi
-  local f
+}
+
+# Does something of the server still run in its folder? The java, a start.command (also one with a
+# restart loop), run.zsh, the Paper patcher – found by their folder, whoever started them.
+# A terminal that merely sits in the folder does not count.   _mcc_busy <server dir>
+_mcc_busy() {
+  local dir=${1:A} f line pid=
   for f in $dir/.lotus/pid(N) $dir/.lotus/wrapper(N); do
-    _mcc_is_ours $(<$f) && { MCP_ERR="the server still runs"; return 1 }
+    _mcc_is_ours $(<$f) && return 0
   done
-  if [[ -d $trash && -w $trash ]]; then
+  (( $+commands[lsof] )) || return 1
+  for line in "${(@f)$(lsof -a -u ${UID:-$(id -u)} -d cwd -Fpn 2>/dev/null)}"; do
+    [[ $line == p* ]] && { pid=${line#p}; continue }
+    [[ $line == n* && ( ${line#n} == $dir || ${line#n} == $dir/* ) ]] || continue
+    (( pid == $$ )) && continue
+    [[ $(ps -o args= -p $pid 2>/dev/null) == *(java|start.command|run.zsh|server.jar|paperclip)* ]] && return 0
+  done
+  return 1
+}
+
+# The folder of a server goes to the Trash of its disk (it can come back from there); only where
+# there is no Trash at all is it removed. A move that fails deletes nothing – never "for good instead".
+#   _mcc_trash <server dir>   → REPLY = where it went ("" when removed for good); MCP_ERR on failure
+_mcc_trash() {
+  local dir=${1:A} trash=$HOME/.Trash target vol
+  REPLY=
+  _mcc_can_delete $1 || return 1
+  if _mcc_busy $dir; then
+    MCP_ERR=${LOTUS_L[mc_del_busy]:-Something of the server still runs in its folder – stop it (or close its start.command window), then delete again.}
+    return 1
+  fi
+  if [[ -d $trash ]]; then
+    # a folder on another disk goes to that disk's Trash: a rename, never a copy that can run out of room
+    local -A a b
+    zstat -H a $dir 2>/dev/null; zstat -H b $trash 2>/dev/null
+    if [[ $a[device] != $b[device] ]]; then
+      vol=$(df -P -- $dir 2>/dev/null | awk 'NR == 2 { print $NF }')
+      trash=$vol/.Trashes/${UID:-$(id -u)}
+      if [[ -z $vol || $vol == / || ! -d $trash || ! -w $trash ]]; then
+        MCP_ERR=${LOTUS_L[mc_del_otherdisk]:-The server is on another disk without a Trash Lotus can use – delete its folder in Finder.}
+        return 1
+      fi
+    fi
     target=$trash/${dir:t}
     [[ -e $target ]] && target="$trash/${dir:t} $(date +%Y-%m-%d\ %H.%M.%S)"
     if command mv -- $dir $target 2>/dev/null; then REPLY=$target; return 0; fi
+    # the source is still there: what may have been copied of it goes again, nothing else changes
+    [[ -e $dir && -e $target ]] && rm -rf -- $target
+    MCP_ERR=${LOTUS_L[mc_del_nomove]:-It could not be moved to the Trash – nothing was deleted.}
+    return 1
   fi
   rm -rf -- $dir 2>/dev/null
-  [[ ! -e $dir ]] || { MCP_ERR="the folder could not be removed: ${dir/#$HOME/~}"; return 1 }
+  [[ ! -e $dir ]] || { MCP_ERR="${${LOTUS_L[mc_del_norm]:-The folder could not be removed: %s}//\%s/${dir/#$HOME/~}}"; return 1 }
   return 0
 }
 
@@ -870,6 +920,7 @@ lotus_mcc_delete() {
   local dir=${1:A}
   lotus_lang_group mc
   [[ -x $dir/start.command ]] || { ui_error "$LOTUS_L[mc_noserver]" "$dir"; return 1 }
+  _mcc_can_delete $1 || { ui_error "${LOTUS_L[mc_err_del]//\%s/${1:t}}" "$MCP_ERR"; return 1 }
   _mcc_init $dir
   _mcc_probe
   local size=${$(du -sh -- $dir 2>/dev/null)[1]}
@@ -878,7 +929,7 @@ lotus_mcc_delete() {
   ui_path $dir
   ui_dim "  $REPLY${size:+  ·  $size}"
   [[ $MCC_STATE == (running|starting|preparing|stopping) ]] && ui_warn "$LOTUS_L[mc_del_running]"
-  ui_dim "  $LOTUS_L[mc_del_where]"
+  [[ -d $HOME/.Trash ]] && ui_dim "  $LOTUS_L[mc_del_where]" || ui_dim "  $LOTUS_L[mc_del_where_rm]"
   ui_blank
   if ! ui_has_tty; then ui_dim "  (no keyboard – nothing was deleted)"; return 1; fi
   ui_input "${LOTUS_L[mc_del_type]//\%s/$MCC_NAME}" || return 1
@@ -1095,7 +1146,10 @@ _mcc_settings_key() {
         3) MCC_SUB=plugins MCC_PSEL=1; _mcc_inst_load
            [[ $MCC_TYPE == paper && $MCC_QSENT == - ]] && MCC_Q= MCC_QAT=0 ;;
         4) _mcc_open_folder ;;
-        5) (( MCC_DELETE )) || _mcc_input delete "${LOTUS_L[mc_del_type]//\%s/$MCC_NAME}" ;;
+        5) (( MCC_DELETE )) && return
+           # a folder that cannot be deleted is said so before anything is stopped
+           if _mcc_can_delete $MCC_DIR; then _mcc_input delete "${LOTUS_L[mc_del_type]//\%s/$MCC_NAME}"
+           else _mcc_toast err "$MCP_ERR"; fi ;;
       esac ;;
     x|X|del|back) (( MCC_SSEL == 1 )) && [[ -f $MCC_DIR/server-icon.png ]] && MCC_ASK=icondel ;;
   esac
@@ -1201,16 +1255,19 @@ _mcc_page_settings() {
   out+=("  ${a}${(U)LOTUS_L[mc_server]}$r")
   out+=("")
   local -a f
+  # the label column as wide as the longest label (some languages need more than 14)
+  local -i lw=14
+  for (( i = 1; i <= 5; i++ )); do f=("${(@s:|:)items[i]}"); (( ${#f[1]} > lw )) && lw=${#f[1]}; done
   for (( i = 1; i <= 5; i++ )); do
     f=("${(@s:|:)items[i]}")
-    # deleting stands apart, in red
+    # deleting in red
     local lc=
-    (( i == 5 )) && { out+=(""); lc=$MCC_C[red] }
+    (( i == 5 )) && lc=$MCC_C[red]
     if (( i == MCC_SSEL )); then
-      out+=("  $MCC_C[accent]›$r $MCC_C[B]$lc${(r:14:)f[1]}$r $f[2]")
-      out+=("                   $d$f[3]$r")
+      out+=("  $MCC_C[accent]›$r $MCC_C[B]$lc${(r:lw:)f[1]}$r $f[2]")
+      out+=("${(l:lw+5:)}$d$f[3]$r")
     else
-      out+=("    $lc${(r:14:)f[1]}$r $d$f[2]$r")
+      out+=("    $lc${(r:lw:)f[1]}$r $d$f[2]$r")
     fi
   done
   out+=("")
@@ -1218,7 +1275,7 @@ _mcc_page_settings() {
     out+=("  $MCC_C[key2]↻ $LOTUS_L[mc_restart_needed]$r")
     out+=("")
   fi
-  (( H - (${#out} - base) >= 9 )) && _mcc_preview $(( W - 4 ))
+  (( H - (${#out} - base) >= 8 )) && _mcc_preview $(( W - 4 ))
 }
 
 # ── Settings → Plugins ───────────────────────────────────────
@@ -1324,7 +1381,7 @@ _mcc_page_plugins() {
     error)   stat_txt="$MCC_C[red]$LOTUS_L[mc_err_search]$r" ;;
     *)       _mcp_count $MCC_RTOTAL; stat_txt="$d${${LOTUS_L[mc_found]//\%d/${#MCC_RES}}//\%t/$REPLY}$r" ;;
   esac
-  _mcc_cut "$q" $(( W - 40 ))
+  _mcc_tail "$q" $(( W - 40 ))
   if [[ -z $q && $MCC_IN != search ]]; then
     _mcc_cut "/ $LOTUS_L[mc_search_hint]" $(( W - 18 ))
     out+=("    ${(r:8:)LOTUS_L[mc_search]} $d$REPLY$r")
@@ -1466,7 +1523,7 @@ _mcc_page_log() {
   while (( ${#out} - base < H - 1 )); do out+=(""); done
   # the command line
   if [[ $MCC_IN == cmd ]]; then
-    _mcc_cut "$MCC_INTEXT" $(( W - 10 ))
+    _mcc_tail "$MCC_INTEXT" $(( W - 10 ))
     out+=("  $MCC_C[accent]›$r $MCC_C[B]/$r$REPLY$MCC_C[key]▏$r")
   elif [[ $MCC_MODE == ours ]] && (( MCC_PID )); then
     out+=("  $d› $LOTUS_L[mc_cmd_hint]$r")
@@ -1516,8 +1573,9 @@ _mcc_draw() {
   # the bottom: a message, a question, an input – and the keys
   local msg= keys=
   if [[ -n $MCC_IN && $MCC_IN != (cmd|search) ]]; then
-    _mcc_cut "$MCC_INTEXT" $(( W - ${#MCC_INLABEL} - 10 ))
-    msg="  $MCC_C[accent]›$r $MCC_INLABEL  $B$REPLY$r$MCC_C[key]▏$r"
+    _mcc_cut "$MCC_INLABEL" $(( W / 2 )); local lab=$REPLY
+    _mcc_tail "$MCC_INTEXT" $(( W - ${#lab} - 10 ))
+    msg="  $MCC_C[accent]›$r $lab  $B$REPLY$r$MCC_C[key]▏$r"
     keys="⏎ $LOTUS_L[mc_k_ok]   esc $LOTUS_L[mc_k_cancel]"
   elif [[ -n $MCC_ASK ]]; then
     _mcc_ask_text; msg="  $MCC_C[key2]?$r $REPLY"

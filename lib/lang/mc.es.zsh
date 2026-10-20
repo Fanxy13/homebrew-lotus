@@ -78,4 +78,10 @@ LOTUS_L+=(
   mc_del_still 'Sigue en marcha – detenlo y vuelve a intentarlo.'
   mc_del_trash 'El servidor %s está borrado – su carpeta está en la papelera.'  mc_del_gone 'El servidor %s está borrado.'
   mc_err_del 'El servidor %s no se borró'
+  mc_del_where_rm 'Aquí no hay papelera – se borra para siempre.'
+  mc_del_notserver 'Solo se puede borrar una carpeta de servidor directamente en %s (sin enlaces).'
+  mc_del_busy 'Algo del servidor sigue en marcha en su carpeta – detenlo (o cierra la ventana de start.command) y vuelve a borrar.'
+  mc_del_otherdisk 'El servidor está en otro disco sin una papelera que Lotus pueda usar – borra su carpeta en el Finder.'
+  mc_del_nomove 'No se pudo mover a la papelera – no se borró nada.'
+  mc_del_norm 'No se pudo quitar la carpeta: %s'
 )
