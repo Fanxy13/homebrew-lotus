@@ -13,6 +13,6 @@ media	/convert <link> saves a video as MP3 or MP4.
 ios	/ios has tools for iPhones and iPads.
 minecraft	/minecraft sets up a Minecraft server step by step, /mc <name> opens its control center – players with their ping, plugins from Modrinth, the log and a tiny world that drifts by.
 bg	/bg remove takes the background off an image on this Mac – drag the image into the window.
-pets	Type a pet's name to talk to it; /feed <name> feeds it; /pets to adopt up to three. Pets come along into /ai.
+pets	Type a pet's name to talk to it; /feed <name> feeds it; /zetamac is a math game – 120 seconds of mental arithmetic like Zetamac, and every right answer feeds the pets; /pets to adopt up to three. Pets come along into /ai.
 caffeine	/caffeine keeps the Mac awake for a while.
 plugins	Plugins add commands, AI tools and start screen lines. /plugin installer: drag plugin folders or packs into the window, or paste a GitHub link. A plugin pack is a GitHub repository that installs several plugins at once, with their settings. /plugin new makes your own plugin, /plugin pack shares yours as a pack, /plugin uninstall removes them again, /plugin lists them. Live Server like in VS Code: lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver, then /liveserver in a project folder reloads the browser on every save.

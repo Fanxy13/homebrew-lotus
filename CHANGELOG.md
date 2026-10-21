@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.20.0 – A math game for the pets
+
+- `/zetamac` – a math game like the Arithmetic Game on arithmetic.zetamac.com: 120 seconds, as many problems as you can. Normal has Zetamac's default ranges – (2–100) + (2–100) and (2–12) × (2–100), subtraction and division as these in reverse – and an answer counts as soon as it is right, without Enter. A bar shows the time running out, your pets watch and eat along with every right answer
+- Every right answer is a bite for each of your pets: 15 minutes longer full (10 on easy, 20 on hard), up to two days. After the game one of them eats and says how long it is full now
+- `/zetamac 60`, `/zetamac 300 hard`, `/zetamac easy` – any time from 10 to 600 seconds; the best score for each level and time is kept. Enter plays again, Esc goes back
+- In `/pets` the game is an entry below your pets, and pets know about it: a hungry one may suggest a round
+- A pet's status says how long it stays full ("full for 9 h") instead of when it last ate – a big meal from the game lasts longer than half a day
+- Tests: Zetamac's ranges, the food, the best score, and a real game in a terminal – a wrong digit taken back, five right answers, Esc
+
 ## 2.19.2 – Deleting a server, made safe
 
 - A move into the Trash that failed (a server on an external disk and too little room on the Mac for the copy) deleted the folder for good anyway and said it was in the Trash. Now a failing move deletes nothing, takes back what it had copied, and says so; a server on another disk goes to that disk's own Trash, or Lotus asks you to delete it in Finder

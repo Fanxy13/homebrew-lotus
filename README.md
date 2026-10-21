@@ -60,6 +60,9 @@ when a command needs them – nothing is installed without asking.
   box, and it is the spinner while the AI thinks – blinking and wagging its tail.
 - **`/help` with a pet** – your pet asks where you need help, finds the right commands and puts
   the one you pick on your command line.
+- **`/zetamac`** – a math game like [Zetamac](https://arithmetic.zetamac.com/): 120 seconds of mental
+  arithmetic, and every right answer is a bite for your pets – the more you get right, the longer they
+  stay full (up to two days). `/zetamac 60`, `/zetamac hard`.
 - **`/feed mochi`** – pets get hungry after half a day (they never get ill). They greet you
   below the start screen, share a tip now and then, sleep at night and react to typos and
   finished work.
@@ -117,6 +120,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | Pets | `/pets` | Your pets: adopt up to 3, talk, feed, rename, personality, settings |
 | | `mochi`, `mochi how was your day?` | Type a pet's name to talk to it – alone for a chat, or with a message |
 | | `/feed mochi` | Feed a pet |
+| | `/zetamac`, `/zetamac 60 hard` | Math game like Zetamac – every right answer feeds your pets |
 | | `/help`, `/help all` | Your pet helps you find a command · every command |
 | | `lotus pets add` | Add your own kind of pet from the website prompt (reads the clipboard) |
 | Shortcuts | `lotus shortcut add yt https://youtube.com` | Your own `/yt`, `/work`, `/gh` … |

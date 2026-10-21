@@ -27,7 +27,7 @@
   }
 
   const LINES = {
-    cat: ['Meow! Type my name and we can talk.', 'Mochi wants fish. /feed mochi?', 'Need a command? Try /help.', 'Purr. The sun is warm today.'],
+    cat: ['Meow! Type my name and we can talk.', 'Mochi wants fish. /feed mochi?', 'Need a command? Try /help.', 'Purr. One round of /zetamac and I am full all day.'],
     dog: ['Woof! You are back!', 'Walk? Ball? Bone? All of it!', 'Remove BG is done – that looks great!', 'I tilt my head at typos. Woof?'],
   };
   const NAMES = { cat: 'Mochi', dog: 'Bruno' };

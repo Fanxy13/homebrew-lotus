@@ -3,6 +3,7 @@
 #   /pets                     adopt, talk, feed, rename, personality, settings
 #   <name> [message]          type a pet's name in the shell to talk to it (→ lotus pet <name> …)
 #   /feed [name]              feed a pet – pets get hungry after half a day (they never get ill)
+#   /zetamac [seconds] [level] the math game: every right answer feeds your pets (lib/cmd/zetamac.zsh)
 #   /help                     your pet asks where you need help and shows the commands
 #   lotus pets add [file]     add your own kind of pet from the prompt on the website (default: clipboard)
 #
@@ -17,6 +18,7 @@ lotus_cmd_pets() {
   case $cmd in
     pet)  lotus_pet_talk "$@" ;;
     feed) lotus_pet_feed "$@" ;;
+    zetamac) source $LOTUS_ROOT/lib/cmd/zetamac.zsh; lotus_zetamac "$@" ;;
     *)
       case $1 in
         add)        shift; lotus_pets_add "$@" ;;
@@ -183,7 +185,10 @@ _pet_status() {   # one short line about a pet → REPLY
   case $mood in
     starving) REPLY=$LOTUS_L[pt_starving] ;;
     hungry)   REPLY=$LOTUS_L[pt_hungry] ;;
-    *)        (( REPLY < 1 )) && REPLY=$LOTUS_L[pt_fed_now] || REPLY=${LOTUS_L[pt_fed_h]//\%s/$REPLY}
+    *)        # asleep, or full: hungry 12 hours after a meal – later after a big one (/zetamac)
+              if (( REPLY >= 24 )); then REPLY=$LOTUS_L[pt_starving]
+              elif (( REPLY >= 12 )); then REPLY=$LOTUS_L[pt_hungry]
+              else REPLY=${LOTUS_L[pt_full_h]//\%s/$(( 12 - REPLY ))}; fi
               [[ $mood == asleep ]] && REPLY+=" · $LOTUS_L[pt_asleep]" ;;
   esac
 }
@@ -446,7 +451,7 @@ _pet_instructions() {
 Your personality: $persona.
 Talk like a ${(L)label} would: short, warm, playful sentences, and now and then you say \"$sound\". It is $part."
   case $mood in
-    starving|hungry) REPLY+=" You are hungry and would love some $food – you may say so, or that $owner can type /feed ${(L)name}." ;;
+    starving|hungry) REPLY+=" You are hungry and would love some $food – you may say so, or that $owner can type /feed ${(L)name} or play /zetamac for a big meal." ;;
   esac
   REPLY+="${know:+
 What you know about Lotus: $know}
@@ -898,12 +903,12 @@ lotus_pet_help() {
 
 # ── /pets ─────────────────────────────────────────────────────
 
-# Your pets side by side, with name and how they are
+# Your pets side by side, with their names: _pet_lineup [drawing]
 _pet_lineup() {
   local -i i j h=0 w
   local -a cols=() widths=() hs=()
   for (( i = 1; i <= ${#PET_N}; i++ )); do
-    _pet_block $i idle -1 none
+    _pet_block $i ${1:-idle} -1 none
     cols+=("${(pj:\n:)reply}")
     _pet_kind $i
     (( w = PET_AW[$REPLY] > ${#PET_N[i]} ? PET_AW[$REPLY] : ${#PET_N[i]} ))
@@ -943,12 +948,15 @@ lotus_pets_screen() {
       _pet_status $i
       opts+=("$PET_N[i]|$lbl · $REPLY")
     done
+    (( ${#PET_N} )) && opts+=("$LOTUS_L[pt_game]|$LOTUS_L[pt_game_d]")
     (( ${#PET_N} < 3 )) && opts+=("$LOTUS_L[pt_adopt]|${LOTUS_L[pt_adopt_d]//\%s/${#PET_N}}")
     opts+=("$LOTUS_L[pt_settings]|$LOTUS_L[pt_settings_d]")
     ui_select $sel "${opts[@]}" || break
     sel=$REPLY
+    local -i extra=$(( ${#PET_N} > 0 ))
     if (( sel <= ${#PET_N} )); then _pets_one $sel
-    elif (( sel == ${#PET_N} + 1 && ${#PET_N} < 3 )); then _pets_adopt_flow
+    elif (( extra && sel == ${#PET_N} + 1 )); then source $LOTUS_ROOT/lib/cmd/zetamac.zsh; lotus_zetamac
+    elif (( sel == ${#PET_N} + extra + 1 && ${#PET_N} < 3 )); then _pets_adopt_flow
     else _pets_settings; fi
   done
   print -n $'\e[H\e[2J'

@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pets — Lotus</title>
-  <meta name="description" content="Little pixel pets that live in your terminal: they talk with Apple Intelligence, help with /help and get hungry. Make your own with a prompt.">
+  <meta name="description" content="Little pixel pets that live in your terminal: they talk with Apple Intelligence, help with /help, get hungry and eat what you earn in a math game. Make your own with a prompt.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.19.2">
-  <link rel="stylesheet" href="css/pages.css?v=2.19.2">
-  <script src="js/lotus.js?v=2.19.2"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.20.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.20.0">
+  <script src="js/lotus.js?v=2.20.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -35,6 +35,11 @@
       <div class="card"><h3>They notice things</h3><p class="muted small">A typo in a command makes your pet tilt its head; when Remove BG or a download is done, it cheers. Turn this off in the settings if you prefer quiet.</p></div>
     </div>
 
+    <h2 class="section" id="game">Play for their food</h2>
+    <p><code>/zetamac</code> is a math game like the <a href="https://arithmetic.zetamac.com/">Arithmetic Game on Zetamac</a>: 120 seconds, as many problems as you can. Normal has Zetamac's ranges – additions and subtractions with numbers up to 100, multiplications and divisions up to 12 × 100 – and an answer counts as soon as it is right, without Enter. Every right answer is a bite for each of your pets: the more you get right, the longer they stay full, up to two days. Your pets watch while you play and eat along.</p>
+    <div class="codeblock"><code><span class="dollar">$</span> /zetamac</code><button class="copy" data-copy="/zetamac" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+    <p class="muted small" style="margin-top:12px">Another time or level: <code>/zetamac 60</code>, <code>/zetamac 300 hard</code>, <code>/zetamac easy</code> – any time from 10 to 600 seconds. Your best score for each level and time is kept. In <code>/pets</code> the game is one entry below your pets.</p>
+
     <h2 class="section" id="pets">Adopt, rename, say goodbye</h2>
     <p><code>/pets</code> shows your pets side by side. Adopt up to three (a cat, a dog or your own kind), talk to them, feed them, give them a new name or their own personality – a few words like <em>grumpy in the morning, loves rainy days</em> change how they talk. The first-time setup offers a pet too.</p>
     <div class="table-wrap">
@@ -43,6 +48,7 @@
         <tr><td><code>/pets</code></td><td>Your pets: adopt, talk, feed, rename, personality, say goodbye, settings</td></tr>
         <tr><td><code>&lt;name&gt; [message]</code></td><td>Talk to a pet – the name alone starts a chat (⏎ on an empty line ends it)</td></tr>
         <tr><td><code>/feed &lt;name&gt;</code></td><td>Feed a pet</td></tr>
+        <tr><td><code>/zetamac [seconds] [easy|hard]</code></td><td>The math game – every right answer feeds your pets</td></tr>
         <tr><td><code>/help</code> · <code>/help all</code></td><td>Your pet helps you find a command · every command</td></tr>
         <tr><td><code>lotus pets add [file]</code></td><td>Add your own kind of pet – from the clipboard, or from a file</td></tr>
         <tr><td><code>lotus features pets off</code></td><td>Turn pets off completely (also in <code>/settings</code> → Features)</td></tr>
@@ -103,6 +109,6 @@ personality: [its personality in one sentence]
     <div class="callout" style="margin-top:14px"><p>A pet file is only data: Lotus reads it, it never runs anything in it. Drawings keep plain ASCII and block characters and lose everything else, so a pet cannot change your terminal. What your pets say and remember stays on your Mac – Apple Intelligence runs on the device, and Lotus sends nothing anywhere.</p></div>
   </main>
   <lotus-footer></lotus-footer>
-  <script src="js/pets.js?v=2.19.2" defer></script>
+  <script src="js/pets.js?v=2.20.0" defer></script>
 </body>
 </html>

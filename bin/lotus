@@ -41,7 +41,7 @@ typeset -A LOTUS_MODULES=(
   app app  brew brew  install install  audio audio  weather weather  ai ai
   ios ios  minecraft minecraft  mc minecraft  convert convert  visual visual
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
-  bg bg  log log  features setup  pets pets  pet pets  feed pets  clock clock  caffeine caffeine  awake caffeine  ai-tool aitools
+  bg bg  log log  features setup  pets pets  pet pets  feed pets  zetamac pets  clock clock  caffeine caffeine  awake caffeine  ai-tool aitools
   plugin plugin  plugins plugin  plugin-tool plugin
 )
 

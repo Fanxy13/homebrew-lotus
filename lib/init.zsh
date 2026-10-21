@@ -222,7 +222,7 @@ function lotus {
       (( rc )) && return rc
       lotus_load; _lotus_prompt; _lotus_aliases; _lotus_pets
       lotus_show ;;
-    setup|features|pets|pet|feed)
+    setup|features|pets|pet|feed|zetamac)
       rm -f $LOTUS_CACHE/ai-prompt
       command lotus "$@"; rc=$?
       lotus_load; _lotus_prompt; _lotus_aliases; _lotus_pets
