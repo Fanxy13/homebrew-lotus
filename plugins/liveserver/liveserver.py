@@ -316,6 +316,7 @@ def log(mark, text, code=None):
 # ── The Wi-Fi: who may open it besides this Mac ───────────────
 
 WIFI = re.compile(r"(en|eth|wl|bridge)")     # Wi-Fi and Ethernet (en0, en1, …) and Internet Sharing – no VPN (utun), no AirDrop
+HOTSPOT = ipaddress.IPv4Network("172.20.10.0/28")      # what an iPhone's Personal Hotspot hands out, over Wi-Fi or USB
 
 
 def networks(ifconfig):
@@ -341,6 +342,23 @@ def networks(ifconfig):
     return found
 
 
+def hardware_ports(text):
+    """{device: its name in macOS} from networksetup -listallhardwareports: en0 → Wi-Fi, en7 → iPhone USB."""
+    return {dev: name.strip() for name, dev in re.findall(r"Hardware Port: (.+)\nDevice: (\S+)", text)}
+
+
+def where(iface, net, ports):
+    """Who opens the page at this address of the Mac."""
+    port = ports.get(iface, "")
+    if net.ip in HOTSPOT:
+        return "your iPhone, whose hotspot the Mac uses"
+    if iface.startswith("bridge"):
+        return "devices the Mac shares its internet with"
+    if port == "Wi-Fi" or iface.startswith("wl") or (not port and iface == "en0"):
+        return "phones and computers in this Wi-Fi"
+    return "devices in this network" + (f" ({port})" if port else "")
+
+
 def allowed(ip, nets):
     """May a device with this address open it? This Mac, and devices in one of its networks."""
     try:
@@ -358,6 +376,7 @@ class Lan:
     def __init__(self, on):
         self.on = on
         self.at, self.nets, self.names = -1e9, [], set()
+        self.local, self.ports, self.asked = None, {}, set()
         self.lock = threading.Lock()
         self.refused = set()
 
@@ -365,29 +384,70 @@ class Lan:
         with self.lock:
             if self.on and time.monotonic() - self.at > 5:
                 self.at = time.monotonic()
-                try:
-                    out = subprocess.run(["/sbin/ifconfig"], capture_output=True, text=True, timeout=3).stdout
-                except (OSError, subprocess.SubprocessError):
-                    out = ""
-                self.nets = networks(out)
-                self.names = {str(net.ip) for _, net in self.nets} | local_names()
+                self.nets = networks(run(["/sbin/ifconfig"]))
+                if self.local is None:
+                    self.local = local_names()
+                new = {iface for iface, _ in self.nets} - self.asked
+                if new:                             # a network the Mac was not in: what kind is it?
+                    self.asked |= new
+                    self.ports = hardware_ports(run(["/usr/sbin/networksetup", "-listallhardwareports"]))
+                self.names = {str(net.ip) for _, net in self.nets} | self.local
             return self.nets, self.names
 
-    def addresses(self):
-        """The Mac's addresses in its networks, Wi-Fi (en0) first."""
+    def entries(self):
+        """[(address, who opens the page there)] of the Mac in its networks – the Wi-Fi first, internet sharing last."""
         nets, _ = self.get()
-        return [str(net.ip) for _, net in sorted(nets, key=lambda n: n[0])]
+        return [(str(net.ip), where(iface, net, self.ports))
+                for iface, net in sorted(nets, key=lambda n: (n[0].startswith("bridge"), n[0]))]
+
+    def addresses(self):
+        return [ip for ip, _ in self.entries()]
+
+
+def run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def show_wifi(lan, port, page):
+    """The addresses for phones and other devices, one per network, each with whom it is for."""
+    rows = [(f"http://{ip}:{port}{page}", what) for ip, what in lan.entries()]
+    width = max((len(url) for url, _ in rows), default=0)
+    for i, (url, what) in enumerate(rows):
+        kv("" if i else "Wi-Fi", f"{paint(KEY, url)}{' ' * (width - len(url))}  {paint(DIM, 'for ' + what)}")
+    return bool(rows)
+
+
+class NetWatcher(threading.Thread):
+    """The Mac joins another Wi-Fi or hotspot while it runs: the terminal says the new address."""
+
+    def __init__(self, lan, hub, port, page):
+        super().__init__(daemon=True)
+        self.lan, self.hub, self.port, self.page = lan, hub, port, page
+
+    def run(self):
+        old = self.lan.entries()
+        while not self.hub.closing:
+            time.sleep(1)
+            new = self.lan.entries()                # looks again every 5 seconds
+            if new == old:
+                continue
+            if not new:
+                log("⇄", "No Wi-Fi now – only this Mac opens it", DIM)
+            for ip, what in new:
+                if (ip, what) not in old:
+                    log("⇄", f"For {what}: {paint(KEY, f'http://{ip}:{self.port}{self.page}')}")
+            old = new
 
 
 def local_names():
     """The Mac's own names in the network: Name-MacBook.local."""
     names = set()
-    try:
-        out = subprocess.run(["/usr/sbin/scutil", "--get", "LocalHostName"], capture_output=True, text=True, timeout=3).stdout.strip()
-        if out:
-            names.add(out.lower() + ".local")
-    except (OSError, subprocess.SubprocessError):
-        pass
+    out = run(["/usr/sbin/scutil", "--get", "LocalHostName"]).strip()
+    if out:
+        names.add(out.lower() + ".local")
     host = socket.gethostname().lower()
     if host.endswith(".local"):
         names.add(host)
@@ -395,12 +455,8 @@ def local_names():
 
 
 def firewall_on():
-    tool = "/usr/libexec/ApplicationFirewall/socketfilterfw"
-    try:
-        out = subprocess.run([tool, "--getglobalstate"], capture_output=True, text=True, timeout=3).stdout
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return "enabled" in out.lower() or "state = 1" in out.lower()
+    out = run(["/usr/libexec/ApplicationFirewall/socketfilterfw", "--getglobalstate"]).lower()
+    return "enabled" in out or "state = 1" in out
 
 
 # ── The server ─────────────────────────────────────────────────
@@ -747,8 +803,7 @@ def main(args):
             url = f"http://127.0.0.1:{p}{start}"
             header(tilde(site.root))
             say(f"  {paint(KEY, '✓', True)} Already running in another window: {paint(KEY, url)}")
-            for ip in Lan(shared).addresses()[:1]:
-                say(f"    {paint(DIM, 'Wi-Fi')}  http://{ip}:{p}{start if start != '/' else ''}")
+            show_wifi(Lan(shared), p, "" if start == "/" else start)
             if show:
                 open_browser(url)
             say(f"    {paint(DIM, 'lotus liveserver stop  stops it')}")
@@ -785,21 +840,21 @@ def main(args):
     else:
         n = len(pages)
         kv("Address", f"{paint(KEY, base)}  {paint(DIM, '→ a menu of ' + (f'{n} page' if n == 1 else f'{n} pages') if n else '→ no pages yet')}")
-    ips = server.lan.addresses()
     page = "" if start == "/" else start
     if not wifi:
         kv("Wi-Fi", paint(DIM, "off – only this Mac (--local)"))
-    elif ips:
-        kv("Wi-Fi", f"{paint(KEY, f'http://{ips[0]}:{port}{page}')}  {paint(DIM, 'phones and computers in the same Wi-Fi')}")
+    elif show_wifi(server.lan, port, page):
         if firewall_on():
-            say(f"    {paint(DIM, ' ' * 12 + 'The macOS firewall is on: allow python3 when macOS asks.')}")
+            kv("", paint(DIM, "The macOS firewall is on: allow python3 when macOS asks."))
     else:
-        kv("Wi-Fi", paint(DIM, "not in a Wi-Fi now – it opens up as soon as the Mac joins one"))
+        kv("Wi-Fi", paint(DIM, "not in a Wi-Fi now – the address shows here as soon as the Mac joins one"))
     say()
     say(f"  {paint(KEY, '✓', True)} Live – the page reloads when you save. {paint(DIM, 'Ctrl-C stops it.')}")
     say()
 
     Watcher(site, server.hub).start()
+    if wifi:
+        NetWatcher(server.lan, server.hub, port, page).start()
     if show:
         open_browser(base + start)
     try:

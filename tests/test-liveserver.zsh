@@ -109,11 +109,17 @@ en5: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
 nets = L.networks(mac)
 print(" ".join(f"{n}={i}" for n, i in nets))
 print(" ".join(f"{ip}:{'yes' if L.allowed(ip, nets) else 'no'}" for ip in sys.argv[2:]))
+ports = L.hardware_ports("Hardware Port: Ethernet\nDevice: en5\nEthernet Address: x\n\nHardware Port: Wi-Fi\nDevice: en0\n\nHardware Port: iPhone USB\nDevice: en7\n")
+print(ports)
+for iface, ip in (("en0", "192.168.178.23/24"), ("en0", "172.20.10.2/28"), ("en7", "172.20.10.3/28"), ("bridge100", "192.168.2.1/24"), ("en5", "10.0.0.4/16"), ("en9", "10.1.0.4/16")):
+    print(L.where(iface, L.ipaddress.IPv4Interface(ip), ports))
 EOF
 out=(${(f)"$(python3 $HOME/wifi.py $LOTUS_ROOT/plugins/liveserver 192.168.178.40 ::ffff:192.168.178.9 127.0.0.1 192.168.1.40 10.8.0.5 85.1.2.9 8.8.8.8)"})
 check_eq "the Wi-Fi's network – not the VPN, AirDrop or an internet address" "$out[1]" "en0=192.168.178.23/24"
 check_eq "this Mac and the Wi-Fi in, nobody else" "$out[2]" \
   "192.168.178.40:yes ::ffff:192.168.178.9:yes 127.0.0.1:yes 192.168.1.40:no 10.8.0.5:no 85.1.2.9:no 8.8.8.8:no"
+check_eq "the Mac's network ports by name" "$out[3]" "{'en5': 'Ethernet', 'en0': 'Wi-Fi', 'en7': 'iPhone USB'}"
+check_eq "each address says whom it is for" "${(j:|:)out[4,-1]}" "phones and computers in this Wi-Fi|your iPhone, whose hotspot the Mac uses|your iPhone, whose hotspot the Mac uses|devices the Mac shares its internet with|devices in this network (Ethernet)|devices in this network"
 check_eq "a Wi-Fi address that is not the Mac's is refused" "$(code -H 'Host: 192.168.178.250' $B/about.html)" 403
 ip=$(python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import liveserver as L; print(*L.Lan(True).addresses()[:1])" $LOTUS_ROOT/plugins/liveserver 2>/dev/null)
 if [[ -n $ip ]]; then

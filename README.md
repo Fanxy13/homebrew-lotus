@@ -274,7 +274,8 @@ a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/ex
 **Live Server**, like the one in VS Code: install it once, then type `/liveserver` in a project folder (in VS Code's
 terminal too). It serves the folder, opens `index.html` – or a menu of all its pages when there is none – and reloads
 the browser whenever you save a file (only the styles when you change CSS). Phones and computers in the same Wi-Fi open
-it too, at the address it shows – nobody from another network; `--local` keeps it on this Mac. Ctrl-C stops it.
+it too – the terminal shows the right address for each network (Wi-Fi, iPhone hotspot, internet sharing), and a new one
+when the Mac switches networks. Nobody from another network gets in; `--local` keeps it on this Mac. Ctrl-C stops it.
 
 ```bash
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver
