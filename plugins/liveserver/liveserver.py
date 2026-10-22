@@ -5,16 +5,21 @@
     lotus liveserver <page.html>      opens that page
     lotus liveserver --port <n>       a port of your choice (otherwise 5500, or the next free one)
     lotus liveserver --no-open        does not open the browser
+    lotus liveserver --local          only this Mac, not the phones and computers in the same Wi-Fi
     lotus liveserver stop             stops the live servers that run in other windows
 
 Like Live Server in VS Code: the page reloads when a file of the folder changes – only the style sheets when
-nothing but CSS changed (a WebSocket, /__lotus/ws). Ctrl-C stops it. It listens on 127.0.0.1 and answers only
-to 127.0.0.1 and localhost, and serves nothing outside the folder (no .., no links out of it) and no hidden
-files (.git, .env). Full access: it reads the folder Lotus was called in ($LOTUS_PWD) and opens the browser.
+nothing but CSS changed (a WebSocket, /__lotus/ws). Ctrl-C stops it. Phones and computers in the same Wi-Fi
+(or Ethernet) open it too, at the Mac's address in that network – nobody else: a device from another network
+is turned away, and so is any name for the Mac but its own (127.0.0.1, localhost, its address, its .local
+name). With --local it listens on 127.0.0.1 only. It serves nothing outside the folder (no .., no links out of
+it) and no hidden files (.git, .env). Full access: it reads the folder Lotus was called in ($LOTUS_PWD) and
+opens the browser.
 """
 import base64
 import hashlib
 import html
+import ipaddress
 import mimetypes
 import os
 import re
@@ -308,6 +313,152 @@ def log(mark, text, code=None):
     say(f"  {paint(DIM, time.strftime('%H:%M:%S'))}  {paint(code or KEY, mark)} {text}")
 
 
+# ── The Wi-Fi: who may open it besides this Mac ───────────────
+
+WIFI = re.compile(r"(en|eth|wl|bridge)")     # Wi-Fi and Ethernet (en0, en1, …) and Internet Sharing – no VPN (utun), no AirDrop
+HOTSPOT = ipaddress.IPv4Network("172.20.10.0/28")      # what an iPhone's Personal Hotspot hands out, over Wi-Fi or USB
+
+
+def networks(ifconfig):
+    """[(interface, IPv4Interface)] of the local networks in ifconfig's output – private addresses only, so a
+    Mac with an address of the internet never lets the whole internet in."""
+    found, name = [], ""
+    for line in ifconfig.splitlines():
+        m = re.match(r"(\S+?):? ", line)
+        if m and not line[:1].isspace():
+            name = m.group(1)
+        m = re.search(r"\binet (?:addr:)?(\d+\.\d+\.\d+\.\d+)\s+netmask\s+(0x[0-9a-fA-F]{8}|\d+\.\d+\.\d+\.\d+)", line)
+        if not m or not WIFI.match(name):
+            continue
+        mask = m.group(2)
+        if mask.lower().startswith("0x"):
+            mask = str(ipaddress.IPv4Address(int(mask, 16)))
+        try:
+            net = ipaddress.IPv4Interface(f"{m.group(1)}/{mask}")
+        except ValueError:
+            continue
+        if net.ip.is_private and not net.ip.is_loopback and net.network.prefixlen >= 8:
+            found.append((name, net))
+    return found
+
+
+def hardware_ports(text):
+    """{device: its name in macOS} from networksetup -listallhardwareports: en0 → Wi-Fi, en7 → iPhone USB."""
+    return {dev: name.strip() for name, dev in re.findall(r"Hardware Port: (.+)\nDevice: (\S+)", text)}
+
+
+def where(iface, net, ports):
+    """Who opens the page at this address of the Mac."""
+    port = ports.get(iface, "")
+    if net.ip in HOTSPOT:
+        return "your iPhone, whose hotspot the Mac uses"
+    if iface.startswith("bridge"):
+        return "devices the Mac shares its internet with"
+    if port == "Wi-Fi" or iface.startswith("wl") or (not port and iface == "en0"):
+        return "phones and computers in this Wi-Fi"
+    return "devices in this network" + (f" ({port})" if port else "")
+
+
+def allowed(ip, nets):
+    """May a device with this address open it? This Mac, and devices in one of its networks."""
+    try:
+        ip = ipaddress.ip_address(ip.split("%")[0])
+    except ValueError:
+        return False
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_loopback or any(ip in net.network for _, net in nets)
+
+
+class Lan:
+    """The Mac's networks now – looked up again every few seconds: the Mac may join another Wi-Fi meanwhile."""
+
+    def __init__(self, on):
+        self.on = on
+        self.at, self.nets, self.names = -1e9, [], set()
+        self.local, self.ports, self.asked = None, {}, set()
+        self.lock = threading.Lock()
+        self.refused = set()
+
+    def get(self):
+        with self.lock:
+            if self.on and time.monotonic() - self.at > 5:
+                self.at = time.monotonic()
+                self.nets = networks(run(["/sbin/ifconfig"]))
+                if self.local is None:
+                    self.local = local_names()
+                new = {iface for iface, _ in self.nets} - self.asked
+                if new:                             # a network the Mac was not in: what kind is it?
+                    self.asked |= new
+                    self.ports = hardware_ports(run(["/usr/sbin/networksetup", "-listallhardwareports"]))
+                self.names = {str(net.ip) for _, net in self.nets} | self.local
+            return self.nets, self.names
+
+    def entries(self):
+        """[(address, who opens the page there)] of the Mac in its networks – the Wi-Fi first, internet sharing last."""
+        nets, _ = self.get()
+        return [(str(net.ip), where(iface, net, self.ports))
+                for iface, net in sorted(nets, key=lambda n: (n[0].startswith("bridge"), n[0]))]
+
+    def addresses(self):
+        return [ip for ip, _ in self.entries()]
+
+
+def run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def show_wifi(lan, port, page):
+    """The addresses for phones and other devices, one per network, each with whom it is for."""
+    rows = [(f"http://{ip}:{port}{page}", what) for ip, what in lan.entries()]
+    width = max((len(url) for url, _ in rows), default=0)
+    for i, (url, what) in enumerate(rows):
+        kv("" if i else "Wi-Fi", f"{paint(KEY, url)}{' ' * (width - len(url))}  {paint(DIM, 'for ' + what)}")
+    return bool(rows)
+
+
+class NetWatcher(threading.Thread):
+    """The Mac joins another Wi-Fi or hotspot while it runs: the terminal says the new address."""
+
+    def __init__(self, lan, hub, port, page):
+        super().__init__(daemon=True)
+        self.lan, self.hub, self.port, self.page = lan, hub, port, page
+
+    def run(self):
+        old = self.lan.entries()
+        while not self.hub.closing:
+            time.sleep(1)
+            new = self.lan.entries()                # looks again every 5 seconds
+            if new == old:
+                continue
+            if not new:
+                log("⇄", "No Wi-Fi now – only this Mac opens it", DIM)
+            for ip, what in new:
+                if (ip, what) not in old:
+                    log("⇄", f"For {what}: {paint(KEY, f'http://{ip}:{self.port}{self.page}')}")
+            old = new
+
+
+def local_names():
+    """The Mac's own names in the network: Name-MacBook.local."""
+    names = set()
+    out = run(["/usr/sbin/scutil", "--get", "LocalHostName"]).strip()
+    if out:
+        names.add(out.lower() + ".local")
+    host = socket.gethostname().lower()
+    if host.endswith(".local"):
+        names.add(host)
+    return names
+
+
+def firewall_on():
+    out = run(["/usr/libexec/ApplicationFirewall/socketfilterfw", "--getglobalstate"]).lower()
+    return "enabled" in out or "state = 1" in out
+
+
 # ── The server ─────────────────────────────────────────────────
 
 class Server(ThreadingHTTPServer):
@@ -316,6 +467,16 @@ class Server(ThreadingHTTPServer):
 
     def handle_error(self, request, client_address):
         pass                        # a browser that went away in the middle of an answer
+
+    def verify_request(self, request, client_address):
+        """Only this Mac and devices in its Wi-Fi: anyone else gets no answer at all."""
+        ip = client_address[0]
+        if allowed(ip, self.lan.get()[0]):
+            return True
+        if ip not in self.lan.refused and len(self.lan.refused) < 100:
+            self.lan.refused.add(ip)
+            log("✗", f"{ip} is not in this Wi-Fi – turned away", "31")
+        return False
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -332,7 +493,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self, head_only=False):
         site = self.server.site
         if not self.host_ok():
-            return self.answer(403, "text/plain; charset=utf-8", b"Lotus Live Server answers only to 127.0.0.1 and localhost.\n", head_only)
+            return self.answer(403, "text/plain; charset=utf-8", b"Lotus Live Server answers only to its own addresses: 127.0.0.1, localhost and the Mac's address in the Wi-Fi.\n", head_only)
         url = urlsplit(self.path)
         path = url.path or "/"
         if path == "/__lotus/ws":
@@ -357,10 +518,12 @@ class Handler(BaseHTTPRequestHandler):
         return self.file(full, head_only)
 
     def host_ok(self):
-        """Only 127.0.0.1 and localhost: a web page cannot reach this server through a name of its own."""
+        """Only the Mac's own names – 127.0.0.1, localhost, its address in the Wi-Fi and its .local name: a web
+        page cannot reach this server through a name of its own (DNS rebinding)."""
         host = (self.headers.get("Host") or "").lower()
         name = host.rpartition(":")[0] if re.search(r":\d+$", host) else host
-        return name in ("127.0.0.1", "localhost") or name.endswith(".localhost")
+        name = name.rstrip(".")
+        return name in ("127.0.0.1", "localhost") or name.endswith(".localhost") or name in self.server.lan.get()[1]
 
     def answer(self, code, ctype, data, head_only, extra=()):
         self.send_response(code)
@@ -497,19 +660,19 @@ def alive(pid):
 
 
 def running():
-    """[(port, pid, folder)] of the live servers that run – the ones that ended without a word are cleaned up."""
+    """[(port, pid, folder, wifi)] of the live servers that run – the ones that ended without a word are cleaned up."""
     found = []
     folder = running_dir()
     for name in sorted(os.listdir(folder)):
         path = os.path.join(folder, name)
         try:
             with open(path) as f:
-                pid, root = f.read().split("\n", 1)
+                pid, root, *more = f.read().split("\n")
             pid, port = int(pid), int(name)
         except (OSError, ValueError):
             pid = port = 0
         if pid and alive(pid):
-            found.append((port, pid, root.strip()))
+            found.append((port, pid, root.strip(), "local" not in more))
         else:
             try:
                 os.remove(path)
@@ -524,12 +687,12 @@ def taken(port):
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
-def bind(ports):
+def bind(ports, host):
     for port in ports:
         if taken(port):
             continue
         try:
-            return Server(("127.0.0.1", port), Handler)
+            return Server((host, port), Handler)
         except OSError:
             continue
     return None
@@ -555,11 +718,13 @@ def usage():
                       ("lotus liveserver <page.html>", "opens that page"),
                       ("lotus liveserver --port 8080", "a port of your choice (otherwise 5500 or the next free one)"),
                       ("lotus liveserver --no-open", "without opening the browser"),
+                      ("lotus liveserver --local", "only this Mac, not the devices in your Wi-Fi"),
                       ("lotus liveserver stop", "stops the ones running in other windows")):
         say(f"    {paint(KEY, cmd.ljust(30))}{what}")
     say()
     say(f"  {paint(DIM, 'The page reloads when you save a file – only the styles when you change CSS. Ctrl-C stops it.')}")
-    say(f"  {paint(DIM, 'Only this Mac can open it (127.0.0.1). Hidden files (.git, .env) and files outside the folder stay out.')}")
+    say(f"  {paint(DIM, 'This Mac and the phones and computers in the same Wi-Fi can open it – nobody else.')}")
+    say(f"  {paint(DIM, 'Hidden files (.git, .env) and files outside the folder stay out.')}")
     say()
 
 
@@ -568,15 +733,15 @@ def stop():
     if not servers:
         say(f"  {paint(DIM, 'No live server is running.')}")
         return 0
-    for port, pid, root in servers:
+    for port, pid, root, _ in servers:
         try:
             os.kill(pid, signal.SIGTERM)
         except OSError:
             pass
     deadline = time.monotonic() + 3
-    while time.monotonic() < deadline and any(alive(pid) for _, pid, _ in servers):
+    while time.monotonic() < deadline and any(alive(pid) for _, pid, _, _ in servers):
         time.sleep(0.05)
-    for port, pid, root in servers:
+    for port, pid, root, _ in servers:
         say(f"  {paint(KEY, '✓', True)} Stopped http://127.0.0.1:{port}  {paint(DIM, tilde(root))}")
     return 0
 
@@ -590,7 +755,7 @@ def main(args):
         return stop()
     if not here:
         return fail("Live Server needs a newer Lotus – it does not know the folder you are in.", "lotus update")
-    target, port, show = "", None, True
+    target, port, show, wifi = "", None, True, True
     i = 0
     while i < len(args):
         a = args[i]
@@ -600,6 +765,8 @@ def main(args):
             port = a.split("=", 1)[1]
         elif a == "--no-open":
             show = False
+        elif a in ("--local", "--no-wifi"):
+            wifi = False
         elif a.startswith("-"):
             usage()
             return 2
@@ -631,28 +798,30 @@ def main(args):
                     "cd ~/path/to/site  or  lotus liveserver ~/path/to/site")
 
     site = Site(root)
-    for p, pid, other in running():
+    for p, pid, other, shared in running():
         if other == site.root:
             url = f"http://127.0.0.1:{p}{start}"
             header(tilde(site.root))
             say(f"  {paint(KEY, '✓', True)} Already running in another window: {paint(KEY, url)}")
+            show_wifi(Lan(shared), p, "" if start == "/" else start)
             if show:
                 open_browser(url)
             say(f"    {paint(DIM, 'lotus liveserver stop  stops it')}")
             say()
             return 0
 
-    server = bind([int(port)] if port else PORTS)
+    host = "0.0.0.0" if wifi else "127.0.0.1"       # 0.0.0.0: the Wi-Fi too – verify_request lets in only its devices
+    server = bind([int(port)] if port else PORTS, host)
     if server is None and not port:
-        server = bind([0])                          # 5500–5599 all taken: any free one
+        server = bind([0], host)                    # 5500–5599 all taken: any free one
     if server is None:
         return fail(f"Port {port} is taken.", "lotus liveserver  takes the next free one from 5500")
-    server.site, server.hub = site, Hub()
+    server.site, server.hub, server.lan = site, Hub(), Lan(wifi)
     port = server.server_address[1]
     base = f"http://127.0.0.1:{port}"
     mark = os.path.join(running_dir(), str(port))
     with open(mark, "w") as f:
-        f.write(f"{os.getpid()}\n{site.root}\n")
+        f.write(f"{os.getpid()}\n{site.root}\n{'wifi' if wifi else 'local'}\n")
 
     def end(signum, frame):
         raise KeyboardInterrupt
@@ -671,11 +840,21 @@ def main(args):
     else:
         n = len(pages)
         kv("Address", f"{paint(KEY, base)}  {paint(DIM, '→ a menu of ' + (f'{n} page' if n == 1 else f'{n} pages') if n else '→ no pages yet')}")
+    page = "" if start == "/" else start
+    if not wifi:
+        kv("Wi-Fi", paint(DIM, "off – only this Mac (--local)"))
+    elif show_wifi(server.lan, port, page):
+        if firewall_on():
+            kv("", paint(DIM, "The macOS firewall is on: allow python3 when macOS asks."))
+    else:
+        kv("Wi-Fi", paint(DIM, "not in a Wi-Fi now – the address shows here as soon as the Mac joins one"))
     say()
     say(f"  {paint(KEY, '✓', True)} Live – the page reloads when you save. {paint(DIM, 'Ctrl-C stops it.')}")
     say()
 
     Watcher(site, server.hub).start()
+    if wifi:
+        NetWatcher(server.lan, server.hub, port, page).start()
     if show:
         open_browser(base + start)
     try:

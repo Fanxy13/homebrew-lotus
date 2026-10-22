@@ -272,12 +272,14 @@ Lotus asks you before it installs one, and again whenever its files change. Ever
 a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
 
 **Live Server**, like the one in VS Code: install it once, then type `/liveserver` in a project folder (in VS Code's
-terminal too). It serves the folder on 127.0.0.1, opens `index.html` – or a menu of all its pages when there is none –
-and reloads the browser whenever you save a file (only the styles when you change CSS). Ctrl-C stops it.
+terminal too). It serves the folder, opens `index.html` – or a menu of all its pages when there is none – and reloads
+the browser whenever you save a file (only the styles when you change CSS). Phones and computers in the same Wi-Fi open
+it too – the terminal shows the right address for each network (Wi-Fi, iPhone hotspot, internet sharing), and a new one
+when the Mac switches networks. Nobody from another network gets in; `--local` keeps it on this Mac. Ctrl-C stops it.
 
 ```bash
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver
-/liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · stop
+/liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · --local · stop
 ```
 
 ## Remove BG
