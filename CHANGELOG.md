@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The blooming lotus can count pieces as well as bytes: `bg_ui_count 12 80 segments` shows "15% · 12 / 80 segments" under the bar (`bg_ui_progress` still shows MB). A new stage starts without the last one's numbers
+- Plugins made by others: SLESTO, a local-first podcast studio (`/slesto`)
+
 ## 2.22.0 – Image converter
 
 - `/img convert` – images and whole folders into JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO, with macOS' own image engine (ImageIO). It reads what Preview reads: HEIC from the iPhone, WebP, AVIF, PSD, SVG, JPEG XL, RAW photos …

@@ -25,7 +25,7 @@ zmodload zsh/system 2>/dev/null
 
 typeset -ga BGU_KEYS=() BGU_LABELS=() BGU_SHORT=() BGU_TIMES=() BGU_INFO_KEYS=()
 typeset -gA BGU_INFO=()
-typeset -g BGU_TITLE= BGU_CUR= BGU_NOTE= BGU_SUB=
+typeset -g BGU_TITLE= BGU_CUR= BGU_NOTE= BGU_SUB= BGU_UNIT=
 typeset -gi BGU_LIVE=0 BGU_ON=0 BGU_DIRTY=1 BGU_FRAME=0 BGU_DONE=0 BGU_TOTAL=0 BGU_IMG=0 BGU_IMGS=0 BGU_FINISHED=0
 typeset -gF BGU_T0=0 BGU_TS=0 BGU_BLOOM=0
 
@@ -38,7 +38,7 @@ typeset -gi BGU_ART_W=0 BGU_ART_H=0
 bg_ui_begin() {
   BGU_TITLE=$1; shift
   BGU_KEYS=() BGU_LABELS=() BGU_SHORT=() BGU_TIMES=() BGU_INFO_KEYS=() BGU_INFO=() BGU_CUR= BGU_NOTE= BGU_SUB=
-  BGU_DONE=0 BGU_TOTAL=0 BGU_IMG=0 BGU_IMGS=0 BGU_FINISHED=0 BGU_BLOOM=0 BGU_PX=() BGU_PY=() BGU_PL=() BGU_PV=()
+  BGU_DONE=0 BGU_TOTAL=0 BGU_UNIT= BGU_IMG=0 BGU_IMGS=0 BGU_FINISHED=0 BGU_BLOOM=0 BGU_PX=() BGU_PY=() BGU_PL=() BGU_PV=()
   local s
   local -a f
   for s in "$@"; do
@@ -77,7 +77,7 @@ bg_ui_stage() {   # <key> – the stages before it count as done
   for (( i = 1; i <= ${#BGU_KEYS}; i++ )); do
     [[ $BGU_KEYS[i] == $BGU_CUR && -z $BGU_TIMES[i] ]] && BGU_TIMES[i]=$(( now - BGU_TS ))
   done
-  BGU_CUR=$key BGU_TS=$now BGU_NOTE= BGU_DONE=0 BGU_TOTAL=0
+  BGU_CUR=$key BGU_TS=$now BGU_NOTE= BGU_DONE=0 BGU_TOTAL=0 BGU_UNIT=
   if (( ! BGU_LIVE )) && [[ $key != __end ]]; then
     i=${BGU_KEYS[(i)$key]}
     ui_step "${BGU_LABELS[i]:-$key}" >&2
@@ -107,7 +107,8 @@ bg_ui_reset_from() {
 bg_ui_note() { BGU_NOTE=$1 }                   # small line under the bar (a package, a file)
 bg_ui_sub() { BGU_SUB=$1 }                     # top right (e.g. "2 / 14 · photo.jpg")
 bg_ui_batch() { BGU_IMG=$1 BGU_IMGS=$2 }       # image n of N – the flower opens over the whole batch
-bg_ui_progress() { BGU_DONE=$1 BGU_TOTAL=$2 }  # real progress (bytes), 0 0 = none
+bg_ui_progress() { BGU_DONE=$1 BGU_TOTAL=$2 BGU_UNIT= }  # real progress (bytes), 0 0 = none
+bg_ui_count() { BGU_DONE=$1 BGU_TOTAL=$2 BGU_UNIT=${3:-done} }  # real progress in pieces: 12 / 80 segments
 
 # All stages done: the flower opens fully, a short moment, then back
 bg_ui_complete() {
@@ -335,7 +336,8 @@ bg_ui_frame() {
   _line $(( y + 1 )) "$bar" $(( (W - bw) / 2 + 1 ))
   local note=$BGU_NOTE
   if (( BGU_TOTAL > 0 )); then
-    note="$(( BGU_DONE * 100 / BGU_TOTAL ))% · $(( BGU_DONE / 1048576 )) / $(( BGU_TOTAL / 1048576 )) MB${note:+ · $note}"
+    if [[ -n $BGU_UNIT ]]; then note="$(( BGU_DONE * 100 / BGU_TOTAL ))% · $BGU_DONE / $BGU_TOTAL $BGU_UNIT${note:+ · $note}"
+    else note="$(( BGU_DONE * 100 / BGU_TOTAL ))% · $(( BGU_DONE / 1048576 )) / $(( BGU_TOTAL / 1048576 )) MB${note:+ · $note}"; fi
   fi
   (( ${#note} > W - 8 )) && note="${note[1,W-9]}…"
   _line $(( y + 2 )) "${d}${note}${R}" $(( (W - ${#note}) / 2 + 1 ))

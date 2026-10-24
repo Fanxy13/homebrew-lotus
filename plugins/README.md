@@ -23,12 +23,12 @@ or drag their folders from a copy of this repository into `lotus plugin installe
 
 ## Plugins made by others
 
-None yet – yours could be the first. Put your plugin in its own git repository (the `plugin.conf` at the top),
-then open a pull request that adds a line here:
+Put your plugin in its own git repository (the `plugin.conf` at the top), then open a pull request that adds a
+line here:
 
 | Plugin | By | Access | What it does |
 |---|---|---|---|
-| | | | |
+| [SLESTO](https://github.com/Fanxy13/SLESTO-Lotus-Plugin) | Fanxy13 | full | `/slesto` – a local-first podcast studio: scripts from a local model, voices made on the Mac (Kokoro, Chatterbox, Qwen3-TTS, macOS' voices), music and loudness, and optional video from your own clips. Full, because it runs speech models and ffmpeg and reads the video folders you choose |
 
 Several plugins that belong together – with the settings that make them work – can be shared as one
 [plugin pack](../PLUGINS.md#plugin-packs): a repository with a `pack.conf`. `lotus plugin pack <name>` makes one from
