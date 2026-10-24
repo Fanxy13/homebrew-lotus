@@ -109,7 +109,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | Audio | `/np`, `/play`, `/pause`, `/skip`, `/back` | What is playing, play, pause, next, previous |
 | | `/repeat`, `/mute`, `/vu`, `/vd` | Repeat, mute, volume up and down |
 | Media | `/lotus visual` | Audio visualizer with 8 modes (space: next mode, `q`: quit) |
-| | `/convert <link>` | Save MP3 or MP4 (resolution, frame rate) to `~/Downloads/Lotus` |
+| | `/convert <link>` | Save MP3 or MP4 (resolution, frame rate) to `~/Downloads/Lotus` – the lotus blooms while it downloads |
 | Device tools | `/ios`, `/ios devices` | AirCard, Nugget, Sideloadly, Dopamine with compatibility checks |
 | Minecraft | `/minecraft`, `/mc <server>` | Create a server, its control center (players, ping, plugins, log), delete a server, port forwarding guide |
 | Images | `/bg remove <image>` | Remove the background on this Mac, save a transparent PNG |

@@ -64,3 +64,68 @@ out=$(lotus_convert_failed $errs 2 download 2>&1; print "status=$?")
 check_has "download: stops after the second try" "$out" "status=1"
 check_has "download: the right title" "$out" "The download did not finish"
 check_has "download: in yt-dlp's words" "$out" "HTTP Error 429: Too Many Requests"
+
+# ── Keeping yt-dlp up to date: asked only when a newer one is a month ahead, not again for a week ──
+print -r -- 2026.10.21 >| $LOTUS_CACHE/ytdlp-latest          # the newest, as if from GitHub today
+lotus_ytdlp_behind
+check_eq "behind: days to the newest" "$REPLY" 63
+check_eq "behind: yours and the newest" "$reply[1] $reply[2]" "2026.08.19 2026.10.21"
+rm -f $LOTUS_STATE/ytdlp-asked
+out=$(lotus_ytdlp_check 2>&1)
+check_has "two months behind: a newer one is offered" "$out" "A newer yt-dlp is out: 2026.10.21"
+out=$(ui_has_tty() { true }; ui_confirm() { false }; lotus_ytdlp_check 2>&1)
+check_has "a no: it says when it asks again" "$out" "asks again in 7 days"
+check "and keeps a week of quiet" test -s $LOTUS_STATE/ytdlp-asked
+out=$(ui_has_tty() { true }; lotus_ytdlp_check 2>&1)
+check_eq "the next /convert: no question again" "$out" ""
+rm -f $LOTUS_STATE/ytdlp-asked
+print -r -- 2026.08.19 >| $LOTUS_CACHE/ytdlp-latest
+out=$(lotus_ytdlp_check 2>&1)
+check_eq "the newest, however old: nothing to offer" "$out" ""
+print -r -- 2026.09.01 >| $LOTUS_CACHE/ytdlp-latest
+out=$(lotus_ytdlp_check 2>&1)
+check_eq "less than a month behind: not asked" "$out" ""
+
+# another macOS user's yt-dlp (their Homebrew): Lotus says so and offers its own, never sudo
+chmod 555 $HOME/bin
+lotus_ytdlp_info
+check_eq "a folder this user cannot change: whose it is" "$reply[3]" "$USER"
+out=$(lotus_ytdlp_update 2>&1; print "status=$?")
+check_has "cannot update it: says why" "$out" "is in a folder of the macOS user $USER"
+check_has "and what Lotus can do instead" "$out" "the official macOS build from github.com/yt-dlp"
+check_has "without a keyboard: nothing done" "$out" "status=1"
+chmod 755 $HOME/bin
+# Lotus' own copy wins once it is there
+zf_mkdir -p ${LOTUS_YTDLP_OWN:h}
+print -l '#!/bin/zsh' 'print 2026.10.21' >| $LOTUS_YTDLP_OWN; chmod 755 $LOTUS_YTDLP_OWN
+lotus_ytdlp_info
+check_eq "Lotus' own yt-dlp is the one used" "$reply[1] $reply[2]" "2026.10.21 lotus"
+rm -f $LOTUS_YTDLP_OWN
+
+# ── The download while the lotus blooms: yt-dlp's progress drives it, its other lines explain failures ──
+cat > $HOME/bin/yt-dlp <<'FAKE'
+#!/bin/zsh
+[[ $1 == --version ]] && { print 2026.10.21; exit 0 }
+print "LOTUS 1024 4096 2048.5 2 avc1.4d401e"
+print "LOTUS 4096 4096 2048.5 0 avc1.4d401e"
+print "LOTUS 2048 2048 1024 0 none"
+print "LOTUS-PP started Merger"
+print "LOTUS-PP finished Merger"
+print -u2 "WARNING: [youtube] a warning yt-dlp gave"
+print "$HOME/Downloads/Lotus/Clip.mp4"
+exit ${FAKE_RC:-0}
+FAKE
+chmod 755 $HOME/bin/yt-dlp; rehash
+zf_mkdir -p $HOME/Downloads/Lotus; : >| $HOME/Downloads/Lotus/Clip.mp4
+source $LOTUS_ROOT/lib/bg/progress.zsh
+lotus_lang_group bg
+bg_ui_begin Convert "video|Downloading the video|Video" "audio|Downloading the sound|Sound" "merge|Putting it together|MP4" 2>/dev/null
+out=$(lotus_convert_live $errs https://youtu.be/abc '%(title)s.%(ext)s' mp4 2>&1; print "status=$? file=$LOTUS_CONVERT_FILE")
+check_has "the steps follow yt-dlp: the video" "$out" "Downloading the video"
+check_has "then the sound" "$out" "Downloading the sound"
+check_has "then putting it together" "$out" "Putting it together"
+check_has "where the file ended up" "$out" "status=0 file=$HOME/Downloads/Lotus/Clip.mp4"
+check_has "yt-dlp's other lines are kept for an explanation" "$(<$errs)" "a warning yt-dlp gave"
+out=$(FAKE_RC=1 lotus_convert_live $errs https://youtu.be/abc '%(title)s.%(ext)s' mp4 2>&1; print "status=$?")
+check_has "yt-dlp fails: so does the download" "$out" "status=1"
+bg_ui_end

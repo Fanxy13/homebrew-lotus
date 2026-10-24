@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.21.0 – Convert blooms
+
+- `/convert` downloads on the progress screen of Lotus: the lotus blooms in your theme's colors with the real progress – the video's title on top, then the step ("Downloading the video", "Downloading the sound", "Putting it together", "Making the MP3", a new frame rate), the bar with percent, MB, speed and time left, all steps, and below what it becomes: MP3 or MP4, the resolution and frame rate, the length and the site. yt-dlp's own lines no longer scroll by; when something fails they still say why. Ctrl-C stops it cleanly
+- The update question came back after every yes: on a Mac where Homebrew belongs to another macOS user, `brew upgrade yt-dlp` cannot work, so yt-dlp stayed old. Lotus now says so and offers its own yt-dlp instead – the official macOS build from github.com/yt-dlp, checked against the release's SHA-256 before it is used, in `~/.local/share/lotus/runtime/yt-dlp`. Only /convert uses it, it updates itself, and nothing outside Lotus' folder changes (no sudo)
+- Asked only when it helps: /convert compares yt-dlp with the newest release (looked up at most once a day) and offers an update when it is a month behind – never when it is the newest, however old that is. After a "no" or an update that could not be done, it asks again in a week, or when a download fails because of it
+- `lotus doctor` says how far yt-dlp is behind the newest, and whether it is Lotus' own
+- Done shows the size (KB or MB), and a length of 19 seconds reads 0:19
+
 ## 2.20.0 – A math game for the pets
 
 - `/zetamac` – a math game like the Arithmetic Game on arithmetic.zetamac.com: 120 seconds, as many problems as you can. Normal has Zetamac's default ranges – (2–100) + (2–100) and (2–12) × (2–100), subtraction and division as these in reverse – and an answer counts as soon as it is right, without Enter. A bar shows the time running out, your pets watch and eat along with every right answer

@@ -85,7 +85,14 @@ bg_ui_stage() {   # <key> – the stages before it count as done
   [[ $key == __end ]] || lotus_log DEBUG bg "Stage: $key"
 }
 
-bg_ui_info() {    # <key> <value>  (model, backend, resolution … in the line under the steps)
+# One more step after the start (a step that turns out to be needed): bg_ui_add_stage "key|Label|Short"
+bg_ui_add_stage() {
+  local -a f=("${(@s:|:)1}")
+  (( ${BGU_KEYS[(Ie)$f[1]]} )) && return 0
+  BGU_KEYS+=($f[1]) BGU_LABELS+=("$f[2]") BGU_SHORT+=("${f[3]:-${LOTUS_L[bg_ss_$f[1]]:-$f[2]}}") BGU_TIMES+=("")
+}
+
+bg_ui_info() {    # <key> <value>  (model, backend, resolution … in the line under the steps; "image" is the top right)
   (( ${BGU_INFO_KEYS[(Ie)$1]} )) || BGU_INFO_KEYS+=($1)
   BGU_INFO[$1]=$2
 }
@@ -351,7 +358,9 @@ bg_ui_frame() {
 
   # Model · backend · size · time, and how to stop
   local info= key
-  for key in model backend resolution python; do [[ -n $BGU_INFO[$key] ]] && info+="${info:+ · }$BGU_INFO[$key]"; done
+  for key in model backend resolution python ${BGU_INFO_KEYS:#(model|backend|resolution|python|image)}; do
+    [[ -n $BGU_INFO[$key] ]] && info+="${info:+ · }$BGU_INFO[$key]"
+  done
   _bgu_fmt_secs $(( now - BGU_T0 ))
   info+="${info:+ · }$REPLY"
   (( ${#info} > W - 8 )) && info="${info[1,W-9]}…"

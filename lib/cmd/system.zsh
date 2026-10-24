@@ -171,11 +171,15 @@ lotus_doctor() {
   (( $+commands[jq] )) && _row $ok jq "$commands[jq]" || _row $opt jq "not found – plutil is used instead"
   if (( $+commands[yt-dlp] && $+commands[ffmpeg] )); then
     source $LOTUS_ROOT/lib/cmd/convert.zsh
-    lotus_ytdlp_info
-    if (( ${REPLY:-0} > LOTUS_YTDLP_OLD )); then
-      _row $'\e[1;'"$LOTUS_C[key2]m!"$'\e[0m' yt-dlp "$reply[1] – $REPLY days old, /convert offers an update"
+    lotus_ytdlp_behind
+    local own=
+    [[ $reply[3] == lotus ]] && own=", Lotus' own"
+    if [[ -n $reply[2] ]] && (( REPLY >= LOTUS_YTDLP_OLD )); then
+      _row $'\e[1;'"$LOTUS_C[key2]m!"$'\e[0m' yt-dlp "$reply[1]$own – $REPLY days behind $reply[2], /convert offers an update"
+    elif [[ -z $reply[2] ]] && (( REPLY > 60 )); then
+      _row $'\e[1;'"$LOTUS_C[key2]m!"$'\e[0m' yt-dlp "$reply[1]$own – $REPLY days old, /convert offers an update"
     else
-      _row $ok yt-dlp "$reply[1] with ffmpeg  (/convert)"
+      _row $ok yt-dlp "$reply[1]$own with ffmpeg  (/convert)"
     fi
   else
     _row $opt yt-dlp "yt-dlp and ffmpeg are needed for /convert"

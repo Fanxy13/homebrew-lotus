@@ -9,7 +9,7 @@ weather	/weather [city] shows the weather with ASCII art and three days ahead.
 ai	/ai opens the AI terminal: it chats, writes code, creates and changes files and asks first; for bigger tasks it makes a plan and works through it step by step. In /ai, /effort sets how hard it thinks, up to ultra, and /performance writes a report. /ai server opens the same AI as a web chat in the browser, with an effort slider and a code panel to read, copy and download code. lotus ai local runs a model on this Mac; lotus ai local restart starts it again.
 music	/np shows what is playing; /play, /pause, /skip, /back control it. While a song plays, its album cover replaces the logo on the start screen.
 visualizer	/lotus visual shows an animated audio visualizer.
-media	/convert <link> saves a video as MP3 or MP4.
+media	/convert <link> saves a video as MP3 or MP4 – the lotus blooms while it downloads. When Homebrew cannot update yt-dlp, Lotus keeps its own.
 ios	/ios has tools for iPhones and iPads.
 minecraft	/minecraft sets up a Minecraft server step by step, /mc <name> opens its control center – players with their ping, plugins from Modrinth, the log and a tiny world that drifts by.
 bg	/bg remove takes the background off an image on this Mac – drag the image into the window.
