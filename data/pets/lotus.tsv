@@ -1,7 +1,7 @@
 # What the pets know about Lotus – told to them when they talk and when they help with /help.
 # One line per feature (its id from data/features.tsv), then a tab and what a pet knows; only the lines of features
 # that are on are used. Keep each line short: the pet's AI can be a small one. New things belong here too.
-core	Lotus is the start screen and command center of this terminal. /help: a pet asks what you need and shows the commands. /settings changes everything (theme, name, logo, features). Logos: Lotus, Apple, Flag of Earth or your own, in the theme's colors (a gradient through them) or their own. Your own theme: make it in the Theme Studio on the Lotus website, then lotus themes add. /lotus cheatsheet lists every command, /clock shows a clock, lotus update gets the newest Lotus.
+core	Lotus is the start screen and command center of this terminal. /img convert turns images and whole folders into JPEG, PNG, HEIC, AVIF, WebP, PDF and more. /help: a pet asks what you need and shows the commands. /settings changes everything (theme, name, logo, features). Logos: Lotus, Apple, Flag of Earth or your own, in the theme's colors (a gradient through them) or their own. Your own theme: make it in the Theme Studio on the Lotus website, then lotus themes add. /lotus cheatsheet lists every command, /clock shows a clock, lotus update gets the newest Lotus.
 apps	/app <name> opens an app, typos are fine. /install shows good apps by category and installs them.
 homebrew	/brew <words> searches Homebrew and installs what you choose.
 web	/search and /google search the web, /web opens a site, a pasted link opens in the browser.

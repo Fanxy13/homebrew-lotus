@@ -366,7 +366,9 @@ bg_ui_frame() {
   (( ${#info} > W - 8 )) && info="${info[1,W-9]}…"
   _line $(( y + 6 )) "${d}${info}${R}" $(( (W - ${#info}) / 2 + 1 ))
   _line $(( y + 8 )) "${d}${LOTUS_L[bg_ctrl_c]}${R}" $(( (W - ${#LOTUS_L[bg_ctrl_c]}) / 2 + 1 ))
-  print -rn -- "$out"
+  # ctrl-c in the middle of a frame interrupts the write – zsh would take that for an error and end Lotus
+  # before it can stop cleanly, so the error is let go (the next frame draws everything again)
+  { print -rn -- "$out" 2>/dev/null } always { TRY_BLOCK_ERROR=0 }
 }
 
 # Lines from a pipe, waiting at most <seconds>:  bg_read_lines <fd> <seconds> → reply (complete lines)

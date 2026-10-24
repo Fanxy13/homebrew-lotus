@@ -61,6 +61,10 @@ Device tools	/ios	ios	/ios	iOS tools: AirCard, Nugget, Sideloadly, Dopamine	/ios
 Device tools	-	ios devices	/ios devices	Show connected iPhones and iPads	/ios devices	0
 Media	/convert	convert	/convert <link>	Save a video as MP3 or MP4 with yt-dlp	/convert https://youtube.com/watch?v=…	0
 Media	-	visual	/lotus visual	Animated audio visualizer, 8 modes	/lotus visual	0
+Images	/img	img	/img convert <image|folder>	Convert images and whole folders: JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, PDF, ICO	/img convert ~/Desktop/shoot	0
+Images	-	img convert	/img convert	Drag images or a folder into the window – or ⏎ for the clipboard	/img convert	0
+Images	-	img convert	/img convert <…> --to webp	Without questions: --to <format>, --quality <1–100>, --max <pixels>	/img convert photo.heic --to jpeg	0
+Images	-	img formats	/img formats	What this Mac reads and writes	/img formats	0
 Images	/bg	bg	/bg remove <image>	Remove the background on this Mac, save a transparent PNG	/bg remove ~/Pictures/photo.jpg	0
 Images	-	bg remove	/bg remove	Drag an image from the Finder into the window – or ⏎ for the clipboard	/bg remove	0
 Images	-	bg paste	/bg paste	The image in the clipboard: a screenshot, "Copy Image", or files copied in the Finder	/bg paste	0

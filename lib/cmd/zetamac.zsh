@@ -56,7 +56,7 @@ _zm_feed() {
     (( full += gain, full > max && (full = max) ))
     PET_FED[$n]=$(( EPOCHSECONDS + full - 43200 ))
     PET_COUNT[$n]=$(( ${PET_COUNT[$n]:-0} + 1 ))
-    reply+=($(( full / 60 )))
+    reply+=($(( (full + 30) / 60 )))
   done
   _pet_save_state
   lotus_log INFO pets "Math game: $score right ($2) – the pets ate"
@@ -120,7 +120,7 @@ typeset -gi ZM_SCORE=0
 # One game → ZM_SCORE; status 0: the time is up, 1: ended with Esc, 130: Ctrl-C
 _zm_play() {
   local level=$1 input= label=$LOTUS_L[zm_$1] line
-  local -i secs=$2 left shown=-1 eating=0 ended=0 i
+  local -i secs=$2 left shown=-1 eating=0 ended=0 i pos=0   # pos: the digits left of the cursor
   local -F end now eat_until=0
   local -a idle eat top
   _pet_begin || return 130
@@ -159,22 +159,28 @@ _zm_play() {
       # the problem in a box
       task="$ZM_Q = $input"
       print -r -- "    $b╭${bar}╮$r"$'\e[K'
-      print -r -- "    $b│$r    $a$ZM_Q = $r${_UI_B}$input$r$a▏$r${(l:boxw - ${#task} - 5:)}$b│$r"$'\e[K'
+      print -r -- "    $b│$r    $a$ZM_Q = $r${_UI_B}${input[1,pos]}$r$a▏$r${_UI_B}${input[pos+1,-1]}$r${(l:boxw - ${#task} - 5:)}$b│$r"$'\e[K'
       print -r -- "    $b╰${bar}╯$r"$'\e[K'
       print -r -- $'\e[K'
       print -r -- "    $d$LOTUS_L[zm_hint]$r"$'\e[K'
+      print -r -- "    $d$LOTUS_L[zm_keys]$r"$'\e[K'
       print -n $'\e[J\e[?2026l'
     }
     ui_keyx 0.05
     (( UI_INT )) && { _pet_end; return 130 }
+    # a digit goes where the cursor is: the last digit first, then ← and the ones before it
     case $REPLY in
-      [0-9]) (( ${#input} < 7 )) && input+=$REPLY ;;
-      back)  input=${input[1,-2]} ;;
+      [0-9]) (( ${#input} < 7 )) && { input="${input[1,pos]}$REPLY${input[pos+1,-1]}"; (( pos++ )) } ;;
+      back)  (( pos > 0 )) && { input="${input[1,pos-1]}${input[pos+1,-1]}"; (( pos-- )) } ;;
+      left)  (( pos > 0 )) && (( pos-- )) ;;
+      right) (( pos < ${#input} )) && (( pos++ )) ;;
+      home)  pos=0 ;;
+      end)   pos=${#input} ;;
       esc)   ended=1; break ;;
     esac
     if [[ -n $input ]] && (( 10#$input == ZM_A )); then
       (( ZM_SCORE++ ))
-      input=
+      input= pos=0
       _zm_problem $level
       (( eat_until = EPOCHREALTIME + 0.3 ))
     fi

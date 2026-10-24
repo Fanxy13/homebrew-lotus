@@ -89,7 +89,16 @@ while time.time() - start < 14 and pump():
     ans = str(calc[m[-1][1]](int(m[-1][0]), int(m[-1][2])))
     if n == 0:                       # a wrong first digit, then Backspace
         os.write(fd, b"0"); time.sleep(0.2); os.write(fd, b"\x7f"); time.sleep(0.2)
-    for ch in ans: os.write(fd, ch.encode()); time.sleep(0.05)
+    if n == 1:                       # the last digit first, then ← and the ones before it
+        for i, ch in enumerate(reversed(ans)):
+            if i: os.write(fd, b"\x1b[D"); time.sleep(0.08)
+            os.write(fd, ch.encode()); time.sleep(0.08)
+    elif n == 2 and len(ans) > 1:    # ← and → again: the cursor comes back to the end
+        os.write(fd, ans[0].encode()); time.sleep(0.08)
+        os.write(fd, b"\x1b[D"); time.sleep(0.08); os.write(fd, b"\x1b[C"); time.sleep(0.08)
+        for ch in ans[1:]: os.write(fd, ch.encode()); time.sleep(0.05)
+    else:
+        for ch in ans: os.write(fd, ch.encode()); time.sleep(0.05)
     last, n = m[-1], n + 1
 while time.time() - start < 20 and "Enter:" not in ansi.sub("", buf[-3000:]) and pump(0.2): pass
 time.sleep(1.5); pump(0.3)

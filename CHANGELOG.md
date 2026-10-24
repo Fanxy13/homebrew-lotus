@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.22.0 – Image converter
+
+- `/img convert` – images and whole folders into JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO, with macOS' own image engine (ImageIO). It reads what Preview reads: HEIC from the iPhone, WebP, AVIF, PSD, SVG, JPEG XL, RAW photos …
+- A clean screen: a drop zone for images, a folder or the clipboard; then the format (each with what it is good for), the quality (95, 85, 70, 50 – for JPEG, HEIC, AVIF and WebP) and the size (keep, 4K, 2560, Full HD, 1280, 640 px). It remembers your last choice
+- While it works, the lotus blooms in your theme's colors with the real progress – the image it is on, its size before and after (3000 × 2000 → 1920 × 1280 · 599 KB → 75 KB), the format, quality and size limit, and how many at a time. Then how many were converted, how much smaller they are and where they are
+- Folders: every image in it, into a folder for the new format inside it (`Holiday/WebP`). A single image gets its new file next to it. The originals are never changed, nothing is overwritten (`photo (2).jpg`)
+- Photos come out the right way up – also in WebP and AVIF, which do not know the camera's rotation. Camera data stays; transparency turns white in JPEG; an icon becomes a square of at most 256 px; images are made smaller, never larger
+- Several images at a time (one per performance core). Ctrl-C stops cleanly and leaves no half file behind
+- Without questions: `/img convert <image|folder>… --to webp --quality 80 --max 1920` · `/img formats` shows what this Mac reads and writes
+- The converter is a small Swift program (lib/img/Convert.swift) that Lotus builds once; without the Command Line Tools it uses macOS' `sips`
+- /zetamac: ← and → move between the digits of your answer, a digit goes where the cursor is – type the last digit first, then the ones before it. ⌫ deletes the digit before the cursor
+- A pet's "full for" is rounded to the nearest hour (a second could turn 20 h into 19 h)
+- Ctrl-C on the blooming lotus (Remove BG, /convert, /img convert, RSVM) sometimes ended Lotus at once instead of stopping cleanly: it could interrupt a frame while it was drawn, and zsh took the interrupted write for an error. Now it stops, says how far it got and cleans up
+
 ## 2.21.0 – Convert blooms
 
 - `/convert` downloads on the progress screen of Lotus: the lotus blooms in your theme's colors with the real progress – the video's title on top, then the step ("Downloading the video", "Downloading the sound", "Putting it together", "Making the MP3", a new frame rate), the bar with percent, MB, speed and time left, all steps, and below what it becomes: MP3 or MP4, the resolution and frame rate, the length and the site. yt-dlp's own lines no longer scroll by; when something fails they still say why. Ctrl-C stops it cleanly

@@ -188,7 +188,13 @@ _pet_status() {   # one short line about a pet → REPLY
     *)        # asleep, or full: hungry 12 hours after a meal – later after a big one (/zetamac)
               if (( REPLY >= 24 )); then REPLY=$LOTUS_L[pt_starving]
               elif (( REPLY >= 12 )); then REPLY=$LOTUS_L[pt_hungry]
-              else REPLY=${LOTUS_L[pt_full_h]//\%s/$(( 12 - REPLY ))}; fi
+              else
+                # hours until it is hungry, to the nearest hour
+                local fed=${PET_FED[${(L)PET_N[$1]}]:-$PET_T[$1]}
+                [[ $fed == <-> ]] || fed=$EPOCHSECONDS
+                local -i h=$(( (fed + 43200 - EPOCHSECONDS + 1800) / 3600 ))
+                REPLY=${LOTUS_L[pt_full_h]//\%s/$(( h < 1 ? 1 : h ))}
+              fi
               [[ $mood == asleep ]] && REPLY+=" · $LOTUS_L[pt_asleep]" ;;
   esac
 }

@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.21.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.21.0">
-  <script src="js/lotus.js?v=2.21.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.22.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.22.0">
+  <script src="js/lotus.js?v=2.22.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -23,7 +23,7 @@
 
     <nav class="toc card">
       <a href="#install">Install</a><a href="#setup">First start</a><a href="#use">Using Lotus</a><a href="#settings">Settings</a>
-      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
+      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#img">Image converter</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
       <a href="#privacy">Privacy and security</a><a href="#trouble">Troubleshooting</a><a href="#changelog">Changelog</a>
     </nav>
 
@@ -209,6 +209,37 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Clear errors</h3><p class="muted">If something fails you see what happened, why and what to try, with an error ID such as <code>BG-004</code>. The details are in <code>/lotus log</code>. A failing GPU or model comes with an offer to use the CPU or another model.</p></div>
     </div>
     <p class="muted">Formats: PNG, JPG, WebP, HEIC, AVIF, TIFF, BMP, GIF. <code>/bg models</code> downloads, checks and removes models. BiRefNet (Peng Zheng et al.) and InSPyReNet (Taehun Kim et al.) are MIT licensed – see <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/THIRD_PARTY.md">THIRD_PARTY.md</a>.</p>
+
+    <h2 class="section" id="img">Image converter</h2>
+    <p><code>/img convert</code> turns images and whole folders into another format – with macOS' own image engine, on your Mac. It reads what Preview reads: HEIC from the iPhone, PNG, JPEG, WebP, AVIF, GIF, TIFF, PSD, SVG, JPEG XL and RAW photos. Without a path it shows a drop zone: drag images or a folder into it, or press <kbd>⏎</kbd> for the image in the clipboard. Then pick the format, the quality and the size, and the lotus blooms while it works – with each image's size before and after underneath.</p>
+    <div class="term"><div class="term-bar"><i></i><i></i><i></i><span>zsh</span></div><pre><span class="t-dim">$</span> /img convert ~/Desktop/Holiday --to webp --max 1920
+
+    <span class="t-acc">◇</span> lotus / Image converter
+
+  <span class="t-acc">✓</span> 60 images in Holiday  <span class="t-dim">(PNG 60 · 35.1 MB)</span>
+
+  <span class="t-acc">✓</span> 60 images → WebP   <span class="t-dim">35.1 MB → 4.2 MB (-87 %)</span>
+    <span class="t-dim">Saved in ~/Desktop/Holiday/WebP</span></pre></div>
+    <div class="table-wrap" style="margin-top:18px">
+      <table class="docs">
+        <tr><th>Format</th><th>Good for</th></tr>
+        <tr><td>JPEG</td><td>Photos, everywhere – small, no transparency (it becomes white)</td></tr>
+        <tr><td>PNG</td><td>Screenshots and graphics – lossless, keeps transparency</td></tr>
+        <tr><td>HEIC</td><td>About half the size of JPEG – iPhone and Mac</td></tr>
+        <tr><td>AVIF</td><td>The smallest – modern browsers and apps</td></tr>
+        <tr><td>WebP</td><td>Websites – small, keeps transparency (needs <code>cwebp</code>: <code>brew install webp</code>)</td></tr>
+        <tr><td>TIFF · GIF · BMP</td><td>Print and editing · simple graphics · old programs</td></tr>
+        <tr><td>PDF</td><td>A page for each image – to send or print</td></tr>
+        <tr><td>ICO</td><td>An icon for websites (favicon) – square, at most 256 px</td></tr>
+      </table>
+    </div>
+    <div class="grid" style="margin-top:18px">
+      <div class="card"><h3>The originals stay</h3><p class="muted">An image gets its new file next to it, a folder gets a folder for the new format inside it – <code>Holiday/WebP</code>. Nothing is overwritten: <code>photo (2).jpg</code>.</p></div>
+      <div class="card"><h3>The right way up</h3><p class="muted">Photos are turned the way you took them – also in formats that do not know the camera's rotation, like WebP and AVIF. Camera data (date, camera, place) stays.</p></div>
+      <div class="card"><h3>Smaller, never larger</h3><p class="muted">Quality from 50 to 95 for JPEG, HEIC, AVIF and WebP, and a size limit from 640 px to 4K – an image that is smaller already keeps its size.</p></div>
+      <div class="card"><h3>Fast</h3><p class="muted">Several images at a time, as many as your Mac has performance cores. Ctrl-C stops between images and leaves no half file behind.</p></div>
+    </div>
+    <p class="muted">Without questions: <code>/img convert &lt;image|folder&gt;… --to &lt;format&gt; --quality &lt;1–100&gt; --max &lt;pixels&gt;</code>. <code>/img formats</code> shows what your Mac reads and writes. The converter is a small Swift program Lotus builds once with the Command Line Tools; without them it uses macOS' <code>sips</code>.</p>
 
     <h2 class="section" id="pets">Pets</h2>
     <p>Up to three little pixel pets live in your terminal. Type a pet's name and it answers – with Apple Intelligence on your Mac, in your language and with its own personality. <code>/pets</code> adopts, renames and feeds them; <code>/help</code> lets your pet find the right command, and in <code>/ai</code> it sits in the welcome box and its face is the spinner. Everything about them – and the prompt to make your own – is on the <a href="pets.html">Pets page</a>.</p>
