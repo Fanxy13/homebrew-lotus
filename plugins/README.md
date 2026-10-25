@@ -10,11 +10,13 @@ Plugins add commands, tools for the AI and start screen lines to Lotus. How to b
 | [github](github/) | limited, with the internet | A plugin in Python: stars, forks and the newest release of a repository, and GitHub's zen on the start screen |
 | [hello](hello/) | full | Lotus' own functions and settings – the look of `ui_*`, the theme, the features that are on |
 | [liveserver](liveserver/) | full | Like Live Server in VS Code: `/liveserver` serves the folder you are in on 127.0.0.1, opens index.html or a menu of all its pages, and reloads the browser when you save. Full, because it reads the folder you start it in |
+| [resurferd](resurferd/) | full | `/surf` puts the Unity game [Subway Surfers Resurferd](https://github.com/cyberillcbutsmarter/subway-surfers-resurferd) on your Mac and starts it: the Mac build of its newest release, or one built from the source with Unity 2019.4 (Unity Hub installs it, Rosetta 2 runs it on Apple silicon). It makes the app run on macOS – executable, out of quarantine, signed for this Mac – and `/surf update` gets a newer one. Full, because Unity needs your Unity license in ~/Library |
 
 Install one straight from GitHub – or todo, github and hello at once with the [examples pack](../packs/examples/pack.conf):
 
 ```
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver
+lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/resurferd
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/todo
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples
 ```
