@@ -74,7 +74,9 @@ func cryptoTests() {
         let inner = InnerMessage(kind: .chat, senderKey: alice.publicKey, session: Data(repeating: 1, count: 8), nickname: "Alice", text: "Meet at the bridge")
         let p = try room.seal(inner, ttl: 5, messageID: 42, timestamp: 1_700_000_000_000)
         checkEqual(try room.open(p), inner, "opened by the room")
-        check(!p.encode().contains(Data("Meet at the bridge".utf8)) && !p.encode().contains(Data("Alice".utf8)), "neither the text nor the name are readable on the wire")
+        let wire = p.encode()       // (Data.range(of:): Collection.contains(_:) needs macOS 13)
+        check(wire.range(of: Data("Meet at the bridge".utf8)) == nil && wire.range(of: Data("Alice".utf8)) == nil,
+              "neither the text nor the name are readable on the wire")
         let bob = try Signer(identity: CryptoBackend.randomBytes(32), room: keys)
         checkEqual(try RoomCrypto(keys: keys, signer: bob).open(p), inner, "opened by another member of the room")
         var relayed = p

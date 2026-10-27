@@ -24,7 +24,7 @@ if ! lotus_can_swift; then print -r -- "  – no Command Line Tools: building an
 # ── built once, inside the plugin's sandbox ──
 out=$(lotus meshchat version 2>&1 | plain)
 check_has "built in the sandbox, it runs" "$out" "MeshChat 1.0.0 – protocol 1, crypto CryptoKit"
-check "the program is in its data folder" eval '[[ -n $D/bin/meshchat-<->(N) ]]'
+check "the program is in its data folder" eval '[[ -n $(print -l $D/bin/meshchat-<->(N)) ]]'
 built=$(print -r -- $D/bin/meshchat-<->(N:t))
 lotus meshchat version >/dev/null 2>&1
 check_eq "built once: the second start uses the same program" "$(print -r -- $D/bin/meshchat-<->(N:t))" "$built"
@@ -60,7 +60,7 @@ check "the room is in the plugin's data folder" eval '(( ${#room} == 1 ))'
 check_eq "readable by you only" "$(stat -f %Lp $room[1])" 600
 check_eq "the data folder too" "$(stat -f %Lp $D)" 700
 check "the code is not in the settings (a pack would share them)" eval '! grep -q "${code#MC1-}" $D/settings 2>/dev/null'
-check "nothing of it outside its data folder" eval '[[ -z $HOME/*meshchat*(N) && ! -e $HOME/Library/Preferences/io.github.fanxy13.lotus.meshchat.plist ]]'
+check "nothing of it outside its data folder" eval '[[ -z $(print -l $HOME/*meshchat*(N)) && ! -e $HOME/Library/Preferences/io.github.fanxy13.lotus.meshchat.plist ]]'
 check_has "nick" "$(lotus meshchat nick Tester 2>&1 | plain)" "You are Tester in the chat"
 check_has "set hops" "$(lotus meshchat set hops 3 2>&1 | plain)" "up to 3 relays"
 check_has "hops over 7 are refused" "$(lotus meshchat set hops 9 2>&1 | plain)" "a number from 1 to 7"
@@ -80,7 +80,7 @@ check_has "/who: how each one is connected" "$text" "a neighbour: a direct Bluet
 check_has "ctrl-c closes the chat" "$text" "That was the demo"
 check_has "the terminal is given back: its own screen" "$out" $'\e[?1049l'
 check_has "bracketed paste off again" "$out" $'\e[?2004l'
-check "the demo keeps no history" eval '[[ -z $D/rooms/*/history.jsonl(N) ]]'
+check "the demo keeps no history" eval '[[ -z $(print -l $D/rooms/*/history.jsonl(N)) ]]'
 check_has "the chat needs a terminal" "$(lotus meshchat </dev/null 2>&1 | plain)" "needs a terminal window"
 
 # ── history: what is shown is made safe; damaged lines are skipped ──
@@ -108,7 +108,7 @@ check_has "doctor: it gets to the end, whatever Bluetooth says" "$out" "Rooms   
 # ── leaving a room, uninstalling ──
 check_has "leaving needs a yes" "$(lotus meshchat leave bike </dev/null 2>&1 | plain)" "Leaving needs a yes"
 check_has "left" "$(lotus meshchat leave bike --yes 2>&1 | plain)" 'You left "Bike trip"'
-check "its code and history are gone" eval '[[ -z $D/rooms/*(N) ]]'
+check "its code and history are gone" eval '[[ -z $(print -l $D/rooms/*(N)) ]]'
 out=$(answer y "$LOTUS_ROOT/bin/lotus plugin uninstall meshchat")
 check_has "uninstall asks" "$out" 'Remove the plugin "meshchat" and its data?'
 check "uninstalled, with its data and its build" eval '[[ ! -e $LOTUS_CONF/plugins/meshchat && ! -e $D ]]'
