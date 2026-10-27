@@ -271,7 +271,8 @@ enum ChatRender {
             var parts: [String] = []
             var used = 10
             for (i, p) in people.enumerated() {
-                let mark = p.away ? Theme.dim(" ○") : p.direct ? Theme.green(" ●") : Theme.dim(" ⇢\(p.hops)")
+                let distance = p.direct ? p.signal.map { Theme.dim(" " + Distance.short(Distance.metres($0))) } ?? "" : ""
+                let mark = p.away ? Theme.dim(" ○") : p.direct ? Theme.green(" ●") + distance : Theme.dim(" ⇢\(p.hops)")
                 let part = Theme.person(p.fingerprint, clip(p.nickname, 16)) + mark
                 let w = visibleWidth(part) + 3
                 if used + w > width - 16 {

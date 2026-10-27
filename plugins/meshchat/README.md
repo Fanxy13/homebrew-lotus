@@ -51,6 +51,8 @@ devices or other messengers.
   ([details](#privacy-and-security)) – but it is not secret.
 - **Who is here, and how:** a neighbour (● a direct Bluetooth link), further away (⇢2: two relays), or not heard
   for a while (○). People come and go with a line in the chat.
+- **How far someone is:** `/where Grace` – a neighbour from the strength of its Bluetooth signal (≈ 2 m), anyone
+  further along the way through the mesh (you → Ada ≈ 2 m → Grace ≈ 8 m). Rough estimates, and said as such.
 - **Comes and goes gracefully.** A Mac that moves out of range and back is linked again and gets what it missed in
   the last 14 minutes (up to 32 messages) – each once.
 - **One person cannot flood everyone:** each sender's share is 40 messages at once, then one a second; the rest is
@@ -146,6 +148,7 @@ In the chat:
 | | |
 |---|---|
 | `/who` | who is here: ● neighbour, ⇢2 two relays away, ○ not heard for a while – with their fingerprint |
+| `/where <name>` · `/where` | how far someone is (or everyone): the distance, and the way through the mesh |
 | `/nick <name>` · `/status` | your name · Bluetooth, the mesh, what was refused, where the history is |
 | `/clear` | an empty screen (the history stays) |
 | `/quit`, ctrl-c, ctrl-d | close the chat; the others see that you left |
@@ -248,7 +251,23 @@ fresh.
 
 The signature (Ed25519) covers `"MeshChat v2"`, the header with `ttl` and `hops` set to 0 – the only two fields
 relays change – and the whole message. Presence ("I am here", every 30 seconds and when a Mac joins: "who is
-here?") carries how many links the sender has.
+here?") carries how many links the sender has, and which Macs they are – the first 4 bytes of each one's session –
+with how strong it hears each (`[1 n][n × (4 token, 1 dBm)]`, up to 16; a presence without that list, from the
+first MeshChat 2, is still read).
+
+### How far someone is
+
+Bluetooth says how strong a Mac's signal arrives (RSSI, in dBm); the weaker, the further. MeshChat reads it for the
+Macs it hears advertising (their advertised name holds the same 4-byte token) and, every 5 seconds, for each link
+it made itself; readings are smoothed and forgotten after a minute. A distance comes from the log-distance model:
+about −59 dBm at one metre, the signal fading with the 2.5th power of the distance (−84 dBm ≈ 10 m). Walls,
+bodies, which way a laptop faces and its Bluetooth chip easily make that twice or half as far – `/where` says
+"≈ 3 m", never "3.2 m", and says that it is an estimate.
+
+Further than a neighbour, the "I am here"s of everyone are a map of the mesh: who has a link to whom, and how
+strong. `/where` takes the way with the fewest relays (then the shortest legs) and gives each leg's distance –
+the sum is how long the radio way is, not how far apart the two Macs are as the crow flies (that can be less).
+A leg nobody measured yet is shown as such; a silent relay appears as "a relay".
 
 ### Versions
 
@@ -277,7 +296,8 @@ days. Uninstalling (or deleting `identity` in the data folder) gives you a new o
 **What anyone nearby can see:** everything said, by whom (name and fingerprint), when, how far it came; that
 MeshChat runs on a Mac (the service), its token, its Bluetooth address – and the Mac's own name, which macOS shows
 to Bluetooth devices that connect, as for any Bluetooth use. Links are not encrypted by Bluetooth itself (Macs would
-have to pair).
+have to pair). **And who is near whom:** every "I am here" lists the Macs it is linked to and how strong it hears
+them – that is what `/where` is made from, and anyone listening can put the same rough map together.
 
 **What this is not.** Not private, not end-to-end encrypted, no private messages. Bluetooth can be jammed. Rate
 limits bound what one sender – and one link – can push through, but someone with many keys and Macs can still
@@ -300,6 +320,9 @@ plugin's sources and runs them (no XCTest needed). They cover:
   names, keys, times, IDs, flags and signatures are refused; signatures in someone else's name too
 - fragments: every link size from 20 to 512 bytes, any order, twice, interleaved, limits against a hostile
   neighbour; duplicate IDs remembered for 30 minutes
+- how far: signal strength to metres and back, the labels, the way with the fewest relays and then the shortest
+  legs, and on the simulated radio with known distances (2 m and 8 m) – a neighbour by its signal, someone
+  further through the right Mac with both legs
 - the mesh, with the real `MeshNode` on `SimTransport`: two Macs, **A reaching C through B when A and C cannot hear
   each other**, each message once in a dense mesh, **a chain of 19 Macs: a message goes 16 relays far – and no
   further**, old/future/replayed messages, forged packets that are neither shown nor relayed nor able to block the
@@ -340,9 +363,11 @@ Three Macs (A, B, C) with Lotus, the plugin and Bluetooth on; MeshChat in Termin
    **⇢1** (one relay away), not ●.
 3. **A writes; C receives it through B,** marked ⇢1. C answers; A receives it ⇢1. B shows both, and B's `/status`
    counts them as relayed.
-4. **No duplicates:** write a few messages on each Mac; every message appears exactly once on every Mac (`/status`
+4. **How far:** `/where` on A – B with a distance that grows when you carry B away (it jumps by a few metres: an
+   estimate), C as "1 relay away through B" with both legs.
+5. **No duplicates:** write a few messages on each Mac; every message appears exactly once on every Mac (`/status`
    shows "copies dropped" counting up when there are several paths).
-5. **Disconnect and reconnect:** turn Bluetooth off on B (Control Center) for ~20 seconds. A and C show that the
+6. **Disconnect and reconnect:** turn Bluetooth off on B (Control Center) for ~20 seconds. A and C show that the
    link ended and – with only B between them – lose each other after a while (○, "not heard for a while"). While B
    is off, write something on A. Turn Bluetooth on again on B: B links again within ~30 seconds, B receives A's
    message once (catch-up), C too, and the chat goes on. Nothing crashes; quit with ctrl-c, start again – the
@@ -388,6 +413,8 @@ and the same in iTerm2.
 - Clocks that differ by more than 10 minutes make messages look old or early, and they are refused.
 - Your fingerprint stays the same until the identity file is deleted, so anyone listening can tell your messages
   apart over time ([Privacy and security](#privacy-and-security)).
+- Distances are estimates from signal strength – often off by half or double, more through walls; the way through
+  the mesh counts the legs, not the straight line.
 
 ## Files
 
@@ -399,6 +426,7 @@ and the same in iTerm2.
 | `Sources/Wire.swift` · `Bytes.swift` | the protocol on the wire, strict decoding, texts made safe for the terminal |
 | `Sources/Identity.swift` · `Signing.swift` · `CryptoKitBackend.swift` | this Mac's key · signing and checking packets · CryptoKit |
 | `Sources/Mesh.swift` · `Fragments.swift` · `Dedup.swift` | the mesh: links, routing, presence · fragments · duplicates |
+| `Sources/Distance.swift` | how far: signal strength to metres, the way through the mesh |
 | `Sources/Transport.swift` · `BLETransport.swift` · `SimTransport.swift` | the radio · CoreBluetooth · simulated (tests, demo) |
 | `Sources/ChatApp.swift` · `ChatView.swift` · `Terminal.swift` | the chat, its screen, the terminal |
 | `Sources/Store.swift` · `Doctor.swift` · `Demo.swift` · `App.swift` | data folder · doctor · demo · the command |

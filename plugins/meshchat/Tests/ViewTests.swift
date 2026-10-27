@@ -79,7 +79,8 @@ func viewTests() {
         let key = Data(repeating: 1, count: 32)
         s.snapshot.participants = (0..<9).map {
             Participant(key: key, fingerprint: "f\($0)xx", nickname: "Person number \($0) 漢字", session: Data(count: 8),
-                        lastSeen: 0, hops: $0 % 3, links: 1, direct: $0 % 3 == 0, left: false, away: $0 == 4)
+                        lastSeen: 0, hops: $0 % 3, links: 1, direct: $0 % 3 == 0, left: false, away: $0 == 4,
+                        signal: $0 == 0 ? Distance.rssi(metres: 3) : nil)
         }
         let texts = ["Hi", String(repeating: "long words in a long message ", count: 20), "漢字と絵文字 🌸🌸🌸 " + String(repeating: "あ", count: 80),
                      String(repeating: "x", count: 300)]
@@ -101,6 +102,8 @@ func viewTests() {
             }
         }
         check(failures.isEmpty, "no row wider than the window, all rows drawn \(failures.prefix(3))")
+        let rule = ChatRender.peopleRule(s, width: 200).replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+        check(rule.contains("● 3m"), "a neighbour's distance in the line of who is here (\(rule.prefix(60)))")
         check(ChatRender.header(s, width: 120).contains("everyone nearby") && ChatRender.header(s, width: 120).contains("public"),
               "the header says who reads it: everyone nearby – it is public")
         s.demo = true

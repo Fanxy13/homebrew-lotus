@@ -41,6 +41,8 @@ struct MeshConfig {
     var scanOffLinked: TimeInterval = 20
     var scanOnAlone: TimeInterval = 25          // with no link: nearly always, restarted every 27 s
     var scanOffAlone: TimeInterval = 2
+    var measureEvery: TimeInterval = 5          // the signal of each link this Mac made is read so often
+    var signalFresh: TimeInterval = 60          // a signal older than this says nothing about now
 }
 
 struct ChatMessage: Equatable {
@@ -65,6 +67,17 @@ struct Participant: Equatable {
     var direct = false              // a link to this Mac right now
     var left = false                // said goodbye
     var away = false                // not heard for a while
+    var signal: Int? = nil          // how strong this Mac hears theirs (dBm), measured in the last minute
+    var via = ""                    // the neighbour their last message came through ("" when straight from them)
+    var neighbours: [UInt32: Int] = [:]     // the Macs they have a link to, and how strong they hear them
+
+    var token: UInt32 { session.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
+}
+
+// One leg of the way to someone: the Mac it reaches, and how strong that leg's signal is (nil: not measured)
+struct RouteLeg: Equatable {
+    let name: String
+    let rssi: Int?
 }
 
 struct MeshStats: Equatable {
@@ -192,6 +205,8 @@ final class MeshNode: LinkTransportDelegate {
     private var recent: [Recent] = []
     private var people: [Data: Participant] = [:]
     private var senders: [Data: TokenBucket] = [:]
+    private var signals: [UInt32: (rssi: Double, at: TimeInterval)] = [:]     // by token, smoothed
+    private var lastMeasure = -TimeInterval.infinity
     private var undelivered: Set<UInt64> = []
     private var presenceDue = TimeInterval.infinity
     private var lastPresence = -TimeInterval.infinity
@@ -308,6 +323,7 @@ final class MeshNode: LinkTransportDelegate {
 
     func radio(sighted s: Sighting) {
         let t = clock()
+        if let theirs = s.token, theirs != token { noteSignal(theirs, s.rssi, t) }
         if var c = candidates[s.endpoint] {
             c.lastSeen = t
             c.rssi = s.rssi
@@ -414,6 +430,13 @@ final class MeshNode: LinkTransportDelegate {
         flush()
     }
 
+    func radio(signal rssi: Int, on id: Int) {
+        guard let s = links[id]?.session else { return }
+        noteSignal(MeshNode.token(of: s), rssi, clock())
+        dirty = true
+        flush()
+    }
+
     private func failed(_ endpoint: String, reason: String) {
         guard var c = candidates[endpoint] else { return }
         c.connectingSince = nil
@@ -441,6 +464,10 @@ final class MeshNode: LinkTransportDelegate {
         }
         connectCandidates(t)
         manageRadio(t)
+        if t - lastMeasure >= config.measureEvery {
+            lastMeasure = t
+            for link in links.values where link.state == .ready && link.outbound { transport.measureSignal(on: link.id) }
+        }
         if !config.silent && t >= presenceDue { sendPresence(request: lastPresence == -.infinity) }
         age(t)
         dirty = true
@@ -646,7 +673,7 @@ final class MeshNode: LinkTransportDelegate {
             return
         }
         remember(packet, mine: false)
-        deliver(inner, packet: packet, now: t)
+        deliver(inner, packet: packet, from: link, now: t)
         if let next = packet.relayed() {
             let n = forward(next, except: link)
             if n > 0 { stats.relayed += 1 }
@@ -666,8 +693,15 @@ final class MeshNode: LinkTransportDelegate {
     // A new message of this Mac to everyone → the packet and how many links it left on
     @discardableResult
     private func flood(kind: InnerKind, text: String = "", request: Bool = false) throws -> (MeshPacket, Int) {
-        let inner = InnerMessage(kind: kind, flags: request ? InnerMessage.requestFlag : 0, senderKey: signer.publicKey,
+        var inner = InnerMessage(kind: kind, flags: request ? InnerMessage.requestFlag : 0, senderKey: signer.publicKey,
                                  session: session, nickname: nickname, text: text, links: UInt8(min(255, readyLinks)))
+        if kind == .presence {
+            let now = clock()
+            inner.neighbours = Set(links.values.filter { $0.state == .ready }.compactMap { $0.session }).map { s in
+                let t = MeshNode.token(of: s)
+                return Neighbour(token: t, rssi: signal(of: t, now: now) ?? Distance.unknown)
+            }.sorted { $0.token < $1.token }
+        }
         var id: UInt64 = 0
         repeat { id = CryptoBackend.randomBytes(8).reduce(UInt64(0)) { $0 << 8 | UInt64($1) } } while id == 0
         let packet = try Signing.make(inner, signer: signer, ttl: UInt8(max(1, min(Int(Proto.hopLimit), config.hops))), messageID: id,
@@ -708,7 +742,7 @@ final class MeshNode: LinkTransportDelegate {
 
     // ── People ────────────────────────────────────────────────
 
-    private func deliver(_ inner: InnerMessage, packet: MeshPacket, now t: TimeInterval) {
+    private func deliver(_ inner: InnerMessage, packet: MeshPacket, from link: Link, now t: TimeInterval) {
         let sent = Double(packet.timestamp) / 1000
         let fingerprint = Signer.fingerprint(of: inner.senderKey)
         if inner.senderKey == signer.publicKey {
@@ -733,7 +767,11 @@ final class MeshNode: LinkTransportDelegate {
             p.lastSeen = seen
             p.hops = Int(packet.hops)
             p.away = t - seen > config.awayAfter
-            if inner.kind == .presence { p.links = Int(inner.links) }
+            if inner.kind == .presence {
+                p.links = Int(inner.links)
+                p.neighbours = Dictionary(inner.neighbours.map { ($0.token, $0.rssi) }, uniquingKeysWith: { a, _ in a })
+            }
+            p.via = packet.hops == 0 ? "" : link.session.flatMap { s in people.values.first { $0.session == s }?.nickname } ?? "a relay"
             p.left = inner.kind == .bye
         }
         people[inner.senderKey] = p
@@ -772,12 +810,61 @@ final class MeshNode: LinkTransportDelegate {
         if senders.count > 1000 { senders = senders.filter { people[$0.key] != nil } }
     }
 
+    // ── How far ───────────────────────────────────────────────
+
+    static func token(of session: Data) -> UInt32 { session.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
+
+    // A new reading, smoothed with the last one while that is recent: single readings jump by several dBm
+    private func noteSignal(_ who: UInt32, _ rssi: Int, _ t: TimeInterval) {
+        guard rssi < 0, rssi > -127 else { return }
+        if let old = signals[who], t - old.at < 20 {
+            signals[who] = (old.rssi * 0.6 + Double(rssi) * 0.4, t)
+        } else {
+            signals[who] = (Double(rssi), t)
+        }
+    }
+
+    private func signal(of who: UInt32, now t: TimeInterval) -> Int? {
+        guard let s = signals[who], t - s.at <= config.signalFresh else { return nil }
+        return Int(s.rssi.rounded())
+    }
+
+    // The way to someone through the mesh, as far as the "I am here"s of everyone tell it: the Macs on it, each
+    // with the signal of the leg that reaches it. nil when no way is known (yet).
+    func route(to key: Data) -> [RouteLeg]? {
+        guard let target = people[key] else { return nil }
+        let t = clock()
+        var map: [UInt32: [UInt32: Int]] = [:]
+        func add(_ a: UInt32, _ b: UInt32, _ rssi: Int) {
+            guard a != b else { return }
+            for (x, y) in [(a, b), (b, a)] {
+                // a measured signal wins over none; this Mac's own measurement wins over the others'
+                if let known = map[x]?[y], known != Distance.unknown, rssi == Distance.unknown { continue }
+                map[x, default: [:]][y] = rssi
+            }
+        }
+        for p in people.values where !p.left {
+            for (n, rssi) in p.neighbours { add(p.token, n, rssi) }
+        }
+        for s in Set(links.values.filter { $0.state == .ready }.compactMap { $0.session }) {
+            let n = MeshNode.token(of: s)
+            add(token, n, signal(of: n, now: t) ?? map[n]?[token] ?? Distance.unknown)
+        }
+        guard let way = Distance.route(from: token, to: target.token, links: map) else { return nil }
+        let names = Dictionary(people.values.map { ($0.token, $0.nickname) }, uniquingKeysWith: { a, _ in a })
+        return way.map { RouteLeg(name: names[$0.mac] ?? "a relay", rssi: $0.rssi) }
+    }
+
     // ── Telling the app ───────────────────────────────────────
 
     func snapshot() -> MeshSnapshot {
         let direct = Set(links.values.filter { $0.state == .ready }.compactMap { $0.session })
         var list = Array(people.values)
-        for i in list.indices { list[i].direct = direct.contains(list[i].session) && !list[i].left }
+        let t = clock()
+        for i in list.indices {
+            list[i].direct = direct.contains(list[i].session) && !list[i].left
+            list[i].signal = signal(of: list[i].token, now: t)
+        }
         list.sort { $0.nickname.lowercased() != $1.nickname.lowercased() ? $0.nickname.lowercased() < $1.nickname.lowercased() : $0.fingerprint < $1.fingerprint }
         return MeshSnapshot(radio: transport.state, links: readyLinks, connecting: candidates.values.filter { $0.connectingSince != nil }.count,
                             participants: list, scanning: scanning, advertising: advertising, stats: stats)

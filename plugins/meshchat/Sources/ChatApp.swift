@@ -212,7 +212,7 @@ final class ChatApp {
         draw()
     }
 
-    static let commands = ["/help", "/who", "/nick", "/status", "/clear", "/quit"]
+    static let commands = ["/help", "/who", "/where", "/nick", "/status", "/clear", "/quit"]
 
     private func complete() {
         let t = view.editor.text
@@ -250,6 +250,7 @@ final class ChatApp {
         switch cmd {
         case "/help", "/h", "/?": help()
         case "/who", "/people", "/here": who()
+        case "/where", "/far", "/distance": whereIs(arg)
         case "/status", "/mesh", "/info": status()
         case "/nick", "/name": rename(arg)
         case "/clear": view.lines.removeAll()
@@ -264,6 +265,7 @@ final class ChatApp {
         for line in [
             "Everything you write goes to every Mac nearby with MeshChat, and each one passes it on – as far as the mesh reaches. It is public.",
             "/who – who is here, and how: ● a direct Bluetooth link, ⇢2 two relays away, ○ not heard for a while",
+            "/where <name> – how far someone is: from the signal strength, and the way through the mesh (/where alone: everyone)",
             "/nick <name> – your name · /status – Bluetooth and the mesh · /clear – an empty screen",
             "/quit (ctrl-c, ctrl-d) – close the chat · PgUp/PgDn scroll · ↑ your last lines · //text sends a line that starts with /",
         ] { notice(line) }
@@ -282,14 +284,53 @@ final class ChatApp {
             let how: String
             if p.left { how = "left the chat" }
             else if p.away { how = "away – last heard \(ago(p.lastSeen))" }
-            else if p.direct { how = "a neighbour: a direct Bluetooth link" }
-            else { how = "\(p.hops) relay\(p.hops == 1 ? "" : "s") away, heard \(ago(p.lastSeen))" }
+            else if p.direct { how = "a neighbour: a direct Bluetooth link" + (p.signal.map { ", " + Distance.label(Distance.metres($0)) } ?? "") }
+            else { how = "\(p.hops) relay\(p.hops == 1 ? "" : "s") away\(p.via.isEmpty ? "" : " through \(p.via)"), heard \(ago(p.lastSeen))" }
             notice("  \(p.nickname)·\(p.fingerprint) – \(how)\(p.links > 0 && !p.left ? " · \(p.links) link\(p.links == 1 ? "" : "s")" : "")")
         }
         if people.isEmpty { notice("  No one else yet. On the other Macs: lotus meshchat") }
         if Set(people.map { $0.nickname }).count < people.count {
             notice("  Two people have the same name – the four letters after the dot tell them apart.", .warning)
         }
+    }
+
+    // How far someone is: a neighbour from its signal, anyone else along the way through the mesh
+    private func whereIs(_ query: String) {
+        let people = view.snapshot.participants.filter { !$0.left }
+        if people.isEmpty { return notice("No one else is here yet – nobody to measure.") }
+        let q = query.lowercased()
+        let fits = q.isEmpty ? people : people.filter { $0.nickname.lowercased().hasPrefix(q) || $0.fingerprint == q }
+        if fits.isEmpty { return notice("No one called \(query) is here – /who lists who is.", .warning) }
+        for p in fits {
+            let route = meshQueue.sync { node.route(to: p.key) }
+            notice("\(p.nickname)·\(p.fingerprint) – " + ChatApp.describe(p, route: route))
+            if q.isEmpty { continue }
+            if let route = route, route.count > 1 {
+                var way = "  you"
+                for leg in route { way += " → \(leg.name) " + (leg.rssi.map { Distance.label(Distance.metres($0)) } ?? "(not measured)") }
+                notice(way)
+            }
+        }
+        notice("Estimated from Bluetooth signal strength – walls, bodies and how a Mac is turned make it twice or half as far.")
+    }
+
+    static func describe(_ p: Participant, route: [RouteLeg]?) -> String {
+        if p.direct || p.hops == 0, let rssi = p.signal ?? route?.first?.rssi {
+            let m = Distance.metres(rssi)
+            return "\(Distance.label(m)) from you, \(Distance.closeness(m)) (signal \(rssi) dBm)"
+        }
+        if p.direct { return "a neighbour – its signal is not measured yet" }
+        let hops = "\(p.hops) relay\(p.hops == 1 ? "" : "s") away"
+        guard let route = route, !route.isEmpty else {
+            return hops + (p.via.isEmpty ? "" : ", through \(p.via)") + " – the way further is not known yet"
+        }
+        let measured = route.compactMap { $0.rssi }
+        let through = route.dropLast().map { $0.name }.joined(separator: ", ")
+        if measured.count == route.count {
+            let total = measured.map { Distance.metres($0) }.reduce(0, +)
+            return hops + (through.isEmpty ? "" : " through \(through)") + " – about \(Distance.label(total).replacingOccurrences(of: "≈ ", with: "")) along the way"
+        }
+        return hops + (through.isEmpty ? "" : " through \(through)") + " – not every leg is measured yet"
     }
 
     private func status() {

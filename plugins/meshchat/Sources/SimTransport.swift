@@ -6,6 +6,7 @@
 //   - only the central can end a link; when the peripheral closes one, it just stops listening, and the central
 //     notices when the link goes silent
 //   - out of range, a link breaks on both sides
+//   - the signal strength follows the distance between two Macs (3 m unless a test says otherwise)
 // A test can also lose or double frames, and switch "Bluetooth" off.
 
 import Foundation
@@ -27,6 +28,7 @@ final class SimNetwork {
     private var rng: UInt64
     private var radios: [String: SimRadio] = [:]
     private var range: Set<String> = []
+    private var distances: [String: Double] = [:]
     private var links: [Int: SimLink] = [:]
     private var nextLink = 1
     private var pending: [() -> Void] = []
@@ -62,6 +64,11 @@ final class SimNetwork {
             }
         }
     }
+
+    // How far apart two Macs are – what their signal strength comes from
+    func setDistance(_ a: String, _ b: String, _ metres: Double) { distances[key(a, b)] = metres }
+
+    func signal(_ a: String, _ b: String) -> Int { Distance.rssi(metres: distances[key(a, b)] ?? 3) }
 
     // Everyone hears everyone of these
     func allInRange(_ names: [String]) {
@@ -105,8 +112,8 @@ final class SimNetwork {
                 for other in radios.values where other !== r && other.running && other.powered && other.advertising
                     && hears(r.name, other.name) && !r.reported.contains(other.name) {
                     r.reported.insert(other.name)
-                    let token = other.token
-                    schedule { r.delegate?.radio(sighted: Sighting(endpoint: other.name, token: token, rssi: -50)) }
+                    let token = other.token, rssi = signal(r.name, other.name)
+                    schedule { r.delegate?.radio(sighted: Sighting(endpoint: other.name, token: token, rssi: rssi)) }
                 }
             }
             for target in r.waiting { tryConnect(r, target) }
@@ -129,6 +136,14 @@ final class SimNetwork {
             from.delegate?.radio(opened: LinkInfo(id: cid, outbound: true, endpoint: to, maxFrame: frame))
             target.delegate?.radio(opened: LinkInfo(id: pid, outbound: false, endpoint: from.name, maxFrame: frame))
         }
+    }
+
+    fileprivate func measure(link id: Int, local: Int, by radio: SimRadio) {
+        guard let l = links[id] else { return }
+        let other = l.central === radio ? l.peripheral : l.central
+        guard l.central === radio else { return }           // as on a Mac: only the central can read it
+        let rssi = signal(radio.name, other.name)
+        schedule { radio.delegate?.radio(signal: rssi, on: local) }
     }
 
     fileprivate func maxFrame(_ id: Int) -> Int {
@@ -304,5 +319,10 @@ final class SimRadio: LinkTransport {
     func maxFrame(for link: Int) -> Int {
         guard let id = locals[link] else { return Proto.minFrame }
         return network.maxFrame(id)
+    }
+
+    func measureSignal(on link: Int) {
+        guard let id = locals[link] else { return }
+        network.measure(link: id, local: link, by: self)
     }
 }

@@ -17,7 +17,9 @@
 // The message – in the clear: the chat is public, everyone nearby reads it:
 //   [1 kind][1 flags][32 sender's public key][8 sender's session][str8 nickname] then
 //   chat 1      [str16 text]
-//   presence 2  [1 links]          flags bit 0: "who is here?" – answer with yours
+//   presence 2  [1 links][1 n][n × (4 token, 1 signal)]   flags bit 0: "who is here?" – answer with yours
+//               the Macs it has a link to – the first 4 bytes of their session – and how strong it hears them
+//               (dBm, signed; 127: not measured). A first MeshChat 2 sent only [1 links]; both are read.
 //   bye 3       nothing more
 //   [64 Ed25519 signature over "MeshChat v2", the header (ttl and hops 0) and everything before it]
 //
@@ -43,6 +45,7 @@ enum Proto {
     static let maxNicknameBytes = 64
     static let maxTextBytes = 1000
     static let maxSoftwareBytes = 32
+    static let maxNeighbours = 16
 
     // A version byte that is not ours: a plausible other version (1–15) is named as such, anything else is noise
     static func versionError(_ v: UInt8, ours: UInt8) -> WireError {
@@ -211,6 +214,12 @@ enum InnerKind: UInt8 {
     case chat = 1, presence = 2, bye = 3
 }
 
+// A Mac someone has a link to, and how strong they hear it
+struct Neighbour: Equatable {
+    let token: UInt32                       // the first 4 bytes of its session
+    let rssi: Int                           // dBm; Distance.unknown when not measured
+}
+
 struct InnerMessage: Equatable {
     static let requestFlag: UInt8 = 1       // presence: please answer with yours
 
@@ -221,6 +230,7 @@ struct InnerMessage: Equatable {
     var nickname: String
     var text = ""                           // chat
     var links: UInt8 = 0                    // presence: how many Macs it is connected to
+    var neighbours: [Neighbour] = []        // presence: which, and how strong it hears them
 
     // Everything but the signature
     func body() throws -> Data {
@@ -238,6 +248,12 @@ struct InnerMessage: Equatable {
             try w.str16(text)
         case .presence:
             w.u8(links)
+            let list = neighbours.prefix(Proto.maxNeighbours)
+            w.u8(UInt8(list.count))
+            for n in list {
+                w.bytes(Data([UInt8(n.token >> 24 & 0xFF), UInt8(n.token >> 16 & 0xFF), UInt8(n.token >> 8 & 0xFF), UInt8(n.token & 0xFF)]))
+                w.u8(UInt8(bitPattern: Int8(clamping: n.rssi)))
+            }
         case .bye:
             break
         }
@@ -263,6 +279,14 @@ struct InnerMessage: Equatable {
             guard !m.text.isEmpty else { throw WireError.invalid("empty message") }
         case .presence:
             m.links = try r.u8()
+            if !r.isAtEnd {
+                let n = Int(try r.u8())
+                guard n <= Proto.maxNeighbours else { throw WireError.invalid("\(n) neighbours") }
+                for _ in 0..<n {
+                    let token = try r.bytes(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
+                    m.neighbours.append(Neighbour(token: token, rssi: Int(Int8(bitPattern: try r.u8()))))
+                }
+            }
         case .bye:
             break
         }
