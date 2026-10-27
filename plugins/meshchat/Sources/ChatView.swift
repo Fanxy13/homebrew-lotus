@@ -243,7 +243,7 @@ enum ChatRender {
         let note = Theme.dim("  public")
         // the most that fits: everything · without "public" · without "everyone nearby" (the demo keeps saying it is
         // simulated) · DEMO short · without "you:" · just the title
-        let demoLong = s.demo ? "  " + Theme.yellow("DEMO – simulated, no Bluetooth") : ""
+        let demoLong = s.demo ? "  " + Theme.yellow("DEMO – simulated") : ""
         let demoShort = s.demo ? "  " + Theme.yellow("DEMO") : ""
         let you = Theme.dim("you: ") + Theme.accent(s.nickname) + Theme.dim("·\(s.fingerprint)") + " "
         let candidates: [(String, String)] = [

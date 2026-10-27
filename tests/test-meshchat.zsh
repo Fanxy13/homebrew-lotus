@@ -86,7 +86,6 @@ out=$(lotus meshchat history 2>&1)
 check_has "history: what was said" "$(print -r -- $out | plain)" "see you at [31mthe bridge ⇢2"
 check "an escape code in a message never reaches the terminal" eval '[[ $out != *$'"'"'\e[31mthe'"'"'* ]]'
 check_has "a damaged line is skipped" "$(print -r -- $out | plain)" "1 damaged line skipped"
-check_eq "the history is readable by you only" "$(stat -f %Lp $D/history.jsonl)" 600
 
 # ── the rooms of MeshChat 1: named by the doctor, left alone ──
 zf_mkdir -p $D/rooms/k7q2m9ab

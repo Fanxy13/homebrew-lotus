@@ -105,8 +105,9 @@ func viewTests() {
               "the header says who reads it: everyone nearby – it is public")
         s.demo = true
         s.nickname = "Ada"
-        check(ChatRender.header(s, width: 80).contains("DEMO – simulated, no Bluetooth"), "the demo says it is simulated at 80 columns")
-        check(ChatRender.header(s, width: 100).contains("everyone nearby"), "and who reads it, given room")
+        s.fingerprint = "k3f9"
+        let demo80 = ChatRender.header(s, width: 80)
+        check(demo80.contains("DEMO – simulated") && demo80.contains("everyone nearby"), "at 80 columns the demo says it is simulated, and who reads it")
         s.demo = false
         s.snapshot.participants = []
         s.snapshot.radio = .unauthorized
