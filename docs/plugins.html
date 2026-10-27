@@ -126,7 +126,7 @@ files rsvm        = ./rsvm</pre></div>
     </div>
 
     <h2 class="section" id="meshchat">MeshChat – a chat over Bluetooth</h2>
-    <p>A group chat with the Macs around you, without internet, Wi-Fi or a server. Messages hop from Mac to Mac – two Macs out of each other's range still chat through one in between – encrypted with the room's code and signed by whoever wrote them. Try it first with <code>/meshchat demo</code>: two simulated people, one of them a relay away.</p>
+    <p>A group chat with the Macs around you, without internet, Wi-Fi or a server. Messages hop from Mac to Mac – two Macs out of each other's range still chat through one in between – encrypted with the room's code and signed by whoever wrote them. Try it first with <code>/meshchat demo</code>: two simulated people, one of them a relay away. Not yet tried between real Macs: the Bluetooth part is built and checked on every change, the test with three Macs is in <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/plugins/meshchat/README.md#testing-with-real-macs">its README</a>.</p>
     <div class="codeblock"><code><span class="dollar">$</span> lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat</code><button class="copy" data-copy="lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
     <div class="term" style="margin-top:14px"><div class="term-bar"><i></i><i></i><i></i><span>/meshchat</span></div><pre>
  <span class="t-acc">lotus</span><span class="t-dim"> / </span><span class="t-b">MeshChat</span>  <span class="t-b">Bike trip</span><span class="t-dim">  #k7q2m9ab                      you: Ada·k3f9</span>
@@ -140,7 +140,7 @@ files rsvm        = ./rsvm</pre></div>
  <span class="t-acc">›</span></pre></div>
     <div class="grid" style="margin-top:16px">
       <div class="card"><h3>Rooms</h3><p class="muted small"><code>/meshchat create "Bike trip"</code> a room and its code<br><code>/meshchat join &lt;code&gt;</code> on the other Macs<br><code>/who</code> who is here, and how<br><code>/meshchat doctor</code> when Bluetooth does not work</p></div>
-      <div class="card"><h3>A mesh</h3><p class="muted small">Every Mac passes on what it gets, up to 5 relays. Duplicates are dropped; a Mac back in range catches up on the last 15 minutes. Only Macs with MeshChat.</p></div>
+      <div class="card"><h3>A mesh</h3><p class="muted small">Every Mac passes on what it gets, up to 5 relays. Duplicates are dropped; a Mac back in range catches up – up to 32 messages from the last 14 minutes. Only Macs with MeshChat.</p></div>
       <div class="card"><h3>Limited, no internet</h3><p class="muted small">It runs in Lotus' sandbox without internet – Bluetooth is not the network. macOS asks once whether your terminal may use Bluetooth. Whoever has a room's code can read that room.</p></div>
     </div>
 

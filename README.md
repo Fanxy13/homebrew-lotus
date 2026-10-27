@@ -288,8 +288,9 @@ lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserve
 **MeshChat** – a group chat with the Macs around you over Bluetooth, without internet, Wi-Fi or a server. Messages
 hop from Mac to Mac, so two Macs out of each other's range still chat through one in between; everything said is
 encrypted with the room's code and signed by its sender. A limited plugin without internet; macOS asks once whether
-your terminal may use Bluetooth. Built once on your Mac from Swift (Command Line Tools). Details, the protocol and
-its limits: [plugins/meshchat](plugins/meshchat/README.md).
+your terminal may use Bluetooth. Built once on your Mac from Swift (Command Line Tools). Not yet tried between real
+Macs – the Bluetooth part is built and checked on every change; the test with three Macs, the protocol and its
+limits: [plugins/meshchat](plugins/meshchat/README.md).
 
 ```bash
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat
