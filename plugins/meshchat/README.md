@@ -317,8 +317,9 @@ limited, builds it **inside the plugin sandbox**, runs the selftest with CryptoK
 and their permissions, drives the chat in a terminal (the demo: types a message, `/who`, ctrl-c) and checks the
 terminal is given back, the history, the doctor, uninstalling. The workflow
 [`.github/workflows/meshchat.yml`](../../.github/workflows/meshchat.yml) runs all of it on a Mac on every change,
-and builds with every warning shown – a CoreBluetooth delegate method with a wrong signature would compile and
-silently never be called, so the build fails on "nearly matches" warnings.
+builds with every warning shown – a CoreBluetooth delegate method with a wrong signature would compile and
+silently never be called, so the build fails on "nearly matches" warnings – and runs the doctor in a window of
+Apple's Terminal, where MeshChat must recognize Terminal and go ahead (the check MeshChat 1 got wrong).
 
 **What the automated tests do not show:** that Bluetooth works between real Macs. The simulated radio behaves
 like CoreBluetooth where the mesh relies on it, but it is not CoreBluetooth, and CI Macs have no usable Bluetooth.

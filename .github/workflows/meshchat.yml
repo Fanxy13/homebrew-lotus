@@ -34,6 +34,23 @@ jobs:
           ! grep -E "nearly matches|deprecated" "$RUNNER_TEMP/mc/build.log"
       - name: Lotus' plugin check
         run: zsh bin/lotus plugin check plugins/meshchat
+      - name: In Apple's Terminal – macOS asks for Bluetooth there, so MeshChat goes ahead
+        run: |
+          # Terminal's Info.plist declares no Bluetooth use, yet macOS lets it ask (it holds
+          # com.apple.private.tcc.allow-prompting). MeshChat 1 refused to start in it. The doctor, run in a Terminal window:
+          out="$RUNNER_TEMP/mc/in-terminal.txt"
+          cat > "$RUNNER_TEMP/mc/doctor.command" <<EOF
+          #!/bin/bash
+          LOTUS_PLUGIN_DATA="$RUNNER_TEMP/mc/data" "$RUNNER_TEMP/mc/meshchat" doctor > "$out" 2>&1
+          echo "[done \$?]" >> "$out"
+          EOF
+          chmod +x "$RUNNER_TEMP/mc/doctor.command"
+          open -a Terminal "$RUNNER_TEMP/mc/doctor.command"
+          for i in $(seq 90); do grep -q '^\[done' "$out" 2>/dev/null && break; sleep 1; done
+          cat "$out"
+          grep -q "Terminal – /System/Applications/Utilities/Terminal.app" "$out"
+          grep -q "macOS asks Terminal for the Bluetooth permission" "$out"
+          ! grep -q "macOS ended\|does not let programs" "$out"
       - name: MeshChat through Lotus (sandbox build, protocol tests, the chat in a terminal)
         run: zsh tests/run.zsh meshchat
       - name: Installing plugins – all of plugins/, MeshChat among them
