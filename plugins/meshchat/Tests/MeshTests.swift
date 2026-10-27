@@ -1,33 +1,30 @@
-// MeshChat tests – the mesh on a simulated radio: Macs that find and link to each other, messages over several
-// relays, each shown once, the hop limit, catching up after being out of range, hostile neighbours, other rooms,
-// who is here, and Bluetooth switched off. The radio is simulated (SimTransport.swift), the mesh is the real one.
+// MeshChat tests – the mesh on a simulated radio: Macs that find and link to each other, messages over many
+// relays – as far as the hop limit – each shown once, catching up after being out of range, hostile neighbours,
+// floods, relays, who is here, and Bluetooth switched off. The radio is simulated (SimTransport.swift), the mesh is
+// the real one.
 
 import Foundation
 
 final class TestMesh {
     let net: SimNetwork
-    let secret: RoomSecret
     private(set) var nodes: [String: MeshNode] = [:]
     private(set) var radios: [String: SimRadio] = [:]
     var events: [String: [MeshEvent]] = [:]
 
-    init(secret: RoomSecret = .generate(), seed: UInt64 = 1) {
+    init(seed: UInt64 = 1) {
         net = SimNetwork(seed: seed)
-        self.secret = secret
     }
 
     @discardableResult
-    func add(_ name: String, maxFrame: Int = 182, config: MeshConfig = MeshConfig(), room: RoomSecret? = nil, roomName: String = "Test room",
-             identity: Data = CryptoBackend.randomBytes(32), inRoom: Bool = true) -> MeshNode {
+    func add(_ name: String, maxFrame: Int = 182, config: MeshConfig = MeshConfig(), identity: Data = CryptoBackend.randomBytes(32)) -> MeshNode {
         let radio = net.radio(name, maxFrame: maxFrame)
         let net = self.net
-        let node = MeshNode(transport: radio, config: config, nickname: name, clock: { net.now },
+        let node = MeshNode(transport: radio, config: config, nickname: name, signer: try! Signer(identity: identity), clock: { net.now },
                             events: { [unowned self] e in self.events[name, default: []].append(e) })
         nodes[name] = node
         radios[name] = radio
         net.tickers.append { [weak node] in node?.tick() }
         node.start()
-        if inRoom { try! node.enter(secret: room ?? secret, name: roomName, identity: identity) }
         return node
     }
 
@@ -89,13 +86,12 @@ final class Rogue: LinkTransportDelegate {
     func radio(connectFailed endpoint: String, reason: String) {}
 }
 
-// A packet as a member of the room makes it
-private func memberPacket(_ m: TestMesh, text: String, from nickname: String = "Mallory", time: TimeInterval? = nil, id: UInt64 = 777,
-                          signer: Signer? = nil, ttl: UInt8 = 5) throws -> MeshPacket {
-    let keys = RoomKeys(secret: m.secret)
-    let s = try signer ?? Signer(identity: CryptoBackend.randomBytes(32), room: keys)
+// A packet as any MeshChat makes it – properly signed, by whoever `signer` is
+private func signedPacket(_ m: TestMesh, text: String, from nickname: String = "Mallory", time: TimeInterval? = nil, id: UInt64 = 777,
+                          signer: Signer? = nil, ttl: UInt8 = Proto.hopLimit) throws -> MeshPacket {
+    let s = try signer ?? Signer(identity: CryptoBackend.randomBytes(32))
     let inner = InnerMessage(kind: .chat, senderKey: s.publicKey, session: CryptoBackend.randomBytes(8), nickname: nickname, text: text)
-    return try RoomCrypto(keys: keys, signer: s).seal(inner, ttl: ttl, messageID: id, timestamp: UInt64((time ?? m.net.now) * 1000))
+    return try Signing.make(inner, signer: s, ttl: ttl, messageID: id, timestamp: UInt64((time ?? m.net.now) * 1000))
 }
 
 func meshTests() {
@@ -155,24 +151,21 @@ func meshTests() {
         check(names.map { m.stats($0).duplicates }.reduce(0, +) > 0, "copies over other paths were recognized and dropped")
     }
 
-    test("the hop limit: a message takes at most as many relays as its sender allows") {
+    test("as far as it goes: every Mac passes a message on, 16 relays far – and no further") {
         let m = TestMesh()
-        var short = MeshConfig()
-        short.hops = 2
-        let chain = (0..<8).map { "N\($0)" }
-        for (i, n) in chain.enumerated() { m.add(n, config: i == 0 ? short : MeshConfig()) }
-        for i in 0..<7 { m.net.setRange(chain[i], chain[i + 1], true) }
-        m.run(80)
-        checkEqual(m.net.linkCount, 7, "a chain of 8 Macs")
-        m.say("N0", "two relays only")
-        m.run(2)
-        let reached = chain.filter { m.texts($0).contains("two relays only") }
-        checkEqual(reached, ["N1", "N2", "N3"], "hops 2: the neighbour and two relays")
-        checkEqual(m.received("N3").first?.hops, 2, "N3 got it after two relays")
-        m.say("N7", "five relays")
-        m.run(2)
-        let reached5 = chain.filter { m.texts($0).contains("five relays") }
-        checkEqual(reached5, ["N1", "N2", "N3", "N4", "N5", "N6"], "the default of 5 relays ends at N1")
+        let chain = (0..<19).map { "N\($0)" }
+        for n in chain { m.add(n) }
+        for i in 0..<18 { m.net.setRange(chain[i], chain[i + 1], true) }
+        m.run(90)
+        checkEqual(m.net.linkCount, 18, "a chain of 19 Macs, each hearing only the next")
+        m.say("N0", "as far as it goes")
+        m.run(3)
+        let reached = chain.filter { m.texts($0).contains("as far as it goes") }
+        checkEqual(reached, Array(chain[1...17]), "the neighbour and 16 relays: N1 to N17 – not N18")
+        checkEqual(m.received("N17").first { $0.text == "as far as it goes" }?.hops, 16, "N17 got it after 16 relays")
+        m.say("N9", "from the middle")
+        m.run(3)
+        checkEqual(chain.filter { m.texts($0).contains("from the middle") }.count, 18, "from the middle it reaches both ends")
     }
 
     test("old messages, ones from the future and replays are refused") {
@@ -183,14 +176,14 @@ func meshTests() {
         m.run(3)
         rogue.connect(to: "A", in: m.net)
         check(rogue.link != nil, "a member's Mac linked to A")
-        rogue.sendPacket(try memberPacket(m, text: "stale", time: m.net.now - 20 * 60, id: 1))
-        rogue.sendPacket(try memberPacket(m, text: "from the future", time: m.net.now + 30 * 60, id: 2))
-        rogue.sendPacket(try memberPacket(m, text: "fresh", id: 3))
+        rogue.sendPacket(try signedPacket(m, text: "stale", time: m.net.now - 20 * 60, id: 1))
+        rogue.sendPacket(try signedPacket(m, text: "from the future", time: m.net.now + 30 * 60, id: 2))
+        rogue.sendPacket(try signedPacket(m, text: "fresh", id: 3))
         m.net.pump()
         checkEqual(m.texts("A"), ["fresh"], "only the fresh one is shown")
         checkEqual(m.stats("A").expired, 2, "two refused for their time")
         check(m.notices("A").contains { $0.contains("clocks of the two Macs differ") }, "and A is told why")
-        let replay = try memberPacket(m, text: "once", id: 4)
+        let replay = try signedPacket(m, text: "once", id: 4)
         rogue.sendPacket(replay)
         rogue.sendPacket(replay)
         m.net.pump()
@@ -205,25 +198,24 @@ func meshTests() {
         m.net.allInRange(["B", "C", "rogue"])
         m.run(15)
         rogue.connect(to: "B", in: m.net)
-        let genuine = try memberPacket(m, text: "the real one", id: 99)
+        let genuine = try signedPacket(m, text: "the real one", id: 99)
         var forged = genuine
-        forged.sealed[5] ^= 0xFF
+        forged.payload[5] ^= 0xFF
         rogue.sendPacket(forged)
         m.net.pump()
-        checkEqual(m.stats("B").authFailed, 1, "B refuses the damaged copy")
+        checkEqual(m.stats("B").forged, 1, "B refuses the damaged copy")
         check(m.texts("B").isEmpty && m.texts("C").isEmpty, "nobody sees it")
         rogue.sendPacket(genuine)
         m.net.pump()
         checkEqual(m.texts("B"), ["the real one"], "the real one with the same ID gets through after it")
         checkEqual(m.texts("C"), ["the real one"], "and is passed on")
-        let keys = RoomKeys(secret: m.secret)
-        let alice = try Signer(identity: CryptoBackend.randomBytes(32), room: keys)
-        let mallory = try Signer(identity: CryptoBackend.randomBytes(32), room: keys)
+        let alice = try Signer(identity: CryptoBackend.randomBytes(32))
+        let mallory = try Signer(identity: CryptoBackend.randomBytes(32))
         let lie = InnerMessage(kind: .chat, senderKey: alice.publicKey, session: Data(count: 8), nickname: "Alice", text: "I am Alice")
-        rogue.sendPacket(try RoomCrypto(keys: keys, signer: mallory).seal(lie, ttl: 5, messageID: 5, timestamp: UInt64(m.net.now * 1000)))
+        rogue.sendPacket(try Signing.make(lie, signer: mallory, ttl: 16, messageID: 5, timestamp: UInt64(m.net.now * 1000)))
         m.net.pump()
         check(!m.texts("B").contains("I am Alice"), "a message signed with another key than its sender's is refused")
-        checkEqual(m.stats("B").authFailed, 2, "counted")
+        checkEqual(m.stats("B").forged, 2, "counted")
     }
 
     test("broken frames and floods: refused, counted, and the chat goes on") {
@@ -246,9 +238,9 @@ func meshTests() {
             rogue.sendRaw(noise)
         }
         rogue.sendRaw(Data([1, 2, 0, 1, 0, 1]) + Data(count: 600))
-        var bad = try memberPacket(m, text: "x", id: 8).encode()
-        bad[3] = 7
-        bad[4] = 1          // ttl + hops = 8
+        var bad = try signedPacket(m, text: "x", id: 8).encode()
+        bad[3] = 16
+        bad[4] = 1          // ttl + hops = 17
         rogue.send(.data(seq: 2, index: 0, count: 1, payload: bad))
         m.net.pump()
         check(m.stats("A").malformed > 100, "random bytes are refused (\(m.stats("A").malformed))")
@@ -261,35 +253,48 @@ func meshTests() {
         checkEqual(m.texts("A"), ["still working?"], "A still chats with B")
     }
 
-    test("other rooms: not shown, not passed on – unless a Mac relays for everyone") {
-        let other = RoomSecret.generate()
+    test("one sender cannot flood everyone: a share for each, the rest dropped") {
         let m = TestMesh()
         m.add("A")
-        m.add("B", room: other)
-        m.add("C")
+        m.add("B")
+        let rogue = Rogue(m.net)
         m.net.setRange("A", "B", true)
-        m.net.setRange("B", "C", true)
-        m.run(40)
-        m.say("A", "for room X")
-        m.run(2)
-        check(m.texts("B").isEmpty, "B, in another room, cannot read it")
-        check(m.texts("C").isEmpty, "and does not pass it on")
-        check(m.stats("B").foreign >= 1, "B counted a packet of another room")
+        m.net.setRange("A", "rogue", true)
+        m.run(15)
+        rogue.connect(to: "A", in: m.net)
+        let spammer = try Signer(identity: CryptoBackend.randomBytes(32))
+        for i in 0..<100 {
+            rogue.sendPacket(try signedPacket(m, text: "spam \(i)", from: "Spammer", id: UInt64(10_000 + i), signer: spammer))
+            m.net.pump()
+            m.run(0.1)          // slower than a link may send: only the sender's share stops it
+        }
+        let shown = m.texts("A").filter { $0.hasPrefix("spam") }.count
+        check(shown >= 40 && shown <= 55, "A shows the sender's share: 40 at once, then one a second (\(shown) of 100)")
+        check(m.stats("A").rateLimited >= 40, "the rest is dropped (\(m.stats("A").rateLimited))")
+        check(m.texts("B").filter { $0.hasPrefix("spam") }.count <= shown, "and not passed on to B")
+        check(m.notices("A").contains { $0.contains("Spammer sends very many messages") }, "A is told")
+        rogue.sendPacket(try signedPacket(m, text: "someone else", from: "Carol", id: 99_999))
+        m.net.pump()
+        check(m.texts("A").contains("someone else"), "another sender still gets through")
+    }
 
-        let r = TestMesh()
-        var relay = MeshConfig()
-        relay.relayForeign = true
-        r.add("A")
-        r.add("B", config: relay, inRoom: false)
-        r.add("C")
-        r.net.setRange("A", "B", true)
-        r.net.setRange("B", "C", true)
-        r.run(40)
-        r.say("A", "through a relay")
-        r.run(2)
-        checkEqual(r.texts("C"), ["through a relay"], "a Mac in relay mode passes it on")
-        check(r.texts("B").isEmpty, "without reading it")
-        checkEqual(r.received("C").first?.hops, 1, "one relay")
+    test("a relay passes everything on and says nothing") {
+        let m = TestMesh()
+        var silent = MeshConfig()
+        silent.silent = true
+        m.add("A")
+        m.add("R", config: silent)
+        m.add("C")
+        m.net.setRange("A", "R", true)
+        m.net.setRange("R", "C", true)
+        m.run(45)
+        m.say("A", "through the relay")
+        m.run(2)
+        checkEqual(m.texts("C"), ["through the relay"], "C gets A's message through R")
+        checkEqual(m.received("C").first?.hops, 1, "one relay")
+        checkEqual(m.people("A").map { $0.nickname }, ["C"], "A knows C – and not the relay, which never speaks")
+        checkEqual(m.people("C").map { $0.nickname }, ["A"], "nor does C")
+        check(m.stats("R").relayed >= 1, "R passed it on")
     }
 
     test("out of range and back: links come again, missed messages arrive, nothing twice") {
@@ -352,11 +357,17 @@ func meshTests() {
         m.net.allInRange(["A", "rogue"])
         m.run(3)
         rogue.connect(to: "A", in: m.net, hello: false)
-        rogue.send(.hello(Hello(minVersion: 2, maxVersion: 3, session: CryptoBackend.randomBytes(8))))
+        rogue.send(.hello(Hello(minVersion: 3, maxVersion: 4, session: CryptoBackend.randomBytes(8))))
         m.net.pump()
         check(m.notices("A").contains { $0.contains("newer MeshChat") }, "A says a newer MeshChat is nearby")
         check(rogue.received.contains(LinkFrame.bye(ByeReason.incompatible.rawValue).encode()), "and tells it why it ends the link")
         checkEqual(m.node("A").readyLinks, 0, "no link")
+        let old = Rogue(m.net, name: "meshchat1")
+        m.net.allInRange(["A", "meshchat1"])
+        old.connect(to: "A", in: m.net, hello: false)
+        old.send(.hello(Hello(minVersion: 1, maxVersion: 1, session: CryptoBackend.randomBytes(8))))
+        m.net.pump()
+        check(m.notices("A").contains { $0.contains("older MeshChat (protocol 1)") && $0.contains("update") }, "a Mac with MeshChat 1 is told to update")
         let r2 = Rogue(m.net, name: "rogue2")
         m.net.allInRange(["A", "rogue2"])
         r2.connect(to: "A", in: m.net, hello: false)
@@ -387,16 +398,6 @@ func meshTests() {
         check(m.notices("A").contains { $0.contains("B has not been heard") }, "and A was told")
         m.run(600)
         check(m.person("B", seenBy: "A") == nil, "after 10 minutes B is off the list")
-    }
-
-    test("a room's name reaches those who joined with only its code") {
-        let m = TestMesh()
-        m.add("A", roomName: "Bike trip")
-        m.add("B", roomName: "")
-        m.net.allInRange(["A", "B"])
-        m.run(20)
-        checkEqual(m.node("B").roomName, "Bike trip", "B learned the name")
-        check((m.events["B"] ?? []).contains { if case .roomName("Bike trip") = $0 { return true } else { return false } }, "and told the app")
     }
 
     test("Bluetooth switched off and on again") {
@@ -480,12 +481,11 @@ extension TestMesh {
         init(_ m: TestMesh, name: String, identity: Data) {
             let radio = m.net.radio(name + "2")
             let net = m.net
-            let node = MeshNode(transport: radio, nickname: name, clock: { net.now }, events: { [unowned self] e in
+            let node = MeshNode(transport: radio, nickname: name, signer: try! Signer(identity: identity), clock: { net.now }, events: { [unowned self] e in
                 if case .message(let msg) = e { self.messages.append(msg) }
             })
             m.adopt(node, radio: radio, as: name + "2")
             node.start()
-            try! node.enter(secret: m.secret, name: "Test room", identity: identity)
             for other in m.nodes.keys where other != name + "2" { m.net.setRange(name + "2", other, true) }
         }
     }

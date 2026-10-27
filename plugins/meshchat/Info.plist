@@ -9,9 +9,9 @@
 	<key>CFBundleName</key>
 	<string>MeshChat</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.0</string>
+	<string>2.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>MeshChat uses Bluetooth to chat with Macs nearby that run MeshChat – without the internet.</string>
 </dict>

@@ -34,7 +34,7 @@ jobs:
           ! grep -E "nearly matches|deprecated" "$RUNNER_TEMP/mc/build.log"
       - name: Lotus' plugin check
         run: zsh bin/lotus plugin check plugins/meshchat
-      - name: MeshChat through Lotus (sandbox build, protocol tests, rooms, the chat in a terminal)
+      - name: MeshChat through Lotus (sandbox build, protocol tests, the chat in a terminal)
         run: zsh tests/run.zsh meshchat
       - name: Installing plugins – all of plugins/, MeshChat among them
         run: zsh tests/run.zsh plugin-install

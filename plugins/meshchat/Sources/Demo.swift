@@ -1,13 +1,12 @@
 // MeshChat – `lotus meshchat demo`: the chat with two simulated people, to try it without a second Mac. Nothing
 // goes over Bluetooth and nothing is saved; the screen says DEMO. Ada is your neighbour; Grace is out of your
-// range and reaches you through Ada, so her messages arrive relayed (⇢1). The mesh, the encryption and the screen
+// range and reaches you through Ada, so her messages arrive relayed (⇢1). The mesh, the signatures and the screen
 // are the real ones – only the radio is simulated (SimTransport.swift).
 
 import Foundation
 
 final class DemoWorld {
     let net: SimNetwork
-    let secret = RoomSecret.generate()
     private var bots: [DemoBot] = []
     private let queue: DispatchQueue
 
@@ -26,7 +25,7 @@ final class DemoWorld {
                     replies: ["Got it 👍",
                               "Grace is out of your range – what she writes reaches you through my Mac.",
                               "Try /who to see who is here, and how they are connected.",
-                              "Only Macs with this room's code can read what we write.",
+                              "There are no rooms: every Mac with MeshChat nearby reads this, and passes it on.",
                               "Ctrl-C closes the chat; on real Macs your history stays on yours."],
                     replyEvery: 1),
             DemoBot(name: "Grace", world: self, queue: queue,
@@ -65,12 +64,13 @@ final class DemoBot {
         self.replies = replies
         self.replyEvery = replyEvery
         let net = world.net
-        let node = MeshNode(transport: net.radio(name), nickname: name, clock: { net.now },
+        // a key made from a random identity cannot fail – Signer only refuses a seed that is not 32 bytes
+        let signer = try! Signer(identity: CryptoBackend.randomBytes(32))
+        let node = MeshNode(transport: net.radio(name), nickname: name, signer: signer, clock: { net.now },
                             events: { [weak self] e in self?.handle(e) })
         self.node = node
         net.tickers.append { [weak node] in node?.tick() }
         node.start()
-        try? node.enter(secret: world.secret, name: "Demo room", identity: CryptoBackend.randomBytes(32))
     }
 
     private func say(_ text: String, after seconds: Double) {

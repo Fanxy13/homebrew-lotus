@@ -1,4 +1,4 @@
-// MeshChat tests – the bytes: link frames, mesh packets, what is inside them, and texts from other Macs.
+// MeshChat tests – the bytes: link frames, mesh packets, the messages in them, and texts from other Macs.
 
 import Foundation
 
@@ -32,21 +32,17 @@ func codecTests() {
         checkEqual(Hex.decode("00ABff"), Data([0, 0xAB, 0xFF]), "hex back, any case")
         check(Hex.decode("abc") == nil && Hex.decode("zz") == nil, "not hex")
         checkEqual(Hex.u64(255), "00000000000000ff", "a 64-bit ID as 16 digits")
-        for n in [1, 5, 16, 18, 31] {
-            let d = CryptoBackend.randomBytes(n)
-            checkEqual(Base32.decode(Base32.encode(d), count: n), d, "base32 round trip of \(n) bytes")
-        }
         checkEqual(Base32.encode(Data([0xFF])), "ZW", "base32 bits in order")
-        checkEqual(Base32.decode("zw", count: 1), Data([0xFF]), "lower case")
-        check(Base32.decode("ZU", count: 1) == nil, "U is not base32")
-        check(Base32.decode("ZWW", count: 1) == nil, "one character too many")
+        checkEqual(Base32.encode(Data("f".utf8)), "CR", "Crockford's alphabet")
+        checkEqual(Base32.encode(CryptoBackend.randomBytes(32)).count, 52, "32 bytes are 52 characters")
+        check(!Base32.alphabet.contains { "ILOU".contains($0) }, "no I, L, O or U to mistake for others")
     }
 
     test("link frames: every kind round trips") {
         let session = Data([1, 2, 3, 4, 5, 6, 7, 8])
         let frames: [LinkFrame] = [
             .hello(Hello(session: session)),
-            .hello(Hello(minVersion: 1, maxVersion: 3, session: session, maxPacket: 999, flags: Hello.relayFlag, software: "meshchat/9")),
+            .hello(Hello(minVersion: 1, maxVersion: 3, session: session, maxPacket: 999, flags: 1, software: "meshchat/9")),
             .data(seq: 65535, index: 3, count: 4, payload: Data("part".utf8)),
             .ping, .pong, .bye(ByeReason.leaving.rawValue),
         ]
@@ -93,48 +89,63 @@ func codecTests() {
         check(true, "2000 random frames decoded without a crash")
     }
 
-    test("mesh packets: round trip, AAD without ttl and hops, relaying") {
-        let p = MeshPacket(ttl: 5, hops: 0, messageID: 0x1122334455667788, roomTag: Data(repeating: 9, count: 8),
-                           timestamp: 1_700_000_000_123, nonce: Data(repeating: 7, count: 12), sealed: Data(repeating: 1, count: 40))
+    test("mesh packets: round trip, the signed header without ttl and hops, relaying") {
+        let p = MeshPacket(ttl: 16, hops: 0, messageID: 0x1122334455667788, timestamp: 1_700_000_000_123, payload: Data(repeating: 1, count: 80))
         let bytes = p.encode()
-        checkEqual(bytes.count, Proto.headerLength + 40, "header of 41 bytes")
+        checkEqual(bytes.count, Proto.headerLength + 80, "a header of 21 bytes")
+        checkEqual(Proto.headerLength, 21, "version, type, flags, ttl, hops, ID and time")
         checkEqual(try MeshPacket.decode(bytes), p, "decoded again")
         let r = p.relayed()!
-        checkEqual(r.ttl, 4, "a relay takes one from ttl")
+        checkEqual(r.ttl, 15, "a relay takes one from ttl")
         checkEqual(r.hops, 1, "and adds one to hops")
-        checkEqual(r.aad, p.aad, "the AAD does not change on the way")
+        checkEqual(r.signedHeader, p.signedHeader, "what is signed does not change on the way")
         var other = p
         other.messageID ^= 1
-        check(other.aad != p.aad, "but it covers the message ID")
+        check(other.signedHeader != p.signedHeader, "but it covers the message ID")
+        other = p
+        other.timestamp += 1
+        check(other.signedHeader != p.signedHeader, "and the time")
         var last = p
         last.ttl = 0
         check(last.relayed() == nil, "ttl 0 is not relayed")
     }
 
     test("mesh packets: hop limit, version and size are enforced") {
-        var p = MeshPacket(ttl: 7, hops: 0, messageID: 1, roomTag: Data(count: 8), timestamp: 0, nonce: Data(count: 12), sealed: Data(count: 17))
-        check((try? MeshPacket.decode(p.encode())) != nil, "ttl 7, hops 0 is allowed")
-        p.ttl = 5
-        p.hops = 3
-        checkThrows("ttl + hops over 7") { try MeshPacket.decode(p.encode()) }
-        p.ttl = 8
+        var p = MeshPacket(ttl: 16, hops: 0, messageID: 1, timestamp: 0, payload: Data(count: 65))
+        check((try? MeshPacket.decode(p.encode())) != nil, "ttl 16, hops 0 is allowed – every message starts so")
+        p.ttl = 10
+        p.hops = 7
+        checkThrows("ttl + hops over 16") { try MeshPacket.decode(p.encode()) }
+        p.ttl = 17
         p.hops = 0
-        checkThrows("ttl over 7") { try MeshPacket.decode(p.encode()) }
+        checkThrows("ttl over 16") { try MeshPacket.decode(p.encode()) }
         p.ttl = 1
-        var newer = p.encode()
-        newer[0] = 2
+        for (v, what) in [(UInt8(3), "a newer version is named as such"), (UInt8(1), "and MeshChat 1's packets too")] {
+            var other = p.encode()
+            other[0] = v
+            do {
+                _ = try MeshPacket.decode(other)
+                check(false, what)
+            } catch WireError.unsupportedVersion(let got) {
+                checkEqual(got, Int(v), what)
+            } catch {
+                check(false, "\(what): \(error)")
+            }
+        }
+        var noise = p.encode()
+        noise[0] = 200
         do {
-            _ = try MeshPacket.decode(newer)
-            check(false, "version 2 is reported")
-        } catch WireError.unsupportedVersion(2) {
-            check(true, "version 2 is reported")
+            _ = try MeshPacket.decode(noise)
+            check(false, "a version byte of 200 is noise")
+        } catch WireError.unsupportedVersion {
+            check(false, "a version byte of 200 is noise, not a version")
         } catch {
-            check(false, "version 2 is reported: \(error)")
+            check(true, "a version byte of 200 is noise, not a version")
         }
         var type = p.encode()
         type[1] = 9
         checkThrows("an unknown packet type") { try MeshPacket.decode(type) }
-        checkThrows("no ciphertext, only a tag") { try MeshPacket.decode(p.encode().prefix(Proto.headerLength + 16)) }
+        checkThrows("only a signature, no message") { try MeshPacket.decode(p.encode().prefix(Proto.headerLength + 64)) }
         checkThrows("a packet over 2048 bytes") { try MeshPacket.decode(p.encode() + Data(count: 2100)) }
     }
 
@@ -142,7 +153,7 @@ func codecTests() {
         let key = Data(repeating: 3, count: 32), session = Data(repeating: 4, count: 8)
         let msgs = [
             InnerMessage(kind: .chat, senderKey: key, session: session, nickname: "Ada", text: "Hello, mesh! 🌸"),
-            InnerMessage(kind: .presence, flags: InnerMessage.requestFlag, senderKey: key, session: session, nickname: "Grace", roomName: "Bike trip", links: 3),
+            InnerMessage(kind: .presence, flags: InnerMessage.requestFlag, senderKey: key, session: session, nickname: "Grace", links: 3),
             InnerMessage(kind: .bye, senderKey: key, session: session, nickname: "Linus"),
         ]
         for m in msgs {
