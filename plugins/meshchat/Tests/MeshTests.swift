@@ -54,6 +54,7 @@ final class Rogue: LinkTransportDelegate {
     var link: Int?
     var received: [Data] = []
     var closed = false
+    var opened = 0
     private var seq: UInt16 = 100
 
     init(_ net: SimNetwork, name: String = "rogue", maxFrame: Int = 512) {
@@ -79,7 +80,10 @@ final class Rogue: LinkTransportDelegate {
 
     func radio(stateChanged state: RadioState) {}
     func radio(sighted: Sighting) {}
-    func radio(opened link: LinkInfo) { self.link = link.id }
+    func radio(opened link: LinkInfo) {
+        self.link = link.id
+        opened += 1
+    }
     func radio(closed link: Int, reason: String) { closed = true; self.link = nil }
     func radio(received frame: Data, on link: Int) { received.append(frame) }
     func radio(connectFailed endpoint: String, reason: String) {}
@@ -311,6 +315,19 @@ func meshTests() {
         check(m.stats("B").caughtUp > 0, "B sent C what it missed")
         m.say("C", "back")
         checkEqual(m.texts("A").filter { $0 == "back" }.count, 1, "and C is heard again")
+    }
+
+    test("a Mac that connects but never answers is tried less and less, not forever") {
+        let m = TestMesh()
+        m.add("A")
+        let rogue = Rogue(m.net)
+        rogue.radio.setAdvertising(true)        // found and connected to – and it never says hello
+        m.net.allInRange(["A", "rogue"])
+        m.run(600)
+        check(rogue.opened >= 3, "A tried again (\(rogue.opened) times)")
+        check(rogue.opened <= 12, "but not every few seconds: \(rogue.opened) attempts in 10 minutes")
+        check(m.stats("A").connectFailures >= 3, "each one a failed connection")
+        checkEqual(m.node("A").readyLinks, 0, "and no link")
     }
 
     test("two Macs that connect to each other at once keep one link") {

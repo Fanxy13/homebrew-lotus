@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased – MeshChat
+
+- A new plugin, MeshChat: a group chat with the Macs around you over Bluetooth Low Energy – no internet, no Wi-Fi, no server. Install it with `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat`, then `/meshchat create "Bike trip"` shows a room code, `/meshchat join <code>` on the other Macs, and `/meshchat` opens the chat. `/meshchat demo` tries it without a second Mac: two simulated people, one of them a relay away
+- A mesh: every Mac passes on what it receives, up to 5 relays (`/meshchat set hops`, at most 7), so two Macs out of each other's range still chat through one in between. Each message is shown once, however many paths it takes; a Mac that comes back into range gets what it missed in the last 15 minutes. Links are made and remade by themselves, with retries that slow down and stop, and scanning in bursts to spare the battery
+- Rooms are 128 random bits in a code with a check (`MC1-…`, a typo is caught). Everything said is encrypted for the room (ChaCha20-Poly1305, keys from HKDF-SHA256) and signed by its sender (Ed25519) – Apple's CryptoKit, nothing self-made. Nothing that fails a check is shown or passed on; nothing but the service and a random token is in advertisements. Whoever has a room's code can read that room
+- The chat: the room and you on top, what is said with its time (⇢1: one relay), who is here and how (● a direct link), Bluetooth and the mesh below. `/who`, `/invite`, `/nick`, `/join`, `/create`, `/rooms`, `/leave`, `/quit`; ctrl-c, ctrl-z and a closed window all give the terminal back as it was
+- A limited plugin without internet: it sees only its own folder and keeps rooms, codes and history in its data folder, readable by you only. macOS asks once whether your terminal may use Bluetooth; `/meshchat doctor` explains a missing permission, a terminal app that cannot have it, Bluetooth that is off, a failed build and failed links. The Swift program is built once into the data folder (Command Line Tools), like Lotus' own AI terminal
+- Tests: `lotus meshchat selftest` – the protocol on a simulated radio (published test vectors, packets and their limits, multi-hop, duplicates, the hop limit, fragments, forged and broken packets, out of range and back); `zsh tests/run.zsh meshchat` – through Lotus, built in the sandbox, the chat driven in a terminal; and a workflow that runs both on a Mac. Bluetooth between real Macs is tested by hand: plugins/meshchat/README.md
+- `tests/test-plugin-install.zsh` counts five plugins in plugins/
+
 ## 2.22.0 – Image converter
 
 - `/img convert` – images and whole folders into JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO, with macOS' own image engine (ImageIO). It reads what Preview reads: HEIC from the iPhone, WebP, AVIF, PSD, SVG, JPEG XL, RAW photos …

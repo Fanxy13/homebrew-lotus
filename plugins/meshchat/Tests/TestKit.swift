@@ -75,6 +75,7 @@ struct SeededGenerator: RandomNumberGenerator {
 @main
 struct TestMain {
     static func main() {
+        setvbuf(stdout, nil, _IOLBF, 0)     // each line out at once: a crash never hides where it happened
         print("MeshChat protocol tests (crypto: \(CryptoBackend.name))")
         codecTests()
         cryptoTests()

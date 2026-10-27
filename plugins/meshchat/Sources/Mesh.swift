@@ -357,10 +357,7 @@ final class MeshNode: LinkTransportDelegate {
         let t = clock()
         let link = Link(info, now: t, helloTimeout: config.helloTimeout)
         links[info.id] = link
-        if info.outbound, candidates[info.endpoint] != nil {
-            candidates[info.endpoint]?.connectingSince = nil
-            candidates[info.endpoint]?.failures = 0
-        }
+        if info.outbound { candidates[info.endpoint]?.connectingSince = nil }
         log("link \(info.id) open – \(info.outbound ? "this Mac connected" : "the other Mac connected"), frames of up to \(info.maxFrame) bytes")
         if links.values.filter({ $0.state != .closed }).count > config.maxLinks {
             sendFrame(.bye(ByeReason.full.rawValue), on: link)
@@ -380,6 +377,12 @@ final class MeshNode: LinkTransportDelegate {
         log("link \(id) closed: \(reason)")
         if link.outbound, var c = candidates[link.endpoint] {
             c.connectingSince = nil
+            if link.session == nil {
+                // connected, but no handshake (or no version in common): a failed attempt, so it is not retried
+                // every few seconds forever
+                c.failures += 1
+                stats.connectFailures += 1
+            }
             // a Mac that was there a moment ago: try again soon, it may only have moved a little
             c.nextAttempt = t + (wasReady ? 2 : backoff(c.failures))
             candidates[link.endpoint] = c
@@ -418,8 +421,8 @@ final class MeshNode: LinkTransportDelegate {
             hello(h, on: link)
         case let .data(seq, index, count, payload):
             guard link.state == .ready else {
-                stats.malformed += 1         // data before the handshake, or on a link that is going
-                break
+                if link.state == .hello { stats.malformed += 1 }     // data before the handshake
+                break                                                // (or on a second link that is going)
             }
             switch link.reassembler.add(seq: seq, index: index, count: count, payload: payload, now: t) {
             case .complete(let packet): received(packet, from: link)
@@ -499,6 +502,7 @@ final class MeshNode: LinkTransportDelegate {
         link.software = h.software
         link.state = .ready
         endpointSessions[link.endpoint] = h.session
+        if link.outbound { candidates[link.endpoint]?.failures = 0 }       // a link that works: a clean slate
         log("link \(link.id) ready (\(h.software))")
         guard keepOne(of: link) else { return }
         catchUp(link)
@@ -595,8 +599,9 @@ final class MeshNode: LinkTransportDelegate {
         }
     }
 
+    // 2, 4, 8 … 60 seconds between attempts; after 8 failures in a row, 5 minutes
     private func backoff(_ failures: Int) -> TimeInterval {
-        min(config.maxBackoff, 2 * pow(2, Double(max(0, failures - 1))))
+        failures >= 8 ? 300 : min(config.maxBackoff, 2 * pow(2, Double(max(0, failures - 1))))
     }
 
     // Advertising while there is room for another link; scanning in bursts – nearly always while alone, a third of

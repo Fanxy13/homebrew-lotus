@@ -11,6 +11,10 @@ enum CryptoBackend {
 
     struct OpenFailed: Error {}
 
+    // CryptoKit hands out slices of its buffers (a tag whose first index is not 0); everything leaves this file as
+    // plain Data that starts at 0, so d[0] is always the first byte
+    private static func plain(_ d: Data) -> Data { Data([UInt8](d)) }
+
     static func randomBytes(_ count: Int) -> Data {
         var d = Data(count: count)
         d.withUnsafeMutableBytes { buf in
@@ -31,14 +35,14 @@ enum CryptoBackend {
     // ChaCha20-Poly1305 with a 32-byte key and a 12-byte nonce → the ciphertext and the 16-byte tag
     static func seal(_ plaintext: Data, key: Data, nonce: Data, aad: Data) throws -> (ciphertext: Data, tag: Data) {
         let box = try ChaChaPoly.seal(plaintext, using: SymmetricKey(data: key), nonce: ChaChaPoly.Nonce(data: nonce), authenticating: aad)
-        return (box.ciphertext, box.tag)
+        return (plain(box.ciphertext), plain(box.tag))
     }
 
     // Throws when the tag does not match: a wrong key, or a single changed bit anywhere
     static func open(_ ciphertext: Data, tag: Data, key: Data, nonce: Data, aad: Data) throws -> Data {
         do {
             let box = try ChaChaPoly.SealedBox(nonce: ChaChaPoly.Nonce(data: nonce), ciphertext: ciphertext, tag: tag)
-            return try ChaChaPoly.open(box, using: SymmetricKey(data: key), authenticating: aad)
+            return plain(try ChaChaPoly.open(box, using: SymmetricKey(data: key), authenticating: aad))
         } catch {
             throw OpenFailed()
         }
@@ -46,11 +50,11 @@ enum CryptoBackend {
 
     // Ed25519: a 32-byte private key (seed) → its 32-byte public key
     static func signingPublicKey(seed: Data) throws -> Data {
-        try Curve25519.Signing.PrivateKey(rawRepresentation: seed).publicKey.rawRepresentation
+        plain(try Curve25519.Signing.PrivateKey(rawRepresentation: seed).publicKey.rawRepresentation)
     }
 
     static func sign(_ message: Data, seed: Data) throws -> Data {
-        try Curve25519.Signing.PrivateKey(rawRepresentation: seed).signature(for: message)
+        plain(try Curve25519.Signing.PrivateKey(rawRepresentation: seed).signature(for: message))
     }
 
     static func verify(_ signature: Data, message: Data, publicKey: Data) -> Bool {
