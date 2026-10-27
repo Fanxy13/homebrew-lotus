@@ -82,7 +82,7 @@ func codecTests() {
             check(false, "a hello with control characters in its name is still read")
         }
         // nothing at all may crash the decoder
-        var gen = SystemRandomNumberGenerator()
+        var gen = SeededGenerator(seed: 7)
         for n in 0..<2000 {
             var d = Data((0..<Int.random(in: 0...40, using: &gen)).map { _ in UInt8.random(in: 0...255, using: &gen) })
             if n % 2 == 0 && !d.isEmpty { d[0] = 1 }

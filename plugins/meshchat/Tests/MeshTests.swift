@@ -234,10 +234,11 @@ func meshTests() {
         m.net.pump()
         check(m.stats("A").malformed >= 1, "data before the handshake is refused")
         rogue.send(.hello(Hello(session: CryptoBackend.randomBytes(8))))
-        var gen = SystemRandomNumberGenerator()
+        var gen = SeededGenerator(seed: 42)
         for i in 0..<200 {
-            var noise = Data((0..<Int.random(in: 1...60, using: &gen)).map { _ in UInt8.random(in: 0...255, using: &gen) })
-            if i % 2 == 0 { noise[0] = 1 }          // half of it looks like this version's frames
+            var noise = Data((0..<Int.random(in: 2...60, using: &gen)).map { _ in UInt8.random(in: 0...255, using: &gen) })
+            if i % 2 == 0 { noise[0] = 1 }          // half of it looks like this version's frames …
+            if noise[0] == 1 && noise[1] == LinkKind.bye.rawValue { noise[1] = 0x77 }   // … but a goodbye would end the link
             rogue.sendRaw(noise)
         }
         rogue.sendRaw(Data([1, 2, 0, 1, 0, 1]) + Data(count: 600))
