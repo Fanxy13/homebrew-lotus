@@ -222,7 +222,9 @@ Open a pull request that adds it to [plugins/README.md](plugins/README.md).
 In [plugins/](plugins/): **todo** (limited – a command, three AI tools and a start screen line, its list in its data
 folder), **github** (limited with the internet, in Python – a repository's stars and releases), **hello** (full –
 Lotus' own functions and settings), **liveserver** (full – like Live Server in VS Code: `/liveserver` serves the
-folder you are in and reloads the browser when you save; it reads that folder with `LOTUS_PWD`).
+folder you are in and reloads the browser when you save; it reads that folder with `LOTUS_PWD`), **meshchat** (limited
+without internet – a group chat with Macs nearby over Bluetooth; a Swift program the plugin builds once into its data
+folder, a terminal screen of its own, and tests of its own: `lotus meshchat selftest`).
 
 ```
 lotus plugin install ~/path/to/homebrew-lotus/plugins/todo

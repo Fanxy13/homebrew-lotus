@@ -273,7 +273,7 @@ Every plugin says how much it may do. **Limited** (the default) runs in a macOS 
 folder and data folder, no internet unless it says `network = yes`, no keychain, no other apps, nothing of
 your files, Lotus' settings or the AI's keys. **Full** runs with your rights and Lotus' own functions –
 Lotus asks you before it installs one, and again whenever its files change. Everything about building one:
-[PLUGINS.md](PLUGINS.md); examples (todo, github, hello, liveserver): [plugins/](plugins/), the first three at once as
+[PLUGINS.md](PLUGINS.md); examples (todo, github, hello, liveserver, meshchat): [plugins/](plugins/), the first three at once as
 a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
 
 **Live Server**, like the one in VS Code: install it once, then type `/liveserver` in a project folder (in VS Code's
@@ -283,6 +283,19 @@ and reloads the browser whenever you save a file (only the styles when you chang
 ```bash
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver
 /liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · stop
+```
+
+**MeshChat** – a group chat with the Macs around you over Bluetooth, without internet, Wi-Fi or a server. Messages
+hop from Mac to Mac, so two Macs out of each other's range still chat through one in between; everything said is
+encrypted with the room's code and signed by its sender. A limited plugin without internet; macOS asks once whether
+your terminal may use Bluetooth. Built once on your Mac from Swift (Command Line Tools). Not yet tried between real
+Macs – the Bluetooth part is built and checked on every change; the test with three Macs, the protocol and its
+limits: [plugins/meshchat](plugins/meshchat/README.md).
+
+```bash
+lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat
+/meshchat create "Bike trip"      # a room and its code · /meshchat join <code> on the other Macs
+/meshchat demo                    # try it first: two simulated people, no Bluetooth · /meshchat doctor
 ```
 
 ## Remove BG

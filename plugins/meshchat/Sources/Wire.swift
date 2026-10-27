@@ -1,0 +1,341 @@
+// MeshChat – the protocol on the wire, version 1. Numbers are big-endian; str8/str16 is UTF-8 after its length.
+//
+// Link frames – one GATT write or notification each, between two Macs that are connected:
+//   [1 link version = 1][1 kind] then
+//   HELLO 1  [1 lowest][1 highest mesh version][8 session][2 largest packet][1 flags][str8 software]
+//   DATA  2  [2 sequence][1 index][1 count][a part of one mesh packet]
+//   PING 3 · PONG 4   nothing more
+//   BYE   5  [1 reason]
+// A newer version may add fields at the end of a HELLO; they are skipped.
+//
+// Mesh packets – put together from DATA frames, checked, and passed on whole by every Mac on the way:
+//   [1 version = 1][1 type = 1, a room message][1 flags][1 ttl][1 hops][8 message ID][8 room tag][8 time, ms]
+//   [12 nonce][ciphertext][16 tag]
+//   ttl: relays it may still take · hops: relays it took. Only these two change on the way, so the AEAD
+//   authenticates the header with both set to 0.
+//
+// Inside – ChaCha20-Poly1305 with the room key, nothing of it readable without the room code:
+//   [1 kind][1 flags][32 sender's public key][8 sender's session][str8 nickname] then
+//   chat 1      [str16 text]
+//   presence 2  [str8 room name][1 links]          flags bit 0: "who is here?" – answer with yours
+//   bye 3       nothing more
+//   [64 Ed25519 signature over "MeshChat v1 sig", the header (ttl and hops 0) and everything before it]
+
+import Foundation
+
+enum Proto {
+    static let version: UInt8 = 1               // mesh packets
+    static let linkVersion: UInt8 = 1           // link frames
+    static let software = "meshchat/1.0.0"
+    static let maxFrame = 512                   // the most a GATT attribute value holds
+    static let minFrame = 20                    // the least BLE gives (ATT MTU 23 minus 3)
+    static let maxPacket = 2048
+    static let maxFragments = 255
+    static let hopLimit: UInt8 = 7              // ttl + hops is never more
+    static let defaultHops = 5
+    static let sessionLength = 8
+    static let roomTagLength = 8
+    static let nonceLength = 12
+    static let tagLength = 16
+    static let keyLength = 32
+    static let signatureLength = 64
+    static let headerLength = 41
+    static let maxNicknameCharacters = 24
+    static let maxNicknameBytes = 64
+    static let maxTextBytes = 1000
+    static let maxRoomNameCharacters = 40
+    static let maxRoomNameBytes = 96
+    static let maxSoftwareBytes = 32
+
+    // A version byte that is not ours: a plausible later version (2–15) is named as such, anything else is noise
+    static func versionError(_ v: UInt8) -> WireError {
+        (2...15).contains(v) ? .unsupportedVersion(Int(v)) : .invalid("version byte \(v)")
+    }
+}
+
+// ── Link frames ───────────────────────────────────────────────
+
+enum LinkKind: UInt8 {
+    case hello = 1, data = 2, ping = 3, pong = 4, bye = 5
+}
+
+enum ByeReason: UInt8 {
+    case leaving = 1        // the chat was closed
+    case incompatible = 2   // no protocol version in common
+    case redundant = 3      // a second link to the same Mac
+    case full = 4           // too many links already
+}
+
+struct Hello: Equatable {
+    static let relayFlag: UInt8 = 1             // it passes on packets of other rooms too (relay mode)
+
+    var minVersion: UInt8 = Proto.version
+    var maxVersion: UInt8 = Proto.version
+    var session: Data
+    var maxPacket: UInt16 = UInt16(Proto.maxPacket)
+    var flags: UInt8 = 0
+    var software: String = Proto.software
+}
+
+enum LinkFrame: Equatable {
+    case hello(Hello)
+    case data(seq: UInt16, index: UInt8, count: UInt8, payload: Data)
+    case ping
+    case pong
+    case bye(UInt8)
+
+    static let dataHeader = 6
+
+    func encode() -> Data {
+        var w = ByteWriter()
+        w.u8(Proto.linkVersion)
+        switch self {
+        case .hello(let h):
+            w.u8(LinkKind.hello.rawValue)
+            w.u8(h.minVersion)
+            w.u8(h.maxVersion)
+            w.bytes(h.session)
+            w.u16(h.maxPacket)
+            w.u8(h.flags)
+            try? w.str8(Sanitize.cut(h.software, characters: Proto.maxSoftwareBytes, bytes: Proto.maxSoftwareBytes))
+        case let .data(seq, index, count, payload):
+            w.u8(LinkKind.data.rawValue)
+            w.u16(seq)
+            w.u8(index)
+            w.u8(count)
+            w.bytes(payload)
+        case .ping:
+            w.u8(LinkKind.ping.rawValue)
+        case .pong:
+            w.u8(LinkKind.pong.rawValue)
+        case .bye(let reason):
+            w.u8(LinkKind.bye.rawValue)
+            w.u8(reason)
+        }
+        return w.data
+    }
+
+    static func decode(_ d: Data) throws -> LinkFrame {
+        guard d.count <= Proto.maxFrame else { throw WireError.tooLarge("frame of \(d.count) bytes") }
+        var r = ByteReader(d)
+        let version = try r.u8()
+        guard version == Proto.linkVersion else { throw Proto.versionError(version) }
+        guard let kind = LinkKind(rawValue: try r.u8()) else { throw WireError.invalid("frame kind") }
+        switch kind {
+        case .hello:
+            let lo = try r.u8(), hi = try r.u8()
+            guard lo >= 1, lo <= hi else { throw WireError.invalid("version range") }
+            let session = try r.bytes(Proto.sessionLength)
+            let maxPacket = try r.u16()
+            let flags = try r.u8()
+            let software = Sanitize.line(try r.str8(max: Proto.maxSoftwareBytes), characters: Proto.maxSoftwareBytes, bytes: Proto.maxSoftwareBytes)
+            return .hello(Hello(minVersion: lo, maxVersion: hi, session: session, maxPacket: maxPacket, flags: flags, software: software))
+        case .data:
+            let seq = try r.u16(), index = try r.u8(), count = try r.u8()
+            guard count >= 1, index < count else { throw WireError.invalid("fragment \(index) of \(count)") }
+            let payload = r.rest()
+            guard !payload.isEmpty else { throw WireError.truncated }
+            return .data(seq: seq, index: index, count: count, payload: payload)
+        case .ping:
+            return .ping
+        case .pong:
+            return .pong
+        case .bye:
+            return .bye(r.isAtEnd ? 0 : try r.u8())
+        }
+    }
+}
+
+// ── Mesh packets ──────────────────────────────────────────────
+
+struct MeshPacket: Equatable {
+    static let typeRoom: UInt8 = 1
+
+    var version: UInt8 = Proto.version
+    var type: UInt8 = MeshPacket.typeRoom
+    var flags: UInt8 = 0
+    var ttl: UInt8
+    var hops: UInt8
+    var messageID: UInt64
+    var roomTag: Data
+    var timestamp: UInt64            // milliseconds since 1970, the sender's clock
+    var nonce: Data
+    var sealed: Data                 // ciphertext and the 16-byte tag
+
+    func encode() -> Data {
+        var w = ByteWriter()
+        header(&w, ttl: ttl, hops: hops)
+        w.bytes(sealed)
+        return w.data
+    }
+
+    // What the encryption authenticates: the header, with what relays change set to 0
+    var aad: Data {
+        var w = ByteWriter()
+        header(&w, ttl: 0, hops: 0)
+        return w.data
+    }
+
+    // The same packet one relay further
+    func relayed() -> MeshPacket? {
+        guard ttl > 0 else { return nil }
+        var p = self
+        p.ttl -= 1
+        p.hops += 1
+        return p
+    }
+
+    private func header(_ w: inout ByteWriter, ttl: UInt8, hops: UInt8) {
+        w.u8(version)
+        w.u8(type)
+        w.u8(flags)
+        w.u8(ttl)
+        w.u8(hops)
+        w.u64(messageID)
+        w.bytes(roomTag)
+        w.u64(timestamp)
+        w.bytes(nonce)
+    }
+
+    static func decode(_ d: Data) throws -> MeshPacket {
+        guard d.count <= Proto.maxPacket else { throw WireError.tooLarge("packet of \(d.count) bytes") }
+        var r = ByteReader(d)
+        let version = try r.u8()
+        guard version == Proto.version else { throw Proto.versionError(version) }
+        let type = try r.u8()
+        guard type == typeRoom else { throw WireError.invalid("packet type \(type)") }
+        let flags = try r.u8(), ttl = try r.u8(), hops = try r.u8()
+        guard Int(ttl) + Int(hops) <= Int(Proto.hopLimit) else { throw WireError.invalid("ttl \(ttl) and hops \(hops)") }
+        let id = try r.u64()
+        let tag = try r.bytes(Proto.roomTagLength)
+        let time = try r.u64()
+        let nonce = try r.bytes(Proto.nonceLength)
+        let sealed = r.rest()
+        guard sealed.count > Proto.tagLength else { throw WireError.truncated }
+        return MeshPacket(version: version, type: type, flags: flags, ttl: ttl, hops: hops, messageID: id, roomTag: tag,
+                          timestamp: time, nonce: nonce, sealed: sealed)
+    }
+}
+
+// ── Inside a packet ───────────────────────────────────────────
+
+enum InnerKind: UInt8 {
+    case chat = 1, presence = 2, bye = 3
+}
+
+struct InnerMessage: Equatable {
+    static let requestFlag: UInt8 = 1       // presence: please answer with yours
+
+    var kind: InnerKind
+    var flags: UInt8 = 0
+    var senderKey: Data
+    var session: Data
+    var nickname: String
+    var text = ""                           // chat
+    var roomName = ""                       // presence
+    var links: UInt8 = 0                    // presence: how many Macs it is connected to
+
+    // Everything but the signature
+    func body() throws -> Data {
+        guard senderKey.count == Proto.keyLength, session.count == Proto.sessionLength else { throw WireError.invalid("key or session") }
+        var w = ByteWriter()
+        w.u8(kind.rawValue)
+        w.u8(flags)
+        w.bytes(senderKey)
+        w.bytes(session)
+        guard nickname.utf8.count <= Proto.maxNicknameBytes else { throw WireError.tooLarge("nickname") }
+        try w.str8(nickname)
+        switch kind {
+        case .chat:
+            guard text.utf8.count <= Proto.maxTextBytes else { throw WireError.tooLarge("message") }
+            try w.str16(text)
+        case .presence:
+            guard roomName.utf8.count <= Proto.maxRoomNameBytes else { throw WireError.tooLarge("room name") }
+            try w.str8(roomName)
+            w.u8(links)
+        case .bye:
+            break
+        }
+        return w.data
+    }
+
+    // → the message (its texts made safe for the terminal), the signed bytes and the signature
+    static func decode(_ plaintext: Data) throws -> (InnerMessage, body: Data, signature: Data) {
+        guard plaintext.count > Proto.signatureLength + 2 else { throw WireError.truncated }
+        let body = Data(plaintext.prefix(plaintext.count - Proto.signatureLength))
+        let signature = Data(plaintext.suffix(Proto.signatureLength))
+        var r = ByteReader(body)
+        guard let kind = InnerKind(rawValue: try r.u8()) else { throw WireError.invalid("message kind") }
+        let flags = try r.u8()
+        let key = try r.bytes(Proto.keyLength)
+        let session = try r.bytes(Proto.sessionLength)
+        let nickname = Sanitize.nickname(try r.str8(max: Proto.maxNicknameBytes))
+        guard !nickname.isEmpty else { throw WireError.invalid("empty nickname") }
+        var m = InnerMessage(kind: kind, flags: flags, senderKey: key, session: session, nickname: nickname)
+        switch kind {
+        case .chat:
+            m.text = Sanitize.text(try r.str16(max: Proto.maxTextBytes))
+            guard !m.text.isEmpty else { throw WireError.invalid("empty message") }
+        case .presence:
+            m.roomName = Sanitize.roomName(try r.str8(max: Proto.maxRoomNameBytes))
+            m.links = try r.u8()
+        case .bye:
+            break
+        }
+        // a newer version may add fields here – they are signed, and skipped
+        return (m, body, signature)
+    }
+}
+
+// ── Texts from other Macs ─────────────────────────────────────
+// Whatever arrives is shown in a terminal: control characters (ESC starts terminal commands), direction
+// overrides and invisible characters are taken out, line breaks become spaces, and lengths are cut.
+
+enum Sanitize {
+    static func isUnsafe(_ s: Unicode.Scalar) -> Bool {
+        switch s.value {
+        case 0x00...0x1F, 0x7F...0x9F: return true                  // control characters, ESC among them
+        case 0x200B, 0x200E, 0x200F: return true                    // zero width space, direction marks
+        case 0x202A...0x202E, 0x2066...0x2069: return true          // direction overrides and isolates
+        case 0x2060...0x2064, 0xFEFF: return true                   // invisible joiners and operators
+        case 0xFFF9...0xFFFB: return true                           // annotations
+        case 0xE0000...0xE007F: return true                         // tag characters (hidden text)
+        default: return false
+        }
+    }
+
+    // One line: spaces for line breaks and tabs, no unsafe characters, spaces collapsed and trimmed, then cut
+    static func line(_ s: String, characters: Int, bytes: Int) -> String {
+        var scalars = String.UnicodeScalarView()
+        var space = false
+        for u in s.unicodeScalars {
+            if u.properties.isWhitespace {          // spaces of all kinds, tabs and line breaks
+                space = true
+                continue
+            }
+            if isUnsafe(u) { continue }
+            if space && !scalars.isEmpty { scalars.append(" ") }
+            space = false
+            scalars.append(u)
+        }
+        return cut(String(scalars), characters: characters, bytes: bytes)
+    }
+
+    // At most so many characters and UTF-8 bytes, never in the middle of a character
+    static func cut(_ s: String, characters: Int, bytes: Int) -> String {
+        var out = ""
+        var n = 0, b = 0
+        for ch in s {
+            let size = String(ch).utf8.count
+            if n + 1 > characters || b + size > bytes { break }
+            out.append(ch)
+            n += 1
+            b += size
+        }
+        return out
+    }
+
+    static func nickname(_ s: String) -> String { line(s, characters: Proto.maxNicknameCharacters, bytes: Proto.maxNicknameBytes) }
+    static func text(_ s: String) -> String { line(s, characters: Int.max, bytes: Proto.maxTextBytes) }
+    static func roomName(_ s: String) -> String { line(s, characters: Proto.maxRoomNameCharacters, bytes: Proto.maxRoomNameBytes) }
+}

@@ -1,0 +1,44 @@
+# Builds and tests the MeshChat plugin on a Mac: the Swift program with every warning, then through Lotus – built
+# inside the plugin's sandbox like on your Mac – its protocol tests with CryptoKit, the chat in a terminal (the demo)
+# and Lotus' tests of installing plugins. A CI Mac has no Bluetooth to speak of: what needs several Macs is tested
+# by hand (plugins/meshchat/README.md, "Testing with real Macs").
+name: MeshChat
+
+on:
+  push:
+    paths: [plugins/meshchat/**, tests/test-meshchat.zsh, tests/test-plugin-install.zsh, lib/cmd/plugin.zsh, .github/workflows/meshchat.yml]
+  pull_request:
+    paths: [plugins/meshchat/**, tests/test-meshchat.zsh, tests/test-plugin-install.zsh, lib/cmd/plugin.zsh, .github/workflows/meshchat.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Swift
+        run: xcrun swiftc --version && sw_vers
+      - name: Build the chat with every warning
+        run: |
+          mkdir -p "$RUNNER_TEMP/mc"
+          xcrun swiftc -Onone -parse-as-library -swift-version 5 -target "$(uname -m)-apple-macos11.0" \
+            -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker plugins/meshchat/Info.plist \
+            -o "$RUNNER_TEMP/mc/meshchat" plugins/meshchat/Sources/*.swift 2>&1 | tee "$RUNNER_TEMP/mc/build.log"
+          test -x "$RUNNER_TEMP/mc/meshchat"
+          "$RUNNER_TEMP/mc/meshchat" version
+          # an optional delegate method with a wrong signature would compile, and never be called
+          ! grep -E "nearly matches|deprecated" "$RUNNER_TEMP/mc/build.log"
+      - name: Lotus' plugin check
+        run: zsh bin/lotus plugin check plugins/meshchat
+      - name: MeshChat through Lotus (sandbox build, protocol tests, rooms, the chat in a terminal)
+        run: zsh tests/run.zsh meshchat
+      - name: Installing plugins – all of plugins/, MeshChat among them
+        run: zsh tests/run.zsh plugin-install
+      - name: Bluetooth on this runner (for information – a CI Mac usually has none)
+        if: always()
+        continue-on-error: true
+        run: LOTUS_PLUGIN_DATA="$RUNNER_TEMP/mc/data" "$RUNNER_TEMP/mc/meshchat" doctor || true
