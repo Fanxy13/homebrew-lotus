@@ -73,7 +73,8 @@ out=$( (sleep 4; print -rn -- "hello mesh"; sleep 0.4; print -rn -- $'\r'; sleep
   | script -q /dev/null zsh -fc "COLUMNS=100 $LOTUS_ROOT/bin/lotus meshchat demo" 2>&1)
 text=$(print -r -- $out | plain)
 check_has "the demo: the chat's screen" "$text" "lotus / MeshChat"
-check_has "it says it is a demo" "$text" "DEMO – simulated, no Bluetooth"
+check_has "it says it is a demo" "$text" "DEMO"
+check_has "and that it is simulated" "$text" "Simulated"
 check_has "what you write is shown" "$text" "hello mesh"
 check_has "Ada, a neighbour, answers" "$text" "Ada is here – a neighbour"
 check_has "Grace is a relay away" "$text" "Grace is here – 1 relay away"

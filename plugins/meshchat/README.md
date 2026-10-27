@@ -85,8 +85,11 @@ lotus plugin uninstall meshchat       # the plugin with its data: rooms, codes, 
 
 **Lotus: limited access, no internet.** MeshChat runs in Lotus' plugin sandbox: it reads only its own folder,
 writes only its data folder (`~/.local/share/lotus/plugins/meshchat`) and may not use the network (`network = no`).
-Bluetooth works anyway: CoreBluetooth talks to macOS' Bluetooth service, not to the network, and the sandbox
-leaves that alone. Full access is not needed – and was not given.
+Bluetooth is not the network: CoreBluetooth talks to macOS' Bluetooth service (bluetoothd) over XPC, which the
+sandbox does not block. The automated tests on a Mac run the build and a Bluetooth check inside this sandbox, and
+CoreBluetooth answers there exactly as outside it (on that CI Mac: "no Bluetooth LE" – it has none). Full access is
+not needed – and was not given. (A chat between real Macs inside the sandbox is part of the
+[test with real Macs](#testing-with-real-macs); see [Known limitations](#known-limitations).)
 
 **macOS: Bluetooth permission for your terminal app.** macOS gives the Bluetooth permission to apps, and MeshChat
 is a program in your terminal: macOS asks about the app it runs in. The first time, it asks
@@ -103,6 +106,12 @@ macOS end MeshChat anyway, the terminal is put back as it was and the doctor is 
 
 MeshChat's own program also carries an Info.plist with that declaration (linked into it when it is built). macOS
 uses it only when it asks about MeshChat itself, which is not the case when you start it from a terminal.
+
+**No helper app, nothing in the background.** A separate app bundle would get a Bluetooth permission of its own
+(instead of the terminal's), but it would have to be launched apart from the terminal and talk to the chat through
+some channel, and it would keep running unless stopped. MeshChat avoids all of that: the chat is one program in
+your terminal window, Bluetooth runs only while it is open, and closing it – `/quit`, ctrl-c, closing the window –
+ends everything; macOS stops advertising and scanning with the process.
 
 ## Using it
 

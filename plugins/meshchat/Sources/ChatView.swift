@@ -246,11 +246,15 @@ enum ChatRender {
         let title = " " + Theme.bold(Theme.accent("lotus")) + Theme.dim(" / ") + Theme.bold("MeshChat") + "  " + room
         let id = s.roomName.isEmpty ? "" : Theme.dim("  #\(s.roomID)")
         // the most that fits: everything · without the ID · DEMO short · without "you:" · just the title
+        let demoLong = s.demo ? "  " + Theme.yellow("DEMO – simulated, no Bluetooth") : ""
+        let demoShort = s.demo ? "  " + Theme.yellow("DEMO") : ""
+        let you = Theme.dim("you: ") + Theme.accent(s.nickname) + Theme.dim("·\(s.fingerprint)") + " "
         let candidates: [(String, String)] = [
-            (title + id + (s.demo ? "  " + Theme.yellow("DEMO – simulated, no Bluetooth") : ""), Theme.dim("you: ") + Theme.accent(s.nickname) + Theme.dim("·\(s.fingerprint)") + " "),
-            (title + (s.demo ? "  " + Theme.yellow("DEMO") : ""), Theme.dim("you: ") + Theme.accent(s.nickname) + Theme.dim("·\(s.fingerprint)") + " "),
-            (title + (s.demo ? "  " + Theme.yellow("DEMO") : ""), Theme.accent(s.nickname) + " "),
-            (title + (s.demo ? "  " + Theme.yellow("DEMO") : ""), ""),
+            (title + id + demoLong, you),
+            (title + demoLong, you),
+            (title + demoShort, you),
+            (title + demoShort, Theme.accent(s.nickname) + " "),
+            (title + demoShort, ""),
         ]
         for (left, right) in candidates {
             let gap = width - visibleWidth(left) - visibleWidth(right)
