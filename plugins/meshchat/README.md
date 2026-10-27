@@ -299,6 +299,8 @@ plugin's sources and runs them (no XCTest needed). They cover:
   link limits, a restarted Mac
 - storage: settings next to a pack's, the identity, rooms of an older, the current and a newer format, damaged
   files, history with damaged lines, trimming, permissions, one chat at a time
+- the chat's screen: the line editor (words, history, pastes with control characters, the 1000-byte limit),
+  wrapping with wide characters, and whole frames that fit the window at eight sizes from 20 × 6 to 200 × 50
 
 **Automated – the plugin in Lotus.** `zsh tests/run.zsh meshchat` (Lotus' own tests, on a Mac): installs it as
 limited, builds it **inside the plugin sandbox**, runs the selftest with CryptoKit, makes and joins rooms, checks
