@@ -1,15 +1,17 @@
-// MeshChat – the mesh: links to Macs nearby, the handshake, flooding with duplicate detection and a hop limit, the
-// room's encryption, who is in the room and what they say. Runs on one queue; the radio calls it there.
+// MeshChat – the mesh: links to Macs nearby, the handshake, flooding with duplicate detection and a hop limit,
+// signatures, who is here and what they say. One chat for everyone nearby: every Mac with MeshChat shows every
+// message and passes it on, as far as the mesh reaches. Runs on one queue; the radio calls it there.
 //
 // Routing is managed flooding – there is no central server and no routing table:
 //   1. A message goes to every neighbour (a Mac with a link to this one).
 //   2. A Mac that gets a packet looks at its ID: seen in the last 30 minutes → dropped (a loop, a second path).
-//   3. Otherwise it opens it with the room key and checks the signature and the age (≤ 15 minutes). A packet that
-//      fails is dropped and never passed on – nobody relays what they could not check.
-//   4. It shows the message and passes the packet to all its other neighbours with ttl - 1 and hops + 1.
-//      ttl 0 is not passed on; ttl + hops is at most 7, so no message travels more than 7 relays.
-//   5. A neighbour that connects gets the room's last 32 packets (ones younger than 15 minutes): a Mac that was out
-//      of range for a moment catches up, and the duplicate check keeps everyone else from seeing them twice.
+//   3. Otherwise it checks the sender's signature, how many messages that sender sent lately, and the age
+//      (≤ 15 minutes). A packet that fails is dropped and never passed on – nobody relays what they could not check.
+//   4. It shows the message and passes the packet to all its other neighbours with ttl - 1 and hops + 1. Every
+//      message starts with the most the protocol allows – 16 relays – so it goes as far as there are Macs to pass
+//      it on; the ID check makes sure each Mac sends it only once, and ttl stops it should that ever fail.
+//   5. A neighbour that connects gets the last 32 packets (ones younger than 14 minutes): a Mac that was out of
+//      range for a moment catches up, and the duplicate check keeps everyone else from seeing them twice.
 // Links: every Mac advertises and scans. When two see each other, the one with the smaller token (4 random bytes
 // in its advertised name) connects; the other waits 8 seconds before it tries itself. Should both connect at once,
 // the link whose central has the smaller session is kept and the other one closed – both Macs decide alike.
@@ -17,10 +19,10 @@
 import Foundation
 
 struct MeshConfig {
-    var hops = Proto.defaultHops                // how many relays a new message may take (1–7)
+    var hops = Int(Proto.hopLimit)              // how many relays a new message may take: as far as possible
     var maxLinks = 8                            // Bluetooth links at most (each costs the radio time)
-    var relayForeign = false                    // also pass on packets of other rooms, unread (relay mode)
-    var presenceInterval: TimeInterval = 30     // "I am here" to the room
+    var silent = false                          // pass on, but never say anything – not even "I am here" (relay)
+    var presenceInterval: TimeInterval = 30     // "I am here" to everyone
     var awayAfter: TimeInterval = 80            // not heard for so long: away
     var forgetAfter: TimeInterval = 600         // … and gone from the list
     var pingInterval: TimeInterval = 15         // a quiet link is asked whether it is still there
@@ -30,7 +32,9 @@ struct MeshConfig {
     var maxBackoff: TimeInterval = 60           // between attempts to reach a Mac that does not answer
     var maxAge: TimeInterval = 15 * 60          // older messages are refused …
     var maxSkew: TimeInterval = 10 * 60         // … and ones from that far in the future (clocks that differ)
-    var catchUp = 32                            // recent room packets a new neighbour gets
+    var catchUp = 32                            // recent packets a new neighbour gets
+    var senderBurst = 40.0                      // packets of one sender taken in at once (more than a catch-up) …
+    var senderRate = 1.0                        // … and one a second after that: one person cannot flood everyone
     var initiatorGrace: TimeInterval = 8        // the Mac with the larger token waits so long for the other one
     var sightingExpiry: TimeInterval = 120      // a Mac not heard advertising for so long is forgotten
     var scanOnLinked: TimeInterval = 10         // scanning once linked: 10 s of every 30 s
@@ -69,9 +73,8 @@ struct MeshStats: Equatable {
     var relayed = 0                 // packets passed on
     var duplicates = 0
     var malformed = 0
-    var authFailed = 0              // failed the room key or the signature
+    var forged = 0                  // failed the signature (or damaged inside)
     var expired = 0                 // too old, or from the future
-    var foreign = 0                 // other rooms' packets, not passed on
     var rateLimited = 0
     var incompatible = 0
     var connectFailures = 0
@@ -86,7 +89,6 @@ struct MeshSnapshot {
     var scanning = false
     var advertising = false
     var stats = MeshStats()
-    var roomName = ""
 }
 
 struct Notice: Equatable {
@@ -99,7 +101,6 @@ enum MeshEvent {
     case message(ChatMessage)       // someone wrote (or this Mac did)
     case sent(id: UInt64, links: Int)               // a message of ours left on so many links
     case notice(Notice)
-    case roomName(String)           // learned from the others
     case snapshot(MeshSnapshot)
     case log(String)                // for the diagnostics log: never secrets or what people wrote
 }
@@ -175,32 +176,26 @@ final class MeshNode: LinkTransportDelegate {
         let mine: Bool
     }
 
-    private struct ActiveRoom {
-        let keys: RoomKeys
-        let crypto: RoomCrypto
-        var name: String
-    }
-
     let transport: LinkTransport
     var config: MeshConfig
     let session: Data
     let token: UInt32
+    let signer: Signer
     private(set) var nickname: String
     private let clock: () -> TimeInterval
     private let emit: (MeshEvent) -> Void
 
-    private var room: ActiveRoom?
     private var links: [Int: Link] = [:]
     private var candidates: [String: Candidate] = [:]
     private var endpointSessions: [String: Data] = [:]
     private var dedup = DedupCache()
     private var recent: [Recent] = []
     private var people: [Data: Participant] = [:]
+    private var senders: [Data: TokenBucket] = [:]
     private var undelivered: Set<UInt64> = []
     private var presenceDue = TimeInterval.infinity
     private var lastPresence = -TimeInterval.infinity
     private var noticed: [String: TimeInterval] = [:]
-    private var foreignBucket = TokenBucket(capacity: 20, rate: 5)
     private var scanEpoch: TimeInterval = 0
     private var scanning = false
     private var advertising = false
@@ -208,11 +203,12 @@ final class MeshNode: LinkTransportDelegate {
     private var dirty = true
     private(set) var stats = MeshStats()
 
-    init(transport: LinkTransport, config: MeshConfig = MeshConfig(), nickname: String,
+    init(transport: LinkTransport, config: MeshConfig = MeshConfig(), nickname: String, signer: Signer,
          clock: @escaping () -> TimeInterval = { Date().timeIntervalSince1970 },
          events: @escaping (MeshEvent) -> Void) {
         self.transport = transport
         self.config = config
+        self.signer = signer
         self.nickname = Sanitize.nickname(nickname).isEmpty ? "anon" : Sanitize.nickname(nickname)
         self.clock = clock
         emit = events
@@ -221,24 +217,23 @@ final class MeshNode: LinkTransportDelegate {
         transport.delegate = self
     }
 
-    var roomID: String? { room?.keys.id }
-    var roomName: String { room?.name ?? "" }
-    var fingerprint: String? { room?.crypto.signer.fingerprint }
+    var fingerprint: String { signer.fingerprint }
     var readyLinks: Int { links.values.filter { $0.state == .ready }.count }
 
-    // ── Starting, rooms, speaking ─────────────────────────────
+    // ── Starting, speaking ────────────────────────────────────
 
     func start() {
         guard !running else { return }
         running = true
         scanEpoch = clock()
+        if !config.silent { presenceDue = clock() + 0.5 }      // "who is here?" as soon as there is a link
         transport.start(token: token)
         flush()
     }
 
-    // Goodbye to the room and every neighbour; the radio goes off with stop()
+    // Goodbye to everyone and every neighbour; the radio goes off with stop()
     func goodbye() {
-        if room != nil { _ = try? flood(kind: .bye) }
+        if running && !config.silent { _ = try? flood(kind: .bye) }
         for link in links.values where link.state == .ready { sendFrame(.bye(ByeReason.leaving.rawValue), on: link) }
     }
 
@@ -260,44 +255,18 @@ final class MeshNode: LinkTransportDelegate {
         flush()
     }
 
-    // Into a room: its keys, and this Mac's signing key there (from its identity)
-    func enter(secret: RoomSecret, name: String, identity: Data) throws {
-        if room != nil { _ = try? flood(kind: .bye) }     // the links stay: they carry any room
-        let keys = RoomKeys(secret: secret)
-        room = ActiveRoom(keys: keys, crypto: RoomCrypto(keys: keys, signer: try Signer(identity: identity, room: keys)),
-                          name: Sanitize.roomName(name))
-        people.removeAll()
-        recent.removeAll()
-        undelivered.removeAll()
-        lastPresence = -.infinity
-        presenceDue = clock() + 0.5         // "who is here?" right away
-        dirty = true
-        flush()
-    }
-
-    func leaveRoom() {
-        if room != nil { _ = try? flood(kind: .bye) }
-        room = nil
-        people.removeAll()
-        recent.removeAll()
-        presenceDue = .infinity
-        dirty = true
-        flush()
-    }
-
     func rename(_ name: String) {
         let clean = Sanitize.nickname(name)
         guard !clean.isEmpty else { return }
         nickname = clean
-        if room != nil { sendPresence(request: false) }
+        if running && !config.silent { sendPresence(request: false) }
         flush()
     }
 
     enum SendError: Error, CustomStringConvertible {
-        case noRoom, empty, tooLong
+        case empty, tooLong
         var description: String {
             switch self {
-            case .noRoom: return "You are in no room."
             case .empty: return "There is nothing to send."
             case .tooLong: return "A message can be up to \(Proto.maxTextBytes) bytes long – that is about \(Proto.maxTextBytes) letters, fewer with emoji or accents."
             }
@@ -306,12 +275,11 @@ final class MeshNode: LinkTransportDelegate {
 
     @discardableResult
     func send(_ text: String) throws -> ChatMessage {
-        guard let room = room else { throw SendError.noRoom }
         let clean = Sanitize.line(text, characters: Int.max, bytes: Int.max)
         guard !clean.isEmpty else { throw SendError.empty }
         guard clean.utf8.count <= Proto.maxTextBytes else { throw SendError.tooLong }
         let (packet, links) = try flood(kind: .chat, text: clean)
-        let msg = ChatMessage(id: packet.messageID, nickname: nickname, fingerprint: room.crypto.signer.fingerprint, text: clean,
+        let msg = ChatMessage(id: packet.messageID, nickname: nickname, fingerprint: signer.fingerprint, text: clean,
                               sent: Double(packet.timestamp) / 1000, received: clock(), hops: 0, mine: true)
         stats.delivered += 1
         emit(.message(msg))
@@ -363,7 +331,7 @@ final class MeshNode: LinkTransportDelegate {
             sendFrame(.bye(ByeReason.full.rawValue), on: link)
             closeLink(link, reason: "too many links")
         } else {
-            sendFrame(.hello(Hello(session: session, flags: config.relayForeign ? Hello.relayFlag : 0)), on: link)
+            sendFrame(.hello(Hello(session: session)), on: link)
         }
         dirty = true
         flush()
@@ -473,7 +441,7 @@ final class MeshNode: LinkTransportDelegate {
         }
         connectCandidates(t)
         manageRadio(t)
-        if room != nil && t >= presenceDue { sendPresence(request: lastPresence == -.infinity) }
+        if !config.silent && t >= presenceDue { sendPresence(request: lastPresence == -.infinity) }
         age(t)
         dirty = true
         flush()
@@ -488,7 +456,7 @@ final class MeshNode: LinkTransportDelegate {
             if h.minVersion > Proto.version {
                 noticeOnce("newer-\(h.minVersion)", "A Mac nearby runs a newer MeshChat (protocol \(h.minVersion)) – update this one to chat with it: lotus plugin update meshchat", .warning)
             } else {
-                noticeOnce("older-\(h.maxVersion)", "A Mac nearby runs an older MeshChat (protocol \(h.maxVersion)) – it needs an update to chat with this one.", .warning)
+                noticeOnce("older-\(h.maxVersion)", "A Mac nearby runs an older MeshChat (protocol \(h.maxVersion)) – it needs an update to chat with this one: lotus plugin update meshchat", .warning)
             }
             sendFrame(.bye(ByeReason.incompatible.rawValue), on: link)
             closeLink(link, reason: "no protocol version in common")
@@ -506,7 +474,7 @@ final class MeshNode: LinkTransportDelegate {
         log("link \(link.id) ready (\(h.software))")
         guard keepOne(of: link) else { return }
         catchUp(link)
-        if room != nil { presenceDue = min(presenceDue, clock() + 1) }
+        if !config.silent { presenceDue = min(presenceDue, clock() + 1) }
         dirty = true
     }
 
@@ -637,7 +605,9 @@ final class MeshNode: LinkTransportDelegate {
             packet = try MeshPacket.decode(bytes)
         } catch WireError.unsupportedVersion(let v) {
             stats.incompatible += 1
-            noticeOnce("packet-version-\(v)", "A Mac nearby sends messages of a newer MeshChat (protocol \(v)) – update this one: lotus plugin update meshchat", .warning)
+            noticeOnce("packet-version-\(v)", v > Int(Proto.version)
+                       ? "A Mac nearby sends messages of a newer MeshChat (protocol \(v)) – update this one: lotus plugin update meshchat"
+                       : "A Mac nearby sends messages of an older MeshChat (protocol \(v)) – it needs an update.", .warning)
             return
         } catch {
             stats.malformed += 1
@@ -647,20 +617,25 @@ final class MeshNode: LinkTransportDelegate {
             stats.duplicates += 1
             return
         }
-        guard let room = room, packet.roomTag == room.keys.tag else {
-            relayForeign(packet, from: link, now: t)
-            return
-        }
         let inner: InnerMessage
         do {
-            inner = try room.crypto.open(packet)
+            inner = try Signing.open(packet)
         } catch {
             // not remembered as seen: a forged copy must not keep the real message out
-            stats.authFailed += 1
-            noticeOnce("auth", "Ignored a damaged or forged packet for this room – it was not shown and not passed on.", .warning, every: 120)
+            stats.forged += 1
+            noticeOnce("forged", "Ignored a forged or damaged message – it was not shown and not passed on.", .warning, every: 120)
             return
         }
         dedup.insert(packet.messageID, now: t)
+        // one sender cannot flood everyone: what is over its share is dropped here, and not passed on
+        var bucket = senders[inner.senderKey] ?? TokenBucket(capacity: config.senderBurst, rate: config.senderRate)
+        let allowed = bucket.take(t)
+        senders[inner.senderKey] = bucket
+        guard allowed else {
+            stats.rateLimited += 1
+            noticeOnce("flood-\(Hex.encode(inner.senderKey))", "\(inner.nickname) sends very many messages – some are not shown and not passed on.", .warning, every: 120)
+            return
+        }
         let sent = Double(packet.timestamp) / 1000
         if t - sent > config.maxAge || sent - t > config.maxSkew {
             stats.expired += 1
@@ -678,16 +653,6 @@ final class MeshNode: LinkTransportDelegate {
         }
     }
 
-    // A packet of a room this Mac is not in: passed on unread in relay mode, never looked into
-    private func relayForeign(_ packet: MeshPacket, from link: Link, now t: TimeInterval) {
-        stats.foreign += 1
-        guard config.relayForeign else { return }
-        let sent = Double(packet.timestamp) / 1000
-        guard t - sent <= config.maxAge, sent - t <= config.maxSkew, foreignBucket.take(t) else { return }
-        dedup.insert(packet.messageID, now: t)
-        if let next = packet.relayed(), forward(next, except: link) > 0 { stats.relayed += 1 }
-    }
-
     @discardableResult
     private func forward(_ packet: MeshPacket, except: Link?) -> Int {
         var n = 0
@@ -698,17 +663,15 @@ final class MeshNode: LinkTransportDelegate {
         return n
     }
 
-    // A new message of this Mac to the whole room → the packet and how many links it left on
+    // A new message of this Mac to everyone → the packet and how many links it left on
     @discardableResult
     private func flood(kind: InnerKind, text: String = "", request: Bool = false) throws -> (MeshPacket, Int) {
-        guard let room = room else { throw SendError.noRoom }
-        let inner = InnerMessage(kind: kind, flags: request ? InnerMessage.requestFlag : 0, senderKey: room.crypto.signer.publicKey,
-                                 session: session, nickname: nickname, text: text, roomName: room.name,
-                                 links: UInt8(min(255, readyLinks)))
+        let inner = InnerMessage(kind: kind, flags: request ? InnerMessage.requestFlag : 0, senderKey: signer.publicKey,
+                                 session: session, nickname: nickname, text: text, links: UInt8(min(255, readyLinks)))
         var id: UInt64 = 0
         repeat { id = CryptoBackend.randomBytes(8).reduce(UInt64(0)) { $0 << 8 | UInt64($1) } } while id == 0
-        let packet = try room.crypto.seal(inner, ttl: UInt8(max(1, min(Int(Proto.hopLimit), config.hops))), messageID: id,
-                                          timestamp: UInt64(max(0, clock() * 1000)))
+        let packet = try Signing.make(inner, signer: signer, ttl: UInt8(max(1, min(Int(Proto.hopLimit), config.hops))), messageID: id,
+                                      timestamp: UInt64(max(0, clock() * 1000)))
         dedup.insert(id, now: clock())
         remember(packet, mine: true)
         let n = forward(packet, except: nil)
@@ -717,7 +680,6 @@ final class MeshNode: LinkTransportDelegate {
     }
 
     private func sendPresence(request: Bool) {
-        guard room != nil else { return }
         _ = try? flood(kind: .presence, request: request)
         lastPresence = clock()
         presenceDue = clock() + config.presenceInterval * Double.random(in: 0.8...1.2)
@@ -728,7 +690,7 @@ final class MeshNode: LinkTransportDelegate {
         if recent.count > config.catchUp { recent.removeFirst(recent.count - config.catchUp) }
     }
 
-    // What a new neighbour may have missed: the room's recent packets, as they would have been passed on
+    // What a new neighbour may have missed: the recent packets, as they would have been passed on
     private func catchUp(_ link: Link) {
         let t = clock()
         var n = 0
@@ -740,17 +702,16 @@ final class MeshNode: LinkTransportDelegate {
         }
         if n > 0 {
             stats.caughtUp += n
-            log("link \(link.id): sent the \(n) most recent packets of the room")
+            log("link \(link.id): sent the \(n) most recent packets")
         }
     }
 
     // ── People ────────────────────────────────────────────────
 
     private func deliver(_ inner: InnerMessage, packet: MeshPacket, now t: TimeInterval) {
-        guard var room = room else { return }
         let sent = Double(packet.timestamp) / 1000
         let fingerprint = Signer.fingerprint(of: inner.senderKey)
-        if inner.senderKey == room.crypto.signer.publicKey {
+        if inner.senderKey == signer.publicKey {
             // this Mac's own, from before it was restarted: a neighbour still had it
             if inner.kind == .chat {
                 emit(.message(ChatMessage(id: packet.messageID, nickname: inner.nickname, fingerprint: fingerprint, text: inner.text,
@@ -782,12 +743,7 @@ final class MeshNode: LinkTransportDelegate {
             emit(.message(ChatMessage(id: packet.messageID, nickname: inner.nickname, fingerprint: fingerprint, text: inner.text,
                                       sent: sent, received: t, hops: Int(packet.hops), mine: false)))
         case .presence:
-            if room.name.isEmpty && !inner.roomName.isEmpty {
-                room.name = inner.roomName
-                self.room = room
-                emit(.roomName(inner.roomName))
-            }
-            if inner.flags & InnerMessage.requestFlag != 0 && clock() - lastPresence > 5 {
+            if !config.silent && inner.flags & InnerMessage.requestFlag != 0 && clock() - lastPresence > 5 {
                 presenceDue = min(presenceDue, t + Double.random(in: 0.3...2))
             }
         case .bye:
@@ -804,6 +760,7 @@ final class MeshNode: LinkTransportDelegate {
         for (key, var p) in people {
             if (p.left && t - p.lastSeen > 120) || t - p.lastSeen > config.forgetAfter {
                 people[key] = nil
+                senders[key] = nil
                 continue
             }
             let away = !p.left && t - p.lastSeen > config.awayAfter
@@ -811,6 +768,8 @@ final class MeshNode: LinkTransportDelegate {
             p.away = away
             people[key] = p
         }
+        // senders that never got through (made up keys, a flood) are not kept forever
+        if senders.count > 1000 { senders = senders.filter { people[$0.key] != nil } }
     }
 
     // ── Telling the app ───────────────────────────────────────
@@ -821,7 +780,7 @@ final class MeshNode: LinkTransportDelegate {
         for i in list.indices { list[i].direct = direct.contains(list[i].session) && !list[i].left }
         list.sort { $0.nickname.lowercased() != $1.nickname.lowercased() ? $0.nickname.lowercased() < $1.nickname.lowercased() : $0.fingerprint < $1.fingerprint }
         return MeshSnapshot(radio: transport.state, links: readyLinks, connecting: candidates.values.filter { $0.connectingSince != nil }.count,
-                            participants: list, scanning: scanning, advertising: advertising, stats: stats, roomName: room?.name ?? "")
+                            participants: list, scanning: scanning, advertising: advertising, stats: stats)
     }
 
     private func flush() {

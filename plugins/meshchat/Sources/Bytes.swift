@@ -144,8 +144,7 @@ enum Hex {
     }
 }
 
-// Crockford's base32: no I, L, O or U, so a room code read aloud or typed again does not go wrong;
-// I and L are read as 1, O as 0, and case does not matter.
+// Crockford's base32: no I, L, O or U, so the four letters of a fingerprint are not mistaken for others
 enum Base32 {
     static let alphabet = Array("0123456789ABCDEFGHJKMNPQRSTVWXYZ")
 
@@ -164,36 +163,5 @@ enum Base32 {
         }
         if bits > 0 { out.append(alphabet[Int((acc << UInt32(5 - bits)) & 0x1F)]) }
         return out
-    }
-
-    // The value of one character, nil when it is not one of base32
-    static func value(of ch: Character) -> UInt8? {
-        switch ch.uppercased() {
-        case "O": return 0
-        case "I", "L": return 1
-        default:
-            guard let u = ch.uppercased().first, let i = alphabet.firstIndex(of: u) else { return nil }
-            return UInt8(i)
-        }
-    }
-
-    // Exactly `count` bytes from exactly as many characters as encode makes for them (the spare bits of the last
-    // one are ignored); nil on a wrong character or length
-    static func decode(_ s: String, count: Int) -> Data? {
-        guard s.count == (count * 8 + 4) / 5 else { return nil }
-        var out = Data(capacity: count)
-        var acc: UInt32 = 0
-        var bits = 0
-        for ch in s {
-            guard let v = value(of: ch) else { return nil }
-            acc = acc << 5 | UInt32(v)
-            bits += 5
-            if bits >= 8 {
-                bits -= 8
-                if out.count < count { out.append(UInt8((acc >> UInt32(bits)) & 0xFF)) }
-                acc &= (1 << UInt32(bits)) - 1
-            }
-        }
-        return out.count == count ? out : nil
     }
 }

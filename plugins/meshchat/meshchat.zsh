@@ -1,7 +1,7 @@
 # MeshChat – a plugin for Lotus (plugin.conf). The chat is a Swift program (Sources/*.swift: CoreBluetooth for the
-# radio, CryptoKit for the encryption) that is built once on this Mac, like Lotus' own AI terminal, and kept in the
+# radio, CryptoKit for the signatures) that is built once on this Mac, like Lotus' own AI terminal, and kept in the
 # plugin's data folder: $LOTUS_PLUGIN_DATA/bin/meshchat-<checksum> – built again when the sources change.
-#   lotus meshchat …            the chat and its commands (lotus meshchat help)
+#   lotus meshchat …            the chat – one, with everyone nearby – and its commands (lotus meshchat help)
 #   lotus meshchat doctor       macOS, the Command Line Tools and the build – then Bluetooth and its permission
 #   lotus meshchat selftest     the protocol tests (Tests/*.swift) on a simulated radio – no Bluetooth needed
 #   lotus meshchat build        build it again now
@@ -85,7 +85,8 @@ _mc_run() {   # <program> [arguments…]
     [[ -t 1 ]] && print -rn -- $'\e[?2004l\e[?25h\e[0m\e[?1049l'
     print -r -- "  ${r}✗ MeshChat was ended by signal $(( rc - 128 ))${x}"
     if (( rc == 134 || rc == 137 )); then
-      print -r -- "    ${d}Right after the start that is usually macOS: the terminal app it runs in may not declare Bluetooth use.${x}"
+      print -r -- "    ${d}Right after the start that is usually macOS: the terminal app it runs in may not let programs use Bluetooth.${x}"
+      print -r -- "    ${d}Terminal, iTerm2, Ghostty, kitty and Visual Studio Code can – open MeshChat in one of them.${x}"
     fi
     print -r -- "    ${d}lotus meshchat doctor says what is wrong${x}"
   fi

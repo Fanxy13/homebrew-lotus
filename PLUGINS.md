@@ -223,7 +223,7 @@ In [plugins/](plugins/): **todo** (limited – a command, three AI tools and a s
 folder), **github** (limited with the internet, in Python – a repository's stars and releases), **hello** (full –
 Lotus' own functions and settings), **liveserver** (full – like Live Server in VS Code: `/liveserver` serves the
 folder you are in and reloads the browser when you save; it reads that folder with `LOTUS_PWD`), **meshchat** (limited
-without internet – a group chat with Macs nearby over Bluetooth; a Swift program the plugin builds once into its data
+without internet – one chat with everyone nearby over Bluetooth; a Swift program the plugin builds once into its data
 folder, a terminal screen of its own, and tests of its own: `lotus meshchat selftest`).
 
 ```

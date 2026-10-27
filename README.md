@@ -285,16 +285,16 @@ lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserve
 /liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · stop
 ```
 
-**MeshChat** – a group chat with the Macs around you over Bluetooth, without internet, Wi-Fi or a server. Messages
-hop from Mac to Mac, so two Macs out of each other's range still chat through one in between; everything said is
-encrypted with the room's code and signed by its sender. A limited plugin without internet; macOS asks once whether
-your terminal may use Bluetooth. Built once on your Mac from Swift (Command Line Tools). Not yet tried between real
-Macs – the Bluetooth part is built and checked on every change; the test with three Macs, the protocol and its
-limits: [plugins/meshchat](plugins/meshchat/README.md).
+**MeshChat** – one chat with everyone around you over Bluetooth, without internet, Wi-Fi, rooms or a server. Every
+Mac with MeshChat passes each message on, so Macs out of each other's range still chat through the ones in between –
+as far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your
+name. A limited plugin without internet; macOS asks once whether your terminal may use Bluetooth. Built once on your
+Mac from Swift (Command Line Tools). Not yet tried between real Macs – the Bluetooth part is built and checked on
+every change; the test with three Macs, the protocol and its limits: [plugins/meshchat](plugins/meshchat/README.md).
 
 ```bash
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat
-/meshchat create "Bike trip"      # a room and its code · /meshchat join <code> on the other Macs
+/meshchat                         # the chat – the same on every Mac nearby, nothing to set up
 /meshchat demo                    # try it first: two simulated people, no Bluetooth · /meshchat doctor
 ```
 

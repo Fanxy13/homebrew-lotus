@@ -1,30 +1,13 @@
 // MeshChat – what it keeps on this Mac, all of it in its data folder ($LOTUS_PLUGIN_DATA, by default
-// ~/.local/share/lotus/plugins/meshchat). Folders 0700 and files 0600: only your user can read them, and nothing
-// of it leaves this Mac.
-//   settings                    NICKNAME=…, HOPS=5, LINKS=8, RELAY=off, LAST_ROOM=…  (Lotus' plugin settings file)
-//   identity                    this Mac's secret for its signing keys: 32 random bytes, hex
-//   rooms/<id>/room.json        a room: its name and its code – the code is the room's secret
-//   rooms/<id>/history.jsonl    what was said in it, one message per line (the last 2000)
-//   events.log                  links and errors, for lotus meshchat doctor – never codes, keys, names or messages
-// Files of an older MeshChat are read as they are; a room file of a newer one is used but never rewritten.
+// ~/.local/share/lotus/plugins/meshchat). Folders 0700 and files 0600: only your user can read them here – what
+// was said is public anyway, but what you keep of it is yours.
+//   settings          NICKNAME=…, LINKS=8  (Lotus' plugin settings file – other lines in it are left alone)
+//   identity          this Mac's secret its signing key comes from: 32 random bytes, hex
+//   history.jsonl     what was said while the chat was open, one message per line (the last 2000)
+//   events.log        links and errors, for lotus meshchat doctor – never keys, names or messages
+// MeshChat 1 kept rooms in rooms/; MeshChat 2 has none and leaves that folder as it is (the doctor names it).
 
 import Foundation
-
-struct SavedRoom: Equatable {
-    static let format = 1
-
-    var id: String
-    var name: String
-    var code: String
-    var created: TimeInterval
-    var opened: TimeInterval = 0
-    var creator = false
-    var format = SavedRoom.format
-
-    var readOnly: Bool { format > SavedRoom.format }      // written by a newer MeshChat
-
-    func secret() throws -> RoomSecret { try InviteCode.parse(code) }
-}
 
 struct StoredMessage: Equatable {
     var id: UInt64
@@ -52,22 +35,6 @@ struct StoredMessage: Equatable {
     }
 }
 
-enum StoreError: Error, CustomStringConvertible {
-    case noRoom(String)
-    case ambiguous(String, [String])
-    case unreadable(String)
-    case newer(String)
-
-    var description: String {
-        switch self {
-        case .noRoom(let q): return "There is no room \"\(q)\" on this Mac – lotus meshchat rooms lists them."
-        case .ambiguous(let q, let names): return "\"\(q)\" fits several rooms: \(names.joined(separator: ", ")) – give more of its name or its ID."
-        case .unreadable(let what): return "Could not read \(what)."
-        case .newer(let name): return "The room \"\(name)\" was saved by a newer MeshChat – it is left as it is. Update: lotus plugin update meshchat"
-        }
-    }
-}
-
 final class Store {
     static let historyKeep = 2000
     let dir: URL
@@ -76,7 +43,7 @@ final class Store {
     init(dir: URL) {
         self.dir = dir
         try? makeFolder(dir)
-        // Lotus makes the folder with the usual rights; it holds room codes, so it is this user's alone
+        // Lotus makes the folder with the usual rights; it holds this Mac's identity, so it is this user's alone
         try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
     }
 
@@ -142,14 +109,11 @@ final class Store {
         return n.isEmpty ? nil : n
     }
 
-    var hops: Int { Int(settings()["HOPS"] ?? "").map { max(1, min(Int(Proto.hopLimit), $0)) } ?? Proto.defaultHops }
     var maxLinks: Int { Int(settings()["LINKS"] ?? "").map { max(1, min(8, $0)) } ?? 8 }
-    var relay: Bool { ["on", "yes", "1", "true"].contains((settings()["RELAY"] ?? "").lowercased()) }
-    var lastRoom: String? { settings()["LAST_ROOM"].flatMap { $0.isEmpty ? nil : $0 } }
 
     // ── This Mac's identity ───────────────────────────────────
-    // The secret the signing keys come from (one per room). Made once; a damaged file is replaced, and then the
-    // others see a new fingerprint for you.
+    // The secret the signing key comes from. Made once; a damaged file is replaced, and then the others see a new
+    // fingerprint for you.
 
     func identity() -> Data {
         let url = file("identity")
@@ -162,72 +126,19 @@ final class Store {
         return d
     }
 
-    // ── Rooms ─────────────────────────────────────────────────
-
-    private func roomDir(_ id: String) -> URL { dir.appendingPathComponent("rooms").appendingPathComponent(id) }
-
-    // The saved rooms, newest opened first, and what could not be read (it is left alone)
-    func rooms() -> (rooms: [SavedRoom], problems: [String]) {
-        let base = dir.appendingPathComponent("rooms")
-        guard let ids = try? fm.contentsOfDirectory(atPath: base.path) else { return ([], []) }
-        var out: [SavedRoom] = [], problems: [String] = []
-        for id in ids.sorted() where !id.hasPrefix(".") {
-            let url = roomDir(id).appendingPathComponent("room.json")
-            guard let data = try? Data(contentsOf: url) else { continue }
-            guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                problems.append("rooms/\(id)/room.json is damaged – it is left as it is")
-                continue
-            }
-            let format = Store.number(obj["format"]).map { Int($0) } ?? 1     // the first files had no format
-            let code = obj["code"] as? String ?? ""
-            guard let secret = try? InviteCode.parse(code) else {
-                problems.append("rooms/\(id)/room.json has no valid room code – it is left as it is")
-                continue
-            }
-            guard RoomKeys(secret: secret).id == id else {
-                problems.append("rooms/\(id) holds the code of another room – it is left as it is")
-                continue
-            }
-            let name = Sanitize.roomName(obj["name"] as? String ?? "")
-            out.append(SavedRoom(id: id, name: name, code: InviteCode.make(secret), created: Store.number(obj["created"]) ?? 0,
-                                 opened: Store.number(obj["opened"]) ?? 0, creator: obj["creator"] as? Bool ?? false, format: format))
-            if format > SavedRoom.format { problems.append("the room \"\(name.isEmpty ? id : name)\" was saved by a newer MeshChat – it is used, but not changed") }
-        }
-        return (out.sorted { $0.opened != $1.opened ? $0.opened > $1.opened : $0.created > $1.created }, problems)
-    }
-
-    func save(_ room: SavedRoom) throws {
-        guard !room.readOnly else { throw StoreError.newer(room.name) }
-        let obj: [String: Any] = ["format": SavedRoom.format, "id": room.id, "name": room.name, "code": room.code,
-                                  "created": room.created, "opened": room.opened, "creator": room.creator]
-        let data = try JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
-        try write(data, to: roomDir(room.id).appendingPathComponent("room.json"))
-    }
-
-    // By its ID (or the start of it) or its name, in any case
-    func room(_ query: String) throws -> SavedRoom {
-        let all = rooms().rooms
-        let q = query.lowercased()
-        if let r = all.first(where: { $0.id == q }) { return r }
-        if let r = all.first(where: { $0.name.lowercased() == q }) { return r }
-        let fits = all.filter { $0.id.hasPrefix(q) || $0.name.lowercased().contains(q) }
-        if fits.count == 1 { return fits[0] }
-        if fits.isEmpty { throw StoreError.noRoom(query) }
-        throw StoreError.ambiguous(query, fits.map { $0.name.isEmpty ? $0.id : "\($0.name) (\($0.id))" })
-    }
-
-    func delete(_ room: SavedRoom) throws {
-        try fm.removeItem(at: roomDir(room.id))
-        if lastRoom == room.id { set("LAST_ROOM", nil) }
+    // The rooms folder of MeshChat 1, when it is still there – nil when not
+    var oldRooms: String? {
+        let path = dir.appendingPathComponent("rooms").path
+        return fm.fileExists(atPath: path) ? path : nil
     }
 
     // ── History ───────────────────────────────────────────────
 
-    private func historyURL(_ id: String) -> URL { roomDir(id).appendingPathComponent("history.jsonl") }
+    private var historyURL: URL { file("history.jsonl") }
 
     // The last messages, oldest first; damaged lines are skipped
-    func history(_ roomID: String, last n: Int = 500) -> (messages: [StoredMessage], skipped: Int) {
-        guard let text = try? String(contentsOf: historyURL(roomID), encoding: .utf8) else { return ([], 0) }
+    func history(last n: Int = 500) -> (messages: [StoredMessage], skipped: Int) {
+        guard let text = try? String(contentsOf: historyURL, encoding: .utf8) else { return ([], 0) }
         var out: [StoredMessage] = []
         var skipped = 0
         for line in text.split(separator: "\n").suffix(max(n * 2, n + 100)) {
@@ -243,8 +154,8 @@ final class Store {
         return (Array(out.suffix(n)), skipped)
     }
 
-    func append(_ m: ChatMessage, room roomID: String) {
-        let url = historyURL(roomID)
+    func append(_ m: ChatMessage) {
+        let url = historyURL
         guard let line = Store.encode(m) else { return }
         if !fm.fileExists(atPath: url.path) {
             try? write(Data(), to: url)
@@ -256,8 +167,8 @@ final class Store {
     }
 
     // Keeps the last 2000 when there are many more
-    func trimHistory(_ roomID: String) {
-        let url = historyURL(roomID)
+    func trimHistory() {
+        let url = historyURL
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return }
         let lines = text.split(separator: "\n")
         guard lines.count > Store.historyKeep + Store.historyKeep / 5 else { return }

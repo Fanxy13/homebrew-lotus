@@ -10,7 +10,7 @@ Plugins add commands, tools for the AI and start screen lines to Lotus. How to b
 | [github](github/) | limited, with the internet | A plugin in Python: stars, forks and the newest release of a repository, and GitHub's zen on the start screen |
 | [hello](hello/) | full | Lotus' own functions and settings – the look of `ui_*`, the theme, the features that are on |
 | [liveserver](liveserver/) | full | Like Live Server in VS Code: `/liveserver` serves the folder you are in on 127.0.0.1, opens index.html or a menu of all its pages, and reloads the browser when you save. Full, because it reads the folder you start it in |
-| [meshchat](meshchat/) | limited, no internet | A group chat with Macs nearby over Bluetooth – no internet, no server. Messages hop from Mac to Mac (a mesh), encrypted for the room. In Swift with CoreBluetooth and CryptoKit, built once on your Mac; `lotus meshchat demo` tries it without a second Mac. Not yet tried between real Macs |
+| [meshchat](meshchat/) | limited, no internet | One chat with everyone nearby over Bluetooth – no internet, no server, no rooms. Every Mac passes messages on (a mesh), as far as it reaches; public, and signed so no one can write in your name. In Swift with CoreBluetooth and CryptoKit, built once on your Mac; `lotus meshchat demo` tries it without a second Mac. Not yet tried between real Macs |
 
 Install one straight from GitHub – or todo, github and hello at once with the [examples pack](../packs/examples/pack.conf):
 

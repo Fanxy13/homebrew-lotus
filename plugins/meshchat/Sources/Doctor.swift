@@ -1,10 +1,12 @@
 // MeshChat – `lotus meshchat doctor`, and what the chat checks before it starts.
 //
 // Bluetooth permission on macOS belongs to an app, and MeshChat is a command-line program: macOS asks about the
-// app that started it – the terminal (Terminal, iTerm2, …). That app must declare Bluetooth use in its Info.plist
-// (NSBluetoothAlwaysUsageDescription); if it does not, macOS ends any program it starts that touches Bluetooth.
-// So the doctor finds that app among the parent processes, reads its Info.plist, and tries Bluetooth in a process
-// of its own – if macOS ends that one, the doctor is still there to say why.
+// app that started it – the terminal. Most terminals declare Bluetooth use in their Info.plist
+// (NSBluetoothAlwaysUsageDescription: iTerm2, Ghostty, kitty, Visual Studio Code). Apple's Terminal declares none,
+// but macOS lets it ask anyway (it holds com.apple.private.tcc.allow-prompting – seen on macOS 14, 15 and 26); its
+// dialog then shows no reason. A terminal that can do neither (WezTerm and Warp declare nothing) should get any
+// program it starts that touches Bluetooth ended by macOS. So the doctor finds that app among the parent processes, reads its Info.plist,
+// and tries Bluetooth in a process of its own – if macOS ends that one, the doctor is still there to say why.
 
 import Foundation
 #if canImport(Darwin)
@@ -12,10 +14,19 @@ import Darwin
 #endif
 
 struct TerminalApp {
+    static let appleTerminal = "com.apple.Terminal"
+
     let name: String
     let path: String
+    var identifier = ""
     let declaresBluetooth: Bool?        // nil: its Info.plist could not be read (an app in your home folder)
+
+    // Whether programs it starts may ask for Bluetooth: it declares the use, or it is Apple's Terminal
+    var mayAsk: Bool? { identifier == TerminalApp.appleTerminal ? true : declaresBluetooth }
 }
+
+// Terminal apps that can ask for Bluetooth for the programs in them – what to suggest when the one in use cannot
+let bluetoothTerminals = "Terminal, iTerm2, Ghostty, kitty or Visual Studio Code"
 
 enum Doctor {
     // The app macOS attributes this process to: the outermost .app among its parents
@@ -44,7 +55,8 @@ enum Doctor {
         }
         let name = (plist["CFBundleDisplayName"] as? String) ?? (plist["CFBundleName"] as? String) ?? fallback
         let declared = (plist["NSBluetoothAlwaysUsageDescription"] as? String).map { !$0.isEmpty } ?? false
-        return TerminalApp(name: Sanitize.nickname(name).isEmpty ? fallback : Sanitize.nickname(name), path: app, declaresBluetooth: declared)
+        return TerminalApp(name: Sanitize.nickname(name).isEmpty ? fallback : Sanitize.nickname(name), path: app,
+                           identifier: plist["CFBundleIdentifier"] as? String ?? "", declaresBluetooth: declared)
     }
 
     #if os(macOS)
@@ -71,12 +83,13 @@ enum Doctor {
         var timedOut = false
     }
 
-    static func probeBluetooth(timeout: TimeInterval = 8) -> Probe {
+    // quick: only whether macOS ends a process of this terminal that starts Bluetooth – a second or two
+    static func probeBluetooth(timeout: TimeInterval = 8, quick: Bool = false) -> Probe {
         var result = Probe()
         guard let exe = Bundle.main.executablePath ?? CommandLine.arguments.first else { return result }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: exe)
-        p.arguments = ["probe-bluetooth"]
+        p.arguments = quick ? ["probe-bluetooth", "--quick"] : ["probe-bluetooth"]
         let pipe = Pipe()
         p.standardOutput = pipe
         p.standardError = FileHandle.nullDevice
@@ -113,29 +126,32 @@ enum Doctor {
         print("")
         #if canImport(CoreBluetooth)
         let app = terminalApp()
+        let probe = probeBluetooth()
         if let app = app {
             row("Terminal", "\(app.name) – \(app.path)")
-            switch app.declaresBluetooth {
-            case true?:
-                more("declares Bluetooth use – macOS asks this app for the permission")
-            case false?:
+            switch (app.mayAsk, probe.killedBySignal) {
+            case (_, _?):
                 problems += 1
-                more("does not declare Bluetooth use: macOS would end MeshChat when it starts Bluetooth.")
-                more("Use MeshChat in Terminal (Applications › Utilities) or a terminal app that declares it.")
-            case nil:
+                more("macOS does not let programs in \(app.name) use Bluetooth – it ended MeshChat's check (below).")
+                more("Open MeshChat in \(bluetoothTerminals): they can ask for it.")
+            case (true?, nil) where app.identifier == TerminalApp.appleTerminal:
+                more("macOS asks Terminal for the Bluetooth permission – its dialog shows no reason: it is MeshChat asking")
+            case (true?, nil):
+                more("declares Bluetooth use – macOS asks this app for the permission")
+            case (false?, nil):
+                more("declares no Bluetooth use, but macOS let MeshChat's check run – it should work")
+            case (nil, nil):
                 more("its Info.plist cannot be read from here – the Bluetooth check below tells more")
             }
         } else {
             row("Terminal", "not found among the parent processes (ssh, tmux or a launch agent?)")
             more("Bluetooth then needs the permission of whatever started it – a terminal window works best")
         }
-        let probe = probeBluetooth()
         let auth = probe.values["authorization-after"] ?? probe.values["authorization"] ?? "unknown"
         if let sig = probe.killedBySignal {
             problems += 1
             row("Bluetooth", Theme.red("macOS ended the Bluetooth check (signal \(sig))"))
-            more("That happens when the app that started MeshChat does not declare Bluetooth use.")
-            more("Run MeshChat in Terminal, or check System Settings › Privacy & Security › Bluetooth.")
+            more("That happens when the app that started MeshChat cannot ask for Bluetooth: use \(bluetoothTerminals).")
         } else if probe.timedOut && probe.values.isEmpty {
             problems += 1
             row("Bluetooth", Theme.yellow("no answer within 8 seconds"))
@@ -178,10 +194,11 @@ enum Doctor {
         problems += 1
         row("Bluetooth", Theme.red("needs macOS – this build has no CoreBluetooth"))
         #endif
-        let (rooms, roomProblems) = store.rooms()
-        row("Rooms", "\(rooms.count) saved · \(store.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))")
-        for p in roomProblems { more(p) }
-        row("Settings", "name \(store.nickname ?? "not set yet") · hops \(store.hops) · links \(store.maxLinks) · relay for other rooms \(store.relay ? "on" : "off")")
+        let home = { (p: String) in p.replacingOccurrences(of: NSHomeDirectory(), with: "~") }
+        let kept = store.history(last: 100_000).messages.count
+        row("History", "\(kept) message\(kept == 1 ? "" : "s") · \(home(store.path))/history.jsonl")
+        if let old = store.oldRooms { more("the rooms of MeshChat 1 are still in \(home(old)) – no longer used, delete them if you like") }
+        row("Settings", "name \(store.nickname ?? "not set yet") · links \(store.maxLinks) · every message goes up to \(Proto.hopLimit) relays far")
         let events = store.recentLog(300)
         let failures = events.filter { $0.contains("could not") || $0.contains("failed") || $0.contains("timed out") || $0.contains("no answer") }
         let links = events.filter { $0.contains(" ready (") }

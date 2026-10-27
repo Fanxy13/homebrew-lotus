@@ -1,8 +1,8 @@
-// MeshChat – what the chat looks like: the room and you on top, what is said with its time, who is here and how
-// the mesh is doing below, and the line you write in. Drawn whole into the terminal's alternate screen, so the
+// MeshChat – what the chat looks like: who you are on top, what is said with its time, who is here and how the
+// mesh is doing below, and the line you write in. Drawn whole into the terminal's alternate screen, so the
 // terminal is as it was when the chat ends.
 //
-//   lotus / MeshChat  Bike trip  #k7q2m9ab                                   you: Ada·k3f9
+//   lotus / MeshChat  everyone nearby  public                                you: Ada·k3f9
 //   ─────────────────────────────────────────────────────────────────────────────────────
 //   14:02  Bob    Hi everyone
 //   14:03  Carol  Hello from the other end of the field ⇢1
@@ -128,8 +128,6 @@ struct ViewLine: Equatable {
 // Everything the screen shows, as plain values – ChatApp fills it, render() draws it
 struct ChatViewState {
     var lines: [ViewLine] = []
-    var roomName = ""
-    var roomID = ""
     var nickname = ""
     var fingerprint = ""
     var demo = false
@@ -138,8 +136,6 @@ struct ChatViewState {
     var pending: Set<UInt64> = []   // messages of ours that no other Mac has yet
     var editor = LineEditor()
     var scroll = 0                  // rows scrolled up from the newest
-    var confirmLeave = false
-    var hops = Proto.defaultHops
 
     // A line in its place, by time; the oldest go when there are too many
     mutating func add(_ item: ViewItem, order: TimeInterval) {
@@ -222,9 +218,9 @@ enum ChatRender {
         switch s.snapshot.radio {
         case .on:
             rows += [
-                "   · On the other Macs: " + Theme.key("lotus meshchat join <room code>") + Theme.dim("  – the code: /invite"),
+                "   · On the other Macs: " + Theme.key("lotus meshchat") + Theme.dim("  – there are no rooms: everyone nearby is in this chat"),
                 "   · Bluetooth on there too, within about 10 m – walls and bodies shorten that",
-                "   · Others in this room pass messages on: one Mac in between reaches further",
+                "   · Every Mac with MeshChat passes messages on: one in between reaches further",
                 "   · Not working? Close the chat (ctrl-c) and run " + Theme.key("lotus meshchat doctor"),
             ]
         case .off:
@@ -242,16 +238,19 @@ enum ChatRender {
     }
 
     static func header(_ s: ChatViewState, width: Int) -> String {
-        let room = Theme.bold(clip(s.roomName.isEmpty ? "#\(s.roomID)" : s.roomName, max(8, width / 3)))
-        let title = " " + Theme.bold(Theme.accent("lotus")) + Theme.dim(" / ") + Theme.bold("MeshChat") + "  " + room
-        let id = s.roomName.isEmpty ? "" : Theme.dim("  #\(s.roomID)")
-        // the most that fits: everything · without the ID · DEMO short · without "you:" · just the title
-        let demoLong = s.demo ? "  " + Theme.yellow("DEMO – simulated, no Bluetooth") : ""
+        let title = " " + Theme.bold(Theme.accent("lotus")) + Theme.dim(" / ") + Theme.bold("MeshChat")
+        let place = "  " + Theme.bold("everyone nearby")
+        let note = Theme.dim("  public")
+        // the most that fits: everything · without "public" · without "everyone nearby" (the demo keeps saying it is
+        // simulated) · DEMO short · without "you:" · just the title
+        let demoLong = s.demo ? "  " + Theme.yellow("DEMO – simulated") : ""
         let demoShort = s.demo ? "  " + Theme.yellow("DEMO") : ""
         let you = Theme.dim("you: ") + Theme.accent(s.nickname) + Theme.dim("·\(s.fingerprint)") + " "
         let candidates: [(String, String)] = [
-            (title + id + demoLong, you),
+            (title + place + note + demoLong, you),
+            (title + place + demoLong, you),
             (title + demoLong, you),
+            (title + place + demoShort, you),
             (title + demoShort, you),
             (title + demoShort, Theme.accent(s.nickname) + " "),
             (title + demoShort, ""),
@@ -313,11 +312,6 @@ enum ChatRender {
 
     // The input line and where the cursor goes in it
     static func input(_ s: ChatViewState, width: Int) -> (String, Int) {
-        if s.confirmLeave {
-            let name = clip(s.roomName.isEmpty ? "#" + s.roomID : s.roomName, 24)
-            let q = " Leave \"\(name)\" and delete its code and history from this Mac? y/n "
-            return (Theme.yellow(clip(q, width - 1)), min(width, cellWidth(clip(q, width - 1)) + 1))
-        }
         let prompt = " › "
         let room = max(4, width - 4 - (s.editor.bytes > 800 ? 6 : 0))
         let chars = s.editor.chars

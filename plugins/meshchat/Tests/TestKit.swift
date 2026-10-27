@@ -79,7 +79,6 @@ struct TestMain {
         print("MeshChat protocol tests (crypto: \(CryptoBackend.name))")
         codecTests()
         cryptoTests()
-        inviteTests()
         fragmentTests()
         dedupTests()
         meshTests()

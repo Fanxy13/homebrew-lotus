@@ -71,9 +71,7 @@ func viewTests() {
 
     test("every frame fits the window, whatever its size") {
         var s = ChatViewState()
-        s.roomName = "A room with a rather long name that will not fit everywhere"
-        s.roomID = "k7q2m9ab"
-        s.nickname = "Ada"
+        s.nickname = "A rather long nickname!!"
         s.fingerprint = "k3f9"
         s.snapshot.radio = .on
         s.snapshot.links = 2
@@ -103,14 +101,21 @@ func viewTests() {
             }
         }
         check(failures.isEmpty, "no row wider than the window, all rows drawn \(failures.prefix(3))")
-        s.confirmLeave = true
-        check(ChatRender.frame(s, rows: 24, cols: 80).contains("delete its code and history"), "the question before leaving")
-        s.confirmLeave = false
+        check(ChatRender.header(s, width: 120).contains("everyone nearby") && ChatRender.header(s, width: 120).contains("public"),
+              "the header says who reads it: everyone nearby – it is public")
+        s.demo = true
+        s.nickname = "Ada"
+        s.fingerprint = "k3f9"
+        let demo80 = ChatRender.header(s, width: 80)
+        check(demo80.contains("DEMO – simulated") && demo80.contains("everyone nearby"), "at 80 columns the demo says it is simulated, and who reads it")
+        s.demo = false
         s.snapshot.participants = []
         s.snapshot.radio = .unauthorized
         s.terminalApp = "Terminal"
         let lonely = ChatRender.frame(s, rows: 30, cols: 120)
         check(lonely.contains("Terminal may not use Bluetooth"), "no one here: what to do, with the app to allow")
         check(lonely.contains("Bluetooth not allowed"), "and the status says it")
+        s.snapshot.radio = .on
+        check(ChatRender.frame(s, rows: 30, cols: 140).contains("there are no rooms"), "and that the others only need to open MeshChat")
     }
 }
