@@ -89,9 +89,9 @@ answer y "$LOTUS_ROOT/bin/lotus plugin remove todo" >/dev/null
 answer y "$LOTUS_ROOT/bin/lotus plugin remove github" >/dev/null
 out=$(answer $' \ry' "$LOTUS_ROOT/bin/lotus plugin install $LOTUS_ROOT/plugins")
 check_has "all of them are shown" "$out" "● Hello"
-check_has "space leaves one out, the question names the full ones" "$out" 'Install 3 plugins, hello, liveserver with full access to your Mac and Lotus? [y/N] yes'
+check_has "space leaves one out, the question names the full ones" "$out" 'Install 4 plugins, hello, liveserver with full access to your Mac and Lotus? [y/N] yes'
 check "the one left out is not installed" test ! -e $P/github
-check "the others are" eval '[[ -r $P/hello/plugin.conf && -r $P/liveserver/plugin.conf && -r $P/todo/plugin.conf ]]'
+check "the others are" eval '[[ -r $P/hello/plugin.conf && -r $P/liveserver/plugin.conf && -r $P/meshchat/plugin.conf && -r $P/todo/plugin.conf ]]'
 out=$(answer $'\rn' "$LOTUS_ROOT/bin/lotus plugin install $LOTUS_ROOT/plugins/github $LOTUS_ROOT/plugins/todo")
 check_has "two given: both shown, one question" "$out" "Install 2 plugins? [y/N] no"
 check "no: nothing installed" test ! -e $P/github
@@ -121,7 +121,7 @@ check "with their files" test -r $HOME/my-setup/todo/plugin.conf
 check_has "one that is off stays off" "$conf" "plugin = ./github off"
 check_has "with their settings" "$conf" "set todo.SORT = oldest"
 check_has "a path in its data folder becomes {data}" "$conf" "set todo.FILE = {data}/list.txt"
-check_has "and the pack is right" "$(lotus plugin check $HOME/my-setup 2>&1 | plain)" "pack.conf is fine – 4 plugins"
+check_has "and the pack is right" "$(lotus plugin check $HOME/my-setup 2>&1 | plain)" "pack.conf is fine – 5 plugins"
 check_has "a pack needs a name" "$(lotus plugin pack 2>&1 | plain)" "A pack needs a name"
 
 # ── what the pets know ──

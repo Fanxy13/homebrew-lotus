@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Linked into the MeshChat program (__TEXT,__info_plist) by meshchat.zsh. macOS asks the app that started a
+     command-line program – the terminal – about Bluetooth; this text is used when MeshChat itself is asked. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.fanxy13.lotus.meshchat</string>
+	<key>CFBundleName</key>
+	<string>MeshChat</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>MeshChat uses Bluetooth to chat with Macs nearby that run MeshChat – without the internet.</string>
+</dict>
+</plist>
