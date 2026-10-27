@@ -154,6 +154,8 @@ func codecTests() {
         let msgs = [
             InnerMessage(kind: .chat, senderKey: key, session: session, nickname: "Ada", text: "Hello, mesh! 🌸"),
             InnerMessage(kind: .presence, flags: InnerMessage.requestFlag, senderKey: key, session: session, nickname: "Grace", links: 3),
+            InnerMessage(kind: .presence, senderKey: key, session: session, nickname: "Ada", links: 2,
+                         neighbours: [Neighbour(token: 0xA1B2C3D4, rssi: -67), Neighbour(token: 7, rssi: Distance.unknown)]),
             InnerMessage(kind: .bye, senderKey: key, session: session, nickname: "Linus"),
         ]
         for m in msgs {
@@ -164,6 +166,15 @@ func codecTests() {
             checkEqual(b, body, "the signed part")
             checkEqual(s, sig, "the signature")
         }
+        // the first MeshChat 2 sent a presence without neighbours: still read, with none
+        var old = ByteWriter()
+        old.u8(InnerKind.presence.rawValue); old.u8(0); old.bytes(key); old.bytes(session); try old.str8("Old"); old.u8(1)
+        let (oldOne, _, _) = try InnerMessage.decode(old.data + Data(count: 64))
+        checkEqual(oldOne.links, 1, "a presence of the first MeshChat 2 is read")
+        check(oldOne.neighbours.isEmpty, "with no neighbours")
+        var many = old
+        many.u8(17)
+        checkThrows("more than 16 neighbours are refused") { try InnerMessage.decode(many.data + Data(count: 17 * 5) + Data(count: 64)) }
         let long = InnerMessage(kind: .chat, senderKey: key, session: session, nickname: "A", text: String(repeating: "x", count: 1001))
         checkThrows("a message over 1000 bytes is not made") { try long.body() }
         var empty = InnerMessage(kind: .chat, senderKey: key, session: session, nickname: "A", text: "ok")

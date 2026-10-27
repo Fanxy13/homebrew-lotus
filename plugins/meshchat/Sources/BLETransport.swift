@@ -195,6 +195,13 @@ final class BLETransport: NSObject, LinkTransport {
         }
     }
 
+    // A link this Mac made (it is the central): CoreBluetooth reads the other Mac's signal. On a link the other Mac
+    // made there is nothing to read – its own "I am here" says how strong it hears this one.
+    func measureSignal(on id: Int) {
+        guard case .out(let uuid)? = refs[id], let link = outbound[uuid], link.open else { return }
+        link.peripheral.readRSSI()
+    }
+
     func maxFrame(for id: Int) -> Int {
         switch refs[id] {
         case .out(let u)?: return outbound[u].map { maxWrite($0.peripheral) } ?? Proto.minFrame
@@ -371,6 +378,11 @@ extension BLETransport: CBPeripheralDelegate {
 
     func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
         if let link = outbound[peripheral.identifier] { flush(link) }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        guard error == nil, let link = outbound[peripheral.identifier], link.open, RSSI.intValue != Distance.unknown else { return }
+        delegate?.radio(signal: RSSI.intValue, on: link.id)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {

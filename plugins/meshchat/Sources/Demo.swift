@@ -24,7 +24,7 @@ final class DemoWorld {
                     greeting: "Hi! I'm right next to you – a direct Bluetooth link (● in the list below).",
                     replies: ["Got it 👍",
                               "Grace is out of your range – what she writes reaches you through my Mac.",
-                              "Try /who to see who is here, and how they are connected.",
+                              "Try /where Grace – how far she is, and the way your messages take to her.",
                               "There are no rooms: every Mac with MeshChat nearby reads this, and passes it on.",
                               "Ctrl-C closes the chat; on real Macs your history stays on yours."],
                     replyEvery: 1),
@@ -37,6 +37,8 @@ final class DemoWorld {
         ]
         net.setRange("you", "Ada", true)
         net.setRange("Ada", "Grace", true)
+        net.setDistance("you", "Ada", 2)
+        net.setDistance("Ada", "Grace", 8)
     }
 
     func tick() { net.secondPassed() }

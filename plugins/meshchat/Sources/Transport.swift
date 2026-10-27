@@ -46,6 +46,11 @@ protocol LinkTransportDelegate: AnyObject {
     func radio(closed link: Int, reason: String)
     func radio(received frame: Data, on link: Int)
     func radio(connectFailed endpoint: String, reason: String)
+    func radio(signal rssi: Int, on link: Int)  // how strong the other Mac of a link arrives (after measureSignal)
+}
+
+extension LinkTransportDelegate {
+    func radio(signal rssi: Int, on link: Int) {}
 }
 
 protocol LinkTransport: AnyObject {
@@ -60,4 +65,9 @@ protocol LinkTransport: AnyObject {
     func send(_ frame: Data, on link: Int)  // in order; the radio waits while the link is busy
     func close(_ link: Int)                 // the radio answers with radio(closed:)
     func maxFrame(for link: Int) -> Int
+    func measureSignal(on link: Int)        // answered with radio(signal:on:) – where the radio can measure it
+}
+
+extension LinkTransport {
+    func measureSignal(on link: Int) {}
 }
