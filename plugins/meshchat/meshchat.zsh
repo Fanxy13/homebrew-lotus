@@ -36,7 +36,9 @@ _mc_build() {   # <app|tests>
     print -r -- "    ${d}Install them with: xcode-select --install   then: lotus meshchat${x}"
     return 1
   fi
-  mkdir -p $bin $data/build || return 1
+  # one level at a time: in the sandbox even mkdir -p of a folder that exists fails at the home folder
+  local dir
+  for dir in $bin $data/build; do [[ -d $dir ]] || mkdir $dir || return 1; done
   rm -f -- $bin/*.tmp.*(N)
   local -a srcs=($here/Sources/*.swift(N)) extra=()
   if [[ $kind == tests ]]; then

@@ -75,9 +75,23 @@ final class Store {
 
     init(dir: URL) {
         self.dir = dir
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try? makeFolder(dir)
         // Lotus makes the folder with the usual rights; it holds room codes, so it is this user's alone
         try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
+    }
+
+    // Only the folders that are missing, the innermost last. Lotus' sandbox refuses mkdir anywhere in the home
+    // folder outside the plugin's data folder – even for folders that exist, which is what mkdir -p would try.
+    private func makeFolder(_ url: URL) throws {
+        var missing: [URL] = []
+        var u = url.standardizedFileURL
+        while !fm.fileExists(atPath: u.path) && u.path != "/" && missing.count < 32 {
+            missing.append(u)
+            u = u.deletingLastPathComponent()
+        }
+        for d in missing.reversed() {
+            try fm.createDirectory(at: d, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        }
     }
 
     // Lotus says where: LOTUS_PLUGIN_DATA. Started by hand, the same place.
@@ -94,7 +108,7 @@ final class Store {
 
     // Written whole or not at all, readable only by this user
     private func write(_ data: Data, to url: URL) throws {
-        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try makeFolder(url.deletingLastPathComponent())
         try data.write(to: url, options: .atomic)
         try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
