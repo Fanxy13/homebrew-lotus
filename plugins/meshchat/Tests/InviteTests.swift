@@ -49,11 +49,15 @@ func inviteTests() {
         let i = 10
         chars[i] = chars[i] == "A" ? "B" : "A"
         checkEqual(reason(String(chars)), .checksum, "a typo in the middle")
+        // two neighbouring letters that differ, swapped
         var swapped = Array(code)
-        if swapped[5] != swapped[6] {
-            swapped.swapAt(5, 6)
-            checkEqual(reason(String(swapped)), .checksum, "two letters swapped")
+        let dash: Character = "-"
+        let at = (4..<(swapped.count - 1)).first { (j: Int) -> Bool in
+            let a = swapped[j], b = swapped[j + 1]
+            return a != b && a != dash && b != dash
         }
+        if let j = at { swapped.swapAt(j, j + 1) }
+        checkEqual(reason(String(swapped)), .checksum, "two letters swapped")
         check(InviteError.checksum.description.contains("typo"), "the reason is said in words")
     }
 }

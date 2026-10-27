@@ -48,8 +48,8 @@ Android phones, Bluetooth devices or other messengers.
   message cannot be changed on the way or written in someone else's name ([details](#privacy-and-security)).
 - **Who is here, and how:** a neighbour (● a direct Bluetooth link), further away (⇢2: two relays), or not heard
   for a while (○). People come and go with a line in the chat.
-- **Comes and goes gracefully.** A Mac that moves out of range and back is linked again and gets the messages of
-  the last 15 minutes it missed – each once.
+- **Comes and goes gracefully.** A Mac that moves out of range and back is linked again and gets what it missed in
+  the last 14 minutes (up to 32 messages) – each once.
 - **History** of every room on your Mac, in the plugin's data folder only.
 - **Doctor** for what can go wrong: the terminal's Bluetooth permission, Bluetooth off, the build, failed links.
 
