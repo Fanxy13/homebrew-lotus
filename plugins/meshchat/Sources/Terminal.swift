@@ -334,9 +334,34 @@ func clip(_ s: String, _ cells: Int) -> String {
     return out + "…"
 }
 
+// A string with color codes cut to so many cells; the codes stay, and the color is reset at the end
+func fit(_ s: String, _ cells: Int) -> String {
+    guard visibleWidth(s) > cells else { return s }
+    var out = ""
+    var w = 0
+    var inEscape = false
+    for ch in s {
+        if inEscape {
+            out.append(ch)
+            if let a = ch.asciiValue, a >= 0x40, a <= 0x7E, ch != "[" { inEscape = false }
+            continue
+        }
+        if ch == "\u{1B}" {
+            inEscape = true
+            out.append(ch)
+            continue
+        }
+        let cw = cellWidth(ch)
+        if w + cw > cells { break }
+        out.append(ch)
+        w += cw
+    }
+    return out + "\u{1B}[0m"
+}
+
 // Plain text in lines of at most `width` cells, broken at spaces where it can
 func wrap(_ s: String, _ width: Int) -> [String] {
-    guard width > 4 else { return [s] }
+    let width = max(2, width)
     var lines: [String] = []
     var line = ""
     var lineW = 0

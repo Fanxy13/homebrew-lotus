@@ -166,9 +166,10 @@ connect at once, the link whose central has the smaller session is kept and the 
 alike. A peripheral cannot end a connection in CoreBluetooth; when it closes a link, it ignores it, and the other
 Mac closes it when it goes silent.
 
-**Connections are managed, not retried forever:** a connection attempt has 15 seconds; a Mac that does not
-answer is tried again after 2, 4, 8 … at most 60 seconds, and only while it is still heard advertising – a Mac not
-heard for 2 minutes is forgotten. A link that was there a moment ago is tried again after 2 seconds. A link silent
+**Connections are managed, not retried forever:** a connection attempt has 15 seconds, the handshake 10; a Mac
+that does not answer (or never completes the handshake) is tried again after 2, 4, 8 … 60 seconds, after 8 failures
+in a row only every 5 minutes, and only while it is still heard advertising – a Mac not heard for 2 minutes is
+forgotten. A link that worked and broke is tried again after 2 seconds. A link silent
 for 45 seconds is closed (quiet links are pinged every 15). At most 8 links (`set links`); when full, the Mac stops
 advertising and scanning.
 
@@ -207,8 +208,9 @@ Routing is **managed flooding** – no routing tables, nothing to set up:
    **never passed on**, and its ID is not remembered – a forged copy cannot keep the real message out.
 4. It shows the message and passes the packet to all its *other* neighbours with `ttl − 1` and `hops + 1`.
    `ttl` 0 is not passed on; `ttl + hops` can never be more than 7.
-5. A neighbour that connects gets the room's last 32 packets younger than 15 minutes. A Mac that was out of range
-   for a moment catches up, and the duplicate check keeps everyone else from seeing them twice.
+5. A neighbour that connects gets the room's last 32 packets from the last 14 minutes (so they are still fresh
+   when they arrive). A Mac that was out of range for a moment catches up, and the duplicate check keeps everyone
+   else from seeing them twice.
 
 Each link takes at most 40 packets (and 300 frames) at once and 15 (150) a second; a flood beyond that is dropped.
 A Mac in another room does not pass your room's packets on – it cannot check them. A relay
@@ -253,9 +255,11 @@ come from that person's key in this room and cannot be faked – check them in `
 Your key is different in every room, so rooms cannot be linked to the same person by it.
 
 **What anyone nearby can see** (with a Bluetooth scanner, or by connecting): that MeshChat runs on a Mac (the
-service), its token, its Bluetooth address and name as macOS shows them, and on a link: when and how much is sent,
-message IDs, times, hop counts and an 8-byte room tag – which packets belong to the same room. Not what is said,
-not who says it, not the room's name or code.
+service), its token, its Bluetooth address – and the Mac's own name, which macOS shows to Bluetooth devices that
+connect, as for any Bluetooth use – and on a link: when and how much is sent, message IDs, times, hop counts and an
+8-byte room tag, which tells which packets belong to the same room. Not what is said, not who says it, not the
+room's name or code. Links are not encrypted by Bluetooth itself (Macs would have to pair); the room's encryption
+is what protects the content.
 
 **What this is not.** Not end-to-end encryption between two people: the room shares one key. There is no forward
 secrecy – whoever has the code (or gets it later) can read packets recorded before. Codes are not rotated. Bluetooth
@@ -350,7 +354,7 @@ Also worth trying: ctrl-c and ctrl-z in the chat (the terminal must look as befo
 - The Bluetooth permission is the terminal app's (see [Permissions](#permissions)); terminal apps that do not
   declare Bluetooth use cannot run it.
 - The chat runs while it is open: no messages arrive when it is closed or the Mac sleeps. Missed messages come only
-  from neighbours that still have them – the last 32, from the last 15 minutes.
+  from neighbours that still have them – the last 32, from the last 14 minutes.
 - One room per chat window, one chat per Mac. At most 8 Bluetooth links; Bluetooth's range indoors is short.
 - No delivery receipts, no private messages, no files – text up to 1000 bytes per message.
 - Clocks that differ by more than 10 minutes make messages look old or early, and they are refused.

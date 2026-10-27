@@ -39,6 +39,8 @@ check_has "multi-hop on the simulated radio" "$out" "✓ multi-hop: A reaches C 
 check_has "out of range and back" "$out" "✓ out of range and back"
 check_has "all of them pass" "$out" " passed, 0 failed"
 [[ $out == *" passed, 0 failed"* ]] || print -r -- "${(F)${(M)${(f)out}:#*✗*}}"
+sum=(${(M)${(f)out}:#* passed, * failed})
+print -r -- "    (the selftest on this Mac: $sum[1])"
 
 # ── rooms and codes ──
 out=$(lotus meshchat create "Bike trip" --no-chat 2>&1 | plain)
@@ -104,6 +106,10 @@ out=$(lotus meshchat doctor 2>&1 | plain)
 check_has "doctor: macOS and Swift" "$out" "Swift        "
 check_has "doctor: the build is ready" "$out" "Build        ready"
 check_has "doctor: it gets to the end, whatever Bluetooth says" "$out" "Rooms        1 saved"
+# what CoreBluetooth answered inside the plugin's sandbox – for the log (a Mac without Bluetooth answers too)
+lines=(${(M)${(f)out}:#*(Permission|Bluetooth|Advertising) *})
+lines=(${lines//  #/ })
+print -r -- "    (in the sandbox:${(j: ·:)lines})"
 
 # ── leaving a room, uninstalling ──
 check_has "leaving needs a yes" "$(lotus meshchat leave bike </dev/null 2>&1 | plain)" "Leaving needs a yes"

@@ -84,6 +84,7 @@ struct TestMain {
         dedupTests()
         meshTests()
         storeTests()
+        viewTests()
         print("")
         print("\(TestRun.passed) passed, \(TestRun.failed) failed")
         exit(TestRun.failed == 0 ? 0 : 1)

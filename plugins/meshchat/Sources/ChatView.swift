@@ -167,9 +167,10 @@ enum ChatRender {
             if case .message(let m) = line.item { return m.nickname }
             return nil
         }
-        let nameWidth = min(12, max(4, names.map { cellWidth($0) }.max() ?? 4))
-        let indent = 6 + nameWidth + 2
-        let textWidth = max(10, width - indent - 1)
+        // " 14:02  " + the name + "  " + the text; narrow windows give the name less room
+        let nameWidth = min(12, max(4, width / 5), max(4, names.map { cellWidth($0) }.max() ?? 4))
+        let indent = 8 + nameWidth + 2
+        let textWidth = max(4, width - indent - 1)
         var rows: [String] = []
         for line in s.lines {
             switch line.item {
@@ -196,12 +197,12 @@ enum ChatRender {
                     if i == 0 {
                         rows.append(" " + Theme.dim(time(m.sent)) + "  " + who + pad + "  " + text)
                     } else {
-                        rows.append(String(repeating: " ", count: indent + 1) + text)
+                        rows.append(String(repeating: " ", count: indent) + text)
                     }
                 }
             case .notice(let n):
                 let paint: (String) -> String = n.level == .error ? Theme.red : n.level == .warning ? Theme.yellow : Theme.dim
-                let chunks = wrap(n.text, max(10, width - 10))
+                let chunks = wrap(n.text, max(2, width - 10))
                 for (i, chunk) in chunks.enumerated() {
                     rows.append(i == 0 ? " " + Theme.dim(time(line.order)) + "  " + paint("· " + chunk) : String(repeating: " ", count: 10) + paint(chunk))
                 }
@@ -241,13 +242,21 @@ enum ChatRender {
     }
 
     static func header(_ s: ChatViewState, width: Int) -> String {
-        let room = s.roomName.isEmpty ? "#\(s.roomID)" : s.roomName
-        let left = " " + Theme.bold(Theme.accent("lotus")) + Theme.dim(" / ") + Theme.bold("MeshChat") + "  " + Theme.bold(clip(room, max(8, width / 3)))
-            + (s.roomName.isEmpty ? "" : Theme.dim("  #\(s.roomID)"))
-            + (s.demo ? "  " + Theme.yellow("DEMO – simulated, no Bluetooth") : "")
-        let right = Theme.dim("you: ") + Theme.accent(s.nickname) + Theme.dim("·\(s.fingerprint)") + " "
-        let gap = width - visibleWidth(left) - visibleWidth(right)
-        return gap >= 1 ? left + String(repeating: " ", count: gap) + right : left
+        let room = Theme.bold(clip(s.roomName.isEmpty ? "#\(s.roomID)" : s.roomName, max(8, width / 3)))
+        let title = " " + Theme.bold(Theme.accent("lotus")) + Theme.dim(" / ") + Theme.bold("MeshChat") + "  " + room
+        let id = s.roomName.isEmpty ? "" : Theme.dim("  #\(s.roomID)")
+        // the most that fits: everything · without the ID · DEMO short · without "you:" · just the title
+        let candidates: [(String, String)] = [
+            (title + id + (s.demo ? "  " + Theme.yellow("DEMO – simulated, no Bluetooth") : ""), Theme.dim("you: ") + Theme.accent(s.nickname) + Theme.dim("·\(s.fingerprint)") + " "),
+            (title + (s.demo ? "  " + Theme.yellow("DEMO") : ""), Theme.dim("you: ") + Theme.accent(s.nickname) + Theme.dim("·\(s.fingerprint)") + " "),
+            (title + (s.demo ? "  " + Theme.yellow("DEMO") : ""), Theme.accent(s.nickname) + " "),
+            (title + (s.demo ? "  " + Theme.yellow("DEMO") : ""), ""),
+        ]
+        for (left, right) in candidates {
+            let gap = width - visibleWidth(left) - visibleWidth(right)
+            if gap >= 1 { return left + String(repeating: " ", count: gap) + right }
+        }
+        return title
     }
 
     static func peopleRule(_ s: ChatViewState, width: Int) -> String {
@@ -301,7 +310,8 @@ enum ChatRender {
     // The input line and where the cursor goes in it
     static func input(_ s: ChatViewState, width: Int) -> (String, Int) {
         if s.confirmLeave {
-            let q = " Leave \"\(s.roomName.isEmpty ? s.roomID : s.roomName)\" and delete its code and history from this Mac? y/n "
+            let name = clip(s.roomName.isEmpty ? "#" + s.roomID : s.roomName, 24)
+            let q = " Leave \"\(name)\" and delete its code and history from this Mac? y/n "
             return (Theme.yellow(clip(q, width - 1)), min(width, cellWidth(clip(q, width - 1)) + 1))
         }
         let prompt = " › "
@@ -327,7 +337,8 @@ enum ChatRender {
     // The whole screen: rows × cols
     static func frame(_ s: ChatViewState, rows: Int, cols: Int) -> String {
         var out = "\u{1B}[?2026h\u{1B}[?25l"
-        func put(_ r: Int, _ text: String) { out += "\u{1B}[\(r);1H" + text + "\u{1B}[0m\u{1B}[K" }
+        // every row cut to the window: a row too wide would wrap and push the screen out of place
+        func put(_ r: Int, _ text: String) { out += "\u{1B}[\(r);1H" + fit(text, cols) + "\u{1B}[0m\u{1B}[K" }
         let tiny = rows < 8 || cols < 30
         let top = tiny ? 1 : 3
         let bottom = tiny ? rows - 1 : rows - 3
