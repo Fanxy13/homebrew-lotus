@@ -250,6 +250,30 @@ never reach the browser. Other devices in your network only when you turn that o
 link with your key, and the connection is not encrypted. An occupied port gets a clear message and an
 offer of the next free one; Lotus never changes the port without asking.
 
+## Live Server and /html
+
+Both are part of Lotus – nothing to install. Turn them off with `lotus features live off`.
+
+`/liveserver` is Live Server like in VS Code: type it in a project folder (in VS Code's terminal too). It serves
+the folder, opens `index.html` – or a menu of all its pages when there is none – and reloads the browser whenever you
+save a file (only the styles when you change CSS). Phones and computers in the same Wi-Fi open it too – the terminal
+shows the right address for each network (Wi-Fi, iPhone hotspot, internet sharing), and a new one when the Mac
+switches networks. Nobody from another network gets in; `--local` keeps it on this Mac. Ctrl-C stops it.
+
+```bash
+/liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · --local · stop
+```
+
+**`/html`** makes documents of your web files: pages, style sheets and scripts as Word, PDF, Text, Markdown,
+OpenDocument or RTF. `/html` takes the page open in the browser (or asks which file), `/html all` puts every page,
+style sheet and script of the folder into a folder of their own (`my-site/Word`, `my-site/PDF` …). As code – colored
+like in VS Code, each line with its number – or, for pages, what a visitor reads: headings, text, lists, tables, links
+and pictures. Text keeps the code byte for byte, for uploads that refuse `.html`. Nothing leaves the Mac.
+
+```bash
+/html all docx                    # every file as a Word document · /html about.html pdf · /html all txt · --page
+```
+
 ## Plugins
 
 Add your own things to Lotus – and share them. A plugin is a folder with a `plugin.conf` and programs in
@@ -273,29 +297,8 @@ Every plugin says how much it may do. **Limited** (the default) runs in a macOS 
 folder and data folder, no internet unless it says `network = yes`, no keychain, no other apps, nothing of
 your files, Lotus' settings or the AI's keys. **Full** runs with your rights and Lotus' own functions –
 Lotus asks you before it installs one, and again whenever its files change. Everything about building one:
-[PLUGINS.md](PLUGINS.md); examples (todo, github, hello, liveserver, meshchat): [plugins/](plugins/), the first three at once as
+[PLUGINS.md](PLUGINS.md); examples (todo, github, hello, meshchat): [plugins/](plugins/), the first three at once as
 a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
-
-**Live Server**, like the one in VS Code: install it once, then type `/liveserver` in a project folder (in VS Code's
-terminal too). It serves the folder, opens `index.html` – or a menu of all its pages when there is none – and reloads
-the browser whenever you save a file (only the styles when you change CSS). Phones and computers in the same Wi-Fi open
-it too – the terminal shows the right address for each network (Wi-Fi, iPhone hotspot, internet sharing), and a new one
-when the Mac switches networks. Nobody from another network gets in; `--local` keeps it on this Mac. Ctrl-C stops it.
-
-```bash
-lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver
-/liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · --local · stop
-```
-
-With it comes **`/html`**: your pages, style sheets and scripts as Word, PDF, Text, Markdown, OpenDocument or RTF.
-`/html` takes the page open in the browser (or asks which file), `/html all` puts every page, style sheet and script
-of the folder into a folder of their own (`my-site/Word`, `my-site/PDF` …). As code – colored like in VS Code, each
-line with its number – or, for pages, what a visitor reads: headings, text, lists, tables, links and pictures. Text
-keeps the code byte for byte, for uploads that refuse `.html`. Nothing to install, nothing leaves the Mac.
-
-```bash
-/html all docx                    # every file as a Word document · /html about.html pdf · /html all txt · --page
-```
 
 **MeshChat** – one chat with everyone around you over Bluetooth, without internet, Wi-Fi, rooms or a server. Every
 Mac with MeshChat passes each message on, so Macs out of each other's range still chat through the ones in between –

@@ -9,13 +9,11 @@ Plugins add commands, tools for the AI and start screen lines to Lotus. How to b
 | [todo](todo/) | limited | A command (`lotus todo`), three AI tools (add, list, done) and a start screen line; its list lives in its data folder |
 | [github](github/) | limited, with the internet | A plugin in Python: stars, forks and the newest release of a repository, and GitHub's zen on the start screen |
 | [hello](hello/) | full | Lotus' own functions and settings – the look of `ui_*`, the theme, the features that are on |
-| [liveserver](liveserver/) | full | Like Live Server in VS Code: `/liveserver` serves the folder you are in to this Mac and the devices in your Wi-Fi, opens index.html or a menu of all its pages, and reloads the browser when you save. `/html` makes Word, PDF, Text, Markdown, OpenDocument or RTF documents of its pages, CSS and JS. Full, because it reads the folder you start it in |
 | [meshchat](meshchat/) | limited, no internet | One chat with everyone nearby over Bluetooth – no internet, no server, no rooms. Every Mac passes messages on (a mesh), as far as it reaches; public, and signed so no one can write in your name. In Swift with CoreBluetooth and CryptoKit, built once on your Mac; `lotus meshchat demo` tries it without a second Mac. Not yet tried between real Macs |
 
 Install one straight from GitHub – or todo, github and hello at once with the [examples pack](../packs/examples/pack.conf):
 
 ```
-lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/todo
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples

@@ -1,4 +1,4 @@
-# Live Server (plugins/liveserver): installed with full access, it serves the folder Lotus was called in to this
+# Live Server (lib/live, lotus liveserver – built into Lotus): it serves the folder Lotus was called in to this
 # Mac and the devices in its Wi-Fi – index.html, or a menu of the folder's pages – and reloads open pages when a
 # file changes (only the style sheets when nothing but CSS changed). Nothing outside the folder, no hidden files,
 # nobody from another network, only the Mac's own names; --local: 127.0.0.1 only. A second one for the same
@@ -12,11 +12,13 @@ answer() { (sleep 1.5; print -rn -- $1; sleep 0.5) | script -q /dev/null zsh -fc
 if (( ! $+commands[python3] )); then print -r -- "  – no python3: skipped"; return 0; fi
 zmodload zsh/net/tcp
 
-# ── installed: full access, and why ──
-out=$(answer y "$LOTUS_ROOT/bin/lotus plugin install $LOTUS_ROOT/plugins/liveserver")
-check_has "install names full access" "$out" "full access – your files, the internet, Lotus' settings"
-check_has "installed" "$out" 'The plugin "liveserver" is installed'
+# ── nothing to install: it is part of Lotus ──
 check_has "help" "$(lotus liveserver help 2>&1 | plain)" "lotus liveserver stop"
+check_has "a command of Lotus' own: the cheatsheet lists it" "$(grep -c "^Developer tools	/liveserver	liveserver	" $LOTUS_ROOT/data/commands.tsv)" "1"
+lotus features live off >/dev/null 2>&1
+check_has "a feature that is off explains itself" "$(lotus liveserver help 2>&1 < /dev/null | plain)" "Live Server is turned off"
+lotus features live on >/dev/null 2>&1
+check_has "and on again" "$(lotus liveserver help 2>&1 | plain)" "lotus liveserver stop"
 
 # a site: pages in folders, a style sheet, hidden files, a dependency and a link out of the folder
 S=$HOME/site
@@ -114,14 +116,14 @@ print(ports)
 for iface, ip in (("en0", "192.168.178.23/24"), ("en0", "172.20.10.2/28"), ("en7", "172.20.10.3/28"), ("bridge100", "192.168.2.1/24"), ("en5", "10.0.0.4/16"), ("en9", "10.1.0.4/16")):
     print(L.where(iface, L.ipaddress.IPv4Interface(ip), ports))
 EOF
-out=(${(f)"$(python3 -B $HOME/wifi.py $LOTUS_ROOT/plugins/liveserver 192.168.178.40 ::ffff:192.168.178.9 127.0.0.1 192.168.1.40 10.8.0.5 85.1.2.9 8.8.8.8)"})
+out=(${(f)"$(python3 -B $HOME/wifi.py $LOTUS_ROOT/lib/live 192.168.178.40 ::ffff:192.168.178.9 127.0.0.1 192.168.1.40 10.8.0.5 85.1.2.9 8.8.8.8)"})
 check_eq "the Wi-Fi's network – not the VPN, AirDrop or an internet address" "$out[1]" "en0=192.168.178.23/24"
 check_eq "this Mac and the Wi-Fi in, nobody else" "$out[2]" \
   "192.168.178.40:yes ::ffff:192.168.178.9:yes 127.0.0.1:yes 192.168.1.40:no 10.8.0.5:no 85.1.2.9:no 8.8.8.8:no"
 check_eq "the Mac's network ports by name" "$out[3]" "{'en5': 'Ethernet', 'en0': 'Wi-Fi', 'en7': 'iPhone USB'}"
 check_eq "each address says whom it is for" "${(j:|:)out[4,-1]}" "phones and computers in this Wi-Fi|your iPhone, whose hotspot the Mac uses|your iPhone, whose hotspot the Mac uses|devices the Mac shares its internet with|devices in this network (Ethernet)|devices in this network"
 check_eq "a Wi-Fi address that is not the Mac's is refused" "$(code -H 'Host: 192.168.178.250' $B/about.html)" 403
-ip=$(python3 -B -c "import sys; sys.path.insert(0, sys.argv[1]); import liveserver as L; print(*L.Lan(True).addresses()[:1])" $LOTUS_ROOT/plugins/liveserver 2>/dev/null)
+ip=$(python3 -B -c "import sys; sys.path.insert(0, sys.argv[1]); import liveserver as L; print(*L.Lan(True).addresses()[:1])" $LOTUS_ROOT/lib/live 2>/dev/null)
 if [[ -n $ip ]]; then
   check_has "it says the Wi-Fi address" "$(plain < $HOME/live.log)" "Wi-Fi       http://$ip:$port"
   check_eq "the Mac's Wi-Fi address works" "$(code http://$ip:$port/about.html)" 200
@@ -181,10 +183,10 @@ check_has "its window says so" "$(plain < $HOME/live.log)" "✓ Stopped $B"
 check_has "none left" "$(lotus liveserver stop 2>&1 | plain)" "No live server is running"
 sleep 30 &
 other=$!
-print -r -- "$other"$'\n'"$S" >| $LOTUS_DATA/plugins/liveserver/running/$port
+print -r -- "$other"$'\n'"$S" >| $LOTUS_STATE/live/running/$port
 check_has "a number macOS gave to another program is not stopped" "$(lotus liveserver stop 2>&1 | plain)" "No live server is running"
 check "it still runs" kill -0 $other
-check "and the old note is gone" test ! -e $LOTUS_DATA/plugins/liveserver/running/$port
+check "and the old note is gone" test ! -e $LOTUS_STATE/live/running/$port
 kill $other 2>/dev/null
 
 # ── a page of its own, and index.html ──
@@ -213,3 +215,36 @@ menu=$(curl -s $B/__lotus/)
 check_has "the menu is still there" "$menu" "About – Grüezi"
 check_has "seven pages: a filter" "$menu" 'class="filter"'
 lotus liveserver stop >/dev/null 2>&1
+
+# ── it was a plugin before: the old one goes, with its running servers and the list of documents /html made ──
+P=$LOTUS_CONF/plugins
+mkold() {   # <author>
+  zf_mkdir -p $P/liveserver $LOTUS_DATA/plugins/liveserver/running $LOTUS_DATA/plugins/todo
+  print -r -- $'name        = liveserver\ntitle       = Live Server\nauthor      = '$1$'\ndescription = old\naccess      = full\ncommand liveserver = liveserver.py' >| $P/liveserver/plugin.conf
+  print -r -- 'print old' >| $P/liveserver/liveserver.py
+  print -r -- $'5551\n/somewhere\nwifi' >| $LOTUS_DATA/plugins/liveserver/running/5551
+  print -r -- $'/somewhere/Word/a.docx\t10\t20' >| $LOTUS_DATA/plugins/liveserver/made.tsv
+  print -r -- 'docx|page' >| $LOTUS_DATA/plugins/liveserver/html-last
+  print -r -- $'todo\ton\tlimited\tabc\nliveserver\ton\tfull\tdef' >| $LOTUS_CONF/plugins.tsv
+}
+tty() { script -q /dev/null zsh -fc "$LOTUS_ROOT/bin/lotus version" 2>&1 | plain }
+mkold Somebody
+out=$(tty)
+check "a plugin of someone else with that name stays" test -e $P/liveserver/plugin.conf
+check_eq "  – and Lotus says nothing" "${${(f)out}[-1]//[[:space:]]/}" "$LOTUS_VERSION"
+check "  – (not a word about a plugin)" eval '[[ $out != *plugin* ]]'
+rm -rf $P/liveserver $LOTUS_DATA/plugins
+mkold Lotus
+out=$(tty)
+check "Lotus' own old plugin is gone" test ! -e $P/liveserver
+check "  – and its data folder" test ! -e $LOTUS_DATA/plugins/liveserver
+check_has "  – it says so" "$out" "Live Server and /html are part of Lotus now – the old liveserver plugin was removed."
+check_eq "  – a server that still runs is found by the new Live Server" "$(<$LOTUS_STATE/live/running/5551)" $'5551\n/somewhere\nwifi'
+check_has "  – the documents it made are not forgotten" "$(<$LOTUS_STATE/live/made.tsv)" "/somewhere/Word/a.docx"
+check_eq "  – nor the last choice of /html" "$(<$LOTUS_STATE/html-last)" "docx|page"
+check_eq "  – its entry is gone, the others stay" "$(<$LOTUS_CONF/plugins.tsv)" $'todo\ton\tlimited\tabc'
+check "  – other plugins' data stays" test -d $LOTUS_DATA/plugins/todo
+out=$(tty)
+check "  – and nothing is said the next time" eval '[[ $out != *"part of Lotus now"* ]]'
+print -r -- $'5551' >| $LOTUS_STATE/live/running/5551      # a note without a server: cleaned up by stop
+check_has "a stale note does not make a live server" "$(lotus liveserver stop 2>&1 | plain)" "No live server is running"

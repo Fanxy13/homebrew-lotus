@@ -43,13 +43,15 @@ typeset -A LOTUS_MODULES=(
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
   bg bg  log log  features setup  pets pets  pet pets  feed pets  zetamac pets  clock clock  caffeine caffeine  awake caffeine  ai-tool aitools
   plugin plugin  plugins plugin  plugin-tool plugin
-  img img
+  img img  liveserver live  html html
 )
 
 # -V / --verbose: every log line is printed while the command runs
 if [[ $1 == (-V|--verbose) ]]; then export LOTUS_VERBOSE=1; shift; fi
 
 lotus_load
+# Live Server and /html were a plugin before: it is part of Lotus now, the old plugin goes (lib/cmd/live.zsh)
+if [[ -d $LOTUS_CONF/plugins/liveserver ]]; then source $LOTUS_ROOT/lib/cmd/live.zsh; lotus_live_migrate; fi
 cmd=${1:-show}
 (( $# )) && shift
 
