@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased – Live Server and /html, built in
+## 2.23.0 – Live Server and /html, built in
 
 - **Live Server and `/html` are part of Lotus now** – no plugin to install: `/liveserver` and `/html` are there after an update, in `lotus cheatsheet`, in the pets' knowledge and in the website's commands. They are one feature, "Live Server" (`lotus features live off` turns both off). The old `liveserver` plugin is removed the first time Lotus starts after the update – only Lotus' own one, by its `plugin.conf`; a plugin of someone else with that name stays – and what it knew comes along: servers that still run (`/liveserver stop` finds them), the list of documents `/html` made, and its last choice. Lotus says so once. Its files are in `lib/live` and `lib/html`, what they keep in `~/.local/state/lotus/live`
 - Live Server answers the phones and computers in the same Wi-Fi: the terminal shows the address for each network the Mac is in and whom it is for – this Wi-Fi, the iPhone whose hotspot the Mac uses, the devices it shares its internet with – and a new one when the Mac changes networks while it runs. Nobody from another network gets an answer (a VPN, AirDrop, an address of the internet), and only the Mac's own names work. `--local` keeps it on this Mac
