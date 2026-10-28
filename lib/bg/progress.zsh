@@ -85,7 +85,14 @@ bg_ui_stage() {   # <key> – the stages before it count as done
   [[ $key == __end ]] || lotus_log DEBUG bg "Stage: $key"
 }
 
-bg_ui_info() {    # <key> <value>  (model, backend, resolution … in the line under the steps)
+# One more step after the start (a step that turns out to be needed): bg_ui_add_stage "key|Label|Short"
+bg_ui_add_stage() {
+  local -a f=("${(@s:|:)1}")
+  (( ${BGU_KEYS[(Ie)$f[1]]} )) && return 0
+  BGU_KEYS+=($f[1]) BGU_LABELS+=("$f[2]") BGU_SHORT+=("${f[3]:-${LOTUS_L[bg_ss_$f[1]]:-$f[2]}}") BGU_TIMES+=("")
+}
+
+bg_ui_info() {    # <key> <value>  (model, backend, resolution … in the line under the steps; "image" is the top right)
   (( ${BGU_INFO_KEYS[(Ie)$1]} )) || BGU_INFO_KEYS+=($1)
   BGU_INFO[$1]=$2
 }
@@ -351,13 +358,17 @@ bg_ui_frame() {
 
   # Model · backend · size · time, and how to stop
   local info= key
-  for key in model backend resolution python; do [[ -n $BGU_INFO[$key] ]] && info+="${info:+ · }$BGU_INFO[$key]"; done
+  for key in model backend resolution python ${BGU_INFO_KEYS:#(model|backend|resolution|python|image)}; do
+    [[ -n $BGU_INFO[$key] ]] && info+="${info:+ · }$BGU_INFO[$key]"
+  done
   _bgu_fmt_secs $(( now - BGU_T0 ))
   info+="${info:+ · }$REPLY"
   (( ${#info} > W - 8 )) && info="${info[1,W-9]}…"
   _line $(( y + 6 )) "${d}${info}${R}" $(( (W - ${#info}) / 2 + 1 ))
   _line $(( y + 8 )) "${d}${LOTUS_L[bg_ctrl_c]}${R}" $(( (W - ${#LOTUS_L[bg_ctrl_c]}) / 2 + 1 ))
-  print -rn -- "$out"
+  # ctrl-c in the middle of a frame interrupts the write – zsh would take that for an error and end Lotus
+  # before it can stop cleanly, so the error is let go (the next frame draws everything again)
+  { print -rn -- "$out" 2>/dev/null } always { TRY_BLOCK_ERROR=0 }
 }
 
 # Lines from a pipe, waiting at most <seconds>:  bg_read_lines <fd> <seconds> → reply (complete lines)

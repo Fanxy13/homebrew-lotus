@@ -71,6 +71,9 @@ when a command needs them – nothing is installed without asking.
 
 ## Lotus 2.2
 
+- **Image converter** – `/img convert` turns images and whole folders into JPEG, PNG, HEIC,
+  AVIF, WebP, TIFF, GIF, PDF or ICO with macOS' own image engine: the right way up, smaller but
+  never larger, the originals untouched – while the lotus blooms.
 - **Remove BG** – `/bg remove photo.jpg` cuts out the subject with BiRefNet or InSPyReNet,
   locally on your Mac, and saves a transparent PNG. Drag images into the window, process
   whole folders, and paint what to keep in a small native editor when the AI misses something.
@@ -109,10 +112,12 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | Audio | `/np`, `/play`, `/pause`, `/skip`, `/back` | What is playing, play, pause, next, previous |
 | | `/repeat`, `/mute`, `/vu`, `/vd` | Repeat, mute, volume up and down |
 | Media | `/lotus visual` | Audio visualizer with 8 modes (space: next mode, `q`: quit) |
-| | `/convert <link>` | Save MP3 or MP4 (resolution, frame rate) to `~/Downloads/Lotus` |
+| | `/convert <link>` | Save MP3 or MP4 (resolution, frame rate) to `~/Downloads/Lotus` – the lotus blooms while it downloads |
 | Device tools | `/ios`, `/ios devices` | AirCard, Nugget, Sideloadly, Dopamine with compatibility checks |
 | Minecraft | `/minecraft`, `/mc <server>` | Create a server, its control center (players, ping, plugins, log), delete a server, port forwarding guide |
-| Images | `/bg remove <image>` | Remove the background on this Mac, save a transparent PNG |
+| Images | `/img convert <image|folder>` | Convert images and folders: JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, PDF, ICO – the lotus blooms while it works |
+| | `/img convert … --to webp --max 1920` | Without questions: `--to`, `--quality`, `--max` · `/img formats` |
+| | `/bg remove <image>` | Remove the background on this Mac, save a transparent PNG |
 | | `/bg remove`, `/bg remove <folder>` | Drop images into the window · a whole folder with one model load |
 | | `/bg paste` | The image in the clipboard – a screenshot, "Copy Image", or files copied in the Finder |
 | | `/bg remove --edit <image>` | Paint what to keep right after the AI |
@@ -268,7 +273,7 @@ Every plugin says how much it may do. **Limited** (the default) runs in a macOS 
 folder and data folder, no internet unless it says `network = yes`, no keychain, no other apps, nothing of
 your files, Lotus' settings or the AI's keys. **Full** runs with your rights and Lotus' own functions –
 Lotus asks you before it installs one, and again whenever its files change. Everything about building one:
-[PLUGINS.md](PLUGINS.md); examples (todo, github, hello, liveserver): [plugins/](plugins/), the first three at once as
+[PLUGINS.md](PLUGINS.md); examples (todo, github, hello, liveserver, meshchat): [plugins/](plugins/), the first three at once as
 a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
 
 **Live Server**, like the one in VS Code: install it once, then type `/liveserver` in a project folder (in VS Code's
@@ -280,6 +285,19 @@ when the Mac switches networks. Nobody from another network gets in; `--local` k
 ```bash
 lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserver
 /liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · --local · stop
+```
+
+**MeshChat** – one chat with everyone around you over Bluetooth, without internet, Wi-Fi, rooms or a server. Every
+Mac with MeshChat passes each message on, so Macs out of each other's range still chat through the ones in between –
+as far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your
+name. A limited plugin without internet; macOS asks once whether your terminal may use Bluetooth. Built once on your
+Mac from Swift (Command Line Tools). Not yet tried between real Macs – the Bluetooth part is built and checked on
+every change; the test with three Macs, the protocol and its limits: [plugins/meshchat](plugins/meshchat/README.md).
+
+```bash
+lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat
+/meshchat                         # the chat – the same on every Mac nearby, nothing to set up
+/meshchat demo                    # try it first: two simulated people, no Bluetooth · /meshchat doctor
 ```
 
 ## Remove BG

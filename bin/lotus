@@ -43,6 +43,7 @@ typeset -A LOTUS_MODULES=(
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
   bg bg  log log  features setup  pets pets  pet pets  feed pets  zetamac pets  clock clock  caffeine caffeine  awake caffeine  ai-tool aitools
   plugin plugin  plugins plugin  plugin-tool plugin
+  img img
 )
 
 # -V / --verbose: every log line is printed while the command runs

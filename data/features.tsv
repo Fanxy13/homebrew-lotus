@@ -1,7 +1,7 @@
 # Lotus features – the switches in the setup wizard and in /settings → Features (also read by the website).
 # A feature that is off keeps its settings, downloads nothing and its commands explain how to turn it back on.
 # id	label	commands (lotus subcommands that belong to it)	description	what it may download
-core	Core	show settings config setup update upgrade doctor uninstall unhook help -h --help cheatsheet themes suggest logo shortcuts shortcut run log features goat who version clock ai-tool	Start screen, settings, shortcuts and the cheatsheet	-
+core	Core	show settings config setup update upgrade doctor uninstall unhook help -h --help cheatsheet themes suggest logo shortcuts shortcut run log features goat who version clock img ai-tool	Start screen, settings, shortcuts and the cheatsheet	-
 apps	App Launcher	app	Open installed apps by name, typos included	-
 homebrew	Homebrew	brew install	Search Homebrew and install apps from the catalog	Apps you choose
 web	Web Search	web github browse google search open	Search the web and open links from the command line	-

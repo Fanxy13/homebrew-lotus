@@ -1,0 +1,894 @@
+// MeshChat – the mesh: links to Macs nearby, the handshake, flooding with duplicate detection and a hop limit,
+// signatures, who is here and what they say. One chat for everyone nearby: every Mac with MeshChat shows every
+// message and passes it on, as far as the mesh reaches. Runs on one queue; the radio calls it there.
+//
+// Routing is managed flooding – there is no central server and no routing table:
+//   1. A message goes to every neighbour (a Mac with a link to this one).
+//   2. A Mac that gets a packet looks at its ID: seen in the last 30 minutes → dropped (a loop, a second path).
+//   3. Otherwise it checks the sender's signature, how many messages that sender sent lately, and the age
+//      (≤ 15 minutes). A packet that fails is dropped and never passed on – nobody relays what they could not check.
+//   4. It shows the message and passes the packet to all its other neighbours with ttl - 1 and hops + 1. Every
+//      message starts with the most the protocol allows – 16 relays – so it goes as far as there are Macs to pass
+//      it on; the ID check makes sure each Mac sends it only once, and ttl stops it should that ever fail.
+//   5. A neighbour that connects gets the last 32 packets (ones younger than 14 minutes): a Mac that was out of
+//      range for a moment catches up, and the duplicate check keeps everyone else from seeing them twice.
+// Links: every Mac advertises and scans. When two see each other, the one with the smaller token (4 random bytes
+// in its advertised name) connects; the other waits 8 seconds before it tries itself. Should both connect at once,
+// the link whose central has the smaller session is kept and the other one closed – both Macs decide alike.
+
+import Foundation
+
+struct MeshConfig {
+    var hops = Int(Proto.hopLimit)              // how many relays a new message may take: as far as possible
+    var maxLinks = 8                            // Bluetooth links at most (each costs the radio time)
+    var silent = false                          // pass on, but never say anything – not even "I am here" (relay)
+    var presenceInterval: TimeInterval = 30     // "I am here" to everyone
+    var awayAfter: TimeInterval = 80            // not heard for so long: away
+    var forgetAfter: TimeInterval = 600         // … and gone from the list
+    var pingInterval: TimeInterval = 15         // a quiet link is asked whether it is still there
+    var linkTimeout: TimeInterval = 45          // a link silent for so long is closed
+    var helloTimeout: TimeInterval = 10
+    var connectTimeout: TimeInterval = 15
+    var maxBackoff: TimeInterval = 60           // between attempts to reach a Mac that does not answer
+    var maxAge: TimeInterval = 15 * 60          // older messages are refused …
+    var maxSkew: TimeInterval = 10 * 60         // … and ones from that far in the future (clocks that differ)
+    var catchUp = 32                            // recent packets a new neighbour gets
+    var senderBurst = 40.0                      // packets of one sender taken in at once (more than a catch-up) …
+    var senderRate = 1.0                        // … and one a second after that: one person cannot flood everyone
+    var initiatorGrace: TimeInterval = 8        // the Mac with the larger token waits so long for the other one
+    var sightingExpiry: TimeInterval = 120      // a Mac not heard advertising for so long is forgotten
+    var scanOnLinked: TimeInterval = 10         // scanning once linked: 10 s of every 30 s
+    var scanOffLinked: TimeInterval = 20
+    var scanOnAlone: TimeInterval = 25          // with no link: nearly always, restarted every 27 s
+    var scanOffAlone: TimeInterval = 2
+    var measureEvery: TimeInterval = 5          // the signal of each link this Mac made is read so often
+    var signalFresh: TimeInterval = 60          // a signal older than this says nothing about now
+}
+
+struct ChatMessage: Equatable {
+    let id: UInt64
+    let nickname: String
+    let fingerprint: String
+    let text: String
+    let sent: TimeInterval          // the sender's clock
+    let received: TimeInterval      // this Mac's
+    let hops: Int                   // relays it took – 0: from a neighbour (or this Mac)
+    let mine: Bool
+}
+
+struct Participant: Equatable {
+    let key: Data
+    let fingerprint: String
+    var nickname: String
+    var session: Data
+    var lastSeen: TimeInterval
+    var hops: Int                   // relays the last packet took
+    var links: Int                  // how many Macs it said it is connected to
+    var direct = false              // a link to this Mac right now
+    var left = false                // said goodbye
+    var away = false                // not heard for a while
+    var signal: Int? = nil          // how strong this Mac hears theirs (dBm), measured in the last minute
+    var via = ""                    // the neighbour their last message came through ("" when straight from them)
+    var neighbours: [UInt32: Int] = [:]     // the Macs they have a link to, and how strong they hear them
+
+    var token: UInt32 { session.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
+}
+
+// One leg of the way to someone: the Mac it reaches, and how strong that leg's signal is (nil: not measured)
+struct RouteLeg: Equatable {
+    let name: String
+    let rssi: Int?
+}
+
+struct MeshStats: Equatable {
+    var framesIn = 0, framesOut = 0
+    var delivered = 0               // messages shown (or presence taken in)
+    var relayed = 0                 // packets passed on
+    var duplicates = 0
+    var malformed = 0
+    var forged = 0                  // failed the signature (or damaged inside)
+    var expired = 0                 // too old, or from the future
+    var rateLimited = 0
+    var incompatible = 0
+    var connectFailures = 0
+    var caughtUp = 0                // packets sent to a neighbour that connected
+}
+
+struct MeshSnapshot {
+    var radio: RadioState = .starting
+    var links = 0                   // ready links
+    var connecting = 0
+    var participants: [Participant] = []        // the others, by name
+    var scanning = false
+    var advertising = false
+    var stats = MeshStats()
+}
+
+struct Notice: Equatable {
+    enum Level { case info, warning, error }
+    let level: Level
+    let text: String
+}
+
+enum MeshEvent {
+    case message(ChatMessage)       // someone wrote (or this Mac did)
+    case sent(id: UInt64, links: Int)               // a message of ours left on so many links
+    case notice(Notice)
+    case snapshot(MeshSnapshot)
+    case log(String)                // for the diagnostics log: never secrets or what people wrote
+}
+
+struct TokenBucket {
+    let capacity: Double
+    let rate: Double
+    private var tokens: Double
+    private var last: TimeInterval?
+
+    init(capacity: Double, rate: Double) {
+        self.capacity = capacity
+        self.rate = rate
+        tokens = capacity
+    }
+
+    mutating func take(_ now: TimeInterval) -> Bool {
+        if let l = last { tokens = min(capacity, tokens + max(0, now - l) * rate) }
+        last = now
+        guard tokens >= 1 else { return false }
+        tokens -= 1
+        return true
+    }
+}
+
+final class MeshNode: LinkTransportDelegate {
+    private final class Link {
+        enum State { case hello, ready, redundant, closed }
+        let id: Int
+        let outbound: Bool
+        let endpoint: String
+        var state = State.hello
+        var session: Data?          // set by the handshake
+        var software = ""
+        var closeReason: String?
+        var pruned = false          // a second link to the same Mac, closed on purpose
+        let helloDeadline: TimeInterval
+        var lastHeard: TimeInterval
+        var lastSent: TimeInterval
+        var seq: UInt16 = 0
+        let reassembler = Reassembler()
+        var frames = TokenBucket(capacity: 300, rate: 150)    // frames a second it may send us
+        var packets = TokenBucket(capacity: 40, rate: 15)     // whole packets a second
+
+        init(_ info: LinkInfo, now: TimeInterval, helloTimeout: TimeInterval) {
+            id = info.id
+            outbound = info.outbound
+            endpoint = info.endpoint
+            helloDeadline = now + helloTimeout
+            lastHeard = now
+            lastSent = now
+        }
+
+        func nextSeq() -> UInt16 {
+            seq = seq &+ 1
+            return seq
+        }
+    }
+
+    private struct Candidate {
+        let endpoint: String
+        var token: UInt32?
+        var rssi: Int
+        let firstSeen: TimeInterval
+        var lastSeen: TimeInterval
+        var connectingSince: TimeInterval?
+        var failures = 0
+        var nextAttempt: TimeInterval = 0
+    }
+
+    private struct Recent {
+        let packet: MeshPacket
+        let mine: Bool
+    }
+
+    let transport: LinkTransport
+    var config: MeshConfig
+    let session: Data
+    let token: UInt32
+    let signer: Signer
+    private(set) var nickname: String
+    private let clock: () -> TimeInterval
+    private let emit: (MeshEvent) -> Void
+
+    private var links: [Int: Link] = [:]
+    private var candidates: [String: Candidate] = [:]
+    private var endpointSessions: [String: Data] = [:]
+    private var dedup = DedupCache()
+    private var recent: [Recent] = []
+    private var people: [Data: Participant] = [:]
+    private var senders: [Data: TokenBucket] = [:]
+    private var signals: [UInt32: (rssi: Double, at: TimeInterval)] = [:]     // by token, smoothed
+    private var lastMeasure = -TimeInterval.infinity
+    private var undelivered: Set<UInt64> = []
+    private var presenceDue = TimeInterval.infinity
+    private var lastPresence = -TimeInterval.infinity
+    private var noticed: [String: TimeInterval] = [:]
+    private var scanEpoch: TimeInterval = 0
+    private var scanning = false
+    private var advertising = false
+    private var running = false
+    private var dirty = true
+    private(set) var stats = MeshStats()
+
+    init(transport: LinkTransport, config: MeshConfig = MeshConfig(), nickname: String, signer: Signer,
+         clock: @escaping () -> TimeInterval = { Date().timeIntervalSince1970 },
+         events: @escaping (MeshEvent) -> Void) {
+        self.transport = transport
+        self.config = config
+        self.signer = signer
+        self.nickname = Sanitize.nickname(nickname).isEmpty ? "anon" : Sanitize.nickname(nickname)
+        self.clock = clock
+        emit = events
+        session = CryptoBackend.randomBytes(Proto.sessionLength)
+        token = session.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
+        transport.delegate = self
+    }
+
+    var fingerprint: String { signer.fingerprint }
+    var readyLinks: Int { links.values.filter { $0.state == .ready }.count }
+
+    // ── Starting, speaking ────────────────────────────────────
+
+    func start() {
+        guard !running else { return }
+        running = true
+        scanEpoch = clock()
+        if !config.silent { presenceDue = clock() + 0.5 }      // "who is here?" as soon as there is a link
+        transport.start(token: token)
+        flush()
+    }
+
+    // Goodbye to everyone and every neighbour; the radio goes off with stop()
+    func goodbye() {
+        if running && !config.silent { _ = try? flood(kind: .bye) }
+        for link in links.values where link.state == .ready { sendFrame(.bye(ByeReason.leaving.rawValue), on: link) }
+    }
+
+    // IDs of messages this Mac has already (its history): copies that come again are not shown twice
+    func markSeen(_ ids: [UInt64]) {
+        let t = clock()
+        for id in ids { dedup.insert(id, now: t) }
+    }
+
+    func stop() {
+        guard running else { return }
+        running = false
+        transport.stop()
+        links.removeAll()
+        candidates.removeAll()
+        scanning = false
+        advertising = false
+        dirty = true
+        flush()
+    }
+
+    func rename(_ name: String) {
+        let clean = Sanitize.nickname(name)
+        guard !clean.isEmpty else { return }
+        nickname = clean
+        if running && !config.silent { sendPresence(request: false) }
+        flush()
+    }
+
+    enum SendError: Error, CustomStringConvertible {
+        case empty, tooLong
+        var description: String {
+            switch self {
+            case .empty: return "There is nothing to send."
+            case .tooLong: return "A message can be up to \(Proto.maxTextBytes) bytes long – that is about \(Proto.maxTextBytes) letters, fewer with emoji or accents."
+            }
+        }
+    }
+
+    @discardableResult
+    func send(_ text: String) throws -> ChatMessage {
+        let clean = Sanitize.line(text, characters: Int.max, bytes: Int.max)
+        guard !clean.isEmpty else { throw SendError.empty }
+        guard clean.utf8.count <= Proto.maxTextBytes else { throw SendError.tooLong }
+        let (packet, links) = try flood(kind: .chat, text: clean)
+        let msg = ChatMessage(id: packet.messageID, nickname: nickname, fingerprint: signer.fingerprint, text: clean,
+                              sent: Double(packet.timestamp) / 1000, received: clock(), hops: 0, mine: true)
+        stats.delivered += 1
+        emit(.message(msg))
+        emit(.sent(id: packet.messageID, links: links))
+        flush()
+        return msg
+    }
+
+    // ── The radio ─────────────────────────────────────────────
+
+    func radio(stateChanged state: RadioState) {
+        log("Bluetooth: \(state.label)")
+        if state == .on {
+            scanEpoch = clock()
+            scanning = false
+            advertising = false
+        } else {
+            for k in candidates.keys { candidates[k]?.connectingSince = nil }
+            scanning = false
+            advertising = false
+        }
+        manageRadio(clock())
+        dirty = true
+        flush()
+    }
+
+    func radio(sighted s: Sighting) {
+        let t = clock()
+        if let theirs = s.token, theirs != token { noteSignal(theirs, s.rssi, t) }
+        if var c = candidates[s.endpoint] {
+            c.lastSeen = t
+            c.rssi = s.rssi
+            if s.token != nil { c.token = s.token }
+            candidates[s.endpoint] = c
+        } else {
+            candidates[s.endpoint] = Candidate(endpoint: s.endpoint, token: s.token, rssi: s.rssi, firstSeen: t, lastSeen: t)
+            log("sighted a Mac with MeshChat (\(short(s.endpoint)), signal \(s.rssi) dBm)")
+        }
+        connectCandidates(t)
+        flush()
+    }
+
+    func radio(opened info: LinkInfo) {
+        let t = clock()
+        let link = Link(info, now: t, helloTimeout: config.helloTimeout)
+        links[info.id] = link
+        if info.outbound { candidates[info.endpoint]?.connectingSince = nil }
+        log("link \(info.id) open – \(info.outbound ? "this Mac connected" : "the other Mac connected"), frames of up to \(info.maxFrame) bytes")
+        if links.values.filter({ $0.state != .closed }).count > config.maxLinks {
+            sendFrame(.bye(ByeReason.full.rawValue), on: link)
+            closeLink(link, reason: "too many links")
+        } else {
+            sendFrame(.hello(Hello(session: session)), on: link)
+        }
+        dirty = true
+        flush()
+    }
+
+    func radio(closed id: Int, reason: String) {
+        guard let link = links.removeValue(forKey: id) else { return }
+        let t = clock()
+        let wasReady = link.session != nil && !link.pruned
+        let reason = link.closeReason ?? reason
+        log("link \(id) closed: \(reason)")
+        if link.outbound, var c = candidates[link.endpoint] {
+            c.connectingSince = nil
+            if link.session == nil {
+                // connected, but no handshake (or no version in common): a failed attempt, so it is not retried
+                // every few seconds forever
+                c.failures += 1
+                stats.connectFailures += 1
+            }
+            // a Mac that was there a moment ago: try again soon, it may only have moved a little
+            c.nextAttempt = t + (wasReady ? 2 : backoff(c.failures))
+            candidates[link.endpoint] = c
+        }
+        if wasReady, let s = link.session, !links.values.contains(where: { $0.state == .ready && $0.session == s }) {
+            if let p = people.values.first(where: { $0.session == s }), !p.left {
+                notice("The Bluetooth link to \(p.nickname) ended (\(reason)) – the mesh may still reach \(p.nickname) through others.")
+            }
+        }
+        dirty = true
+        flush()
+    }
+
+    func radio(received frame: Data, on id: Int) {
+        guard let link = links[id], link.state != .closed else { return }
+        let t = clock()
+        link.lastHeard = t
+        stats.framesIn += 1
+        guard link.frames.take(t) else {
+            stats.rateLimited += 1
+            return
+        }
+        let decoded: LinkFrame
+        do {
+            decoded = try LinkFrame.decode(frame)
+        } catch WireError.unsupportedVersion(let v) {
+            stats.incompatible += 1
+            noticeOnce("link-version-\(v)", "A Mac nearby speaks a newer MeshChat (link protocol \(v)) – update this one: lotus plugin update meshchat", .warning)
+            return
+        } catch {
+            stats.malformed += 1
+            return
+        }
+        switch decoded {
+        case .hello(let h):
+            hello(h, on: link)
+        case let .data(seq, index, count, payload):
+            guard link.state == .ready else {
+                if link.state == .hello { stats.malformed += 1 }     // data before the handshake
+                break                                                // (or on a second link that is going)
+            }
+            switch link.reassembler.add(seq: seq, index: index, count: count, payload: payload, now: t) {
+            case .complete(let packet): received(packet, from: link)
+            case .incomplete: break
+            case .duplicate: stats.duplicates += 1
+            case .rejected: stats.malformed += 1
+            }
+        case .ping:
+            sendFrame(.pong, on: link)
+        case .pong:
+            break
+        case .bye(let reason):
+            log("link \(id): the other Mac ended it (reason \(reason))")
+            closeLink(link, reason: reason == ByeReason.leaving.rawValue ? "it left" : "it ended the link")
+        }
+        flush()
+    }
+
+    func radio(connectFailed endpoint: String, reason: String) {
+        failed(endpoint, reason: reason)
+        flush()
+    }
+
+    func radio(signal rssi: Int, on id: Int) {
+        guard let s = links[id]?.session else { return }
+        noteSignal(MeshNode.token(of: s), rssi, clock())
+        dirty = true
+        flush()
+    }
+
+    private func failed(_ endpoint: String, reason: String) {
+        guard var c = candidates[endpoint] else { return }
+        c.connectingSince = nil
+        c.failures += 1
+        c.nextAttempt = clock() + backoff(c.failures)
+        candidates[endpoint] = c
+        stats.connectFailures += 1
+        log("could not connect to \(short(endpoint)): \(reason) (attempt \(c.failures))")
+        dirty = true
+    }
+
+    // Once a second: timeouts, pings, scanning, connecting, "I am here", who is away
+    func tick() {
+        guard running else { return }
+        let t = clock()
+        for link in Array(links.values) {
+            if link.state == .hello && t > link.helloDeadline {
+                closeLink(link, reason: "no handshake")
+            } else if link.state != .closed && t - link.lastHeard > config.linkTimeout {
+                closeLink(link, reason: "no answer for \(Int(config.linkTimeout)) seconds")
+            } else if link.state == .ready && t - link.lastSent >= config.pingInterval {
+                sendFrame(.ping, on: link)
+            }
+            link.reassembler.expire(now: t)
+        }
+        connectCandidates(t)
+        manageRadio(t)
+        if t - lastMeasure >= config.measureEvery {
+            lastMeasure = t
+            for link in links.values where link.state == .ready && link.outbound { transport.measureSignal(on: link.id) }
+        }
+        if !config.silent && t >= presenceDue { sendPresence(request: lastPresence == -.infinity) }
+        age(t)
+        dirty = true
+        flush()
+    }
+
+    // ── Links ─────────────────────────────────────────────────
+
+    private func hello(_ h: Hello, on link: Link) {
+        guard link.state == .hello else { return }
+        guard h.minVersion <= Proto.version && h.maxVersion >= Proto.version else {
+            stats.incompatible += 1
+            if h.minVersion > Proto.version {
+                noticeOnce("newer-\(h.minVersion)", "A Mac nearby runs a newer MeshChat (protocol \(h.minVersion)) – update this one to chat with it: lotus plugin update meshchat", .warning)
+            } else {
+                noticeOnce("older-\(h.maxVersion)", "A Mac nearby runs an older MeshChat (protocol \(h.maxVersion)) – it needs an update to chat with this one: lotus plugin update meshchat", .warning)
+            }
+            sendFrame(.bye(ByeReason.incompatible.rawValue), on: link)
+            closeLink(link, reason: "no protocol version in common")
+            return
+        }
+        guard h.session != session else {
+            closeLink(link, reason: "this Mac itself")
+            return
+        }
+        link.session = h.session
+        link.software = h.software
+        link.state = .ready
+        endpointSessions[link.endpoint] = h.session
+        if link.outbound { candidates[link.endpoint]?.failures = 0 }       // a link that works: a clean slate
+        log("link \(link.id) ready (\(h.software))")
+        guard keepOne(of: link) else { return }
+        catchUp(link)
+        if !config.silent { presenceDue = min(presenceDue, clock() + 1) }
+        dirty = true
+    }
+
+    // Two links to the same Mac: keep the one whose central has the smaller session, close the others. Both Macs
+    // decide alike. false when `link` itself is one that goes.
+    private func keepOne(of link: Link) -> Bool {
+        let same = links.values.filter { $0.state == .ready && $0.session == link.session }
+        guard same.count > 1 else { return true }
+        func preferred(_ l: Link) -> Bool {
+            guard let remote = l.session else { return false }
+            return l.outbound ? session.lexicographicallyPrecedes(remote) : remote.lexicographicallyPrecedes(session)
+        }
+        let keep = same.min { a, b in preferred(a) != preferred(b) ? preferred(a) : a.id < b.id }!
+        for other in same where other !== keep {
+            log("link \(other.id) is a second link to the same Mac – closed")
+            sendFrame(.bye(ByeReason.redundant.rawValue), on: other)
+            other.state = .redundant
+            other.pruned = true
+            if other.outbound { closeLink(other, reason: "a second link to the same Mac") }
+        }
+        return keep === link
+    }
+
+    private func closeLink(_ link: Link, reason: String) {
+        guard link.state != .closed else { return }
+        link.closeReason = link.closeReason ?? reason
+        link.state = .closed
+        dirty = true
+        transport.close(link.id)
+    }
+
+    private func sendFrame(_ frame: LinkFrame, on link: Link) {
+        guard link.state != .closed else { return }
+        transport.send(frame.encode(), on: link.id)
+        link.lastSent = clock()
+        stats.framesOut += 1
+    }
+
+    private func sendPacket(_ packet: MeshPacket, on link: Link) {
+        guard link.state == .ready else { return }
+        do {
+            for f in try Fragmenter.frames(for: packet.encode(), seq: link.nextSeq(), maxFrame: transport.maxFrame(for: link.id)) {
+                transport.send(f, on: link.id)
+                stats.framesOut += 1
+            }
+            link.lastSent = clock()
+        } catch {
+            log("could not send on link \(link.id): \(error)")
+        }
+    }
+
+    private func isLinked(session s: Data) -> Bool {
+        links.values.contains { $0.state == .ready && $0.session == s }
+    }
+
+    private func shouldConnect(_ c: Candidate, _ t: TimeInterval) -> Bool {
+        if links.values.contains(where: { $0.endpoint == c.endpoint && $0.outbound }) { return false }
+        if let s = endpointSessions[c.endpoint], isLinked(session: s) { return false }
+        if let theirs = c.token {
+            let linkedTokens = links.values.compactMap { l -> UInt32? in
+                guard l.state != .closed, let s = l.session else { return nil }
+                return s.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
+            }
+            if linkedTokens.contains(theirs) { return false }
+            if theirs == token { return t - c.firstSeen > 30 }            // the same 4 bytes as ours: very rare
+            if theirs < token && t - c.firstSeen < config.initiatorGrace { return false }    // theirs connects
+        }
+        return true
+    }
+
+    private func connectCandidates(_ t: TimeInterval) {
+        guard running, transport.state == .on else { return }
+        for (endpoint, c) in candidates {
+            if let since = c.connectingSince, t - since > config.connectTimeout {
+                transport.cancelConnect(endpoint)
+                failed(endpoint, reason: "no answer within \(Int(config.connectTimeout)) seconds")
+            } else if c.connectingSince == nil && t - c.lastSeen > config.sightingExpiry
+                        && !links.values.contains(where: { $0.endpoint == endpoint }) {
+                candidates[endpoint] = nil
+            }
+        }
+        var busy = links.values.filter { $0.state != .closed }.count + candidates.values.filter { $0.connectingSince != nil }.count
+        for c in candidates.values.sorted(by: { $0.rssi > $1.rssi }) {
+            guard busy < config.maxLinks else { break }
+            guard c.connectingSince == nil, t >= c.nextAttempt, shouldConnect(c, t) else { continue }
+            candidates[c.endpoint]?.connectingSince = t
+            busy += 1
+            log("connecting to \(short(c.endpoint))")
+            transport.connect(c.endpoint)
+        }
+    }
+
+    // 2, 4, 8 … 60 seconds between attempts; after 8 failures in a row, 5 minutes
+    private func backoff(_ failures: Int) -> TimeInterval {
+        failures >= 8 ? 300 : min(config.maxBackoff, 2 * pow(2, Double(max(0, failures - 1))))
+    }
+
+    // Advertising while there is room for another link; scanning in bursts – nearly always while alone, a third of
+    // the time once linked, never when full
+    private func manageRadio(_ t: TimeInterval) {
+        guard running, transport.state == .on else { return }
+        let open = links.values.filter { $0.state != .closed }.count
+        let full = open >= config.maxLinks
+        if advertising != !full {
+            advertising = !full
+            transport.setAdvertising(advertising)
+        }
+        let alone = readyLinks == 0
+        let on = alone ? config.scanOnAlone : config.scanOnLinked
+        let cycle = on + (alone ? config.scanOffAlone : config.scanOffLinked)
+        let want = !full && (t - scanEpoch).truncatingRemainder(dividingBy: cycle) < on
+        if want != scanning {
+            scanning = want
+            transport.setScanning(want)
+        }
+    }
+
+    // ── Packets ───────────────────────────────────────────────
+
+    private func received(_ bytes: Data, from link: Link) {
+        let t = clock()
+        guard link.packets.take(t) else {
+            stats.rateLimited += 1
+            return
+        }
+        let packet: MeshPacket
+        do {
+            packet = try MeshPacket.decode(bytes)
+        } catch WireError.unsupportedVersion(let v) {
+            stats.incompatible += 1
+            noticeOnce("packet-version-\(v)", v > Int(Proto.version)
+                       ? "A Mac nearby sends messages of a newer MeshChat (protocol \(v)) – update this one: lotus plugin update meshchat"
+                       : "A Mac nearby sends messages of an older MeshChat (protocol \(v)) – it needs an update.", .warning)
+            return
+        } catch {
+            stats.malformed += 1
+            return
+        }
+        guard !dedup.contains(packet.messageID, now: t) else {
+            stats.duplicates += 1
+            return
+        }
+        let inner: InnerMessage
+        do {
+            inner = try Signing.open(packet)
+        } catch {
+            // not remembered as seen: a forged copy must not keep the real message out
+            stats.forged += 1
+            noticeOnce("forged", "Ignored a forged or damaged message – it was not shown and not passed on.", .warning, every: 120)
+            return
+        }
+        dedup.insert(packet.messageID, now: t)
+        // one sender cannot flood everyone: what is over its share is dropped here, and not passed on
+        var bucket = senders[inner.senderKey] ?? TokenBucket(capacity: config.senderBurst, rate: config.senderRate)
+        let allowed = bucket.take(t)
+        senders[inner.senderKey] = bucket
+        guard allowed else {
+            stats.rateLimited += 1
+            noticeOnce("flood-\(Hex.encode(inner.senderKey))", "\(inner.nickname) sends very many messages – some are not shown and not passed on.", .warning, every: 120)
+            return
+        }
+        let sent = Double(packet.timestamp) / 1000
+        if t - sent > config.maxAge || sent - t > config.maxSkew {
+            stats.expired += 1
+            let minutes = Int((sent - t) / 60)
+            noticeOnce("clock-\(Hex.encode(inner.senderKey))",
+                       "Ignored a message from \(inner.nickname) dated \(abs(minutes)) minutes \(minutes > 0 ? "ahead" : "ago") – if it was just sent, the clocks of the two Macs differ: check the date and time in System Settings.",
+                       .warning, every: 300)
+            return
+        }
+        remember(packet, mine: false)
+        deliver(inner, packet: packet, from: link, now: t)
+        if let next = packet.relayed() {
+            let n = forward(next, except: link)
+            if n > 0 { stats.relayed += 1 }
+        }
+    }
+
+    @discardableResult
+    private func forward(_ packet: MeshPacket, except: Link?) -> Int {
+        var n = 0
+        for l in links.values where l.state == .ready && l !== except {
+            sendPacket(packet, on: l)
+            n += 1
+        }
+        return n
+    }
+
+    // A new message of this Mac to everyone → the packet and how many links it left on
+    @discardableResult
+    private func flood(kind: InnerKind, text: String = "", request: Bool = false) throws -> (MeshPacket, Int) {
+        var inner = InnerMessage(kind: kind, flags: request ? InnerMessage.requestFlag : 0, senderKey: signer.publicKey,
+                                 session: session, nickname: nickname, text: text, links: UInt8(min(255, readyLinks)))
+        if kind == .presence {
+            let now = clock()
+            inner.neighbours = Set(links.values.filter { $0.state == .ready }.compactMap { $0.session }).map { s in
+                let t = MeshNode.token(of: s)
+                return Neighbour(token: t, rssi: signal(of: t, now: now) ?? Distance.unknown)
+            }.sorted { $0.token < $1.token }
+        }
+        var id: UInt64 = 0
+        repeat { id = CryptoBackend.randomBytes(8).reduce(UInt64(0)) { $0 << 8 | UInt64($1) } } while id == 0
+        let packet = try Signing.make(inner, signer: signer, ttl: UInt8(max(1, min(Int(Proto.hopLimit), config.hops))), messageID: id,
+                                      timestamp: UInt64(max(0, clock() * 1000)))
+        dedup.insert(id, now: clock())
+        remember(packet, mine: true)
+        let n = forward(packet, except: nil)
+        if n == 0 && kind == .chat { undelivered.insert(id) }
+        return (packet, n)
+    }
+
+    private func sendPresence(request: Bool) {
+        _ = try? flood(kind: .presence, request: request)
+        lastPresence = clock()
+        presenceDue = clock() + config.presenceInterval * Double.random(in: 0.8...1.2)
+    }
+
+    private func remember(_ packet: MeshPacket, mine: Bool) {
+        recent.append(Recent(packet: packet, mine: mine))
+        if recent.count > config.catchUp { recent.removeFirst(recent.count - config.catchUp) }
+    }
+
+    // What a new neighbour may have missed: the recent packets, as they would have been passed on
+    private func catchUp(_ link: Link) {
+        let t = clock()
+        var n = 0
+        for r in recent where t - Double(r.packet.timestamp) / 1000 < config.maxAge - 60 {
+            guard let p = r.mine ? r.packet : r.packet.relayed() else { continue }
+            sendPacket(p, on: link)
+            n += 1
+            if undelivered.remove(r.packet.messageID) != nil { emit(.sent(id: r.packet.messageID, links: 1)) }
+        }
+        if n > 0 {
+            stats.caughtUp += n
+            log("link \(link.id): sent the \(n) most recent packets")
+        }
+    }
+
+    // ── People ────────────────────────────────────────────────
+
+    private func deliver(_ inner: InnerMessage, packet: MeshPacket, from link: Link, now t: TimeInterval) {
+        let sent = Double(packet.timestamp) / 1000
+        let fingerprint = Signer.fingerprint(of: inner.senderKey)
+        if inner.senderKey == signer.publicKey {
+            // this Mac's own, from before it was restarted: a neighbour still had it
+            if inner.kind == .chat {
+                emit(.message(ChatMessage(id: packet.messageID, nickname: inner.nickname, fingerprint: fingerprint, text: inner.text,
+                                          sent: sent, received: t, hops: Int(packet.hops), mine: true)))
+            }
+            return
+        }
+        let seen = t - sent < 60 ? t : min(t, sent)            // a late packet does not make someone "here"
+        var p = people[inner.senderKey] ?? Participant(key: inner.senderKey, fingerprint: fingerprint, nickname: inner.nickname,
+                                                       session: inner.session, lastSeen: -.infinity, hops: Int(packet.hops), links: 0)
+        let isNew = people[inner.senderKey] == nil || p.left || p.away
+        let fresh = seen >= p.lastSeen
+        if fresh {
+            if p.nickname != inner.nickname && people[inner.senderKey] != nil && inner.kind != .bye {
+                notice("\(p.nickname) is now called \(inner.nickname).")
+            }
+            p.nickname = inner.nickname
+            p.session = inner.session
+            p.lastSeen = seen
+            p.hops = Int(packet.hops)
+            p.away = t - seen > config.awayAfter
+            if inner.kind == .presence {
+                p.links = Int(inner.links)
+                p.neighbours = Dictionary(inner.neighbours.map { ($0.token, $0.rssi) }, uniquingKeysWith: { a, _ in a })
+            }
+            p.via = packet.hops == 0 ? "" : link.session.flatMap { s in people.values.first { $0.session == s }?.nickname } ?? "a relay"
+            p.left = inner.kind == .bye
+        }
+        people[inner.senderKey] = p
+        stats.delivered += 1
+        switch inner.kind {
+        case .chat:
+            emit(.message(ChatMessage(id: packet.messageID, nickname: inner.nickname, fingerprint: fingerprint, text: inner.text,
+                                      sent: sent, received: t, hops: Int(packet.hops), mine: false)))
+        case .presence:
+            if !config.silent && inner.flags & InnerMessage.requestFlag != 0 && clock() - lastPresence > 5 {
+                presenceDue = min(presenceDue, t + Double.random(in: 0.3...2))
+            }
+        case .bye:
+            if fresh { notice("\(inner.nickname) left the chat.") }
+        }
+        if isNew && fresh && !p.left && !p.away {
+            let how = p.hops == 0 ? "a neighbour" : "\(p.hops) relay\(p.hops == 1 ? "" : "s") away"
+            notice("\(inner.nickname) is here – \(how).")
+        }
+        dirty = true
+    }
+
+    private func age(_ t: TimeInterval) {
+        for (key, var p) in people {
+            if (p.left && t - p.lastSeen > 120) || t - p.lastSeen > config.forgetAfter {
+                people[key] = nil
+                senders[key] = nil
+                continue
+            }
+            let away = !p.left && t - p.lastSeen > config.awayAfter
+            if away && !p.away { notice("\(p.nickname) has not been heard for a while – out of range?") }
+            p.away = away
+            people[key] = p
+        }
+        // senders that never got through (made up keys, a flood) are not kept forever
+        if senders.count > 1000 { senders = senders.filter { people[$0.key] != nil } }
+    }
+
+    // ── How far ───────────────────────────────────────────────
+
+    static func token(of session: Data) -> UInt32 { session.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
+
+    // A new reading, smoothed with the last one while that is recent: single readings jump by several dBm
+    private func noteSignal(_ who: UInt32, _ rssi: Int, _ t: TimeInterval) {
+        guard rssi < 0, rssi > -127 else { return }
+        if let old = signals[who], t - old.at < 20 {
+            signals[who] = (old.rssi * 0.6 + Double(rssi) * 0.4, t)
+        } else {
+            signals[who] = (Double(rssi), t)
+        }
+    }
+
+    private func signal(of who: UInt32, now t: TimeInterval) -> Int? {
+        guard let s = signals[who], t - s.at <= config.signalFresh else { return nil }
+        return Int(s.rssi.rounded())
+    }
+
+    // The way to someone through the mesh, as far as the "I am here"s of everyone tell it: the Macs on it, each
+    // with the signal of the leg that reaches it. nil when no way is known (yet).
+    func route(to key: Data) -> [RouteLeg]? {
+        guard let target = people[key] else { return nil }
+        let t = clock()
+        var map: [UInt32: [UInt32: Int]] = [:]
+        func add(_ a: UInt32, _ b: UInt32, _ rssi: Int) {
+            guard a != b else { return }
+            for (x, y) in [(a, b), (b, a)] {
+                // a measured signal wins over none; this Mac's own measurement wins over the others'
+                if let known = map[x]?[y], known != Distance.unknown, rssi == Distance.unknown { continue }
+                map[x, default: [:]][y] = rssi
+            }
+        }
+        for p in people.values where !p.left {
+            for (n, rssi) in p.neighbours { add(p.token, n, rssi) }
+        }
+        for s in Set(links.values.filter { $0.state == .ready }.compactMap { $0.session }) {
+            let n = MeshNode.token(of: s)
+            add(token, n, signal(of: n, now: t) ?? map[n]?[token] ?? Distance.unknown)
+        }
+        guard let way = Distance.route(from: token, to: target.token, links: map) else { return nil }
+        let names = Dictionary(people.values.map { ($0.token, $0.nickname) }, uniquingKeysWith: { a, _ in a })
+        return way.map { RouteLeg(name: names[$0.mac] ?? "a relay", rssi: $0.rssi) }
+    }
+
+    // ── Telling the app ───────────────────────────────────────
+
+    func snapshot() -> MeshSnapshot {
+        let direct = Set(links.values.filter { $0.state == .ready }.compactMap { $0.session })
+        var list = Array(people.values)
+        let t = clock()
+        for i in list.indices {
+            list[i].direct = direct.contains(list[i].session) && !list[i].left
+            list[i].signal = signal(of: list[i].token, now: t)
+        }
+        list.sort { $0.nickname.lowercased() != $1.nickname.lowercased() ? $0.nickname.lowercased() < $1.nickname.lowercased() : $0.fingerprint < $1.fingerprint }
+        return MeshSnapshot(radio: transport.state, links: readyLinks, connecting: candidates.values.filter { $0.connectingSince != nil }.count,
+                            participants: list, scanning: scanning, advertising: advertising, stats: stats)
+    }
+
+    private func flush() {
+        guard dirty else { return }
+        dirty = false
+        emit(.snapshot(snapshot()))
+    }
+
+    private func notice(_ text: String, _ level: Notice.Level = .info) {
+        emit(.notice(Notice(level: level, text: text)))
+    }
+
+    // The same notice at most once (or once every `every` seconds)
+    private func noticeOnce(_ key: String, _ text: String, _ level: Notice.Level, every: TimeInterval = .infinity) {
+        let t = clock()
+        if let last = noticed[key], every == .infinity || t - last < every { return }
+        noticed[key] = t
+        notice(text, level)
+    }
+
+    private func log(_ text: String) { emit(.log(text)) }
+
+    private func short(_ endpoint: String) -> String { String(endpoint.prefix(8)) }
+}

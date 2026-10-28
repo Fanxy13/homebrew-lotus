@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased – MeshChat
+
+- A new plugin, MeshChat: one chat with everyone around you over Bluetooth Low Energy – no internet, no Wi-Fi, no server, no rooms. Install it with `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat`, then `/meshchat` on every Mac: they find each other. `/meshchat demo` tries it without a second Mac: two simulated people, one of them a relay away
+- A mesh, as far as it goes: every Mac shows every message and passes it on – each message starts with the most the protocol allows, 16 relays – so Macs out of each other's range chat through the ones in between. Each message is shown once, however many paths it takes; a Mac that comes back into range gets what it missed – up to 32 messages from the last 14 minutes. One sender's share is 40 messages at once, then one a second. Links are made and remade by themselves, with retries that slow down (every 5 minutes after 8 failures) and end when the other Mac is gone, and scanning in bursts to spare the battery
+- Public, and signed: anyone nearby can read the chat – nothing is encrypted, there is nothing secret to encrypt with – but every message is signed by its sender (Ed25519, Apple's CryptoKit), so no one can write in someone else's name or change a message on the way. Nothing that fails a check is shown or passed on; nothing but the service and a random token is in advertisements
+- How far someone is: `/where Grace` – a neighbour from the strength of its Bluetooth signal (≈ 2 m), anyone further along the way through the mesh (you → Ada ≈ 2 m → Grace ≈ 8 m), from the links and signals every Mac lists in its "I am here". Rough estimates, said as such; the line of who is here shows a neighbour's distance (Ada ● 2m)
+- The chat: you on top, what is said with its time (⇢1: one relay), who is here and how (● a direct link), Bluetooth and the mesh below. `/who`, `/where`, `/nick`, `/status`, `/quit`; ctrl-c, ctrl-z and a closed window all give the terminal back as it was. `lotus meshchat relay` turns a Mac into a silent relay
+- A limited plugin without internet: it sees only its own folder and keeps its history and this Mac's identity in its data folder, readable by you only. macOS asks once whether your terminal may use Bluetooth – Apple's Terminal can ask (its dialog gives no reason), as can iTerm2, Ghostty, kitty and Visual Studio Code; in a terminal app that cannot, MeshChat tries Bluetooth in a separate process first and says which one to use instead of vanishing. `/meshchat doctor` explains a missing permission, Bluetooth that is off, a failed build and failed links. The Swift program is built once into the data folder (Command Line Tools), like Lotus' own AI terminal
+- MeshChat 2 replaces the rooms of the first version that was here (room codes, encrypted for the room): there are none any more, and the two versions do not link – each tells the other to update. The rooms of MeshChat 1 stay in the data folder until you delete them; `/meshchat doctor` names the folder
+- Tests: `lotus meshchat selftest` – the protocol on a simulated radio (published test vectors, packets and their limits, multi-hop, a chain of 19 Macs for the hop limit, duplicates, fragments, forged and broken packets, floods, out of range and back); `zsh tests/run.zsh meshchat` – through Lotus, built in the sandbox, the chat driven in a terminal; and a workflow that runs both on a Mac. **Not yet tried between real Macs:** the Bluetooth part is built and checked on every change, but has not run on Bluetooth hardware – the test with three Macs is in plugins/meshchat/README.md
+- `tests/test-plugin-install.zsh` counts five plugins in plugins/
+
+## 2.22.0 – Image converter
+
+- `/img convert` – images and whole folders into JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO, with macOS' own image engine (ImageIO). It reads what Preview reads: HEIC from the iPhone, WebP, AVIF, PSD, SVG, JPEG XL, RAW photos …
+- A clean screen: a drop zone for images, a folder or the clipboard; then the format (each with what it is good for), the quality (95, 85, 70, 50 – for JPEG, HEIC, AVIF and WebP) and the size (keep, 4K, 2560, Full HD, 1280, 640 px). It remembers your last choice
+- While it works, the lotus blooms in your theme's colors with the real progress – the image it is on, its size before and after (3000 × 2000 → 1920 × 1280 · 599 KB → 75 KB), the format, quality and size limit, and how many at a time. Then how many were converted, how much smaller they are and where they are
+- Folders: every image in it, into a folder for the new format inside it (`Holiday/WebP`). A single image gets its new file next to it. The originals are never changed, nothing is overwritten (`photo (2).jpg`)
+- Photos come out the right way up – also in WebP and AVIF, which do not know the camera's rotation. Camera data stays; transparency turns white in JPEG; an icon becomes a square of at most 256 px; images are made smaller, never larger
+- Several images at a time (one per performance core). Ctrl-C stops cleanly and leaves no half file behind
+- Without questions: `/img convert <image|folder>… --to webp --quality 80 --max 1920` · `/img formats` shows what this Mac reads and writes
+- The converter is a small Swift program (lib/img/Convert.swift) that Lotus builds once; without the Command Line Tools it uses macOS' `sips`
+- /zetamac: ← and → move between the digits of your answer, a digit goes where the cursor is – type the last digit first, then the ones before it. ⌫ deletes the digit before the cursor
+- A pet's "full for" is rounded to the nearest hour (a second could turn 20 h into 19 h)
+- Ctrl-C on the blooming lotus (Remove BG, /convert, /img convert, RSVM) sometimes ended Lotus at once instead of stopping cleanly: it could interrupt a frame while it was drawn, and zsh took the interrupted write for an error. Now it stops, says how far it got and cleans up
+
+## 2.21.0 – Convert blooms
+
+- `/convert` downloads on the progress screen of Lotus: the lotus blooms in your theme's colors with the real progress – the video's title on top, then the step ("Downloading the video", "Downloading the sound", "Putting it together", "Making the MP3", a new frame rate), the bar with percent, MB, speed and time left, all steps, and below what it becomes: MP3 or MP4, the resolution and frame rate, the length and the site. yt-dlp's own lines no longer scroll by; when something fails they still say why. Ctrl-C stops it cleanly
+- The update question came back after every yes: on a Mac where Homebrew belongs to another macOS user, `brew upgrade yt-dlp` cannot work, so yt-dlp stayed old. Lotus now says so and offers its own yt-dlp instead – the official macOS build from github.com/yt-dlp, checked against the release's SHA-256 before it is used, in `~/.local/share/lotus/runtime/yt-dlp`. Only /convert uses it, it updates itself, and nothing outside Lotus' folder changes (no sudo)
+- Asked only when it helps: /convert compares yt-dlp with the newest release (looked up at most once a day) and offers an update when it is a month behind – never when it is the newest, however old that is. After a "no" or an update that could not be done, it asks again in a week, or when a download fails because of it
+- `lotus doctor` says how far yt-dlp is behind the newest, and whether it is Lotus' own
+- Done shows the size (KB or MB), and a length of 19 seconds reads 0:19
+
 ## 2.20.0 – A math game for the pets
 
 - `/zetamac` – a math game like the Arithmetic Game on arithmetic.zetamac.com: 120 seconds, as many problems as you can. Normal has Zetamac's default ranges – (2–100) + (2–100) and (2–12) × (2–100), subtraction and division as these in reverse – and an answer counts as soon as it is right, without Enter. A bar shows the time running out, your pets watch and eat along with every right answer

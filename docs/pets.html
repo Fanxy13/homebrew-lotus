@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.20.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.20.0">
-  <script src="js/lotus.js?v=2.20.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.22.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.22.0">
+  <script src="js/lotus.js?v=2.22.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -38,7 +38,7 @@
     <h2 class="section" id="game">Play for their food</h2>
     <p><code>/zetamac</code> is a math game like the <a href="https://arithmetic.zetamac.com/">Arithmetic Game on Zetamac</a>: 120 seconds, as many problems as you can. Normal has Zetamac's ranges – additions and subtractions with numbers up to 100, multiplications and divisions up to 12 × 100 – and an answer counts as soon as it is right, without Enter. Every right answer is a bite for each of your pets: the more you get right, the longer they stay full, up to two days. Your pets watch while you play and eat along.</p>
     <div class="codeblock"><code><span class="dollar">$</span> /zetamac</code><button class="copy" data-copy="/zetamac" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
-    <p class="muted small" style="margin-top:12px">Another time or level: <code>/zetamac 60</code>, <code>/zetamac 300 hard</code>, <code>/zetamac easy</code> – any time from 10 to 600 seconds. Your best score for each level and time is kept. In <code>/pets</code> the game is one entry below your pets.</p>
+    <p class="muted small" style="margin-top:12px">Another time or level: <code>/zetamac 60</code>, <code>/zetamac 300 hard</code>, <code>/zetamac easy</code> – any time from 10 to 600 seconds. <kbd>←</kbd> and <kbd>→</kbd> move between the digits of your answer: type the last digit first, then the ones before it. Your best score for each level and time is kept. In <code>/pets</code> the game is one entry below your pets.</p>
 
     <h2 class="section" id="pets">Adopt, rename, say goodbye</h2>
     <p><code>/pets</code> shows your pets side by side. Adopt up to three (a cat, a dog or your own kind), talk to them, feed them, give them a new name or their own personality – a few words like <em>grumpy in the morning, loves rainy days</em> change how they talk. The first-time setup offers a pet too.</p>
@@ -109,6 +109,6 @@ personality: [its personality in one sentence]
     <div class="callout" style="margin-top:14px"><p>A pet file is only data: Lotus reads it, it never runs anything in it. Drawings keep plain ASCII and block characters and lose everything else, so a pet cannot change your terminal. What your pets say and remember stays on your Mac – Apple Intelligence runs on the device, and Lotus sends nothing anywhere.</p></div>
   </main>
   <lotus-footer></lotus-footer>
-  <script src="js/pets.js?v=2.20.0" defer></script>
+  <script src="js/pets.js?v=2.22.0" defer></script>
 </body>
 </html>
