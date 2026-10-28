@@ -131,9 +131,11 @@ class Site:
         self.name = os.path.basename(self.root) or self.root
 
     def walk(self, top=None):
-        """(folder, its files) from top down, without hidden folders, node_modules and the like."""
+        """(folder, its files) from top down, without hidden folders, node_modules and the like – and without the
+        folders of documents /html made (Word/, PDF/ …): a conversion is no reason to reload the page."""
         for folder, dirs, files in os.walk(top or self.root):
-            dirs[:] = sorted(d for d in dirs if not hidden(d) and d not in SKIP)
+            dirs[:] = sorted(d for d in dirs if not hidden(d) and d not in SKIP
+                             and not os.path.exists(os.path.join(folder, d, ".lotus-html")))
             yield folder, sorted(f for f in files if not hidden(f))
 
     def resolve(self, urlpath):
@@ -260,12 +262,34 @@ class Hub:
         self.reload_version = 0     # the last change that needs a whole reload (not only CSS)
         self.closing = False
         self.lock = threading.Lock()
+        self.pages = {}             # each open page → (its file, when it was looked at last)
+        self.page_file = ""         # running/<port>.page: the page in front right now – for /html
 
     def changed(self, styles_only):
         with self.lock:
             self.version += 1
             if not styles_only:
                 self.reload_version = self.version
+
+    def looking(self, who, rel):
+        """A page in the browser opened or came to the front (rel: its file, "" for the menu) – or closed (None)."""
+        with self.lock:
+            if rel is None:
+                self.pages.pop(who, None)
+            else:
+                self.pages[who] = (rel, time.time())
+            if not self.page_file:
+                return
+            newest = max(self.pages.values(), key=lambda v: v[1], default=None)
+            try:
+                if newest and newest[0]:
+                    with open(self.page_file + ".tmp", "w") as f:
+                        f.write(f"{newest[0]}\n{newest[1]}\n")
+                    os.replace(self.page_file + ".tmp", self.page_file)
+                elif os.path.exists(self.page_file):
+                    os.remove(self.page_file)
+            except OSError:
+                pass
 
 
 class Watcher(threading.Thread):
@@ -592,13 +616,17 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.flush()
         self.close_connection = True
-        hub, sock = self.server.hub, self.connection
+        hub, sock, me = self.server.hub, self.connection, object()
         seen, pinged = hub.version, time.monotonic()
         try:
             while not hub.closing:
                 readable, _, _ = select.select([sock], [], [], 0.25)
-                if readable and not self.ws_read(sock):
-                    return
+                if readable:
+                    data = self.ws_read(sock)
+                    if data is None:
+                        return
+                    if data.startswith(b"open "):           # reload.js: this page is in front now
+                        hub.looking(me, self.page_of(data[5:].decode("utf-8", "replace")))
                 if hub.version != seen:
                     self.ws_send(sock, b"reload" if hub.reload_version > seen else b"css")
                     seen = hub.version
@@ -607,6 +635,17 @@ class Handler(BaseHTTPRequestHandler):
                     pinged = time.monotonic()
         except OSError:
             pass
+        finally:
+            hub.looking(me, None)
+
+    def page_of(self, path):
+        """The file of the page at a path of a URL – "" for the menu and what is not there."""
+        site = self.server.site
+        path = urlsplit(path).path
+        full = None if path.startswith("/__lotus") else site.resolve(path)
+        if full and os.path.isdir(full):
+            full = site.index(full)
+        return site.rel(full) if full and os.path.isfile(full) else ""
 
     @staticmethod
     def ws_send(sock, data, op=0x1):
@@ -623,23 +662,23 @@ class Handler(BaseHTTPRequestHandler):
         return out
 
     def ws_read(self, sock):
-        """One frame of the browser: False when it closes."""
+        """One frame of the browser → the text it sent (b"" for other frames), None when it closes."""
         hdr = self.recv(sock, 2)
         if not hdr:
-            return False
+            return None
         op, n = hdr[0] & 0x0F, hdr[1] & 0x7F
         if n == 126:
             n = struct.unpack(">H", self.recv(sock, 2) or b"\0\0")[0]
         elif n > 126:
-            return False
+            return None
         mask = self.recv(sock, 4) if hdr[1] & 0x80 else b"\0\0\0\0"
         data = self.recv(sock, n) if n else b""
         if mask is None or data is None or op == 0x8:
-            return False
+            return None
+        data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
         if op == 0x9:
-            data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
             self.ws_send(sock, data[:125], 0xA)
-        return True
+        return data if op == 0x1 else b""
 
 
 # ── Live servers that run (in other windows): one file per port in the plugin's data folder ──
@@ -664,6 +703,8 @@ def running():
     found = []
     folder = running_dir()
     for name in sorted(os.listdir(folder)):
+        if not name.isdigit():                 # <port>.page: the page in front (Hub.looking)
+            continue
         path = os.path.join(folder, name)
         try:
             with open(path) as f:
@@ -674,10 +715,11 @@ def running():
         if pid and alive(pid):
             found.append((port, pid, root.strip(), "local" not in more))
         else:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+            for stale in (path, path + ".page"):
+                try:
+                    os.remove(stale)
+                except OSError:
+                    pass
     return found
 
 
@@ -820,6 +862,7 @@ def main(args):
     port = server.server_address[1]
     base = f"http://127.0.0.1:{port}"
     mark = os.path.join(running_dir(), str(port))
+    server.hub.page_file = mark + ".page"
     with open(mark, "w") as f:
         f.write(f"{os.getpid()}\n{site.root}\n{'wifi' if wifi else 'local'}\n")
 
@@ -864,10 +907,11 @@ def main(args):
     finally:
         server.hub.closing = True
         server.server_close()
-        try:
-            os.remove(mark)
-        except OSError:
-            pass
+        for path in (mark, mark + ".page"):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
     try:
         say(f"\r  {paint(KEY, '✓', True)} Stopped {paint(DIM, base)}")
     except OSError:

@@ -287,6 +287,16 @@ lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/liveserve
 /liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · --local · stop
 ```
 
+With it comes **`/html`**: your pages, style sheets and scripts as Word, PDF, Text, Markdown, OpenDocument or RTF.
+`/html` takes the page open in the browser (or asks which file), `/html all` puts every page, style sheet and script
+of the folder into a folder of their own (`my-site/Word`, `my-site/PDF` …). As code – colored like in VS Code, each
+line with its number – or, for pages, what a visitor reads: headings, text, lists, tables, links and pictures. Text
+keeps the code byte for byte, for uploads that refuse `.html`. Nothing to install, nothing leaves the Mac.
+
+```bash
+/html all docx                    # every file as a Word document · /html about.html pdf · /html all txt · --page
+```
+
 **MeshChat** – one chat with everyone around you over Bluetooth, without internet, Wi-Fi, rooms or a server. Every
 Mac with MeshChat passes each message on, so Macs out of each other's range still chat through the ones in between –
 as far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your

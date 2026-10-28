@@ -126,6 +126,22 @@ files rsvm        = ./rsvm</pre></div>
       <div class="card"><h3>Full access, and why</h3><p class="muted small">It has to read your project folder and open the browser – a limited plugin sees only its own folder. Python's standard library, nothing to install.</p></div>
     </div>
 
+    <h3 style="margin-top:30px" id="html">/html – your files as documents</h3>
+    <p>With Live Server comes <code>/html</code>: your pages, style sheets and scripts as Word, PDF, Text, Markdown, OpenDocument or RTF. <code>/html</code> takes the page open in the browser, <code>/html all</code> puts every page, style sheet and script of the folder into a folder of their own – <code>my-site/Word</code>, <code>my-site/PDF</code> … As code, colored like in VS Code with the number of each line – or, for a page, what a visitor reads: headings, text, lists, tables, links and pictures.</p>
+    <div class="term" style="margin-top:14px"><div class="term-bar"><i></i><i></i><i></i><span>/html all docx</span></div><pre>
+    <span class="t-acc">◇</span> <span class="t-b">lotus</span><span class="t-dim"> / </span><span class="t-b">HTML converter</span>
+
+  <span class="t-key">✓</span> All of my-site  <span class="t-dim">7 pages · 2 style sheets · 1 script</span>
+
+  <span class="t-key">✓</span> 10 files → Word  <span class="t-dim">7 pages · 2 style sheets · 1 script · as code</span>
+    <span class="t-dim">Saved in ~/Code/my-site/Word</span>
+    <span class="t-dim">Left out: 4 images · 1 minified library (bootstrap.min.css)</span></pre></div>
+    <div class="grid" style="margin-top:16px">
+      <div class="card"><h3>Which</h3><p class="muted small"><code>/html</code> the page open in the browser – or choose<br><code>/html all</code> the whole folder<br><code>/html about.html pdf</code> one file<br><code>/html css</code> a folder, <code>/html *.css</code> a pattern<br><code>--page</code> a page as a visitor reads it</p></div>
+      <div class="card"><h3>Formats</h3><p class="muted small">Word (.docx), PDF, Text, Markdown, OpenDocument (.odt) and RTF – asked when you do not say. Text keeps the code byte for byte, for uploads that refuse <code>.html</code>.</p></div>
+      <div class="card"><h3>Never over yours</h3><p class="muted small">The originals stay as they are. A document you changed is never written over – the new one gets "(2)"; the ones <code>/html</code> made itself are made again. Nothing leaves this Mac.</p></div>
+    </div>
+
     <h2 class="section" id="meshchat">MeshChat – a chat over Bluetooth</h2>
     <p>One chat with everyone around you, without internet, Wi-Fi, rooms or a server. Every Mac with MeshChat passes each message on – Macs out of each other's range still chat through the ones in between, as far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your name. Try it first with <code>/meshchat demo</code>: two simulated people, one of them a relay away. Not yet tried between real Macs: the Bluetooth part is built and checked on every change, the test with three Macs is in <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/plugins/meshchat/README.md#testing-with-real-macs">its README</a>.</p>
     <div class="codeblock"><code><span class="dollar">$</span> lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat</code><button class="copy" data-copy="lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
@@ -155,7 +171,7 @@ files rsvm        = ./rsvm</pre></div>
       <div class="card"><h3>todo</h3><p class="muted small">Limited. A command, three AI tools (add, list, done) and a start screen line; its list lives in its data folder.</p></div>
       <div class="card"><h3>github</h3><p class="muted small">Limited, with the internet, in Python: stars, forks and the newest release of a repository, and GitHub's zen on the start screen.</p></div>
       <div class="card"><h3>hello</h3><p class="muted small">Full access: Lotus' own look, your theme and the features that are on.</p></div>
-      <div class="card"><h3>liveserver</h3><p class="muted small">Full access, in Python: Live Server like in VS Code – it reads the folder you start it in (<code>LOTUS_PWD</code>), serves it to this Mac and your Wi-Fi and reloads the browser when you save.</p></div>
+      <div class="card"><h3>liveserver</h3><p class="muted small">Full access, in Python: Live Server like in VS Code – it reads the folder you start it in (<code>LOTUS_PWD</code>), serves it to this Mac and your Wi-Fi and reloads the browser when you save. Its <code>/html</code> makes documents of the files – zsh with Lotus' own screens, the work in Python.</p></div>
       <div class="card"><h3>meshchat</h3><p class="muted small">Limited, without internet, in Swift: one chat with everyone nearby over Bluetooth, which the plugin builds once into its data folder – CoreBluetooth, CryptoKit, a terminal screen and protocol tests of its own.</p></div>
     </div>
 
