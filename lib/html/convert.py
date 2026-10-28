@@ -9,11 +9,11 @@ the number of each line; txt is the file itself, byte for byte. --page makes HTM
 (headings, text, lists, tables, links, images) – style sheets and scripts stay code. --all converts every page,
 style sheet and script of the folder into a folder of its own (Word/, PDF/ …) inside it; single files get their
 document next to them. Nothing is ever written over: a file of the same name gets "(2)" – unless it is one this
-converter made and nobody changed since (made.tsv in the plugin's data folder), which is made again.
+converter made and nobody changed since (made.tsv in Lotus' state folder), which is made again.
 """
 import sys
 
-sys.dont_write_bytecode = True          # no __pycache__ in the plugin's folder: Lotus would take it for a change
+sys.dont_write_bytecode = True          # no __pycache__ in Lotus' folder (a Homebrew install is not for writing)
 
 import datetime
 import os
@@ -126,7 +126,7 @@ def scan(root, made=None):
 # ── The page open in Live Server ──────────────────────────────
 
 def data_dir():
-    return os.environ.get("LOTUS_PLUGIN_DATA") or os.path.join(HOME, ".local/share/lotus/plugins/liveserver")
+    return os.environ.get("LOTUS_LIVE_DATA") or os.path.join(HOME, ".local/state/lotus/live")
 
 
 def live_server(pid):

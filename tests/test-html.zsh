@@ -1,4 +1,4 @@
-# /html (plugins/liveserver: html.zsh, convert.py, lotusdoc/): web pages, style sheets and scripts as Word, PDF,
+# /html (lib/cmd/html.zsh, lib/html/convert.py and lotusdoc/ – built into Lotus): web pages, style sheets and scripts as Word, PDF,
 # Text, Markdown, OpenDocument and RTF – as code (colors, a number for each line of the file) or as the page a
 # visitor reads. One file, the page open in Live Server, or all of a folder into a folder of their own; nothing is
 # written over, the documents it made itself are made again. Python's standard library only – the documents are
@@ -11,8 +11,6 @@ plain() { sed $'s/\e\\[[0-9;?]*[a-zA-Z]//g' | tr -d '\r' }
 answer() { (sleep 1.5; print -rn -- $1; sleep 0.5) | script -q /dev/null zsh -fc "$2" 2>&1 | plain }
 if (( ! $+commands[python3] )); then print -r -- "  – no python3: skipped"; return 0; fi
 
-out=$(answer y "$LOTUS_ROOT/bin/lotus plugin install $LOTUS_ROOT/plugins/liveserver")
-check_has "installed with its two commands" "$out" "lotus html · lotus liveserver"
 check_has "help" "$(lotus html help 2>&1 | plain)" "/html all"
 
 # a site: pages in folders, a style sheet, a script, images, what is hidden, a dependency, a minified library, a link
@@ -255,14 +253,14 @@ time.sleep(float(sys.argv[3]))
 PY
 python3 $HOME/tab.py $port /docs/%C3%BCber.html 5 &
 tab=$!
-for i in {1..30}; do [[ -e $LOTUS_DATA/plugins/liveserver/running/$port.page ]] && break; sleep 0.1; done
+for i in {1..30}; do [[ -e $LOTUS_STATE/live/running/$port.page ]] && break; sleep 0.1; done
 rm -f $S/docs/über.html.txt
 out=$(cd $S && lotus html txt 2>&1 | plain)
 check_has "/html: the page open in the browser" "$out" "docs/über.html  open in the browser right now"
 check "  – converted" test -s $S/docs/über.html.txt
 kill $tab 2>/dev/null; wait $tab 2>/dev/null
-for i in {1..30}; do [[ -e $LOTUS_DATA/plugins/liveserver/running/$port.page ]] || break; sleep 0.1; done
-check "the tab closed: no page open any more" test ! -e $LOTUS_DATA/plugins/liveserver/running/$port.page
+for i in {1..30}; do [[ -e $LOTUS_STATE/live/running/$port.page ]] || break; sleep 0.1; done
+check "the tab closed: no page open any more" test ! -e $LOTUS_STATE/live/running/$port.page
 lotus liveserver stop >/dev/null 2>&1
 
 # ── asked, on a keyboard: what (the newest file first), the format, code or page ──
@@ -276,7 +274,5 @@ check_has "  – and offers all of the folder" "$out" "All of site"
 check_has "asks the format" "$out" "Into which format?"
 check "the newest file, in the first format (Word)" test -s $S/css/style.css.docx
 
-# ── the converter on its own: no __pycache__ in the plugin (Lotus would take it for a change) ──
-check "no bytecode in the installed plugin" eval '[[ -z $(print -l $LOTUS_CONF/plugins/liveserver/**/__pycache__(N)) ]]'
-out=$(lotus plugin 2>&1 | plain)
-check "the plugin is still allowed after all of this" eval '[[ $out != *"changed"* ]]'
+# ── no __pycache__ in Lotus' folder: a Homebrew install is not for writing ──
+check "no bytecode anywhere in Lotus" eval '[[ -z $(print -l $LOTUS_ROOT/lib/**/__pycache__(N)) ]]'

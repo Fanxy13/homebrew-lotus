@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=2.22.0">
-  <link rel="stylesheet" href="css/pages.css?v=2.22.0">
-  <script src="js/lotus.js?v=2.22.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=2.23.0">
+  <link rel="stylesheet" href="css/pages.css?v=2.23.0">
+  <script src="js/lotus.js?v=2.23.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -23,7 +23,7 @@
 
     <nav class="toc card">
       <a href="#install">Install</a><a href="#setup">First start</a><a href="#use">Using Lotus</a><a href="#settings">Settings</a>
-      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#img">Image converter</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
+      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#img">Image converter</a><a href="#live">Live Server</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
       <a href="#privacy">Privacy and security</a><a href="#trouble">Troubleshooting</a><a href="#changelog">Changelog</a>
     </nav>
 
@@ -240,6 +240,40 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Fast</h3><p class="muted">Several images at a time, as many as your Mac has performance cores. Ctrl-C stops between images and leaves no half file behind.</p></div>
     </div>
     <p class="muted">Without questions: <code>/img convert &lt;image|folder&gt;… --to &lt;format&gt; --quality &lt;1–100&gt; --max &lt;pixels&gt;</code>. <code>/img formats</code> shows what your Mac reads and writes. The converter is a small Swift program Lotus builds once with the Command Line Tools; without them it uses macOS' <code>sips</code>.</p>
+
+    <h2 class="section" id="live">Live Server and /html</h2>
+    <p>Type <code>/liveserver</code> in a project folder – in VS Code's terminal too. It serves the folder on this Mac – and to your phone in the same Wi-Fi – opens <code>index.html</code> or, when there is none, a menu of all its pages, and reloads the browser whenever you save a file. Change only CSS, and only the styles swap – the page keeps its place.</p>
+    <div class="term" style="margin-top:14px"><div class="term-bar"><i></i><i></i><i></i><span>/liveserver</span></div><pre>
+  <span class="t-acc">lotus</span><span class="t-dim"> / </span><span class="t-b">Live Server</span><span class="t-dim">  ~/Code/my-site</span>
+
+    <span class="t-dim">Address     </span><span class="t-key">http://127.0.0.1:5500</span>  <span class="t-dim">→ a menu of 6 pages</span>
+    <span class="t-dim">Wi-Fi       </span><span class="t-key">http://192.168.178.23:5500</span>  <span class="t-dim">for phones and computers in this Wi-Fi</span>
+
+  <span class="t-key">✓</span> Live – the page reloads when you save. <span class="t-dim">Ctrl-C stops it.</span>
+
+  <span class="t-dim">14:02:11</span>  <span class="t-key">↻</span> css/style.css<span class="t-dim">  styles only</span>
+  <span class="t-dim">14:02:19</span>  <span class="t-key">↻</span> about.html</pre></div>
+    <div class="grid" style="margin-top:16px">
+      <div class="card"><h3>Where</h3><p class="muted small"><code>/liveserver</code> the folder you are in<br><code>/liveserver docs</code> another one<br><code>/liveserver about.html</code> that page<br><code>/liveserver stop</code> the ones in other windows<br>Port 5500 or the next free one, or <code>--port&nbsp;8080</code><br><code>--local</code> only this Mac</p></div>
+      <div class="card"><h3>Only your Wi-Fi</h3><p class="muted small">This Mac and the devices in the same Wi-Fi – a device from another network gets no answer, and only the Mac's own names work. Nothing outside the folder, no hidden files like <code>.git</code> or <code>.env</code>.</p></div>
+      <div class="card"><h3>Part of Lotus</h3><p class="muted small">Nothing to install: type <code>/liveserver</code> or <code>/html</code>. Python's standard library does the work. Turn both off with <code>lotus features live off</code>.</p></div>
+    </div>
+
+    <h3 style="margin-top:30px" id="html">/html – your files as documents</h3>
+    <p><code>/html</code> turns your pages, style sheets and scripts as Word, PDF, Text, Markdown, OpenDocument or RTF. <code>/html</code> takes the page open in the browser, <code>/html all</code> puts every page, style sheet and script of the folder into a folder of their own – <code>my-site/Word</code>, <code>my-site/PDF</code> … As code, colored like in VS Code with the number of each line – or, for a page, what a visitor reads: headings, text, lists, tables, links and pictures.</p>
+    <div class="term" style="margin-top:14px"><div class="term-bar"><i></i><i></i><i></i><span>/html all docx</span></div><pre>
+    <span class="t-acc">◇</span> <span class="t-b">lotus</span><span class="t-dim"> / </span><span class="t-b">HTML converter</span>
+
+  <span class="t-key">✓</span> All of my-site  <span class="t-dim">7 pages · 2 style sheets · 1 script</span>
+
+  <span class="t-key">✓</span> 10 files → Word  <span class="t-dim">7 pages · 2 style sheets · 1 script · as code</span>
+    <span class="t-dim">Saved in ~/Code/my-site/Word</span>
+    <span class="t-dim">Left out: 4 images · 1 minified library (bootstrap.min.css)</span></pre></div>
+    <div class="grid" style="margin-top:16px">
+      <div class="card"><h3>Which</h3><p class="muted small"><code>/html</code> the page open in the browser – or choose<br><code>/html all</code> the whole folder<br><code>/html about.html pdf</code> one file<br><code>/html css</code> a folder, <code>/html *.css</code> a pattern<br><code>--page</code> a page as a visitor reads it</p></div>
+      <div class="card"><h3>Formats</h3><p class="muted small">Word (.docx), PDF, Text, Markdown, OpenDocument (.odt) and RTF – asked when you do not say. Text keeps the code byte for byte, for uploads that refuse <code>.html</code>.</p></div>
+      <div class="card"><h3>Never over yours</h3><p class="muted small">The originals stay as they are. A document you changed is never written over – the new one gets "(2)"; the ones <code>/html</code> made itself are made again. Nothing leaves this Mac.</p></div>
+    </div>
 
     <h2 class="section" id="pets">Pets</h2>
     <p>Up to three little pixel pets live in your terminal. Type a pet's name and it answers – with Apple Intelligence on your Mac, in your language and with its own personality. <code>/pets</code> adopts, renames and feeds them; <code>/help</code> lets your pet find the right command, and in <code>/ai</code> it sits in the welcome box and its face is the spinner. Everything about them – and the prompt to make your own – is on the <a href="pets.html">Pets page</a>.</p>

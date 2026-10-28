@@ -1,4 +1,4 @@
-"""Live Server – a plugin for Lotus (plugin.conf), in Python with nothing but its standard library.
+"""Live Server – part of Lotus (lib/cmd/live.zsh starts it), in Python with nothing but its standard library.
 
     lotus liveserver                  the folder you are in: opens index.html, or a menu of all its pages
     lotus liveserver <folder>         another folder
@@ -13,8 +13,7 @@ nothing but CSS changed (a WebSocket, /__lotus/ws). Ctrl-C stops it. Phones and 
 (or Ethernet) open it too, at the Mac's address in that network – nobody else: a device from another network
 is turned away, and so is any name for the Mac but its own (127.0.0.1, localhost, its address, its .local
 name). With --local it listens on 127.0.0.1 only. It serves nothing outside the folder (no .., no links out of
-it) and no hidden files (.git, .env). Full access: it reads the folder Lotus was called in ($LOTUS_PWD) and
-opens the browser.
+it) and no hidden files (.git, .env). It serves the folder Lotus was called in ($LOTUS_PWD) and opens the browser.
 """
 import base64
 import hashlib
@@ -681,10 +680,10 @@ class Handler(BaseHTTPRequestHandler):
         return data if op == 0x1 else b""
 
 
-# ── Live servers that run (in other windows): one file per port in the plugin's data folder ──
+# ── Live servers that run (in other windows): one file per port in Lotus' state folder (LOTUS_LIVE_DATA) ──
 
 def running_dir():
-    path = os.path.join(os.environ.get("LOTUS_PLUGIN_DATA") or os.path.join(HOME, ".local/share/lotus/plugins/liveserver"), "running")
+    path = os.path.join(os.environ.get("LOTUS_LIVE_DATA") or os.path.join(HOME, ".local/state/lotus/live"), "running")
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -789,14 +788,12 @@ def stop():
 
 
 def main(args):
-    here = os.environ.get("LOTUS_PWD", "")
+    here = os.environ.get("LOTUS_PWD") or os.getcwd()
     if args[:1] in (["help"], ["-h"], ["--help"]):
         usage()
         return 0
     if args[:1] == ["stop"]:
         return stop()
-    if not here:
-        return fail("Live Server needs a newer Lotus – it does not know the folder you are in.", "lotus update")
     target, port, show, wifi = "", None, True, True
     i = 0
     while i < len(args):

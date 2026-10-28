@@ -1,19 +1,13 @@
-# /html – a command of the Live Server plugin (plugin.conf): web pages, style sheets and scripts as documents.
+# lotus – /html: web pages, style sheets and scripts as Word, PDF, Text, Markdown, OpenDocument or RTF.
 #   /html                          the page open in Live Server's browser – or choose a file, or all of the folder
 #   /html all                      every page, style sheet and script of the folder → a folder of their own (Word/ …)
 #   /html <file|folder|pattern> …  these files (/html about.html, /html css, /html *.css)
 #   … txt | md | docx | odt | rtf | pdf    the format, asked when it is not given ("word", "text" … work too)
 #   … --code | --page              HTML as code (colored, numbered lines – the default) or as the page a visitor reads
-# The work is done by convert.py and lotusdoc/ – Python's standard library, nothing to install. The originals stay as
-# they are; documents of single files go next to them, nothing is written over.
-source $LOTUS_ROOT/lib/core.zsh && source $LOTUS_ROOT/lib/ui.zsh && lotus_load || exit 1
-setopt extendedglob
-zmodload -F zsh/stat b:zstat 2>/dev/null
+# The work is done by lib/html/convert.py and lotusdoc/ – Python's standard library, nothing to install. The
+# originals stay as they are; documents of single files go next to them, nothing is written over.
+
 typeset -g LOTUS_LOG_COMP=html
-typeset -g CONV=${LOTUS_PLUGIN_DIR:-${0:A:h}}/convert.py
-typeset -g HERE=${${LOTUS_PWD:-$PWD}:A}
-typeset -g LAST=${LOTUS_PLUGIN_DATA:-$HOME/.local/share/lotus/plugins/liveserver}/html-last
-cd -q -- $HERE 2>/dev/null            # a plugin starts in its own folder: paths are the user's, from the folder they are in
 
 # key | label | what it is good for (the order of the question)
 typeset -ga HTML_FORMATS=(
@@ -41,6 +35,14 @@ html_label() {    # txt → Text …
   local f
   for f in $HTML_FORMATS; do [[ ${f%%|*} == $1 ]] && { REPLY=${${f#*|}%%|*}; return }; done
   REPLY=$1
+}
+
+# The converter: Python with Lotus' colors and the folder where Live Server keeps what /html needs from it (the page
+# that is open, the documents it made). No bytecode – Lotus' folder may be a Homebrew install.
+html_py() {
+  env PYTHONDONTWRITEBYTECODE=1 LOTUS_LIVE_DATA=$LOTUS_STATE/live LOTUS_NAME=$LOTUS_NAME \
+    LOTUS_COLOR_KEY=$LOTUS_C[key] LOTUS_COLOR_ACCENT=$LOTUS_C[accent] LOTUS_COLOR_DIM=$LOTUS_C[dim] \
+    python3 -B $LOTUS_ROOT/lib/html/convert.py "$@"
 }
 
 html_help() {
@@ -79,7 +81,7 @@ html_scan() {
   typeset -gA HTML_LEFT=()
   local line
   local -a f
-  for line in "${(@f)$(python3 -B $CONV scan $1 2>/dev/null)}"; do
+  for line in "${(@f)$(html_py scan $1 2>/dev/null)}"; do
     f=("${(@ps:\t:)line}")
     if [[ $f[1] == left ]]; then HTML_LEFT[$f[2]]=$f[3]
     elif (( ${#f} == 3 )); then HTML_FILES+=($f[3]) HTML_KINDS+=($f[1]) HTML_TIMES+=($f[2]); fi
@@ -184,7 +186,7 @@ html_main() {
     ui_blank
   else
     local open=
-    open=$(python3 -B $CONV open $HERE 2>/dev/null)
+    open=$(html_py open $HERE 2>/dev/null)
     if [[ -n $open ]]; then
       files=($open)
       print -r -- "  "$'\e[1;'"$LOTUS_C[key]m✓"$_UI_R" ${open#$HERE/}  "$'\e['"$LOTUS_C[dim]m"open in the browser right now$_UI_R
@@ -270,7 +272,7 @@ html_main() {
 
   # ── the work: convert.py prints what it did
   local result=${TMPDIR:-/tmp}/lotus-html-$$.txt
-  local -a run=(python3 -B $CONV convert --to $fmt --$mode --root $root --result $result)
+  local -a run=(html_py convert --to $fmt --$mode --root $root --result $result)
   [[ $scope == all ]] && run+=(--all) || run+=($files)
   html_label $fmt
   lotus_log INFO html "${scope:-${#files} file(s)} → $REPLY ($mode)"
@@ -297,4 +299,9 @@ html_main() {
   return 0
 }
 
-html_main "$@"
+lotus_cmd_html() {
+  shift   # "html"
+  zf_mkdir -p $LOTUS_STATE/live 2>/dev/null
+  typeset -g HERE=${PWD:A} LAST=$LOTUS_STATE/html-last
+  html_main "$@"
+}
