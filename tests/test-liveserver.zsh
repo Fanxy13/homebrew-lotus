@@ -1,7 +1,8 @@
-# Live Server (plugins/liveserver): installed with full access, it serves the folder Lotus was called in on
-# 127.0.0.1 – index.html, or a menu of the folder's pages – and reloads open pages when a file changes (only the
-# style sheets when nothing but CSS changed). Nothing outside the folder, no hidden files, only to 127.0.0.1 and
-# localhost. A second one for the same folder opens the first; lotus liveserver stop ends them.
+# Live Server (plugins/liveserver): installed with full access, it serves the folder Lotus was called in to this
+# Mac and the devices in its Wi-Fi – index.html, or a menu of the folder's pages – and reloads open pages when a
+# file changes (only the style sheets when nothing but CSS changed). Nothing outside the folder, no hidden files,
+# nobody from another network, only the Mac's own names; --local: 127.0.0.1 only. A second one for the same
+# folder opens the first; lotus liveserver stop ends them.
 source $LOTUS_ROOT/lib/core.zsh
 source $LOTUS_ROOT/lib/ui.zsh
 lotus_load
@@ -88,6 +89,46 @@ check_eq "another name for this Mac is refused" "$(code -H 'Host: evil.example:8
 check_eq "localhost works" "$(code -H "Host: localhost:$port" $B/about.html)" 200
 check_has "not here: a page that says so" "$(curl -s $B/nope.html)" "Not here: /nope.html"
 
+# ── the Wi-Fi: its devices, nobody else ──
+cat >| $HOME/wifi.py <<'EOF'
+import sys
+sys.path.insert(0, sys.argv[1])
+import liveserver as L
+mac = '''lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384
+\tinet 127.0.0.1 netmask 0xff000000
+en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
+\tinet6 fe80::1c%en0 prefixlen 64 secured scopeid 0xe
+\tinet 192.168.178.23 netmask 0xffffff00 broadcast 192.168.178.255
+awdl0: flags=8943<UP,BROADCAST,RUNNING,PROMISC,SIMPLEX,MULTICAST> mtu 1500
+\tinet 169.254.7.7 netmask 0xffff0000
+utun4: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380
+\tinet 10.8.0.2 --> 10.8.0.2 netmask 0xffffff00
+en5: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
+\tinet 85.1.2.3 netmask 0xffffff00 broadcast 85.1.2.255
+'''
+nets = L.networks(mac)
+print(" ".join(f"{n}={i}" for n, i in nets))
+print(" ".join(f"{ip}:{'yes' if L.allowed(ip, nets) else 'no'}" for ip in sys.argv[2:]))
+ports = L.hardware_ports("Hardware Port: Ethernet\nDevice: en5\nEthernet Address: x\n\nHardware Port: Wi-Fi\nDevice: en0\n\nHardware Port: iPhone USB\nDevice: en7\n")
+print(ports)
+for iface, ip in (("en0", "192.168.178.23/24"), ("en0", "172.20.10.2/28"), ("en7", "172.20.10.3/28"), ("bridge100", "192.168.2.1/24"), ("en5", "10.0.0.4/16"), ("en9", "10.1.0.4/16")):
+    print(L.where(iface, L.ipaddress.IPv4Interface(ip), ports))
+EOF
+out=(${(f)"$(python3 -B $HOME/wifi.py $LOTUS_ROOT/plugins/liveserver 192.168.178.40 ::ffff:192.168.178.9 127.0.0.1 192.168.1.40 10.8.0.5 85.1.2.9 8.8.8.8)"})
+check_eq "the Wi-Fi's network – not the VPN, AirDrop or an internet address" "$out[1]" "en0=192.168.178.23/24"
+check_eq "this Mac and the Wi-Fi in, nobody else" "$out[2]" \
+  "192.168.178.40:yes ::ffff:192.168.178.9:yes 127.0.0.1:yes 192.168.1.40:no 10.8.0.5:no 85.1.2.9:no 8.8.8.8:no"
+check_eq "the Mac's network ports by name" "$out[3]" "{'en5': 'Ethernet', 'en0': 'Wi-Fi', 'en7': 'iPhone USB'}"
+check_eq "each address says whom it is for" "${(j:|:)out[4,-1]}" "phones and computers in this Wi-Fi|your iPhone, whose hotspot the Mac uses|your iPhone, whose hotspot the Mac uses|devices the Mac shares its internet with|devices in this network (Ethernet)|devices in this network"
+check_eq "a Wi-Fi address that is not the Mac's is refused" "$(code -H 'Host: 192.168.178.250' $B/about.html)" 403
+ip=$(python3 -B -c "import sys; sys.path.insert(0, sys.argv[1]); import liveserver as L; print(*L.Lan(True).addresses()[:1])" $LOTUS_ROOT/plugins/liveserver 2>/dev/null)
+if [[ -n $ip ]]; then
+  check_has "it says the Wi-Fi address" "$(plain < $HOME/live.log)" "Wi-Fi       http://$ip:$port"
+  check_eq "the Mac's Wi-Fi address works" "$(code http://$ip:$port/about.html)" 200
+else
+  check_has "no Wi-Fi: it says so" "$(plain < $HOME/live.log)" "Wi-Fi       not in a Wi-Fi now"
+fi
+
 # ── live: a page that is open hears about every change ──
 cat >| $HOME/ws.py <<'EOF'
 import base64, os, socket, sys
@@ -150,6 +191,17 @@ kill $other 2>/dev/null
 (cd $S && lotus liveserver about.html --no-open --port $port >| $HOME/live.log 2>&1 &)
 up $port
 check_has "a page given: that page" "$(plain < $HOME/live.log)" "Address     $B/about.html"
+lotus liveserver stop >/dev/null 2>&1
+for i in {1..30}; do curl -s -m 1 -o /dev/null $B/ || break; sleep 0.1; done
+
+# ── --local: only this Mac ──
+(cd $S && lotus liveserver --local --no-open --port $port >| $HOME/live.log 2>&1 &)
+up $port
+check_has "--local says so" "$(plain < $HOME/live.log)" "Wi-Fi       off – only this Mac (--local)"
+check_eq "and still works here" "$(code $B/about.html)" 200
+if [[ -n $ip ]]; then
+  check "not from the Wi-Fi" eval '! curl -s -m 1 -o /dev/null http://$ip:$port/'
+fi
 lotus liveserver stop >/dev/null 2>&1
 print -r -- '<title>Home</title><p>home' >| $S/index.html
 for i in {1..30}; do curl -s -m 1 -o /dev/null $B/ || break; sleep 0.1; done
