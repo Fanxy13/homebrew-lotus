@@ -2,6 +2,9 @@
 
 is_brew() { [[ $LOTUS_ROOT == */(Cellar|Caskroom)/lotus/* ]] }
 
+# Put in place by install.sh: ~/.local/share/lotus (HOME may be a link – the temporary folders of macOS are)
+own_install() { [[ $LOTUS_ROOT == (${HOME}|${HOME:A})/.local/share/lotus ]] }
+
 lotus_cmd_system() {
   local cmd=$1; shift
   case $cmd in
@@ -58,7 +61,7 @@ _lotus_rc() {
 # without starting a process (zsh); bash asks `command -v` once.
 _lotus_hook_block() {
   local block="# >>> lotus >>>"$'\n'
-  if [[ $LOTUS_ROOT == $HOME/.local/share/lotus && ${path[(I)$HOME/.local/bin]} == 0 ]]; then
+  if own_install && [[ ${path[(I)$HOME/.local/bin]} == 0 ]]; then
     block+='export PATH="$HOME/.local/bin:$PATH"'$'\n'
   fi
   case $1 in
@@ -130,7 +133,7 @@ lotus_uninstall() {
     HOMEBREW_NO_AUTOREMOVE=1 brew uninstall --quiet $kind lotus
     brew untap --quiet fanxy13/lotus 2>/dev/null
     ui_info $LOTUS_L[ff_kept]
-  elif [[ $LOTUS_ROOT == $HOME/.local/share/lotus ]]; then
+  elif own_install; then
     rm -f $HOME/.local/bin/lotus
     rm -rf $LOTUS_ROOT
   else
