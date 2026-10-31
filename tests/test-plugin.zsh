@@ -16,8 +16,18 @@ check_has "none at first" "$(lotus plugin 2>&1 | plain)" "No plugins yet"
 out=$(lotus plugin new demo 2>&1 | plain)
 check_has "lotus plugin new: made" "$out" 'Your plugin "demo" is ready'
 check "with a plugin.conf and its programs" eval '[[ -r $P/demo/plugin.conf && -r $P/demo/demo.zsh && -r $P/demo/tool.zsh ]]'
-check_eq "its command runs" "$(lotus demo one two 2>&1 | plain)" "Hello from demo – you gave me: one two"
-check_eq "its AI tool runs" "$(lotus plugin-tool demo hello Ada)" "Hello, Ada!"
+# Linux: a limited plugin runs in bubblewrap, which has to work here. Without it the plugin is refused – never run unprotected.
+typeset -i nosandbox=0
+[[ $TEST_OS == linux ]] && ! lotus_os_sandbox_available && nosandbox=1
+if (( nosandbox )); then
+  out=$(lotus demo one two 2>&1 | plain)
+  check_has "no sandbox here: a limited plugin is refused" "$out" "runs in a sandbox"
+  check "  and it did not run" eval '[[ $out != *"Hello from demo"* ]]'
+  check_has "  the AI tool is refused the same way" "$(lotus plugin-tool demo hello Ada 2>&1)" "runs in a sandbox"
+else
+  check_eq "its command runs" "$(lotus demo one two 2>&1 | plain)" "Hello from demo – you gave me: one two"
+  check_eq "its AI tool runs" "$(lotus plugin-tool demo hello Ada)" "Hello, Ada!"
+fi
 check_has "it is in the list" "$(lotus plugin 2>&1 | plain)" "lotus demo · 1 AI tool · a start screen line · limited – only its own folder · on"
 check_has "and fine" "$(lotus plugin check demo 2>&1 | plain)" "plugin.conf is fine"
 check_has "a name of Lotus' own: refused" "$(lotus plugin new weather 2>&1 | plain)" "one of Lotus' own commands"
@@ -34,7 +44,7 @@ sedi '/command broken/d' $P/demo/plugin.conf
 print -r -- "secret" >| $HOME/secret.txt
 # Linux: bubblewrap has to work here (a container needs root and --privileged; the CI sets the kernel up instead)
 if [[ $TEST_OS == linux ]]; then
-  lotus_os_sandbox_available || { print -r -- "  · the sandbox tests need bubblewrap with user namespaces (docker run --privileged -u root, LOTUS_TEST_PRIV=1)"; return 0 }
+  (( nosandbox )) && { print -r -- "  · the other plugin tests need bubblewrap with user namespaces (docker run --privileged -u root, LOTUS_TEST_PRIV=1)"; return 0 }
   mkdir -p /run/user/$(id -u) 2>/dev/null && : >| /run/user/$(id -u)/lotus-test-marker 2>/dev/null
 fi
 cat >| $P/demo/demo.zsh <<'EOF'

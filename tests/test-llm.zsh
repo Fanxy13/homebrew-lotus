@@ -25,7 +25,7 @@ sleep 60 &
 wait
 STUB
 chmod +x $LLM_RUNTIME/bin/mlx_lm.server
-curl() { pgrep -qf "$LLM_RUNTIME/bin/mlx_lm.server" && [[ -e $HOME/args ]] }      # "it answers"
+curl() { pgrep -f "$LLM_RUNTIME/bin/mlx_lm.server" >/dev/null && [[ -e $HOME/args ]] }      # "it answers"
 
 LOTUS_AI_KVBITS=8 LOTUS_AI_LOCAL=qwen
 _llm_start 2>/dev/null
@@ -60,3 +60,11 @@ _llm_restart 2>/dev/null
 check "lotus ai local restart: a new server" eval '[[ $(pgrep -f "$LLM_RUNTIME/bin/mlx_lm.server") != $before && -e $HOME/args ]]'
 _llm_stop
 pkill -f "$LLM_RUNTIME/bin/mlx_lm.server" 2>/dev/null
+
+# off the Mac there is no MLX: Lotus says so, and what to use instead
+if [[ $LOTUS_OS != macos ]]; then
+  out=$(lotus_ai_local 2>&1 </dev/null | sed $'s/\e\\[[0-9;?]*[a-zA-Z]//g'); rc=$?
+  check_has "no MLX here: it says so" "$out" "need an Apple silicon Mac"
+  check_has "and names Ollama" "$out" "ollama pull"
+  check_has "and llama.cpp" "$out" "llama-server"
+fi

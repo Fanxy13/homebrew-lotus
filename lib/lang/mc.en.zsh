@@ -65,6 +65,7 @@ LOTUS_L+=(
   mc_opened 'Folder opened in Finder'  mc_err_open 'The folder could not be opened'
   mc_err_fifo 'The console pipe could not be made'  mc_err_cmd 'The command could not be sent – is the server running?'
   mc_err_nofile 'Not a file: %s'  mc_err_sips 'Icons are made with macOS’ sips – not found'
+  mc_err_imgtool 'Icons need an image program: %s'
   mc_err_image '%s could not be read as a picture'  mc_err_drop 'Nothing was added'
   mc_err_remove 'The plugin could not be removed'  mc_err_search 'Modrinth did not answer – check the internet'
   mc_still_stopping 'Still stopping – s ends it now (the world is saved)'
@@ -82,6 +83,7 @@ LOTUS_L+=(
   mc_del_notserver 'Only a server folder right in %s can be deleted (no link).'
   mc_del_busy 'Something of the server still runs in its folder – stop it (or close its start.command window), then delete again.'
   mc_del_otherdisk 'The server is on another disk without a Trash Lotus can use – delete its folder in Finder.'
+  mc_del_otherdisk_linux 'The server is on another disk than your home folder, so Lotus cannot move it to the Trash – delete its folder in your file manager.'
   mc_del_nomove 'It could not be moved to the Trash – nothing was deleted.'
   mc_del_norm 'The folder could not be removed: %s'
 )

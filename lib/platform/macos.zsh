@@ -179,11 +179,52 @@ lotus_os_choose_folder() {   # <prompt> <start folder>
 
 # "WxH" of an image file → REPLY
 lotus_os_image_info() {
-  local info=$(sips -g pixelWidth -g pixelHeight -- "$1" 2>/dev/null)
+  local src=$1
+  [[ $src == -* ]] && src=./$src          # (sips takes "--" as the name of an operation)
+  local info=$(sips -g pixelWidth -g pixelHeight "$src" 2>/dev/null)
   local w=${${(M)${(f)info}:#*pixelWidth*}##* } h=${${(M)${(f)info}:#*pixelHeight*}##* }
   [[ $w == <-> && $h == <-> ]] || return 1
   REPLY=${w}x${h}
 }
+
+# A picture as a 24-bit BMP, no bigger than <px> × <px> (lib/cover.pl turns it into terminal art)
+lotus_os_image_bmp() {   # <src> <px> <out.bmp>
+  local src=$1
+  [[ $src == -* ]] && src=./$src          # (sips takes "--" as the name of an operation)
+  sips -s format bmp -Z $2 "$src" --out "$3" >/dev/null 2>&1
+}
+
+# The middle square of a picture as a PNG of <size> × <size>
+lotus_os_image_square() {   # <src> <size> <out.png>
+  lotus_os_image_info "$1" || return 1
+  local -i w=${REPLY%x*} h=${REPLY#*x} m
+  m=$(( w < h ? w : h ))
+  local src=$1
+  [[ $src == -* ]] && src=./$src
+  sips -s format png -c $m $m "$src" --out "$3.crop.png" >/dev/null 2>&1 &&
+    sips -z $2 $2 "$3.crop.png" --out "$3" >/dev/null 2>&1 && [[ -s $3 ]]
+  local -i st=$?
+  rm -f -- "$3.crop.png"
+  return st
+}
+
+# What plays, and its cover → reply = (status title artist album cover-file); 1 = nothing. MediaRemote, the way
+# fastfetch asks it. The cover file is new and ours: the caller removes it (lotus_cover in lib/art.zsh).
+lotus_os_media_cover() {
+  reply=()
+  local ff=${LOTUS_FF:A} out
+  [[ -x /usr/bin/perl && -x $ff ]] || return 1
+  out=$(FF_MEDIA_REMOTE_SAVE_COVER=1 /usr/bin/perl -e 'require DynaLoader;
+    my $so = DynaLoader::dl_load_file($ARGV[0], 0) or exit 1;
+    my $sym = DynaLoader::dl_find_symbol($so, "ffPrintMediaByMediaRemote") or exit 1;
+    DynaLoader::dl_install_xsub("fn", $sym, __FILE__); exit(fn())' $ff 2>/dev/null) || return 1
+  local -a v=("${(@f)out}")
+  (( ${#v} >= 7 )) || return 1
+  reply=("$v[1]" "$v[2]" "$v[3]" "$v[4]" "$v[7]")
+}
+
+# perl for lib/cover.pl: the system's own, never one from Homebrew
+typeset -g LOTUS_PERL=/usr/bin/perl
 
 # ── Programs and processes ────────────────────────────────────
 

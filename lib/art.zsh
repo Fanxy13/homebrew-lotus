@@ -164,20 +164,9 @@ _lotus_oklab_rgb() {
 
 # ── Album cover ───────────────────────────────────────────────
 
-# What plays, from macOS → reply = (status title artist album cover-file); 1 = nothing.
+# What plays → reply = (status title artist album cover-file); 1 = nothing (MediaRemote on a Mac, MPRIS elsewhere).
 # The cover file is new and ours: the caller removes it (lotus_cover).
-lotus_cover_query() {
-  reply=()
-  local ff=${LOTUS_FF:A} out
-  [[ -x /usr/bin/perl && -x $ff ]] || return 1
-  out=$(FF_MEDIA_REMOTE_SAVE_COVER=1 /usr/bin/perl -e 'require DynaLoader;
-    my $so = DynaLoader::dl_load_file($ARGV[0], 0) or exit 1;
-    my $sym = DynaLoader::dl_find_symbol($so, "ffPrintMediaByMediaRemote") or exit 1;
-    DynaLoader::dl_install_xsub("fn", $sym, __FILE__); exit(fn())' $ff 2>/dev/null) || return 1
-  local -a v=("${(@f)out}")
-  (( ${#v} >= 7 )) || return 1
-  reply=("$v[1]" "$v[2]" "$v[3]" "$v[4]" "$v[7]")
-}
+lotus_cover_query() { lotus_os_media_cover }
 
 # lotus_cover <columns> <rows> → REPLY = art of the playing song's cover (as big as fits),
 # reply = (width height); 1 = nothing plays, or the song has no cover
@@ -185,6 +174,7 @@ lotus_cover() {
   setopt localoptions extendedglob
   local -i cols=$1 rows=$2
   REPLY=
+  [[ -x $LOTUS_PERL ]] || return 1
   lotus_cover_query || return 1
   local state=$reply[1] cover=$reply[5] id="$reply[2]|$reply[3]|$reply[4]"
   reply=()
@@ -201,8 +191,8 @@ lotus_cover() {
     zf_mkdir -p $dir
     local bmp=$dir/.$$.bmp
     local -i px=$(( 4 * (cols > 2 * rows ? cols : 2 * rows) ))
-    if sips -s format bmp -Z $px $cover --out $bmp >/dev/null 2>&1 &&
-       /usr/bin/perl $LOTUS_ROOT/lib/cover.pl $bmp $cols $rows $LOTUS_MODE >| $out.$$ 2>/dev/null &&
+    if lotus_os_image_bmp $cover $px $bmp &&
+       $LOTUS_PERL $LOTUS_ROOT/lib/cover.pl $bmp $cols $rows $LOTUS_MODE >| $out.$$ 2>/dev/null &&
        [[ -s $out.$$ ]]; then
       zf_mv -f $out.$$ $out
       lotus_log DEBUG cover "Cover of \"$id\" drawn (${cols}×$rows)"

@@ -65,6 +65,7 @@ LOTUS_L+=(
   mc_opened 'Carpeta abierta en el Finder'  mc_err_open 'No se pudo abrir la carpeta'
   mc_err_fifo 'No se pudo crear la tubería de la consola'  mc_err_cmd 'No se pudo enviar el comando – ¿está en marcha el servidor?'
   mc_err_nofile 'No es un archivo: %s'  mc_err_sips 'Los iconos los hace sips de macOS – no encontrado'
+  mc_err_imgtool 'Los iconos necesitan un programa de imágenes: %s'
   mc_err_image 'No se pudo leer %s como imagen'  mc_err_drop 'No se añadió nada'
   mc_err_remove 'No se pudo quitar el plugin'  mc_err_search 'Modrinth no responde – revisa Internet'
   mc_still_stopping 'Aún deteniéndose – s lo termina ya (el mundo se guarda)'
@@ -82,6 +83,7 @@ LOTUS_L+=(
   mc_del_notserver 'Solo se puede borrar una carpeta de servidor directamente en %s (sin enlaces).'
   mc_del_busy 'Algo del servidor sigue en marcha en su carpeta – detenlo (o cierra la ventana de start.command) y vuelve a borrar.'
   mc_del_otherdisk 'El servidor está en otro disco sin una papelera que Lotus pueda usar – borra su carpeta en el Finder.'
+  mc_del_otherdisk_linux 'El servidor está en otro disco distinto de tu carpeta personal, así que Lotus no puede moverlo a la papelera – borra su carpeta en el gestor de archivos.'
   mc_del_nomove 'No se pudo mover a la papelera – no se borró nada.'
   mc_del_norm 'No se pudo quitar la carpeta: %s'
 )

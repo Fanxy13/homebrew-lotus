@@ -683,9 +683,17 @@ final class ToolRunner: @unchecked Sendable {
     // Keys, .env, SSH and cloud credentials: never read, listed or served without the user (Page.swift too)
     static func isPrivate(_ url: URL) -> Bool {
         let parts = Set(url.pathComponents)
-        let names = [".ssh", ".gnupg", ".aws", "Keychains", ".netrc", ".git-credentials", ".docker", ".kube", "1Password"]
+        // Keychains and 1Password are the Mac's; keyrings and .password-store are Linux'; the rest is the same everywhere
+        let names = [".ssh", ".gnupg", ".aws", "Keychains", ".netrc", ".git-credentials", ".docker", ".kube", "1Password",
+                     "keyrings", ".password-store", ".azure", ".terraform.d", "gcloud"]
         if names.contains(where: parts.contains) { return true }
+        // where Lotus keeps the keys it was given when there is no keychain: <config>/lotus/secrets
+        let c = url.pathComponents
+        if let i = c.firstIndex(of: "lotus"), i + 1 < c.count, c[i + 1] == "secrets" { return true }
         let last = url.lastPathComponent
+        if ["/etc/shadow", "/etc/gshadow", "/etc/sudoers"].contains(url.path) || url.path.hasPrefix("/etc/sudoers.d/") { return true }
+        if [".npmrc", ".pypirc", ".pgpass", ".my.cnf"].contains(last) { return true }
+        if ["kdbx", "p12", "pfx", "jks", "keystore"].contains(url.pathExtension.lowercased()) { return true }
         return last == ".env" || last.hasPrefix(".env.") || last.hasSuffix(".pem") || last.hasSuffix(".key") || last == "id_rsa" || last == "id_ed25519"
     }
 
@@ -1446,6 +1454,9 @@ final class ToolRunner: @unchecked Sendable {
         #"\bdd\s"#, #">\s*/dev/"#, #"\bchmod\s+-R"#, #"\bchown\s+-R"#, #"git\s+push\s+.*(--force|-f\b)"#,
         #"git\s+(reset\s+--hard|clean\s+-[a-z]*f)"#, #"(curl|wget)[^|]*\|\s*(ba|z)?sh"#, #"\bkillall\b"#,
         #"\blaunchctl\s+(unload|remove|bootout)"#, #"\bdefaults\s+delete"#, #"\bsrm\b"#, #":\(\)\s*\{"#,
+        #"\bsystemctl\s+(stop|disable|mask|kill|poweroff|reboot|halt)"#, #"\b(shutdown|reboot|poweroff|halt)\b"#, #"\bshred\b"#,
+        #"\bwipefs\b"#, #"\b(fdisk|parted|sfdisk)\b"#, #"\bcrontab\s+-r"#, #"\buserdel\b"#, #"\b(iptables|nft)\s+-?F"#,
+        #"\bufw\s+(disable|reset)"#, #"\b(apt|apt-get|dnf|yum|zypper)\s+(remove|purge|erase|autoremove)"#, #"\bpacman\s+-R"#,
     ]
 
     private func runCommand(_ command: String) async -> ToolOutcome {

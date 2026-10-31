@@ -867,10 +867,11 @@ _mcc_trash() {
     return 1
   fi
   if [[ $LOTUS_OS != macos ]]; then
-    # Linux: the trash of the desktop (gio, trash-put). Without one nothing is deleted – never "for good instead".
+    # Linux: the trash of the desktop (gio, trash-put), or Lotus' own in the same freedesktop.org format. A move that
+    # fails deletes nothing – never "for good instead".
     lotus_os_trash $dir 2>/dev/null; local -i st=$?
-    if (( st == 0 )); then REPLY=${XDG_DATA_HOME:-$HOME/.local/share}/Trash/files/${dir:t}; return 0; fi
-    (( st == 2 )) && MCP_ERR=${LOTUS_L[mc_del_notrash]:-There is no trash this system lets Lotus use (install gio or trash-cli) – delete the folder yourself: $dir} \
+    if (( st == 0 )); then REPLY=${LOTUS_OS_TRASHED:-${XDG_DATA_HOME:-$HOME/.local/share}/Trash/files/${dir:t}}; return 0; fi
+    (( st == 3 )) && MCP_ERR=${LOTUS_L[mc_del_otherdisk_linux]:-The server is on another disk than your home folder, so Lotus cannot move it to the Trash – delete its folder in your file manager.} \
                   || MCP_ERR=${LOTUS_L[mc_del_nomove]:-It could not be moved to the Trash – nothing was deleted.}
     return 1
   fi
@@ -935,7 +936,7 @@ lotus_mcc_delete() {
   ui_path $dir
   ui_dim "  $REPLY${size:+  ·  $size}"
   [[ $MCC_STATE == (running|starting|preparing|stopping) ]] && ui_warn "$LOTUS_L[mc_del_running]"
-  [[ -d $HOME/.Trash ]] && ui_dim "  $LOTUS_L[mc_del_where]" || ui_dim "  $LOTUS_L[mc_del_where_rm]"
+  [[ -d $HOME/.Trash || $LOTUS_OS != macos ]] && ui_dim "  $LOTUS_L[mc_del_where]" || ui_dim "  $LOTUS_L[mc_del_where_rm]"
   ui_blank
   if ! ui_has_tty; then ui_dim "  (no keyboard – nothing was deleted)"; return 1; fi
   ui_input "${LOTUS_L[mc_del_type]//\%s/$MCC_NAME}" || return 1
@@ -1161,28 +1162,23 @@ _mcc_settings_key() {
   esac
 }
 
-# A picture as the server icon: the middle square, 64 × 64 pixels, PNG (macOS' sips does it)
+# A picture as the server icon: the middle square, 64 × 64 pixels, PNG (sips on a Mac, ImageMagick or ffmpeg elsewhere)
 _mcc_icon_set() {
   local src=$1
   [[ -f $src ]] || { _mcc_toast err "${LOTUS_L[mc_err_nofile]//\%s/${src:t}}"; return 1 }
-  (( $+commands[sips] )) || { _mcc_toast err "$LOTUS_L[mc_err_sips]"; return 1 }
-  local info=$(sips -g pixelWidth -g pixelHeight -- $src 2>/dev/null)
-  local -i w=0 h=0
-  [[ $info == (#b)*pixelWidth:\ ([0-9]##)* ]] && w=$match[1]
-  [[ $info == (#b)*pixelHeight:\ ([0-9]##)* ]] && h=$match[1]
-  (( w && h )) || { _mcc_toast err "${LOTUS_L[mc_err_image]//\%s/${src:t}}"; return 1 }
-  local -i m=$(( w < h ? w : h ))
   local tmp=$MCC_S/icon-new
-  if sips -s format png -c $m $m -- $src --out $tmp-a.png >/dev/null 2>&1 &&
-     sips -z 64 64 $tmp-a.png --out $tmp-b.png >/dev/null 2>&1 && [[ -s $tmp-b.png ]]; then
+  lotus_os_image_square $src 64 $tmp-b.png; local -i st=$?
+  if (( st == 0 )); then
     zf_mv -f $tmp-b.png $MCC_DIR/server-icon.png
-    rm -f $tmp-a.png
     MCC_ICONKEY=
     _mcc_changed
     _mcc_toast ok "$LOTUS_L[mc_icon_saved]"
     lotus_log INFO minecraft "Server icon set for $MCC_NAME from ${src:t}"
+  elif (( st == 2 )); then
+    lotus_pkg_hint magick
+    _mcc_toast err "${LOTUS_L[mc_err_imgtool]//\%s/$REPLY}"
   else
-    rm -f $tmp-a.png $tmp-b.png
+    rm -f $tmp-b.png
     _mcc_toast err "${LOTUS_L[mc_err_image]//\%s/${src:t}}"
   fi
 }
@@ -1195,10 +1191,10 @@ _mcc_icon_art() {
   zstat -H st $f 2>/dev/null && key="$st[mtime] $st[size] $LOTUS_MODE"
   [[ $key == $MCC_ICONKEY && -n $MCC_ICON ]] && return
   MCC_ICONKEY=$key
-  if [[ $key != none ]] && (( $+commands[sips] )); then
+  if [[ $key != none && -x $LOTUS_PERL ]]; then
     local bmp=$MCC_S/icon.bmp
-    if sips -s format bmp -Z 48 -- $f --out $bmp >/dev/null 2>&1; then
-      MCC_ICON=("${(@f)$(/usr/bin/perl $LOTUS_ROOT/lib/cover.pl $bmp 12 6 $LOTUS_MODE 2>/dev/null)}")
+    if lotus_os_image_bmp $f 48 $bmp; then
+      MCC_ICON=("${(@f)$($LOTUS_PERL $LOTUS_ROOT/lib/cover.pl $bmp 12 6 $LOTUS_MODE 2>/dev/null)}")
       rm -f $bmp
       (( ${#MCC_ICON} )) && return
     fi

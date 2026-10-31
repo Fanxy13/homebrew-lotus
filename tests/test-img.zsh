@@ -4,6 +4,19 @@ source $LOTUS_ROOT/lib/ui.zsh
 lotus_load
 source $LOTUS_ROOT/lib/cmd/img.zsh
 ui_has_tty() { false }
+# what the converted files look like: sips on a Mac, the image info of the platform layer elsewhere
+imgw() { if (( $+commands[sips] )); then sips -g pixelWidth "$1" | awk '/pixelWidth/ { print $2 }'; else lotus_os_image_info "$1"; print -r -- ${REPLY%x*}; fi }
+imgh() { if (( $+commands[sips] )); then sips -g pixelHeight "$1" | awk '/pixelHeight/ { print $2 }'; else lotus_os_image_info "$1"; print -r -- ${REPLY#*x}; fi }
+imgkind() { if (( $+commands[sips] )); then sips -g format "$1" | awk '/format:/ { print $2 }'; else _lotus_os_image_kind "$1"; print -r -- $REPLY; fi }
+tobmp() {   # <image> <out.bmp>
+  if (( $+commands[sips] )); then sips -s format bmp "$1" --out "$2" >/dev/null 2>&1
+  else magick "$1" BMP3:"$2" >/dev/null 2>&1 || convert "$1" BMP3:"$2" >/dev/null 2>&1; fi
+}
+# Linux: the converter is ImageMagick
+if [[ $LOTUS_OS != macos ]] && ! (( $+commands[magick] || $+commands[convert] )); then
+  print -r -- "  - the converter needs ImageMagick here – skipped"
+  return 0
+fi
 zf_mkdir -p $HOME/pics/shoot "$HOME/pics/my photos"
 # test images: an opaque PNG and one with a transparent corner (written by Python, no other tools)
 python3 - $HOME/pics <<'PY'
@@ -36,15 +49,15 @@ rm -f $HOME/pics/my\ photos/logo.jpg
 # ── a real conversion, without questions ──
 out=$($LOTUS_ROOT/bin/lotus img convert $HOME/pics/shoot "$HOME/pics/my photos/logo.png" --to jpeg --quality 80 --max 200 2>&1 < /dev/null)
 check_has "four images converted" "$out" "4 images → JPEG"
-check_has "the broken one is named, with why" "$out" "broken.png – not an image this Mac can read"
+check_has "the broken one is named, with why" "$out" "broken.png – not an image $LOTUS_THIS can read"
 check "the folder's images in their own folder" test -s $HOME/pics/shoot/JPEG/b.jpg
 check "the image on its own next to it" test -s "$HOME/pics/my photos/logo.jpg"
 check "the originals are still there" test -s $HOME/pics/shoot/a.png
-check_has "smaller, as asked (400 → 200)" "$(sips -g pixelWidth $HOME/pics/shoot/JPEG/a.jpg)" "pixelWidth: 200"
-check_has "never larger (64 stays 64)" "$(sips -g pixelWidth "$HOME/pics/my photos/logo.jpg")" "pixelWidth: 64"
-check_has "a JPEG is a JPEG" "$(sips -g format $HOME/pics/shoot/JPEG/c.jpg)" "format: jpeg"
+check_eq "smaller, as asked (400 → 200)" "$(imgw $HOME/pics/shoot/JPEG/a.jpg)" 200
+check_eq "never larger (64 stays 64)" "$(imgw "$HOME/pics/my photos/logo.jpg")" 64
+check_eq "a JPEG is a JPEG" "$(imgkind $HOME/pics/shoot/JPEG/c.jpg)" jpeg
 # transparency becomes white in a JPEG – not black
-px=$(sips -s format bmp "$HOME/pics/my photos/logo.jpg" --out $HOME/px.bmp >/dev/null 2>&1; python3 -c "
+px=$(tobmp "$HOME/pics/my photos/logo.jpg" $HOME/px.bmp; python3 -c "
 import sys; d=open(sys.argv[1],'rb').read(); off=int.from_bytes(d[10:14],'little'); h=int.from_bytes(d[22:26],'little',signed=True)
 w=int.from_bytes(d[18:22],'little'); row=(w*3+3)//4*4; y=(h-1) if h>0 else 0; print(d[off+y*row]+d[off+y*row+1]+d[off+y*row+2])" $HOME/px.bmp)
 check "a transparent corner turns white in JPEG" test ${px:-0} -gt 700
@@ -53,7 +66,7 @@ check_has "the last choice is remembered" "$(<$LOTUS_STATE/img-last)" "jpeg|80|2
 # an icon: square, at most 256
 out=$($LOTUS_ROOT/bin/lotus img convert "$HOME/pics/my photos/logo.png" --to ico 2>&1 < /dev/null)
 check_has "ICO: made" "$out" "1 image → ICO"
-check_has "ICO: square" "$(sips -g pixelHeight "$HOME/pics/my photos/logo.ico")" "pixelHeight: 64"
+check_eq "ICO: square" "$(imgw "$HOME/pics/my photos/logo.ico")x$(imgh "$HOME/pics/my photos/logo.ico")" "64x64"
 
 # WebP through cwebp, when it is there
 if (( $+commands[cwebp] )); then
@@ -71,4 +84,5 @@ out=$($LOTUS_ROOT/bin/lotus img convert $HOME/pics/shoot/a.png 2>&1 < /dev/null)
 check_has "without a keyboard and without --to: asks for it" "$out" "Into which format?"
 out=$($LOTUS_ROOT/bin/lotus img convert $HOME/nothing 2>&1 < /dev/null)
 check_has "nothing to convert" "$out" "No images to convert"
-check_has "/img formats lists what this Mac writes" "$($LOTUS_ROOT/bin/lotus img formats 2>&1 < /dev/null | sed "s/\x1b\[[0-9;]*m//g")" "✓ HEIC"
+[[ $LOTUS_OS == macos ]] && want_fmt="✓ HEIC" || want_fmt="✓ PNG"       # a Mac writes HEIC; ImageMagick may not
+check_has "/img formats lists what $LOTUS_THIS writes" "$($LOTUS_ROOT/bin/lotus img formats 2>&1 < /dev/null | sed "s/\x1b\[[0-9;]*m//g")" "$want_fmt"

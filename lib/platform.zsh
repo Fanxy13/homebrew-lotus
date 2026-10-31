@@ -11,6 +11,7 @@
 
 typeset -g  LOTUS_OS= LOTUS_OS_VERSION= LOTUS_DISTRO= LOTUS_DISTRO_FAMILY= LOTUS_ARCH= LOTUS_PKG= LOTUS_PKG_EXTRA=
 typeset -g  LOTUS_DESKTOP= LOTUS_SESSION= LOTUS_FILES_APP=the\ file\ manager     # how texts name the file manager
+typeset -g  LOTUS_THIS='this computer' LOTUS_THE='the computer'                  # "this Mac" and "the Mac" on a Mac
 typeset -gi LOTUS_WSL=0
 
 lotus_platform_detect() {
@@ -28,6 +29,7 @@ lotus_platform_detect() {
   esac
   if [[ $LOTUS_OS == macos ]]; then
     LOTUS_DISTRO=macos LOTUS_DISTRO_FAMILY=macos LOTUS_DESKTOP=aqua LOTUS_SESSION=aqua LOTUS_FILES_APP=Finder
+    LOTUS_THIS='this Mac' LOTUS_THE='the Mac'
     (( $+commands[brew] )) && LOTUS_PKG=brew
   elif [[ $LOTUS_OS == linux ]]; then
     local f line id= like= ver=

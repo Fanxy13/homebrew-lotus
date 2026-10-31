@@ -522,7 +522,14 @@ _llm_python() {
 }
 
 lotus_ai_local() {
-  [[ $(uname -m) == arm64 ]] || { ui_error "Local models need Apple silicon" "" "On this Mac: Ollama, or an OpenAI-compatible API (/settings)"; return 1 }
+  if [[ $LOTUS_OS != macos ]]; then
+    # MLX is Apple's. Elsewhere a local model runs in Ollama or llama.cpp, which /ai already talks to.
+    ui_error "Models that Lotus runs itself need an Apple silicon Mac (MLX)" "" \
+      "Ollama works here: install it from ollama.com, run 'ollama pull gpt-oss:20b' – /model in /ai then lists it" \
+      "or llama.cpp: llama-server -hf ggml-org/gpt-oss-20b-GGUF --jinja – and point /ai at http://127.0.0.1:8080/v1 (lotus settings)"
+    return 1
+  fi
+  [[ $LOTUS_ARCH == arm64 ]] || { ui_error "Local models need Apple silicon" "" "On this Mac: Ollama, or an OpenAI-compatible API (/settings)"; return 1 }
   case $1 in
     ''|list)  _llm_screen ;;
     settings) _llm_settings ;;
@@ -881,8 +888,8 @@ _llm_stale() {
   REPLY=
   # after "Insufficient Memory" its generation thread is gone: it still answers, but every request fails
   if grep -q "generation thread died" $log 2>/dev/null; then REPLY="it had crashed (out of memory)"
-  elif _llm_slides && pgrep -qf "$pat.*--kv-bits"; then REPLY="without the memory saver – $LOTUS_AI_LOCAL cannot use it"
-  elif pgrep -qf "$pat" && ! pgrep -qf "$pat.*--prompt-cache-bytes"; then REPLY="with a limit for its prompt cache"
+  elif _llm_slides && pgrep -f "$pat.*--kv-bits" >/dev/null; then REPLY="without the memory saver – $LOTUS_AI_LOCAL cannot use it"
+  elif pgrep -f "$pat" >/dev/null && ! pgrep -f "$pat.*--prompt-cache-bytes" >/dev/null; then REPLY="with a limit for its prompt cache"
   fi
   [[ -n $REPLY ]]
 }

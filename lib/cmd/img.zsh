@@ -39,7 +39,7 @@ lotus_cmd_img() {
 }
 
 img_help() {
-  ui_hero "Image converter" "PNG, JPEG, HEIC, AVIF, WebP, PDF and more – on this Mac"
+  ui_hero "Image converter" "PNG, JPEG, HEIC, AVIF, WebP, PDF and more – on $LOTUS_THIS"
   local k=$'\e['"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" r
   local -a rows=(
     "/img convert|drop images or a folder into the window – or ⏎ for the clipboard"
@@ -47,7 +47,7 @@ img_help() {
     "  --to <format>|jpeg png heic avif webp tiff gif bmp pdf ico – no questions"
     "  --quality <1–100>|for JPEG, HEIC, AVIF and WebP (85 when not given)"
     "  --max <pixels>|at most this wide and high – never larger"
-    "/img formats|what this Mac reads and writes")
+    "/img formats|what $LOTUS_THIS reads and writes")
   for r in $rows; do print -r -- "    ${k}${(r:30:)${r%%|*}}${_UI_R}${r#*|}"; done
   ui_blank
   ui_section Examples; ui_blank
@@ -69,12 +69,21 @@ img_format() {
   return 1
 }
 
-# What this Mac can write → reply (keys of IMG_FORMATS): ImageIO's list (the converter and sips share it), WebP
-# with cwebp
+# What this system can write → reply (keys of IMG_FORMATS): ImageIO's list on a Mac (the converter and sips share it),
+# ImageMagick's elsewhere; WebP also with cwebp
 img_writable() {
   local types f
-  types=$(sips --formats 2>/dev/null | awk '$3 == "Writable" { print $1 }')
   reply=()
+  if [[ $LOTUS_OS != macos ]]; then
+    # ImageMagick: what it was built to write (cwebp adds WebP)
+    for f in $IMG_FORMATS; do
+      local -a p=("${(@s:|:)f}")
+      if [[ $p[1] == webp ]] && (( $+commands[cwebp] )); then reply+=($p[1]); continue; fi
+      _img_im_writes ${(U)p[1]} && reply+=($p[1])
+    done
+    return
+  fi
+  types=$(sips --formats 2>/dev/null | awk '$3 == "Writable" { print $1 }')
   for f in $IMG_FORMATS; do
     local -a p=("${(@s:|:)f}")
     if [[ $p[1] == webp ]]; then (( $+commands[cwebp] )) || [[ $types == *org.webmproject.webp* ]] || continue
@@ -84,20 +93,28 @@ img_writable() {
 }
 
 img_formats() {
-  ui_hero "Image converter" "What this Mac reads and writes"
+  ui_hero "Image converter" "What $LOTUS_THIS reads and writes"
   img_writable
   local f k=$'\e['"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m"
   ui_section Writes; ui_blank
   for f in $IMG_FORMATS; do
     local -a p=("${(@s:|:)f}")
     if (( ${reply[(Ie)$p[1]]} )); then print -r -- "    ${k}✓${_UI_R} ${(r:6:)p[2]} ${d}$p[6]${_UI_R}"
+    elif [[ $LOTUS_OS != macos ]]; then
+      if [[ $p[1] == webp ]]; then lotus_pkg_hint cwebp; else lotus_pkg_hint magick; fi
+      print -r -- "    ${d}· ${(r:6:)p[2]} not with the image programs here – $REPLY${_UI_R}"
     elif [[ $p[1] == webp ]]; then print -r -- "    ${d}· ${(r:6:)p[2]} needs cwebp: brew install webp${_UI_R}"
     else print -r -- "    ${d}· ${(r:6:)p[2]} not on this macOS${_UI_R}"; fi
   done
   ui_blank
   ui_section Reads; ui_blank
-  ui_dim "  JPEG, PNG, HEIC, AVIF, WebP, GIF, TIFF, BMP, PSD, SVG, JPEG XL, JPEG 2000, ICO, ICNS, EXR,"
-  ui_dim "  and RAW photos (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2 …) – what Preview opens"
+  if [[ $LOTUS_OS == macos ]]; then
+    ui_dim "  JPEG, PNG, HEIC, AVIF, WebP, GIF, TIFF, BMP, PSD, SVG, JPEG XL, JPEG 2000, ICO, ICNS, EXR,"
+    ui_dim "  and RAW photos (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2 …) – what Preview opens"
+  else
+    ui_dim "  What ImageMagick reads here: JPEG, PNG, GIF, TIFF, BMP, ICO, WebP, SVG, PSD, TGA … and, where its"
+    ui_dim "  libraries are installed, HEIC, AVIF, JPEG XL, JPEG 2000 and RAW photos"
+  fi
   ui_blank
 }
 
@@ -208,7 +225,7 @@ img_convert() {
       *)            paths+=("$1"); shift ;;
     esac
   done
-  ui_hero "Image converter" "PNG, JPEG, HEIC, AVIF, WebP, PDF and more – on this Mac"
+  ui_hero "Image converter" "PNG, JPEG, HEIC, AVIF, WebP, PDF and more – on $LOTUS_THIS"
   if (( ! ${#paths} )); then
     ui_has_tty || { ui_error "Which images?" "" "/img convert <image|folder> --to <format>"; return 1 }
     img_ask || return 0
@@ -244,7 +261,7 @@ img_convert() {
   [[ -r $LOTUS_STATE/img-last ]] && last=$(<$LOTUS_STATE/img-last)
   if [[ -n $to ]]; then
     img_format $to || { ui_error "Unknown format: $to" "" "Formats: ${(j: :)can}"; return 1 }
-    (( ${can[(Ie)${REPLY%%|*}]} )) || { ui_error "This Mac cannot write ${(U)to}" "" "Formats here: ${(j: :)can}"; return 1 }
+    (( ${can[(Ie)${REPLY%%|*}]} )) || { ui_error "${(C)LOTUS_THIS} cannot write ${(U)to}" "" "Formats here: ${(j: :)can}"; return 1 }
     row=$REPLY
   else
     ui_has_tty || { ui_error "Into which format?" "" "--to ${(j:|:)can}"; return 1 }
@@ -329,14 +346,16 @@ img_run() {   # <label> <type> <quality> <max> <bytes in>
   (( jobs < 2 )) && jobs=2
   (( jobs > 8 )) && jobs=8
   local -a stages=()
-  img_tool || stages+=("build|Getting the converter ready (once)|Ready")
+  [[ $LOTUS_OS == macos ]] && { img_tool || stages+=("build|Getting the converter ready (once)|Ready") }
   stages+=("convert|Converting ${n} image${${n:#1}:+s} to $label|$label")
   bg_ui_begin Images $stages
   bg_ui_info format "$label${${quality:#0}:+ · quality $quality}${${max:#0}:+ · at most $max px}"
   (( n > 1 )) && bg_ui_info jobs "$jobs at a time"
   # the converter, built once (about half a minute) – sips when it cannot be
   local tool=
-  if img_tool; then tool=$REPLY
+  if [[ $LOTUS_OS != macos ]]; then
+    :       # ImageMagick, below
+  elif img_tool; then tool=$REPLY
   else
     bg_ui_stage build
     bg_ui_note "With Apple's Swift – the next time it is ready at once"
@@ -354,6 +373,8 @@ img_run() {   # <label> <type> <quality> <max> <bytes in>
     exec {fd}< <(for (( i = 1; i <= n; i++ )); do print -r -- "$IMG_IN[i]"$'\t'"$IMG_OUT[i]"$'\t'"$type"$'\t'"$quality"$'\t'"$max"; done |
                  LOTUS_CWEBP=${commands[cwebp]:-cwebp} $tool --jobs $jobs 2>/dev/null &
                  print -r -- "LOTUS-PID $!"; wait $!; print -r -- "LOTUS-EXIT $?")
+  elif [[ $LOTUS_OS != macos ]]; then
+    exec {fd}< <(img_magick $type $quality $max $jobs; print -r -- "LOTUS-EXIT 0")
   else
     exec {fd}< <(img_sips $type $quality $max; print -r -- "LOTUS-EXIT 0")
   fi
@@ -397,6 +418,82 @@ img_run() {   # <label> <type> <quality> <max> <bytes in>
   return 0
 }
 
+# Can ImageMagick write this format (PNG, JPEG, HEIC …)? Its list is asked once.
+typeset -g _IMG_IM_LIST=
+_img_im_writes() {   # <FORMAT>
+  if [[ -z $_IMG_IM_LIST ]]; then
+    if (( $+commands[magick] )); then _IMG_IM_LIST=$(magick -list format 2>/dev/null)
+    elif (( $+commands[convert] )); then _IMG_IM_LIST=$(convert -list format 2>/dev/null)
+    fi
+    [[ -n $_IMG_IM_LIST ]] || _IMG_IM_LIST=none
+  fi
+  # a row: "PNG* PNG rw-  Portable Network Graphics" – the mode has a w when it can write
+  print -r -- "$_IMG_IM_LIST" | awk -v f="$1" '{ n = $1; sub(/\*$/, "", n) } n == f && $3 ~ /w/ { found = 1 } END { exit !found }'
+}
+
+# Off the Mac: ImageMagick, <jobs> images at a time. It prints the same lines as the converter (start, done, fail).
+# Photos are turned upright and keep their camera data; smaller, never larger; transparency becomes white in JPEG.
+img_magick() {   # <type> <quality> <max> <jobs>
+  local type=$1
+  local -i quality=$2 max=$3 jobs=${4:-2} i n=${#IMG_IN}
+  local key
+  case $type in
+    public.jpeg) key=jpeg ;; public.png) key=png ;; public.heic) key=heic ;; public.avif) key=avif ;;
+    public.tiff) key=tiff ;; com.compuserve.gif) key=gif ;; com.microsoft.bmp) key=bmp ;; com.adobe.pdf) key=pdf ;;
+    com.microsoft.ico) key=ico ;; org.webmproject.webp) key=webp ;;
+  esac
+  zmodload zsh/system 2>/dev/null && print -r -- "LOTUS-PID ${sysparams[pid]}"
+  (( $+commands[magick] || $+commands[convert] )) || { for (( i = 1; i <= n; i++ )); do print -r -- "fail $i no image program – $(lotus_pkg_hint magick; print -r -- $REPLY)"; done; return }
+  for (( i = 1; i <= n; i += jobs )); do
+    local -i j
+    for (( j = i; j < i + jobs && j <= n; j++ )); do _img_magick_one $j $key $quality $max & done
+    wait
+  done
+}
+
+_img_magick_one() {   # <index> <format key> <quality> <max>
+  local -i i=$1 quality=$3 max=$4
+  local key=$2 in=$IMG_IN[$1] out=$IMG_OUT[$1] tmp
+  local -a args st
+  local -A name=(jpeg JPEG png PNG heic HEIC avif AVIF webp WEBP tiff TIFF gif GIF bmp BMP pdf PDF ico ICO)
+  tmp=$out.lotus-tmp
+  print -r -- "start $i"
+  [[ $in == -* ]] && in=./$in
+  local -a im=(magick) id=(magick identify)
+  (( $+commands[magick] )) || { im=(convert); id=(identify) }
+  (( $+commands[timeout] )) && im=(timeout 300 $im)
+  local ok=0 dims0 dims1
+  dims0=$($id -format '%wx%h' "${in}[0]" 2>/dev/null)
+  # the longest side of the new picture: smaller, never larger; an icon at most 256
+  local -i side=0 w=${dims0%x*} h=${dims0#*x}
+  side=$(( w > h ? w : h ))
+  (( max && max < side )) && side=max
+  [[ $key == ico ]] && (( side > 256 )) && side=256
+  args=(-auto-orient)
+  (( side )) && args+=(-resize "${side}x${side}>")
+  (( quality )) && args+=(-quality $quality)
+  [[ $key == (jpeg|bmp) ]] && args+=(-background white -alpha remove -alpha off)
+  [[ $key == ico ]] && (( side )) && args+=(-background none -gravity center -extent "${side}x${side}")
+  if [[ $key == webp ]] && ! _img_im_writes WEBP; then
+    # no WebP writer in ImageMagick: a PNG first, then cwebp
+    $im -limit memory 512MiB -limit map 512MiB -limit disk 2GiB "${in}[0]" $args PNG:"$tmp.png" >/dev/null 2>&1 &&
+      cwebp -quiet -q ${quality:-85} "$tmp.png" -o "$tmp" >/dev/null 2>&1 && ok=1
+    rm -f -- "$tmp.png"
+  else
+    $im -limit memory 512MiB -limit map 512MiB -limit disk 2GiB "${in}[0]" $args ${name[$key]}:"$tmp" >/dev/null 2>&1 && ok=1
+  fi
+  if (( ok )) && [[ -s $tmp ]] && zf_mv -f $tmp $out; then
+    local -i a=0 b=0
+    zstat -A st +size -- $in 2>/dev/null && a=$st[1]
+    zstat -A st +size -- $out 2>/dev/null && b=$st[1]
+    dims1=$($id -format '%wx%h' "${out}[0]" 2>/dev/null)
+    print -r -- "done $i $a $b ${dims0:-?x?} ${dims1:-?x?}"
+  else
+    rm -f -- $tmp
+    print -r -- "fail $i not an image $LOTUS_THIS can read"
+  fi
+}
+
 # Without the Command Line Tools: one image after another with sips (the orientation of photos is kept as a tag)
 img_sips() {   # <type> <quality> <max>
   local type=$1 fmt in out
@@ -410,20 +507,21 @@ img_sips() {   # <type> <quality> <max>
   esac
   for (( i = 1; i <= ${#IMG_IN}; i++ )); do
     in=$IMG_IN[i] out=$IMG_OUT[i]
+    [[ $in == -* ]] && in=./$in            # (sips takes "--" as the name of an operation, so there is no end of options)
     print -r -- "start $i"
     args=()
     if (( max )); then
-      ww=$(sips -g pixelWidth -- $in 2>/dev/null | awk '/pixelWidth/ { print $2 }')
-      hh=$(sips -g pixelHeight -- $in 2>/dev/null | awk '/pixelHeight/ { print $2 }')
+      ww=$(sips -g pixelWidth $in 2>/dev/null | awk '/pixelWidth/ { print $2 }')
+      hh=$(sips -g pixelHeight $in 2>/dev/null | awk '/pixelHeight/ { print $2 }')
       (( ww > max || hh > max )) && args+=(-Z $max)       # smaller, never larger
     fi
     if [[ $fmt == webp ]]; then
-      sips -s format png $args -- $in --out $out.lotus-tmp.png >/dev/null 2>&1 &&
+      sips -s format png $args $in --out $out.lotus-tmp.png >/dev/null 2>&1 &&
         cwebp -quiet -q ${quality:-85} $out.lotus-tmp.png -o $out.lotus-tmp >/dev/null 2>&1
       rm -f $out.lotus-tmp.png
     else
       (( quality )) && args+=(-s formatOptions $quality)
-      sips -s format $fmt $args -- $in --out $out.lotus-tmp >/dev/null 2>&1
+      sips -s format $fmt $args $in --out $out.lotus-tmp >/dev/null 2>&1
     fi
     if [[ -s $out.lotus-tmp ]] && zf_mv -f $out.lotus-tmp $out; then
       local -i a=0 b=0

@@ -282,8 +282,13 @@ _plg_exec() {
     (cd $dir && exec env -i $env $run $fixed[2,-1] "$@")
   else
     if ! lotus_os_sandbox_available; then
-      lotus_pkg_hint bwrap
-      print -u2 -r -- "lotus: the plugin $name runs in a sandbox and this system has none. Install it with: $REPLY"
+      # never run unprotected: a limited plugin that cannot be put in its sandbox does not run
+      if (( $+commands[bwrap] )); then
+        print -u2 -r -- "lotus: the plugin $name runs in a sandbox, and bubblewrap cannot start one here (this system does not allow user namespaces for you – common in containers and with some hardened kernels). A plugin that asks for full access can run after you allow it."
+      else
+        lotus_pkg_hint bwrap
+        print -u2 -r -- "lotus: the plugin $name runs in a sandbox and this system has none. Install it with: $REPLY"
+      fi
       return 126
     fi
     lotus_os_sandbox_wrap $dir $data $PLG[network] ${(f)LOTUS_PLUGIN_READ}

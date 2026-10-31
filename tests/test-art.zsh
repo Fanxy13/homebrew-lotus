@@ -3,6 +3,7 @@
 source $LOTUS_ROOT/lib/core.zsh
 lotus_load
 setopt extendedglob
+TMPDIR=${TMPDIR:-/tmp}        # a Mac always has one
 strip() { REPLY=${1//$'\e'\[[0-9;]#m/} }
 colors() {   # <text> → reply = the different front colors in it (38;…)
   local p
@@ -108,20 +109,22 @@ check "another color setting paints again" eval '[[ $(<$REPLY) != *"255;222;234"
 # ── Album cover: lib/cover.pl ─────────────────────────────────
 
 bmp $HOME/sq.bmp 2 2 '255;0;0' '0;255;0' '0;0;255' '255;255;255'
-out=$(/usr/bin/perl $LOTUS_ROOT/lib/cover.pl $HOME/sq.bmp 2 1 tc)
+out=$($LOTUS_PERL $LOTUS_ROOT/lib/cover.pl $HOME/sq.bmp 2 1 tc)
 check_eq "cover: two pixels per character, the top one behind, the bottom one in front" "$out" \
   $'\e[38;2;0;0;255;48;2;255;0;0m▄\e[38;2;255;255;255;48;2;0;255;0m▄\e[0m'
-out=$(/usr/bin/perl $LOTUS_ROOT/lib/cover.pl $HOME/sq.bmp 2 1 256)
+out=$($LOTUS_PERL $LOTUS_ROOT/lib/cover.pl $HOME/sq.bmp 2 1 256)
 check_eq "cover: 256 colors" "$out" $'\e[38;5;21;48;5;196m▄\e[38;5;231;48;5;46m▄\e[0m'
 bmp $HOME/wide.bmp 4 2 '10;10;10' '10;10;10' '10;10;10' '10;10;10' '200;200;200' '200;200;200' '200;200;200' '200;200;200'
-lines=("${(@f)$(/usr/bin/perl $LOTUS_ROOT/lib/cover.pl $HOME/wide.bmp 40 40 tc)}")
+lines=("${(@f)$($LOTUS_PERL $LOTUS_ROOT/lib/cover.pl $HOME/wide.bmp 40 40 tc)}")
 strip "$lines[1]"
 check_eq "cover: keeps the picture's shape (as big as fits)" "${#REPLY} × ${#lines}" "40 × 10"
-check "cover: no picture, no art" eval '! /usr/bin/perl $LOTUS_ROOT/lib/cover.pl $HOME/missing.bmp 4 4 tc'
+check "cover: no picture, no art" eval '! $LOTUS_PERL $LOTUS_ROOT/lib/cover.pl $HOME/missing.bmp 4 4 tc'
 
 # ── Album cover: from the player to the art ───────────────────
 
-sips -s format jpeg $HOME/sq.bmp --out $HOME/cover.jpeg >/dev/null 2>&1
+# a real JPEG: sips on a Mac, ImageMagick elsewhere
+if (( $+commands[sips] )); then sips -s format jpeg $HOME/sq.bmp --out $HOME/cover.jpeg >/dev/null 2>&1
+else magick $HOME/sq.bmp JPEG:$HOME/cover.jpeg >/dev/null 2>&1 || convert $HOME/sq.bmp JPEG:$HOME/cover.jpeg >/dev/null 2>&1; fi
 STATE=Playing
 lotus_cover_query() {   # instead of macOS: a song with the test cover
   local t=${TMPDIR%/}/ff_LOTUSTEST-$$.jpeg
@@ -136,6 +139,52 @@ check_has "the art keeps the cover's colors, not the theme's" "$(<$REPLY)" '38;2
 STATE=Paused
 check "paused: no cover" eval '! lotus_cover 48 24'
 check "paused: the cover from macOS is removed too" test ! -e ${TMPDIR%/}/ff_LOTUSTEST-$$.jpeg
+
+# Linux: what plays comes over MPRIS (playerctl); the cover is the picture the player names
+if [[ $TEST_OS == linux ]]; then
+  unfunction lotus_cover_query 2>/dev/null
+  lotus_cover_query() { lotus_os_media_cover }
+  zf_mkdir -p $HOME/fakebin
+  cat >| $HOME/fakebin/playerctl <<'FAKE'
+#!/bin/sh
+# prints what the test says is playing: status, title, artist, album, art address
+printf '%s\n%s\n%s\n%s\n%s\n' "$PLAYER_STATUS" "${PLAYER_TITLE:-Song}" "Artist" "Album" "$PLAYER_ART"
+FAKE
+  chmod +x $HOME/fakebin/playerctl
+  path=($HOME/fakebin $path)
+  zf_mkdir -p "$HOME/my music"
+  cp $HOME/cover.jpeg "$HOME/my music/cover é.jpg"
+  # a file address with spaces and an accent, percent-encoded as players write it
+  export PLAYER_STATUS=Playing PLAYER_ART="file://$HOME/my%20music/cover%20%C3%A9.jpg"
+  lotus_cover 48 24
+  check "MPRIS: the cover of the file the player names" test -s "$REPLY"
+  check_eq "MPRIS: a square cover fills the room" "$reply" "48 24"
+  check "MPRIS: the player's own file is not touched" test -s "$HOME/my music/cover é.jpg"
+  check "MPRIS: no copy is left behind" eval '[[ -z ${TMPDIR:-/tmp}/ff_*(#qN) ]]'
+  # something that is not a picture is never handed to an image program
+  print -r -- '<svg xmlns="http://www.w3.org/2000/svg"><rect width="9" height="9"/></svg>' >| "$HOME/my music/vector.svg"
+  export PLAYER_TITLE=Vector PLAYER_ART="file://$HOME/my%20music/vector.svg"     # another song: nothing cached for it
+  check "MPRIS: an SVG is not opened" eval '! lotus_cover 48 24'
+  print -r -- 'not a picture at all' >| "$HOME/my music/text.jpg"
+  export PLAYER_TITLE=Text PLAYER_ART="file://$HOME/my%20music/text.jpg"
+  check "MPRIS: a file that only has a picture's name is not opened" eval '! lotus_cover 48 24'
+  # an address that is not https is not fetched
+  export PLAYER_TITLE=Web PLAYER_ART="http://127.0.0.1:9/cover.jpg"
+  check "MPRIS: a plain http address is not fetched" eval '! lotus_cover 48 24'
+  export PLAYER_STATUS=Paused PLAYER_ART="file://$HOME/my%20music/cover%20%C3%A9.jpg"
+  check "MPRIS: paused: no cover" eval '! lotus_cover 48 24'
+  check "MPRIS: and no copy left" eval '[[ -z ${TMPDIR:-/tmp}/ff_*(#qN) ]]'
+  path=(${path:#$HOME/fakebin})
+  unset PLAYER_STATUS PLAYER_ART PLAYER_TITLE
+  # the test cover again for the checks below
+  unfunction lotus_cover_query
+  STATE=Playing
+  lotus_cover_query() {
+    local t=${TMPDIR%/}/ff_LOTUSTEST-$$.jpeg
+    cp $HOME/cover.jpeg $t
+    reply=($STATE "Song" "Artist" "Album" $t)
+  }
+fi
 
 # ── The start screen: which art, how big ──────────────────────
 

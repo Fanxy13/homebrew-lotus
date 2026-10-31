@@ -378,12 +378,141 @@ lotus_os_lan_ip() {
 # the caller must then ask before it deletes anything for good.
 lotus_os_trash() {
   local f
-  (( $+commands[gio] || $+commands[trash-put] || $+commands[kioclient5] )) || return 2
+  LOTUS_OS_TRASHED=
   for f in "$@"; do
     if   (( $+commands[gio] ));        then gio trash -- $f 2>/dev/null || return 1
     elif (( $+commands[trash-put] ));  then trash-put -- $f 2>/dev/null || return 1
-    else kioclient5 move $f trash:/ 2>/dev/null || return 1; fi
+    elif (( $+commands[kioclient5] )); then kioclient5 move $f trash:/ 2>/dev/null || return 1
+    else _lotus_os_trash_xdg $f || return $?; fi
   done
+}
+
+# The freedesktop.org Trash, written by Lotus itself when no trash program is installed – the one every file manager,
+# gio and trash-cli share: the file goes to ~/.local/share/Trash/files and a .trashinfo remembers where it came from, so
+# it can be put back. Only the trash of the home disk: a file on another disk is not copied over (status 3).
+#   _lotus_os_trash_xdg <path>     LOTUS_OS_TRASHED = where it is now
+_lotus_os_trash_xdg() {
+  local src=${1:A} home=${XDG_DATA_HOME:-$HOME/.local/share}/Trash name dest n=1 enc= ch
+  [[ -e $1 || -L $1 ]] || return 1
+  zf_mkdir -p -m 700 $home/files $home/info 2>/dev/null || return 1
+  local -A a b
+  zstat -H a $src 2>/dev/null; zstat -H b $home/files 2>/dev/null
+  [[ $a[device] == $b[device] ]] || return 3
+  name=${src:t}; dest=$name
+  while [[ -e $home/files/$dest || -L $home/files/$dest || -e $home/info/$dest.trashinfo ]]; do (( n++ )); dest=$name.$n; done
+  # the path as the specification wants it: percent-encoded bytes
+  {
+    local LC_ALL=C
+    for ch in ${(s::)src}; do
+      if [[ $ch == [A-Za-z0-9/._~-] ]]; then enc+=$ch; else enc+=$(printf '%%%02X' "'$ch"); fi
+    done
+  }
+  print -r -- "[Trash Info]"$'\n'"Path=$enc"$'\n'"DeletionDate=$(date +%Y-%m-%dT%H:%M:%S)" >| $home/info/$dest.trashinfo 2>/dev/null || return 1
+  if command mv -- $src $home/files/$dest 2>/dev/null; then
+    LOTUS_OS_TRASHED=$home/files/$dest
+    return 0
+  fi
+  # still there: whatever was copied goes again, nothing else changes
+  [[ -e $src ]] && rm -rf -- $home/files/$dest
+  rm -f -- $home/info/$dest.trashinfo
+  return 1
+}
+
+# perl for lib/cover.pl
+typeset -g LOTUS_PERL=${commands[perl]:-}
+
+# What kind of picture a file is, by its first bytes: jpeg, png, gif, webp or bmp → REPLY. Nothing else is opened: a cover
+# can come from a web page (browsers hand a page's artwork to the media controls), and image programs read far more
+# kinds of files than a cover is.
+_lotus_os_image_kind() {
+  local hex
+  hex=$(od -An -tx1 -N12 -- "$1" 2>/dev/null | tr -d ' \n')
+  REPLY=
+  case $hex in
+    ffd8ff*)                   REPLY=jpeg ;;
+    89504e470d0a1a0a*)         REPLY=png ;;
+    47494638*)                 REPLY=gif ;;
+    52494646????????57454250*) REPLY=webp ;;
+    424d*)                     REPLY=bmp ;;
+  esac
+  [[ -n $REPLY ]]
+}
+
+# ImageMagick with limits, reading only the kind of file it was told it is
+_lotus_os_magick() {
+  local -a im=(magick)
+  (( $+commands[magick] )) || im=(convert)
+  (( $+commands[timeout] )) && im=(timeout 20 $im)
+  $im -limit memory 256MiB -limit map 256MiB -limit disk 1GiB -limit area 64MP -limit time 15 "$@" >/dev/null 2>&1
+}
+
+# A picture as a 24-bit BMP, no bigger than <px> × <px> (lib/cover.pl turns it into terminal art). ImageMagick, else ffmpeg.
+lotus_os_image_bmp() {   # <src> <px> <out.bmp>
+  local src=$1
+  [[ $src == -* ]] && src=./$src
+  _lotus_os_image_kind $src || return 1
+  local kind=$REPLY
+  if   (( $+commands[magick] || $+commands[convert] )); then _lotus_os_magick ${kind:u}:"$src" -resize ${2}x${2} BMP3:"$3"
+  elif (( $+commands[ffmpeg] )); then
+    ffmpeg -v error -y -i "$src" -frames:v 1 -vf "scale='min($2,iw)':'min($2,ih)':force_original_aspect_ratio=decrease" -pix_fmt bgr24 -f image2 -c:v bmp "$3" >/dev/null 2>&1
+  else return 2; fi
+  [[ -s $3 ]]
+}
+
+# The middle square of a picture as a PNG of <size> × <size> (status 2: no image program)
+lotus_os_image_square() {   # <src> <size> <out.png>
+  local src=$1
+  [[ $src == -* ]] && src=./$src
+  _lotus_os_image_kind $src || return 1
+  local kind=$REPLY
+  if   (( $+commands[magick] || $+commands[convert] )); then _lotus_os_magick ${kind:u}:"$src" -resize ${2}x${2}^ -gravity center -extent ${2}x${2} PNG:"$3"
+  elif (( $+commands[ffmpeg] )); then
+    ffmpeg -v error -y -i "$src" -frames:v 1 -vf "crop='min(iw,ih)':'min(iw,ih)',scale=$2:$2" -f image2 -c:v png "$3" >/dev/null 2>&1
+  else return 2; fi
+  [[ -s $3 ]]
+}
+
+# What plays, and its cover → reply = (status title artist album cover-file); 1 = nothing. Over MPRIS (playerctl).
+# The cover is the picture the player names: a file on this computer, or an https address, which is fetched once
+# (kept per address in the cache) – nothing else. The cover file handed out is a new copy named ff_… that the
+# caller removes (lotus_cover in lib/art.zsh).
+lotus_os_media_cover() {
+  setopt localoptions extendedglob
+  reply=()
+  (( $+commands[playerctl] )) || return 1
+  local out
+  out=$(playerctl metadata --format $'{{status}}\n{{title}}\n{{artist}}\n{{album}}\n{{mpris:artUrl}}' 2>/dev/null) || return 1
+  local -a v=("${(@f)out}")
+  (( ${#v} >= 1 )) || return 1
+  local url=${v[5]} src= tmp
+  case $url in
+    file://*)
+      src=${url#file://}
+      src=${(g::)${src//\%/\\x}}                    # %41 → \x41 → A
+      ;;
+    https://*)
+      local -a sum=(${=$(print -rn -- $url | cksum)})
+      local dir=$LOTUS_CACHE/covers
+      local cache=$dir/src-$sum[1]
+      if [[ ! -s $cache ]] && (( $+commands[curl] )); then
+        zf_mkdir -p $dir
+        curl -fsSL -m 6 --max-filesize 8000000 --proto '=https' --proto-redir '=https' -o $cache.$$ -- $url 2>/dev/null \
+          && zf_mv -f $cache.$$ $cache || rm -f -- $cache.$$
+        local -a old=($dir/src-*(NOm[41,-1]))      # keep the newest 40
+        (( ${#old} )) && rm -f -- $old
+      fi
+      [[ -s $cache ]] && src=$cache
+      ;;
+  esac
+  local state=${v[1]:-Stopped}
+  if [[ -n $src && -f $src && -r $src ]]; then
+    tmp=$(mktemp "${TMPDIR:-/tmp}/ff_XXXXXXXX") || return 1
+    mv -- $tmp $tmp.img && tmp=$tmp.img || { rm -f -- $tmp; return 1 }      # lotus_cover only removes ff_<name>.<ext>
+    cp -- $src $tmp 2>/dev/null || { rm -f -- $tmp; return 1 }
+    reply=("$state" "${v[2]}" "${v[3]}" "${v[4]}" "$tmp")
+  else
+    reply=("$state" "${v[2]}" "${v[3]}" "${v[4]}" "")
+  fi
 }
 
 # A folder picker (zenity or kdialog) → REPLY = the path; status 1 when cancelled, 2 without a desktop or a picker

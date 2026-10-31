@@ -339,7 +339,9 @@ check "  all of them still there" eval '[[ -d $HOME/Minecraft/not-a-server && -e
 rm -f $HOME/Minecraft/link-to-server
 
 # from the control center: Settings → Delete server, the name typed, the running server stopped first
-mkdir -p $HOME/.Trash
+# (the Trash: ~/.Trash on a Mac, the freedesktop.org Trash elsewhere)
+tr=$HOME/.Trash; [[ $TEST_OS == linux ]] && tr=$HOME/.local/share/Trash/files
+mkdir -p $tr
 _mcc_init $S
 _mcc_start
 check "delete: a running server to delete" wait_for 5 ready
@@ -358,7 +360,11 @@ check "delete: while it runs, nothing is deleted" test -d $S
 check "delete: the server stops" wait_for 5 stopped
 _mcc_delete_now
 check "delete: the folder is gone from ~/Minecraft" test ! -e $S
-check "delete: it is in the Trash, with the world and the log" eval '[[ -e $HOME/.Trash/paper-1.21.4/start.command && -s $HOME/.Trash/paper-1.21.4/.lotus/console.log ]]'
+check "delete: it is in the Trash, with the world and the log" eval '[[ -e $tr/paper-1.21.4/start.command && -s $tr/paper-1.21.4/.lotus/console.log ]]'
+if [[ $TEST_OS == linux ]]; then
+  check_has "delete: the Trash remembers where it came from" "$(<$HOME/.local/share/Trash/info/paper-1.21.4.trashinfo)" "Path=$HOME/Minecraft/paper-1.21.4"
+  check_has "delete: and when" "$(<$HOME/.local/share/Trash/info/paper-1.21.4.trashinfo)" "DeletionDate="
+fi
 _mcc_deleted_text
 check_has "delete: says where it went" "$REPLY" "Trash"
 
@@ -368,15 +374,21 @@ _mcc_handle q
 check_eq "delete: q calls it off and stays" "$MCC_DELETE $MCC_LEAVE" "0 0"
 
 # a second server of the same name goes next to the first one in the Trash
-mkdir -p $S; cp $HOME/.Trash/paper-1.21.4/start.command $S/
+mkdir -p $S; cp $tr/paper-1.21.4/start.command $S/
 _mcc_trash $S
-check "delete: the same name again – both in the Trash" eval '[[ ! -e $S && -e $HOME/.Trash/paper-1.21.4 && -n $HOME/.Trash/paper-1.21.4\ 2*(#qN) ]]'
+if [[ $TEST_OS == macos ]]; then
+  check "delete: the same name again – both in the Trash" eval '[[ ! -e $S && -e $tr/paper-1.21.4 && -n $tr/paper-1.21.4\ 2*(#qN) ]]'
+else
+  check "delete: the same name again – both in the Trash" eval '[[ ! -e $S && -e $tr/paper-1.21.4 && -e $tr/paper-1.21.4.2 && -e $HOME/.local/share/Trash/info/paper-1.21.4.2.trashinfo ]]'
+fi
 
-# no Trash (not a Mac): removed
-rm -rf $HOME/.Trash
-mkdir -p $S; touch $S/start.command
-_mcc_trash $S
-check_eq "delete: without a Trash it is removed" "$(print -r -- $S(N))" ""
+# no Trash (not a Mac): removed. Elsewhere there is always one: Lotus writes the freedesktop.org Trash itself.
+if [[ $TEST_OS == macos ]]; then
+  rm -rf $HOME/.Trash
+  mkdir -p $S; touch $S/start.command
+  _mcc_trash $S
+  check_eq "delete: without a Trash it is removed" "$(print -r -- $S(N))" ""
+fi
 
 # a running server is never removed by _mcc_trash itself
 mkdir -p $S/.lotus; touch $S/start.command
@@ -394,7 +406,8 @@ lotus_mcc_delete $S < /dev/null > /dev/null 2>&1
 check "delete without a keyboard: nothing deleted" test -d $S
 
 # ── deleting: what the review found ──
-mkdir -p $HOME/.Trash
+rm -rf $tr; [[ $TEST_OS == linux ]] && rm -rf $HOME/.local/share/Trash/info     # an empty Trash again
+mkdir -p $tr
 newserver() { rm -rf $S; mkdir -p $S/.lotus $S/world; print -r -- $'#!/bin/zsh\nexit 0' > $S/start.command; chmod +x $S/start.command; print -r -- region > $S/world/r.mca }
 
 # a move into the Trash that fails deletes nothing (it used to fall back to rm -rf)
@@ -406,7 +419,10 @@ path=($HOME/fakebin $path)
 check "delete: a failing move is a failure" eval '! _mcc_trash $S'
 path=(${path:#$HOME/fakebin})
 check "  the server and its world are still there" test -s $S/world/r.mca
-check "  no half copy in the Trash" eval '[[ -z $HOME/.Trash/paper-1.21.4*(#qN) ]]'
+check "  no half copy in the Trash" eval '[[ -z $tr/paper-1.21.4*(#qN) ]]'
+if [[ $TEST_OS == linux ]]; then
+  check "  and no note about a file that is not there" eval '[[ -z $HOME/.local/share/Trash/info/paper-1.21.4*(#qN) ]]'
+fi
 check_has "  and it says nothing was deleted" "$MCP_ERR" "nothing was deleted"
 
 # stopped while still preparing: the whole process group of run.zsh ends, not only run.zsh

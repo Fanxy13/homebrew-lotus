@@ -1218,6 +1218,16 @@ struct LotusAI {
             await Stats.live(keys)
             RawMode.disable()
 
+        case "--classify":
+            // for the tests: would auto mode run this command without asking? Prints "ok", or why it asks
+            let here = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).standardizedFileURL
+            func resolved(_ p: String) -> URL {
+                URL(fileURLWithPath: (p as NSString).expandingTildeInPath, relativeTo: here).standardizedFileURL
+            }
+            let check = AutoCheck(inside: { p in let u = resolved(p).path; return u == here.path || u.hasPrefix(here.path + "/") },
+                                  isPrivate: { ToolRunner.isPrivate(resolved($0)) })
+            print(check.unsure(args.joined(separator: " ")) ?? "ok")
+
         case "--port-check":
             guard let port = args.first.flatMap({ Int($0) }), (1...65535).contains(port) else { exit(2) }
             print(Net.isFree(port, lan: args.dropFirst().first == "1") ? "free" : "used")

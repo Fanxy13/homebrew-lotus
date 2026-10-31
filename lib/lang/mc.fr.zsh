@@ -65,6 +65,7 @@ LOTUS_L+=(
   mc_opened 'Dossier ouvert dans le Finder'  mc_err_open 'Le dossier n’a pas pu être ouvert'
   mc_err_fifo 'Le tube de la console n’a pas pu être créé'  mc_err_cmd 'La commande n’a pas pu être envoyée – le serveur tourne ?'
   mc_err_nofile 'Pas un fichier : %s'  mc_err_sips 'Les icônes sont faites par sips de macOS – introuvable'
+  mc_err_imgtool 'Les icônes ont besoin d’un programme d’images : %s'
   mc_err_image '%s n’a pas pu être lu comme image'  mc_err_drop 'Rien n’a été ajouté'
   mc_err_remove 'Le plugin n’a pas pu être supprimé'  mc_err_search 'Modrinth ne répond pas – vérifie Internet'
   mc_still_stopping 'S’arrête encore – s le termine maintenant (le monde est enregistré)'
@@ -82,6 +83,7 @@ LOTUS_L+=(
   mc_del_notserver 'Seul un dossier de serveur directement dans %s peut être supprimé (pas de lien).'
   mc_del_busy 'Quelque chose du serveur tourne encore dans son dossier – arrête-le (ou ferme la fenêtre de start.command), puis supprime à nouveau.'
   mc_del_otherdisk 'Le serveur est sur un autre disque sans corbeille utilisable par Lotus – supprime son dossier dans le Finder.'
+  mc_del_otherdisk_linux 'Le serveur est sur un autre disque que ton dossier personnel, Lotus ne peut donc pas le mettre à la corbeille – supprime son dossier dans le gestionnaire de fichiers.'
   mc_del_nomove 'Il n’a pas pu être mis à la corbeille – rien n’a été supprimé.'
   mc_del_norm 'Le dossier n’a pas pu être supprimé : %s'
 )

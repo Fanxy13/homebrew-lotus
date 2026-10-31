@@ -325,6 +325,8 @@ struct AutoCheck {
         "unset", "cd", "pushd", "popd", "shift", "return", "exit", "wait", "read", ":", "vm_stat",
         "iostat", "ps", "pgrep", "top", "lsof", "netstat", "ping", "dig", "nslookup", "host", "whois", "traceroute",
         "system_profiler", "ioreg", "getconf", "ulimit", "tty", "stty", "fc", "hash", "rehash",
+        // Linux: the same questions the Mac answers with sw_vers, vm_stat and system_profiler
+        "lsb_release", "free", "lscpu", "lsblk", "lsusb", "lspci", "lsmod", "who", "w", "last", "ss", "vmstat", "getent", "nproc",
     ]
     private static let readers: Set<String> = [
         "ls", "cat", "head", "tail", "wc", "grep", "egrep", "fgrep", "rg", "ag", "ack", "file", "stat", "du", "df", "tree",
@@ -332,6 +334,7 @@ struct AutoCheck {
         "sha1sum", "sha256sum", "md5sum", "cksum", "otool", "nm", "lipo", "size", "mdls", "mdfind", "column", "fold", "nl",
         "paste", "rev", "tac", "expand", "unexpand", "iconv", "base64", "less", "more", "bat", "realpath", "readlink",
         "look", "fmt", "pr", "zipinfo", "zcat", "gzcat", "bzcat", "xzcat", "diff3", "sdiff", "wc", "afinfo", "sips",
+        "lsattr", "getfacl", "readelf", "objdump", "sha512sum", "b2sum", "numfmt", "zgrep", "zless",
     ]
     private static let interpreters: Set<String> = ["python", "python3", "node", "ruby", "perl", "php", "bash", "sh", "zsh", "dash", "deno", "bun", "lua", "Rscript", "swift"]
     private static let builders: Set<String> = [
@@ -403,8 +406,43 @@ struct AutoCheck {
             return program(ArraySlice(args.filter { $0.text.contains("=") } + [Word(text: "true", expands: false)]), depth, fed: false)
         case "tee":
             return changesAll(args)
-        case "pbpaste":
+        case "pbpaste", "wl-paste":
             return "it reads your clipboard"
+        case "xclip", "xsel":
+            return has(args, ["-o", "-out", "--output"]) ? "it reads your clipboard" : "it changes your clipboard"
+        case "wl-copy", "pbcopy":
+            return "it changes your clipboard"
+        case "systemctl":
+            let sub = AutoCheck.operands(args).first?.text ?? ""
+            let read: Set<String> = ["status", "is-active", "is-enabled", "is-failed", "show", "cat", "list-units", "list-unit-files", "list-sockets",
+                                     "list-timers", "list-dependencies", "get-default", "help", ""]
+            return read.contains(sub) ? nil : "it starts, stops or changes services (systemctl \(sub))"
+        case "hostnamectl", "timedatectl", "localectl", "loginctl", "resolvectl", "networkctl":
+            let sub = AutoCheck.operands(args).first?.text ?? ""
+            let read: Set<String> = ["", "status", "show", "list", "list-sessions", "list-users", "list-timezones", "list-locales", "statistics", "query", "dns", "domain"]
+            return read.contains(sub) ? nil : "it changes system settings (\(name) \(sub))"
+        case "journalctl":
+            return has(args, ["--vacuum-size", "--vacuum-time", "--vacuum-files", "--rotate", "--flush", "--sync", "--relinquish-var"]) ? "it deletes or rotates logs" : nil
+        case "dmesg":
+            return has(args, ["-C", "--clear", "-c", "--read-clear", "-n", "--console-level"]) ? "it changes the kernel log" : nil
+        case "ip":
+            // "ip addr" and "ip link show" look; "ip link set …" and "ip route add …" change the network
+            let ops = AutoCheck.operands(args).map(\.text)
+            let change: Set<String> = ["add", "del", "delete", "set", "flush", "change", "replace", "append", "prepend", "test", "save", "restore", "exec"]
+            return ops.dropFirst().contains(where: { change.contains($0) }) ? "it changes the network" : nil
+        case "gsettings", "dconf":
+            let sub = AutoCheck.operands(args).first?.text ?? ""
+            let read: Set<String> = ["get", "list-schemas", "list-relocatable-schemas", "list-keys", "list-children", "list-recursively", "range",
+                                     "describe", "writable", "monitor", "read", "list", "dump", "watch", "help"]
+            return read.contains(sub) ? nil : "it changes settings of this computer"
+        case "crontab":
+            return has(args, ["-l"]) ? nil : "it changes your scheduled tasks"
+        case "notify-send":
+            return "it shows a message on your screen"
+        case "apt-cache":
+            return nil
+        case "apt", "apt-get", "dpkg", "dnf", "yum", "rpm", "pacman", "zypper", "apk", "snap", "flatpak":
+            return packageManager(name, args)
         case "eval", "exec", "source", ".", "alias", "trap", "function", "autoload", "zmodload", "nohup", "disown", "watch":
             return "it runs code Lotus cannot see"
         case "curl", "wget", "http", "xh":
@@ -449,8 +487,9 @@ struct AutoCheck {
             if ["swift", "swiftc", "clang", "clang++", "xctest", "lipo", "otool", "nm", "size", "strip", "actool", "ibtool", "metal", "metallib"].contains(sub) || has(args, ["--show-sdk-path", "--find", "--show-sdk-version", "-f"]) { return nil }
             if sub == "simctl" { return ["list", "help"].contains(AutoCheck.operands(args).dropFirst().first?.text ?? "") ? nil : "it changes simulators" }
             return "Lotus does not know xcrun \(sub)"
-        case "open":
-            let ops = AutoCheck.operands(args)
+        case "open", "xdg-open", "gio", "sensible-browser", "gnome-open", "kde-open":
+            if name == "gio", AutoCheck.operands(args).first?.text != "open" { return looksAll(args) }
+            let ops = name == "gio" ? Array(AutoCheck.operands(args).dropFirst()) : AutoCheck.operands(args)
             if args.count == ops.count, !ops.isEmpty, ops.allSatisfy({ $0.text.hasPrefix("http://") || $0.text.hasPrefix("https://") || looks($0) == nil }) { return nil }
             return "it opens something on your screen"
         case "osascript", "shortcuts", "automator":
@@ -463,6 +502,30 @@ struct AutoCheck {
         if AutoCheck.interpreters.contains(name) { return interpreter(name, args, depth, fed: fed) }
         if AutoCheck.builders.contains(name) { return builder(name, args) }
         return "Lotus does not know \(name)"
+    }
+
+    // Package managers: asking what is installed or available looks; everything else changes the software
+    private func packageManager(_ name: String, _ args: [Word]) -> String? {
+        let ops = AutoCheck.operands(args).map(\.text)
+        let sub = ops.first ?? ""
+        let flags = args.map(\.text).filter { $0.hasPrefix("-") }
+        let read: Bool
+        switch name {
+        case "apt":     read = ["list", "search", "show", "policy", "depends", "rdepends", "showpkg", "madison", "--version", "-v", ""].contains(sub)
+        case "apt-get": read = flags.contains(where: { ["--version", "-s", "--simulate", "--just-print", "--dry-run"].contains($0) }) || sub == "check"
+        case "dpkg":    read = flags.contains(where: { ["-l", "--list", "-L", "--listfiles", "-s", "--status", "-S", "--search", "-p", "--print-avail",
+                                                       "--get-selections", "--version", "--print-architecture", "-C", "--audit"].contains($0) })
+        case "dnf", "yum":  read = ["list", "info", "search", "provides", "repolist", "repoquery", "check-update", "deplist", "version", "--version", "help", ""].contains(sub)
+            || (sub == "history" && ["list", "info"].contains(ops.dropFirst().first ?? "list"))
+        case "rpm":     read = flags.contains(where: { $0.hasPrefix("-q") || $0.hasPrefix("--query") || $0 == "--version" || $0 == "--showrc" })
+        case "pacman":  read = flags.contains(where: { $0.hasPrefix("-Q") || ["-Ss", "-Si", "-Sl", "-Sg", "-Fl", "-Fx", "-Ql", "--version", "-V", "-h"].contains($0) })
+        case "zypper":  read = ["search", "se", "info", "if", "list-updates", "lu", "repos", "lr", "packages", "pa", "patches", "pch", "--version", ""].contains(sub)
+        case "apk":     read = ["info", "search", "list", "policy", "version", "--version"].contains(sub)
+        case "snap":    read = ["list", "info", "find", "version", "services", "changes", "connections", "interfaces", "--version", ""].contains(sub)
+        case "flatpak": read = ["list", "info", "search", "remote-ls", "remotes", "history", "--version", ""].contains(sub)
+        default:        read = false
+        }
+        return read ? nil : "it changes the software on this computer (\(name) \(sub))"
     }
 
     private static func rest(_ args: [Word], after sub: String) -> String {

@@ -65,6 +65,7 @@ LOTUS_L+=(
   mc_opened 'Ordner im Finder geöffnet'  mc_err_open 'Der Ordner konnte nicht geöffnet werden'
   mc_err_fifo 'Die Konsolen-Pipe konnte nicht angelegt werden'  mc_err_cmd 'Der Befehl konnte nicht gesendet werden – läuft der Server?'
   mc_err_nofile 'Keine Datei: %s'  mc_err_sips 'Bilder macht macOS’ sips – nicht gefunden'
+  mc_err_imgtool 'Für Icons braucht Lotus ein Bildprogramm: %s'
   mc_err_image '%s konnte nicht als Bild gelesen werden'  mc_err_drop 'Nichts wurde hinzugefügt'
   mc_err_remove 'Das Plugin konnte nicht entfernt werden'  mc_err_search 'Modrinth antwortet nicht – ist das Internet da?'
   mc_still_stopping 'Stoppt noch – s beendet ihn jetzt (die Welt wird gespeichert)'
@@ -82,6 +83,7 @@ LOTUS_L+=(
   mc_del_notserver 'Gelöscht werden kann nur ein Serverordner direkt in %s (kein Link).'
   mc_del_busy 'In seinem Ordner läuft noch etwas vom Server – stoppe es (oder schließe das start.command-Fenster) und lösche dann noch einmal.'
   mc_del_otherdisk 'Der Server liegt auf einem anderen Laufwerk ohne Papierkorb, den Lotus nutzen kann – lösche seinen Ordner im Finder.'
+  mc_del_otherdisk_linux 'Der Server liegt auf einem anderen Laufwerk als dein Home-Ordner, deshalb kann Lotus ihn nicht in den Papierkorb legen – lösche seinen Ordner im Dateimanager.'
   mc_del_nomove 'Er konnte nicht in den Papierkorb gelegt werden – nichts wurde gelöscht.'
   mc_del_norm 'Der Ordner konnte nicht entfernt werden: %s'
 )
