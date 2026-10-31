@@ -4,7 +4,7 @@ ENV LANG=C.UTF-8
 RUN dnf -y install --setopt=install_weak_deps=False \
       zsh bash python3 python3-pip curl git jq ca-certificates procps-ng util-linux vim-common file perl \
       ImageMagick ffmpeg-free bubblewrap playerctl xclip wl-clipboard libnotify libsecret unzip zip sudo \
-      java-21-openjdk-headless findutils which chromium \
+      java-21-openjdk-headless findutils which chromium util-linux-script \
     && dnf clean all
 COPY data/vendor.tsv /tmp/vendor.tsv
 RUN set -e; case $(uname -m) in aarch64) p=linux-aarch64;; *) p=linux-amd64;; esac; \
