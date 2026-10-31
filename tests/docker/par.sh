@@ -21,3 +21,6 @@ for n in $names; do
   pass=$((pass + ${p:-0})); fail=$((fail + ${f:-0}))
 done
 echo "TOTAL $pass passed, $fail failed  (logs: $out)"
+# a test file that printed no result counts as failed too
+for n in $names; do grep -qE '^[0-9]+ passed, [0-9]+ failed' "$out/$n.log" || fail=$((fail + 1)); done
+[ "$fail" -eq 0 ]

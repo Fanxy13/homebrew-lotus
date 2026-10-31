@@ -1,0 +1,50 @@
+# Builds the AI program for the systems that have no Swift compiler to build it themselves, for a release:
+# one static file per system, gzipped, with the sha256 of the program itself – the digest that data/vendor.tsv pins and
+# that `lotus` checks before it runs a download. Run it for a tag (or by hand); the files are workflow artifacts, the
+# release itself is made by the maintainer, who also commits the digests (the second commit of a release).
+name: Build the AI program
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/lotus-dev/swift-sdk
+          key: swift-static-sdk-6.1
+      - name: Build
+        run: |
+          mkdir -p ~/.local/share/lotus-dev/swift-sdk
+          tests/docker/swift-static.sh ${{ matrix.arch }}
+      - name: Compress and write the digest line for data/vendor.tsv
+        run: |
+          cd tests/docker/.build
+          f=lotus-ai-linux-${{ matrix.arch }}
+          sha=$(sha256sum "$f" | cut -d' ' -f1)
+          gzip -9 -k -n "$f"
+          version=$(sed -n 's/^typeset -g LOTUS_VERSION=//p' ../../../lib/core.zsh)
+          url="https://github.com/${{ github.repository }}/releases/download/v${version}/${f}.gz"
+          printf 'lotus-ai\t%s\tlinux-%s\t%s\t%s\n' "$version" "${{ matrix.arch }}" "$url" "$sha" | tee "$f.vendor-line"
+          { echo '### vendor.tsv'; echo '```'; cat "$f.vendor-line"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lotus-ai-linux-${{ matrix.arch }}
+          path: |
+            tests/docker/.build/lotus-ai-linux-${{ matrix.arch }}.gz
+            tests/docker/.build/lotus-ai-linux-${{ matrix.arch }}.vendor-line

@@ -1,0 +1,115 @@
+# Lotus' tests on every system it supports: macOS (Apple silicon, and Intel where a runner exists), four Linux
+# distributions in containers (Ubuntu, Debian, Fedora, Arch – each test file in a container of its own, the sandbox tests
+# with a privileged one), and Windows 11 with PowerShell 7 once the Windows module (win/) is in the repository.
+# The AI program for Linux is built once as one static file (Swift's Static Linux SDK) and handed to the containers, the way
+# a release carries it (LOTUS_PREBUILT_DIR).
+name: Tests
+
+on:
+  push:
+    branches: [main, v3]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-latest, macos-15-intel]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tools the tests use
+        run: brew install fastfetch jq
+      - name: The Swift compiler (the AI program is built from source on a Mac)
+        run: xcrun swiftc --version && sw_vers
+      - name: The AI program type-checks
+        run: xcrun swiftc -typecheck -parse-as-library -swift-version 5 lib/ai/*.swift
+      - name: Tests
+        run: zsh tests/run.zsh
+
+  ai-linux:
+    name: AI program for Linux (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/lotus-dev/swift-sdk
+          key: swift-static-sdk-6.1
+      - name: Build the static program
+        run: |
+          mkdir -p ~/.local/share/lotus-dev/swift-sdk
+          tests/docker/swift-static.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lotus-ai-linux-${{ matrix.arch }}
+          path: tests/docker/.build/lotus-ai-linux-${{ matrix.arch }}
+
+  linux:
+    name: ${{ matrix.distro }}
+    needs: ai-linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu, debian, fedora, arch]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: lotus-ai-linux-x86_64
+          path: tests/docker/.build
+      - run: chmod +x tests/docker/.build/lotus-ai-linux-x86_64
+      - name: Build the test image
+        run: |
+          platform=; [ "${{ matrix.distro }}" = arch ] && platform="--platform linux/amd64"
+          docker build $platform -q -f tests/docker/${{ matrix.distro }}.Dockerfile -t lotus-test:${{ matrix.distro }} .
+      - name: Tests (privileged, so that the plugin sandbox can be tested)
+        run: LOTUS_TEST_PRIV=1 tests/docker/par.sh ${{ matrix.distro }}
+
+  windows:
+    name: Windows (PowerShell 7)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Is there a Windows module yet?
+        id: win
+        shell: pwsh
+        run: |
+          $has = Test-Path win/Lotus.psd1
+          "present=$($has.ToString().ToLower())" | Out-File -Append $env:GITHUB_OUTPUT
+          if (-not $has) { Write-Host 'win/Lotus.psd1 is not in the repository yet - nothing to test.' }
+      - name: Tests
+        if: steps.win.outputs.present == 'true'
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.5 -Force -SkipPublisherCheck -Scope CurrentUser
+          Invoke-Pester -Path win/tests -CI -Output Detailed
+
+  site:
+    name: Website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Every link and file of the site exists, no emoji
+        run: |
+          if [ -f scripts/check-site.py ]; then python3 scripts/check-site.py; else echo "scripts/check-site.py is not there yet"; fi
