@@ -2,7 +2,7 @@
 #
 # Commands never call osascript, open, pbcopy, caffeinate, sips or security directly: they call the lotus_os_* and
 # lotus_pkg_* functions below, and this file loads the implementations of the system Lotus runs on
-# (lib/platform/darwin.zsh, lib/platform/linux.zsh; Windows has its own module in win/).
+# (lib/platform/macos.zsh, lib/platform/linux.zsh; Windows has its own module in win/).
 #
 # A function that a system cannot offer returns status 2 and prints nothing. The caller says in words what is
 # not possible here – nothing is silently skipped, nothing is faked. dev/3.0/ARCHITECTURE.md has the contract.

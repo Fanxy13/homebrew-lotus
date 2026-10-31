@@ -15,7 +15,7 @@ Constraint: macOS keeps working exactly as it does today (860+ checks stay green
  ───────────────────────────────────────────────────────────────────────────────────────────────────────
    macOS                          Linux                              Windows
    zsh core  (bin/lotus)          zsh core  (the same files)         PowerShell 7 module (win/)
-   lib/platform/darwin.zsh        lib/platform/linux.zsh             win/Private/Platform*.ps1
+   lib/platform/macos.zsh        lib/platform/linux.zsh             win/Private/Platform*.ps1
    adapter: init.zsh              adapters: init.zsh, init.bash      adapter: $PROFILE block (PSReadLine)
    Homebrew, cask                 apt dnf pacman zypper flatpak ...  winget, Scoop, Chocolatey
 ```
@@ -43,7 +43,7 @@ fish gets an adapter later if there is demand (a conf.d snippet).
 bin/lotus                      zsh entry (macOS, Linux) – unchanged name and behavior
 bin/lotus.ps1, bin/lotus.cmd   Windows entry (shim for the PowerShell module)
 lib/platform.zsh               detection, then loads one of:
-lib/platform/darwin.zsh        macOS implementations of the lotus_os_* / lotus_pkg_* functions
+lib/platform/macos.zsh        macOS implementations of the lotus_os_* / lotus_pkg_* functions
 lib/platform/linux.zsh         Linux implementations
 lib/platform/common.zsh        what is the same (validation, version compare, sha256 wrapper)
 lib/init.zsh, lib/init.bash    shell adapters
@@ -102,7 +102,7 @@ Nothing is silently skipped.
 | `lotus_os_lan_ip` | `ipconfig getifaddr` | `hostname -I`, `ip route` | `Get-NetIPAddress` |
 | `lotus_os_trash <path>` | `trash` / Finder | `gio trash`, `trash-put` | Recycle Bin |
 | `lotus_os_proc_cwd <pid>`, `lotus_os_proc_list` | `lsof`, `ps` | `/proc/<pid>/cwd`, `ps` | `Get-CimInstance Win32_Process` |
-| `lotus_os_sandbox_run <profile> <cmd…>` | `sandbox-exec` | `bwrap` | none (see §9) |
+| `lotus_os_sandbox_wrap <profile> <cmd…>` | `sandbox-exec` | `bwrap` | none (see §9) |
 | `lotus_os_image_engine` | ImageIO helper, `sips` | `magick`, `vips`, `ffmpeg` | `magick`, WIC, `ffmpeg` |
 | `lotus_os_java <min-version>` | `java_home` | `JAVA_HOME`, `update-alternatives`, `/usr/lib/jvm` | registry, `JAVA_HOME` |
 | `lotus_os_startup <on\|off\|status>` | LaunchAgent | systemd user unit, XDG autostart | Startup folder shortcut |
