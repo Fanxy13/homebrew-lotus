@@ -420,7 +420,7 @@ lotus_os_java() {
   local -a homes=() ok=()
   [[ -n $JAVA_HOME ]] && homes+=($JAVA_HOME)
   (( $+commands[java] )) && homes+=(${${${commands[java]:A}:h}:h})
-  homes+=(/usr/lib/jvm/*(N-/) /usr/lib64/jvm/*(N-/) /usr/java/*(N-/) /opt/java/*(N-/) ${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/*(N-/))
+  homes+=(/usr/lib/jvm/*(N-/) /usr/lib64/jvm/*(N-/) /usr/java/*(N-/) /opt/java/*(N-/) ${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/*(N-/) $LOTUS_DATA/java/*(N-/))
   local -A seen=()
   for h in $homes; do
     h=${h:A}
@@ -450,6 +450,71 @@ lotus_os_proc_cwds() {
     zstat -A l +link $d/cwd 2>/dev/null || continue
     print -r -- "$pid"$'\t'"$l[1]"
   done 2>/dev/null
+}
+
+# The package of Java <major> for the system's package manager → REPLY (status 1: this manager does not know it)
+# The whole JDK, not only the runtime: the Paper bridge (ping and TPS) is built with javac
+lotus_os_java_package() {
+  case $LOTUS_PKG in
+    apt)    REPLY=openjdk-$1-jdk-headless ;;
+    dnf|zypper) REPLY=java-$1-openjdk-devel ;;
+    pacman) REPLY=jdk$1-openjdk ;;
+    apk)    REPLY=openjdk$1-jdk ;;
+    *)      REPLY=; return 1 ;;
+  esac
+}
+
+# Eclipse Temurin for the user, from adoptium.net, into Lotus' own folder (no administrator rights; the checksum from
+# the same API is checked before anything is unpacked) → $LOTUS_DATA/java/<major>
+lotus_java_fetch() {   # <major>
+  setopt localoptions extendedglob
+  local major=$1 arch os=linux row url want size tmp
+  [[ $major == <8-99> ]] || return 2
+  case $LOTUS_ARCH in arm64) arch=aarch64 ;; *) arch=x64 ;; esac
+  [[ $LOTUS_DISTRO == alpine ]] && os=alpine-linux
+  ui_step "Looking up Eclipse Temurin $major …"
+  row=$(curl -fsSL -m 20 "https://api.adoptium.net/v3/assets/latest/$major/hotspot?architecture=$arch&image_type=jdk&os=$os&vendor=eclipse" 2>/dev/null \
+        | lotus_jq -r '.[0].binary.package | [.link, .checksum, .size] | @tsv' 2>/dev/null)
+  [[ -n $row ]] || { ui_error "Temurin $major was not found for this system" "adoptium.net did not list a build for $os/$arch." "Install a JDK with your package manager."; return 1 }
+  url=${row%%$'\t'*}; row=${row#*$'\t'}; want=${row%%$'\t'*}; size=${row#*$'\t'}
+  [[ $url == https://github.com/adoptium/*.tar.gz && $want == [0-9a-f](#c64) ]] || { ui_error "Unexpected answer from adoptium.net" "$url"; return 1 }
+  zf_mkdir -p $LOTUS_DATA/java $LOTUS_CACHE
+  tmp=$LOTUS_CACHE/java-$major.tar.gz
+  ui_dim "From: github.com/adoptium · $(( size / 1048576 )) MB"
+  curl -fL --progress-bar -o $tmp $url || { rm -f $tmp; ui_error "The download failed"; return 1 }
+  lotus_os_sha256 $tmp
+  if [[ $REPLY != $want ]]; then rm -f $tmp; ui_error "Checksum mismatch" "The download was damaged or changed." "Nothing was installed."; return 1; fi
+  ui_success "Checksum verified"
+  rm -rf $LOTUS_DATA/java/$major
+  zf_mkdir -p $LOTUS_DATA/java/$major
+  tar -xzf $tmp -C $LOTUS_DATA/java/$major --strip-components=1 || { rm -rf $LOTUS_DATA/java/$major $tmp; ui_error "The download could not be unpacked"; return 1 }
+  rm -f $tmp
+  [[ -x $LOTUS_DATA/java/$major/bin/java ]] || { ui_error "Java is not in the download"; return 1 }
+  lotus_log INFO java "Temurin $major in ${LOTUS_DATA/#$HOME/~}/java/$major"
+  ui_success "Java $major is ready in ${LOTUS_DATA/#$HOME/~}/java/$major"
+}
+
+# Processes of this user that run in <dir> or below it → lines "pid<TAB>command line" (from /proc)
+lotus_os_proc_in() {
+  setopt localoptions extendedglob
+  local dir=${1:A} d pid cwd args
+  local -a l u
+  for d in /proc/<->(N/); do
+    pid=${d:t}
+    zstat -A u +uid $d 2>/dev/null && [[ $u[1] == ${UID:-$(id -u)} ]] || continue
+    zstat -A l +link $d/cwd 2>/dev/null || continue
+    cwd=$l[1]
+    [[ $cwd == $dir || $cwd == $dir/* ]] || continue
+    args=$(tr '\0' ' ' < $d/cmdline 2>/dev/null)
+    print -r -- "$pid"$'\t'"${args% }"
+  done 2>/dev/null
+}
+
+# Keeps the system awake for as long as the process <pid> runs (an inhibitor lock held by a small waiting loop)
+lotus_os_awake_while() {
+  (( $+commands[systemd-inhibit] )) || return 2
+  nohup systemd-inhibit --what=idle:sleep --who=Lotus --why="A Minecraft server is running" --mode=block \
+    sh -c 'while kill -0 "$0" 2>/dev/null; do sleep 5; done' $1 >/dev/null 2>&1 &!
 }
 
 # ── Sandbox for plugins ───────────────────────────────────────

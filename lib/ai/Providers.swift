@@ -2,6 +2,9 @@
 // Each provider keeps the conversation in its own format and runs the tool loop for one message.
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 struct Turn: Codable {
     var role: String      // "user" or "assistant"
@@ -45,7 +48,7 @@ enum LocalServer {
         Spinner.shared.start("Starting the model on this Mac again")
         defer { Spinner.shared.stop() }
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        p.executableURL = URL(fileURLWithPath: Host.zsh)
         p.arguments = ["-fc", #"setopt extendedglob; source "$1/lib/core.zsh" && source "$1/lib/ui.zsh" && lotus_load && source "$1/lib/cmd/ai.zsh" && { zmodload zsh/zselect 2>/dev/null; _llm_restart }"#, "lotus", root]
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
@@ -106,7 +109,9 @@ enum HTTP {
         let c = URLSessionConfiguration.ephemeral
         c.timeoutIntervalForRequest = 600
         c.timeoutIntervalForResource = 7200
+        #if canImport(Darwin)
         c.waitsForConnectivity = false
+        #endif
         return URLSession(configuration: c)
     }()
 
@@ -170,8 +175,8 @@ enum HTTP {
     }
 
     // Opens a streaming request; non-2xx answers come back as (status, body)
-    static func open(_ req: URLRequest) async throws -> (URLSession.AsyncBytes, Int, String) {
-        let (bytes, response) = try await session.bytes(for: req)
+    static func open(_ req: URLRequest) async throws -> (StreamedBytes, Int, String) {
+        let (bytes, response) = try await openStream(session, req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         if (200..<300).contains(status) { return (bytes, status, "") }
         var body = Data()
@@ -364,7 +369,7 @@ final class ClaudeProvider: Provider {
         var attempt = 0
         while true {
             let req = HTTP.request(url, body: HTTP.json(body), headers: headers)
-            let bytes: URLSession.AsyncBytes, status: Int, errBody: String
+            let bytes: StreamedBytes, status: Int, errBody: String
             do {
                 (bytes, status, errBody) = try await HTTP.open(req)
             } catch {
@@ -397,7 +402,7 @@ final class ClaudeProvider: Provider {
         }
     }
 
-    private func read(_ bytes: URLSession.AsyncBytes, render: Bool) async throws -> Reply {
+    private func read(_ bytes: StreamedBytes, render: Bool) async throws -> Reply {
         var reply = Reply()
         var blocks: [Int: [String: Any]] = [:]
         var json: [Int: String] = [:]
@@ -618,7 +623,7 @@ final class OllamaProvider: Provider {
         let url = base.appendingPathComponent("api/chat")
         while true {
             let req = HTTP.request(url, body: HTTP.json(body(msgs, tools: tools, think: think)), headers: [:])
-            let bytes: URLSession.AsyncBytes, status: Int, errBody: String
+            let bytes: StreamedBytes, status: Int, errBody: String
             do {
                 (bytes, status, errBody) = try await HTTP.open(req)
             } catch {
@@ -850,7 +855,7 @@ final class OpenAIProvider: Provider {
                 }
             }
             let req = HTTP.request(url, body: HTTP.json(b), headers: ["Authorization": "Bearer \(key)"])
-            let bytes: URLSession.AsyncBytes, status: Int, errBody: String
+            let bytes: StreamedBytes, status: Int, errBody: String
             let asked = Date()       // for /performance: a model server on this Mac reads the prompt before it answers
             let awake = Awake.clocks()   // and whether the Mac slept meanwhile (lid closed) – that time is not the model's
             do {
@@ -903,7 +908,7 @@ final class OpenAIProvider: Provider {
                     if !stop && n > nextCheck { nextCheck = n + 3000; stop = OpenAIProvider.circles(reply.thoughts); circled = stop }
                     if stop {
                         Log.write("INFO", "The AI thought \(n) characters without acting\(n > thinkLimit ? "" : " and went in circles") – stopped it")
-                        bytes.task.cancel()
+                        bytes.cancel()
                         reply.finish = "overthought"
                         ended = true
                         break

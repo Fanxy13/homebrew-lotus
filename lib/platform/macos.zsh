@@ -204,6 +204,23 @@ lotus_os_proc_cwds() {
   done
 }
 
+# The package of Java <major>: a Homebrew cask (Eclipse Temurin) → REPLY = "cask temurin"
+lotus_os_java_package() { REPLY="cask temurin" }
+
+# Processes of this user that run in <dir> or below it → lines "pid<TAB>command line"
+lotus_os_proc_in() {
+  local dir=${1:A} line pid=
+  (( $+commands[lsof] )) || return 1
+  for line in "${(@f)$(lsof -a -u ${UID:-$(id -u)} -d cwd -Fpn 2>/dev/null)}"; do
+    [[ $line == p* ]] && { pid=${line#p}; continue }
+    [[ $line == n* && ( ${line#n} == $dir || ${line#n} == $dir/* ) ]] || continue
+    print -r -- "$pid"$'\t'"$(ps -o args= -p $pid 2>/dev/null)"
+  done
+}
+
+# Keeps the Mac awake for as long as the process <pid> runs
+lotus_os_awake_while() { (( $+commands[caffeinate] )) && caffeinate -i -w $1 >/dev/null 2>&1 &! }
+
 # ── Sandbox for plugins ───────────────────────────────────────
 
 lotus_os_sandbox_available() { [[ -x /usr/bin/sandbox-exec ]] }

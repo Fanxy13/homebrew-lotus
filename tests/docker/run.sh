@@ -12,4 +12,4 @@ if [ -z "$(docker images -q $image)" ] || [ -n "$LOTUS_REBUILD" ]; then
   docker build $platform -q -f "$root/tests/docker/$distro.Dockerfile" -t $image "$root" >/dev/null
 fi
 priv=; [ -n "$LOTUS_TEST_PRIV" ] && priv="--privileged -u root"
-exec docker run --rm $platform $priv -v "$root":/lotus:ro $image zsh tests/run.zsh "$@"
+exec docker run --rm $platform $priv -e LOTUS_PREBUILT_DIR=/lotus/tests/docker/.build -e LOTUS_PAGE_NOSANDBOX=1 -v "$root":/lotus:ro $image zsh tests/run.zsh "$@"

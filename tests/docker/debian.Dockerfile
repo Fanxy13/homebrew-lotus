@@ -3,8 +3,8 @@ FROM debian:12
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
       zsh bash python3 python3-venv curl git jq ca-certificates locales procps util-linux xxd file perl \
-      imagemagick ffmpeg bubblewrap playerctl xclip wl-clipboard libnotify-bin libsecret-tools unzip sudo \
-      openjdk-17-jre-headless \
+      imagemagick ffmpeg bubblewrap playerctl xclip wl-clipboard libnotify-bin libsecret-tools unzip zip sudo \
+      openjdk-17-jre-headless chromium \
     && rm -rf /var/lib/apt/lists/*
 COPY data/vendor.tsv /tmp/vendor.tsv
 RUN set -e; case $(uname -m) in aarch64) p=linux-aarch64;; *) p=linux-amd64;; esac; \

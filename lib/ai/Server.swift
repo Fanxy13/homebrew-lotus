@@ -14,14 +14,23 @@
 // site cannot send, and a request that changes something must come from this page (Origin).
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 
 // ── Sockets ───────────────────────────────────────────────────
 
 enum Net {
     // Something already answers on 127.0.0.1:port (a server on every address answers there too)
     static func answers(_ port: Int) -> Bool {
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        let fd = socket(AF_INET, Sock.stream, 0)
         guard fd >= 0 else { return false }
         defer { close(fd) }
         var addr = address(port, any: false)
@@ -41,7 +50,9 @@ enum Net {
 
     static func address(_ port: Int, any: Bool) -> sockaddr_in {
         var a = sockaddr_in()
+        #if canImport(Darwin)
         a.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        #endif
         a.sin_family = sa_family_t(AF_INET)
         a.sin_port = in_port_t(UInt16(port).bigEndian)
         a.sin_addr.s_addr = any ? in_addr_t(0) : inet_addr("127.0.0.1")
@@ -50,15 +61,16 @@ enum Net {
 
     // A listening socket → (fd, 0), or (-1, errno)
     static func listen(_ port: Int, lan: Bool) -> (Int32, Int32) {
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        let fd = socket(AF_INET, Sock.stream, 0)
         guard fd >= 0 else { return (-1, errno) }
+        _ = fcntl(fd, F_SETFD, FD_CLOEXEC)     // a program the AI starts must not keep this port open
         var one: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
         var addr = address(port, any: lan)
         let bound = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
         }
-        if bound != 0 || Darwin.listen(fd, 64) != 0 {
+        if bound != 0 || libcListen(fd, 64) != 0 {
             let e = errno
             close(fd)
             return (-1, e)
@@ -83,7 +95,9 @@ final class Conn {
     init(fd: Int32) {
         self.fd = fd
         var one: Int32 = 1
+        #if canImport(Darwin)
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
+        #endif
         var t = timeval(tv_sec: 15, tv_usec: 0)    // a request that does not arrive is dropped
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &t, socklen_t(MemoryLayout<timeval>.size))
         var s = timeval(tv_sec: 60, tv_usec: 0)
@@ -96,7 +110,7 @@ final class Conn {
         guard poll(&p, 1, 0) > 0 else { return false }
         if p.revents & Int16(POLLHUP | POLLERR) != 0 { return true }
         var b: UInt8 = 0
-        return recv(fd, &b, 1, MSG_PEEK | MSG_DONTWAIT) == 0
+        return recv(fd, &b, 1, Sock.peek) == 0
     }
 
     // From this Mac (127.0.0.1)? Only the terminal's answers are taken this way
@@ -119,7 +133,7 @@ final class Conn {
         let ok = data.withUnsafeBytes { (p: UnsafeRawBufferPointer) -> Bool in
             var sent = 0
             while sent < p.count {
-                let n = Darwin.send(fd, p.baseAddress! + sent, p.count - sent, 0)
+                let n = libcSend(fd, p.baseAddress! + sent, p.count - sent)
                 if n < 0 && errno == EINTR { continue }
                 if n <= 0 { return false }
                 sent += n
@@ -133,7 +147,7 @@ final class Conn {
     @discardableResult
     func write(_ s: String) -> Bool { write(Data(s.utf8)) }
 
-    func close() { Darwin.close(fd) }
+    func close() { libcClose(fd) }
 }
 
 struct Request {
@@ -539,7 +553,8 @@ final class WebServer: @unchecked Sendable {
 
     static func random(_ n: Int) -> String {
         let a = Array("abcdefghijklmnopqrstuvwxyz0123456789")
-        return String((0..<n).map { _ in a[Int(arc4random_uniform(UInt32(a.count)))] })
+        // the system's own secure generator (arc4random on macOS, getrandom on Linux) – these are the access token
+        return String((0..<n).map { _ in a[Int.random(in: 0..<a.count)] })
     }
 
     // Compares secrets in constant time
@@ -613,7 +628,7 @@ final class WebServer: @unchecked Sendable {
 
     private func accept(_ listener: Int32) {
         while true {
-            let fd = Darwin.accept(listener, nil, nil)
+            let fd = libcAccept(listener)
             if fd < 0 { if errno == EINTR || errno == ECONNABORTED { continue }; usleep(50_000); continue }
             lock.lock()
             let busy = connections >= 48

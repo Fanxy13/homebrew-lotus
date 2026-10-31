@@ -7,6 +7,9 @@
 // The conversation keeps what the model saw (the improved prompt), so later turns stay consistent.
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 enum Enhance {
     static let modes = ["off", "on", "ask"]

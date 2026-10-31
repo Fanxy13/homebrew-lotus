@@ -3,6 +3,9 @@
 // The user can allow more or less (Permissions below).
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 struct ToolParam {
     let name: String
@@ -1414,10 +1417,11 @@ final class ToolRunner: @unchecked Sendable {
         if let stop = await checkRead(url, "searching \(display(url))") { return stop }
         let args = ["-rInE", "--exclude-dir=.git", "--exclude-dir=node_modules", "--exclude-dir=.build",
                     "--exclude-dir=build", "--exclude-dir=DerivedData", "--exclude-dir=.venv", "-m", "1000", "-e", pattern, url.path]
-        var r = await Shell.run("/usr/bin/grep", args, cwd: cwd, timeout: 20)
+        let grep = Host.which("grep") ?? "/usr/bin/grep"
+        var r = await Shell.run(grep, args, cwd: cwd, timeout: 20)
         if r.status == 2 {
             // Not a valid regular expression: search for the plain text instead
-            r = await Shell.run("/usr/bin/grep", args.map { $0 == "-rInE" ? "-rInF" : $0 }, cwd: cwd, timeout: 20)
+            r = await Shell.run(grep, args.map { $0 == "-rInE" ? "-rInF" : $0 }, cwd: cwd, timeout: 20)
         }
         var lines = r.output.split(separator: "\n").map(String.init)
         let base = cwd.standardizedFileURL.path + "/"
@@ -1473,7 +1477,7 @@ final class ToolRunner: @unchecked Sendable {
         }
         Spinner.shared.start("Running")
         let started = Date()
-        let r = await Shell.run("/bin/zsh", ["-c", command], cwd: cwd, timeout: 180)
+        let r = await Shell.run(Host.zsh, ["-c", command], cwd: cwd, timeout: 180)
         Spinner.shared.stop()
         let secs = Date().timeIntervalSince(started)
         let lines = r.output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
@@ -1500,6 +1504,15 @@ enum Shell {
     }
 
     static func run(_ exe: String, _ args: [String], cwd: URL, timeout: TimeInterval) async -> Result {
+        #if !canImport(Darwin)
+        return await runSpawned(exe, args, cwd: cwd, timeout: timeout)
+        #else
+        return await runProcess(exe, args, cwd: cwd, timeout: timeout)
+        #endif
+    }
+
+    #if canImport(Darwin)
+    private static func runProcess(_ exe: String, _ args: [String], cwd: URL, timeout: TimeInterval) async -> Result {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: exe)
         process.arguments = args
@@ -1567,6 +1580,7 @@ enum Shell {
         return Result(status: exit.done ? process.terminationStatus : -1, output: text, timedOut: timedOut,
                       cancelled: cancelled || Task.isCancelled)
     }
+    #endif
 
     final class Exited: @unchecked Sendable {
         private let lock = NSLock()
@@ -1574,6 +1588,60 @@ enum Shell {
         func set() { lock.lock(); flag = true; lock.unlock() }
         var done: Bool { lock.lock(); defer { lock.unlock() }; return flag }
     }
+
+    #if !canImport(Darwin)
+    // The same as runProcess, started with posix_spawn (see Platform.swift: Foundation would wait for `server &`)
+    private static func runSpawned(_ exe: String, _ args: [String], cwd: URL, timeout: TimeInterval) async -> Result {
+        var env = ProcessInfo.processInfo.environment
+        for k in env.keys where k.hasPrefix("LOTUS_AI_") { env.removeValue(forKey: k) }   // keys never reach commands
+        env["TERM"] = "dumb"
+        env["NO_COLOR"] = "1"
+        env["PAGER"] = "cat"
+        env["GIT_PAGER"] = "cat"
+        guard let child = spawnProgram(exe, args, env: env, cwd: cwd.path, captureOutput: true, ownGroup: true) else {
+            return Result(status: 127, output: "Could not start: \(exe)")
+        }
+        let fd = child.output
+        _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+        let collected = Collected()
+        var buffer = [UInt8](repeating: 0, count: 65_536)
+        func drain() -> Bool {
+            var any = false
+            while true {
+                let n = read(fd, &buffer, buffer.count)
+                if n <= 0 { break }
+                collected.append(Data(buffer[0..<n]))
+                any = true
+            }
+            return any
+        }
+        let deadline = Date().addingTimeInterval(timeout)
+        var timedOut = false, cancelled = false
+        var stopped: Date?          // when it was asked to end: 3 seconds later it is killed
+        var raw: Int32 = 0
+        var done = false
+        while true {
+            let got = drain()
+            let r = waitpid(child.pid, &raw, WNOHANG)
+            if r == child.pid { done = true; break }
+            if r < 0 && errno != EINTR { break }
+            if stopped == nil {
+                if Date() > deadline { timedOut = true; stopped = Date(); kill(child.pid, SIGTERM) }
+                else if Task.isCancelled { cancelled = true; stopped = Date(); kill(child.pid, SIGTERM) }
+            } else if let s = stopped {
+                let waited = Date().timeIntervalSince(s)
+                if waited > 3 { kill(child.pid, SIGKILL) }
+                if waited > 4 { break }
+            }
+            if !got { try? await Task.sleep(nanoseconds: 10_000_000) }
+        }
+        // what is still in the pipe – without waiting for programs it started in the background (`server &`)
+        _ = drain()
+        close(fd)
+        return Result(status: done ? exitStatus(raw) : -1, output: String(decoding: collected.data, as: UTF8.self),
+                      timedOut: timedOut, cancelled: cancelled || Task.isCancelled)
+    }
+    #endif
 
     final class Collected: @unchecked Sendable {
         private let lock = NSLock()

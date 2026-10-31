@@ -1,7 +1,16 @@
 // Lotus AI – terminal basics: colors, output, raw keyboard input, spinner.
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 
 // Colors come from the Lotus theme (SGR parameters such as "38;2;248;184;208"), set by lib/cmd/ai.zsh
 enum Style {
@@ -172,7 +181,11 @@ extension Term {
         let argv: [UnsafeMutablePointer<CChar>?] = ([exe] + args).map { strdup($0) } + [nil]
         let envp: [UnsafeMutablePointer<CChar>?] = env.map { strdup("\($0.key)=\($0.value)") } + [nil]
         defer { argv.forEach { free($0) }; envp.forEach { free($0) } }
+        #if canImport(Darwin)
         var actions: posix_spawn_file_actions_t?
+        #else
+        var actions = posix_spawn_file_actions_t()
+        #endif
         posix_spawn_file_actions_init(&actions)
         posix_spawn_file_actions_addchdir_np(&actions, cwd.path)
         defer { posix_spawn_file_actions_destroy(&actions) }

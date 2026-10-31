@@ -220,8 +220,13 @@ lotus_swift_build() {
   local sum=$(cat "$@" | cksum)
   REPLY=$LOTUS_CACHE/bin/$name-${sum%% *}
   [[ -x $REPLY ]] && return 0
-  lotus_can_swift || { lotus_log WARN swift "$name: no Command Line Tools"; return 1 }
   local bin=$REPLY
+  if ! lotus_can_swift; then
+    # Linux and Windows: the release carries the program, built for the system (lotus_prebuilt)
+    if [[ $LOTUS_OS != macos ]] && lotus_prebuilt $name $bin; then REPLY=$bin; return 0; fi
+    lotus_log WARN swift "$name: no Swift compiler${${LOTUS_OS:#macos}:+ and no program built for $LOTUS_OS $LOTUS_ARCH}"
+    return 1
+  fi
   zf_mkdir -p ${bin:h}
   lotus_log INFO swift "Building $name"
   local -a swiftc=(swiftc)
@@ -234,6 +239,48 @@ lotus_swift_build() {
   zf_mv -f $bin.tmp $bin
   rm -f ${bin:h}/$name-^${${bin:t}#$name-}(N)    # older builds of the same program
   REPLY=$bin
+}
+
+# A Swift program that was compiled elsewhere. Linux and Windows have no Command Line Tools to build it with, so each
+# release carries it, one file per system, and data/vendor.tsv pins every file by its sha256: a download that does not
+# match is deleted and never run. LOTUS_PREBUILT_DIR (for developers) names a folder with <name>-<os>-<arch> files.
+#   lotus_prebuilt <name> <target path>     status 0: the program is at the target
+#                                           1: could not be fetched · 2: this release has none for this system · 3: wrong digest
+lotus_prebuilt() {
+  local name=$1 target=$2 plat=$LOTUS_OS-$LOTUS_ARCH
+  if [[ -n $LOTUS_PREBUILT_DIR && -x $LOTUS_PREBUILT_DIR/$name-$plat ]]; then
+    zf_mkdir -p ${target:h}
+    cp -- $LOTUS_PREBUILT_DIR/$name-$plat $target.tmp && zf_mv -f $target.tmp $target || return 1
+    lotus_log INFO swift "$name: taken from $LOTUS_PREBUILT_DIR"
+    return 0
+  fi
+  local line url= want=
+  local -a f
+  for line in "${(@f)$(<$LOTUS_ROOT/data/vendor.tsv 2>/dev/null)}"; do
+    [[ $line == \#* || -z $line ]] && continue
+    f=("${(@ps:\t:)line}")
+    [[ $f[1] == $name && $f[2] == $LOTUS_VERSION && $f[3] == $plat ]] && { url=$f[4]; want=$f[5] }
+  done
+  [[ -n $url ]] || return 2
+  [[ $url == https://github.com/* && $want == [0-9a-f](#c64) ]] || return 1
+  (( $+commands[curl] )) || return 1
+  zf_mkdir -p ${target:h}
+  lotus_log INFO swift "$name: downloading the program for $plat"
+  curl -fsSL -o $target.dl -- $url 2>/dev/null || { rm -f $target.dl; return 1 }
+  # a .gz is unpacked first: the digest in vendor.tsv is the one of the program itself, the file that will run
+  if [[ $url == *.gz ]]; then
+    gzip -dc -- $target.dl > $target.tmp 2>/dev/null || { rm -f $target.dl $target.tmp; return 1 }
+    rm -f $target.dl
+  else
+    zf_mv -f $target.dl $target.tmp
+  fi
+  lotus_os_sha256 $target.tmp
+  if [[ $REPLY != $want ]]; then
+    rm -f $target.tmp
+    lotus_log ERROR swift "$name: the download is not the file pinned in data/vendor.tsv – deleted"
+    return 3
+  fi
+  chmod +x $target.tmp && zf_mv -f $target.tmp $target
 }
 
 # ── Colors ────────────────────────────────────────────────────

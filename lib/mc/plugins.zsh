@@ -73,10 +73,7 @@ _mcp_pick() {
 }
 
 # SHA-512 of a file → REPLY
-_mcp_sha512() {
-  if (( $+commands[shasum] )); then REPLY=${$(shasum -a 512 -- $1 2>/dev/null)[1]}
-  else REPLY=${$(sha512sum -- $1 2>/dev/null)[1]}; fi
-}
+_mcp_sha512() { lotus_os_hash 512 "$1" }
 
 # What Lotus installed: lines of .lotus/plugins.tsv → MCP_MINE[project id]="slug\ttitle\tversion\tfile"
 _mcp_mine() {

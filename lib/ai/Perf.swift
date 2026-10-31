@@ -1,5 +1,14 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 
 // ── /performance: a conversation as a report in a text file ───
 // Everything that shows how well and how fast the AI worked: the setup (AI, model, settings, this Mac), the
@@ -77,20 +86,6 @@ final class SessionLog: @unchecked Sendable {
 enum Perf {
     // ── This Mac and the AI ──
 
-    static func sysctl(_ name: String) -> String {
-        var size = 0
-        guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return "" }
-        var buf = [CChar](repeating: 0, count: size)
-        guard sysctlbyname(name, &buf, &size, nil, 0) == 0 else { return "" }
-        return String(cString: buf)
-    }
-
-    static func sysctlInt(_ name: String) -> Int64 {
-        var v: Int64 = 0
-        var size = MemoryLayout<Int64>.size
-        return sysctlbyname(name, &v, &size, nil, 0) == 0 ? v : 0
-    }
-
     // The settings and the machine, as "name: value" rows
     static func setup(_ agent: Agent, place: String) -> [(String, String)] {
         let saved = SettingsFile.read()
@@ -116,17 +111,17 @@ enum Perf {
                          + "temperature \(setting("LOTUS_AI_TEMP")) · memory saver \(setting("LOTUS_AI_KVBITS") == "0" || setting("LOTUS_AI_KVBITS").isEmpty ? "off" : setting("LOTUS_AI_KVBITS") + " bits")"))
             if let server = modelServer() { rows.append(("Model server", server)) }
         }
-        let gb = Double(sysctlInt("hw.memsize")) / 1_073_741_824
-        rows.append(("Mac", "\(sysctl("hw.model")) · \(sysctl("machdep.cpu.brand_string")) · \(String(format: "%.0f", gb)) GB · "
-                     + "\(ProcessInfo.processInfo.activeProcessorCount) cores"))
-        rows.append(("macOS", ProcessInfo.processInfo.operatingSystemVersionString))
+        let gb = Double(Host.memoryBytes) / 1_073_741_824
+        rows.append((Host.isMac ? "Mac" : "Computer", [Host.model, Host.chip, String(format: "%.0f", gb) + " GB", "\(Host.cores) cores"].filter { !$0.isEmpty }.joined(separator: " · ")))
+        rows.append((Host.name, Host.osVersion))
         return rows
     }
 
     // How the model server on this Mac runs (mlx_lm.server), without anything secret: its options only
     static func modelServer() -> String? {
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/ps")
+        guard let ps = Host.which("ps") else { return nil }
+        p.executableURL = URL(fileURLWithPath: ps)
         p.arguments = ["-axo", "command="]
         let pipe = Pipe()
         p.standardOutput = pipe

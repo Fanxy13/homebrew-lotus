@@ -1,9 +1,10 @@
 # Lotus tests on Ubuntu 24.04 – build from the repository root:  docker build -f tests/docker/ubuntu.Dockerfile -t lotus-test:ubuntu .
+# (no Chromium here: Ubuntu ships it only as a snap, which does not run in a container – the page checks skip on this image)
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
       zsh bash python3 python3-venv curl git jq ca-certificates locales procps util-linux xxd file perl \
-      imagemagick ffmpeg bubblewrap playerctl xclip wl-clipboard libnotify-bin libsecret-tools unzip sudo \
+      imagemagick ffmpeg bubblewrap playerctl xclip wl-clipboard libnotify-bin libsecret-tools unzip zip sudo \
       openjdk-17-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 COPY data/vendor.tsv /tmp/vendor.tsv

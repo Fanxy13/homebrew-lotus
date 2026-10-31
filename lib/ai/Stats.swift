@@ -1,5 +1,14 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 
 // ── Statistics: what the AI did ───────────────────────────────
 // /stats in /ai and lotus ai stats show them, together with what the web chat is doing right now.
@@ -83,7 +92,7 @@ enum Stats {
         let fd = open(url.path, O_WRONLY | O_APPEND | O_CREAT, 0o600)
         guard fd >= 0 else { return }
         let size = lseek(fd, 0, SEEK_END)
-        _ = line.withCString { Darwin.write(fd, $0, strlen($0)) }
+        _ = line.withCString { libcWrite(fd, $0, strlen($0)) }
         close(fd)
         if size > 1_000_000, let text = try? String(contentsOf: url, encoding: .utf8) {
             let keep = text.split(separator: "\n").suffix(8000).joined(separator: "\n") + "\n"

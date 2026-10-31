@@ -20,5 +20,5 @@ wl-copy	-	wl-clipboard	wl-clipboard	wl-clipboard	wl-clipboard	wl-clipboard	-	-	c
 notify-send	-	libnotify-bin	libnotify	libnotify	libnotify-tools	libnotify	-	-	
 secret-tool	-	libsecret-tools	libsecret	libsecret	libsecret-tools	libsecret	-	-	API keys in the desktop keyring
 zenity	-	zenity	zenity	zenity	zenity	zenity	-	-	a folder picker
-java	openjdk@21	openjdk-21-jre-headless	java-21-openjdk-headless	jre21-openjdk-headless	java-21-openjdk-headless	openjdk21-jre-headless	EclipseAdoptium.Temurin.21.JRE	temurin21-jre	Minecraft 1.20.5 and newer needs Java 21; Debian 12 has only Java 17 – Temurin from adoptium.net works there
+java	openjdk@21	openjdk-21-jdk-headless	java-21-openjdk-devel	jdk21-openjdk	java-21-openjdk-devel	openjdk21-jdk	EclipseAdoptium.Temurin.21.JDK	temurin21-jdk	Minecraft 1.20.5 and newer needs Java 21; Debian 12 has only Java 17 – Temurin from adoptium.net works there
 unzip	unzip	unzip	unzip	unzip	unzip	unzip	-	unzip	

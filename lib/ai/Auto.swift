@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // ── Auto mode ─────────────────────────────────────────────────
 // In auto mode the AI works on its own: it reads, creates and changes files in this folder and runs

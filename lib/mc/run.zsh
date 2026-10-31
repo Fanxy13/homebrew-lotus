@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 # lotus – runs one Minecraft server in the background for the control center (lib/mc/control.zsh).
 #   zsh run.zsh <server folder>
 # The server reads its console from the pipe .lotus/console, which is opened here for reading and
@@ -11,6 +11,9 @@ emulate -L zsh
 setopt extendedglob
 zmodload zsh/datetime
 dir=${1:A} s=${1:A}/.lotus root=${0:A:h:h:h}
+# the platform layer for the keep-awake call below (this script runs on its own, detached from Lotus)
+LOTUS_ROOT=$root LOTUS_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lotus
+source $root/lib/platform.zsh 2>/dev/null
 cd -- $dir 2>/dev/null || exit 1
 [[ -p $s/console ]] || exit 1
 exec 3<>$s/console || exit 1
@@ -71,7 +74,7 @@ bridge() {
 "$dir/start.command" <&3 >> $s/console.log 2>&1 &
 pid=$!
 print -r -- $pid >| $s/pid
-(( $+commands[caffeinate] )) && caffeinate -i -w $pid >/dev/null 2>&1 &!
+lotus_os_awake_while $pid
 wait $pid
 code=$?
 print -r -- $code >| $s/exit

@@ -14,8 +14,9 @@
 // Keys are never written to disk by this program.
 
 import Foundation
-import IOKit.pwr_mgt
-import NaturalLanguage
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 struct Config {
     var provider: String
@@ -63,47 +64,6 @@ enum Effort {
                         "high": "Thorough – thinks before it answers", "max": "Maximum – thinks longer and deeper",
                         "ultra": "Ultra – thinks the most, checks its work, takes the longest"]
     static func name(_ level: String) -> String { names[level] ?? level }
-}
-
-// ── Awake while the AI works ──────────────────────────────────
-// A long answer of a model on this Mac must not stall because the Mac went to sleep when nobody touched it.
-// Closing the lid on battery still puts it to sleep – how long it slept is measured, so /performance does not
-// count that time as thinking.
-enum Awake {
-    static func begin(_ why: String) -> IOPMAssertionID? {
-        var id = IOPMAssertionID(0)
-        let ok = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
-                                             IOPMAssertionLevel(kIOPMAssertionLevelOn), why as CFString, &id)
-        return ok == kIOReturnSuccess ? id : nil
-    }
-
-    static func end(_ id: IOPMAssertionID?) {
-        if let id = id { IOPMAssertionRelease(id) }
-    }
-
-    // The clock that stops while the Mac sleeps, and the one that goes on
-    static func clocks() -> (awake: UInt64, all: UInt64) {
-        (clock_gettime_nsec_np(CLOCK_UPTIME_RAW), clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW))
-    }
-
-    static func slept(since c: (awake: UInt64, all: UInt64)) -> Double {
-        let now = clocks()
-        let all = Double(now.all &- c.all), awake = Double(now.awake &- c.awake)
-        return max(0, (all - awake) / 1e9)
-    }
-}
-
-// ── The language of the request ───────────────────────────────
-// gpt-oss sometimes answers in another language after many steps; Lotus names the language in its notes to it
-enum Language {
-    static func name(of text: String) -> String? {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard t.split(whereSeparator: { $0.isWhitespace }).count >= 4 else { return nil }
-        let r = NLLanguageRecognizer()
-        r.processString(t)
-        guard let lang = r.dominantLanguage, let p = r.languageHypotheses(withMaximum: 1)[lang], p > 0.6 else { return nil }
-        return Locale(identifier: "en").localizedString(forLanguageCode: lang.rawValue)
-    }
 }
 
 // ── Memory ────────────────────────────────────────────────────
@@ -736,7 +696,7 @@ final class Agent {
         guard known.contains(key), !config.root.isEmpty else { return }
         let script = #"setopt extendedglob; source "$1/lib/core.zsh" && lotus_load && typeset -g "$2=$3" && lotus_save"#
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        p.executableURL = URL(fileURLWithPath: Host.zsh)
         p.arguments = ["-fc", script, "lotus", config.root, key, value]
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
@@ -988,15 +948,8 @@ enum TUI {
             Out.shared.write(out)
         case "/copy":
             guard !agent.lastAnswer.isEmpty else { Renderer.shared.info("No answer to copy yet."); break }
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/pbcopy")
-            let pipe = Pipe()
-            p.standardInput = pipe
-            try? p.run()
-            pipe.fileHandleForWriting.write(Data(agent.lastAnswer.utf8))
-            try? pipe.fileHandleForWriting.close()
-            p.waitUntilExit()
-            Renderer.shared.info("Copied the last answer.")
+            if Host.copy(agent.lastAnswer) { Renderer.shared.info("Copied the last answer.") }
+            else { Renderer.shared.info("This system has no clipboard Lotus can reach (it needs a desktop session and xclip, xsel or wl-copy). Select the text instead.") }
             emit("\n")
         case "/effort":
             let levels = Effort.levels
@@ -1092,10 +1045,9 @@ enum TUI {
         let open = !(answer == .char("n") || answer == .char("N") || answer == .esc || answer == .ctrlC)
         Out.shared.write(open ? "yes\n" : "no\n")
         if open {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            p.arguments = ["https://console.anthropic.com/settings/keys"]
-            try? p.run()
+            if !Host.open("https://console.anthropic.com/settings/keys") {
+                Out.shared.write("  \(Style.dim)No browser to open here – the page is console.anthropic.com/settings/keys\(Style.reset)\n")
+            }
         }
         for _ in 0..<3 {
             guard let key = await readSecret("  Paste your key \(Style.dim)(hidden, enter when done)\(Style.reset): ", keys) else {
@@ -1172,22 +1124,8 @@ enum TUI {
         return (response as? HTTPURLResponse)?.statusCode ?? 0
     }
 
-    // Through the security tool's stdin, so the key never shows up on a command line
-    static func saveClaudeKey(_ key: String) -> Bool {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        p.arguments = ["-i"]
-        let pipe = Pipe()
-        p.standardInput = pipe
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { return false }
-        let account = ProcessInfo.processInfo.environment["USER"].flatMap { $0.isEmpty ? nil : $0 } ?? "lotus"
-        pipe.fileHandleForWriting.write(Data("add-generic-password -U -s lotus-ai-claude -a \(account) -w \(key)\n".utf8))
-        try? pipe.fileHandleForWriting.close()
-        p.waitUntilExit()
-        return p.terminationStatus == 0
-    }
+    // The Keychain on a Mac, Lotus' secret store elsewhere – through stdin, so the key never shows up on a command line
+    static func saveClaudeKey(_ key: String) -> Bool { Host.saveSecret("lotus-ai-claude", key) }
 
     static func chooseModel(_ agent: Agent, _ keys: KeyQueue) async {
         var options = await agent.modelChoices()

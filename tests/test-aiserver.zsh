@@ -19,8 +19,10 @@ lotus ai server port 70000 >/dev/null 2>&1; check_eq "ports above 65535 are refu
 lotus_load
 check_eq "a refused port changes nothing" "$LOTUS_AI_SERVER_PORT" 3000
 
-if ! lotus_can_swift || ! (( $+commands[python3] && $+commands[curl] )); then
-  print -r -- "  - the server checks need the Command Line Tools, python3 and curl – skipped"
+# LOTUS_PREBUILT_DIR: the AI program built in the swift container (tests/docker/swift-build.sh build), for systems
+# without a Swift compiler – the same file the release carries
+if ! { lotus_can_swift || [[ -x $LOTUS_PREBUILT_DIR/lotus-ai-$LOTUS_OS-$LOTUS_ARCH ]] } || ! (( $+commands[python3] && $+commands[curl] )); then
+  print -r -- "  - the server checks need a Swift compiler (or a built AI program), python3 and curl – skipped"
   return 0
 fi
 
@@ -296,14 +298,23 @@ setting LOTUS_AI_PERM_MODE ask >/dev/null
 check_has "who answers: the test model" "$(curl -s -m 5 $H $B/api/models)" '"current":true'
 check_eq "an AI that is not there: refused" "$(code $H -H 'Content-Type: application/json' -d '{"kind":"claude","model":"claude-nope"}' $B/api/model)" 400
 
-# view_page: the AI looks at a web page it built, in WebKit, at desktop and phone width
+# view_page: the AI looks at a web page it built, at desktop and phone width – in WebKit on a Mac, in a Chromium-based
+# browser (headless) elsewhere
+typeset -i has_browser=0
+[[ $LOTUS_OS == macos ]] && has_browser=1
+(( $+commands[chromium] || $+commands[chromium-browser] || $+commands[google-chrome] || $+commands[google-chrome-stable] || $+commands[microsoft-edge] || $+commands[brave-browser] )) && has_browser=1
+if (( ! has_browser )); then
+  print -r -- "  - view_page: no Chromium-based browser here – skipped"
+else
 site=$HOME/work/site
 zf_mkdir -p $site
 print -r -- '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Test</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="gone.css"></head><body><main><h1>Hello</h1><img src="pic.png"><div style="width:900px">wide</div><input type="email"></main><script>console.error("boom"); nope();</script></body></html>' >| $site/index.html
 print -r -- 'h1 { color: rgb(170, 51, 170); }' >| $site/style.css
 print -r -- 'SECRET=1' >| $site/.env
 render=$($bin --render $site/index.html 390 $HOME/work - 2>/dev/null | tail -1)
-check_has "render: errors in the console, with the line" "$render" "Can't find variable: nope (index.html:"
+# each engine words the error its own way
+[[ $LOTUS_OS == macos ]] && want_err="Can't find variable: nope (index.html:" || want_err="nope is not defined (index.html:"
+check_has "render: errors in the console, with the line" "$render" "$want_err"
 check_has "render: files that did not load" "$render" 'gone.css'
 check_has "render: too wide on a phone" "$render" '"scrollWidth":908'
 check_has "render: images without alt" "$render" '"noAlt":["pic.png"]'
@@ -328,6 +339,7 @@ check_has "written page: the missing style is named" "$out" 'style.css'
 check_has "written page: the whole file reaches the browser for the code panel" "$out" '"type":"file"'
 check_has "with its name and all of its content" "$out" '<\/body><\/html>'
 setting LOTUS_AI_PERM_MODE ask >/dev/null
+fi
 
 # it stopped before it was done: Lotus lets it go on, at most 3 times
 setting LOTUS_AI_PERM_MODE auto >/dev/null

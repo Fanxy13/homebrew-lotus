@@ -12,7 +12,7 @@ mkdir -p "$out"
 priv=; [ -n "$LOTUS_TEST_PRIV" ] && priv="--privileged -u root"
 export LOTUS_P="$platform $priv" LOTUS_R="$root" LOTUS_D="$distro" LOTUS_O="$out"
 printf '%s\n' $names | xargs -P "${LOTUS_TEST_JOBS:-4}" -n1 sh -c \
-  'docker run --rm $LOTUS_P -v "$LOTUS_R":/lotus:ro lotus-test:$LOTUS_D zsh tests/run.zsh "$1" > "$LOTUS_O/$1.log" 2>&1; echo $? > "$LOTUS_O/$1.status"' _
+  'docker run --rm $LOTUS_P -e LOTUS_PREBUILT_DIR=/lotus/tests/docker/.build -e LOTUS_PAGE_NOSANDBOX=1 -v "$LOTUS_R":/lotus:ro lotus-test:$LOTUS_D zsh tests/run.zsh "$1" > "$LOTUS_O/$1.log" 2>&1; echo $? > "$LOTUS_O/$1.status"' _
 pass=0; fail=0
 for n in $names; do
   line=$(grep -E '^[0-9]+ passed, [0-9]+ failed' "$out/$n.log" | tail -1)

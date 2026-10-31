@@ -50,8 +50,22 @@ _ai_build() {
   lotus_ai_helper
   [[ -x $REPLY ]] && return 0
   if ! _ai_can_build; then
-    ui_error "The AI terminal needs Apple's Command Line Tools once" "They contain the compiler Lotus uses to set up the AI." \
-      "Install them with: xcode-select --install" "Then run /ai again." >&2
+    if [[ $LOTUS_OS == macos ]]; then
+      ui_error "The AI terminal needs Apple's Command Line Tools once" "They contain the compiler Lotus uses to set up the AI." \
+        "Install them with: xcode-select --install" "Then run /ai again." >&2
+      return 1
+    fi
+    # Linux and Windows: the release carries the program for the system
+    local bin=$REPLY
+    ui_step "Getting the AI terminal for $LOTUS_OS ($LOTUS_ARCH) …" >&2
+    lotus_prebuilt lotus-ai $bin
+    case $? in
+      0) return 0 ;;
+      2) ui_error "This version of Lotus has no AI terminal for $LOTUS_OS ($LOTUS_ARCH) yet" \
+           "Lotus builds it itself when the Swift toolchain is installed: https://www.swift.org/install/" "Then run /ai again." >&2 ;;
+      3) ui_error "The AI terminal download is not the file Lotus pinned" "It was deleted and nothing was installed." >&2 ;;
+      *) ui_error "The AI terminal could not be downloaded" "Check your internet connection and run /ai again." >&2 ;;
+    esac
     return 1
   fi
   ui_step "Setting up the AI terminal (one time, about 15 seconds) …" >&2

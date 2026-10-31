@@ -1,6 +1,9 @@
 // Lotus log: the same file and format as lib/log.zsh (tab separated, one line per entry).
 // Only what happened is written – tool names and paths, never file contents, prompts or keys.
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 enum Log {
     private static let ranks = ["off": 0, "error": 1, "warn": 2, "info": 3, "debug": 4, "trace": 5]
@@ -28,7 +31,7 @@ enum Log {
         lock.lock(); defer { lock.unlock() }
         let fd = open(path, O_WRONLY | O_APPEND | O_CREAT, 0o600)
         guard fd >= 0 else { return }
-        _ = line.withCString { Darwin.write(fd, $0, strlen($0)) }
+        _ = line.withCString { libcWrite(fd, $0, strlen($0)) }
         close(fd)
     }
 }

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // ── The internet ──────────────────────────────────────────────
 // web_search finds pages (DuckDuckGo; Wikipedia when DuckDuckGo does not answer), fetch_url reads one
@@ -131,7 +134,7 @@ enum Web {
         if local.contains(where: { host == $0 || ($0.hasPrefix(".") && host.hasSuffix($0)) }) { return notPublic }
         if !host.contains(".") && !host.contains(":") { return notPublic }
         var hints = addrinfo()
-        hints.ai_socktype = SOCK_STREAM
+        hints.ai_socktype = Sock.stream
         var res: UnsafeMutablePointer<addrinfo>?
         guard getaddrinfo(host, nil, &hints, &res) == 0, let first = res else { return "Could not find \(host) – is this Mac online?" }
         defer { freeaddrinfo(first) }
@@ -183,7 +186,7 @@ enum Web {
             req.setValue(agent, forHTTPHeaderField: "User-Agent")
             req.setValue("text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.5", forHTTPHeaderField: "Accept")
             req.setValue(Locale.preferredLanguages.prefix(2).joined(separator: ",") + ",en;q=0.5", forHTTPHeaderField: "Accept-Language")
-            let (bytes, response) = try await session.bytes(for: req)
+            let (bytes, response) = try await openStream(session, req, follow: false)
             guard let http = response as? HTTPURLResponse else { throw Failure(message: "No answer from \(url.host ?? "the page")") }
             if (300...399).contains(http.statusCode), let loc = http.value(forHTTPHeaderField: "Location"), let next = URL(string: loc, relativeTo: url)?.absoluteURL {
                 url = next

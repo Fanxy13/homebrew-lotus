@@ -1,6 +1,9 @@
 // Lotus AI – drawing: streamed Markdown, tool steps, the input box and menus.
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // ── Streamed Markdown ─────────────────────────────────────────
 // Turns text that arrives in small pieces into wrapped, colored terminal output.

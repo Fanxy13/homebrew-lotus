@@ -82,7 +82,7 @@ _mcc_init() {
   zf_mkdir -p $MCC_S
   MCC_PAGE=1 MCC_SUB= MCC_IN= MCC_ASK= MCC_TOAST= MCC_BACK=0 MCC_FILTER=all MCC_LEAVE=0 MCC_RESTART=0 MCC_DELETE=0 MCC_DELETED=
   MCC_MODE= MCC_STATE=stopped MCC_PID=0 MCC_WRAP=0 MCC_XPID=0 MCC_WANTSTOP=0 MCC_T5=0
-  MCC_LAN=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
+  lotus_os_lan_ip; MCC_LAN=$REPLY
   _mcc_colors
   _mcc_detect
   _mcc_xmx
@@ -250,11 +250,10 @@ _mcc_probe() {
   fi
   if [[ $MCC_MODE != (ours|external) ]] && (( EPOCHREALTIME - MCC_T5 > 10 )); then
     MCC_T5=$EPOCHREALTIME
-    local line cur=
+    local line
     pid=0
-    for line in "${(@f)$(lsof -a -d cwd -c java -Fpn 2>/dev/null)}"; do
-      [[ $line == p* ]] && cur=${line#p}
-      [[ $line == n* && ${line#n} == $MCC_DIR ]] && pid=$cur
+    for line in "${(@f)$(lotus_os_proc_cwds java)}"; do
+      [[ ${line#*$'\t'} == $MCC_DIR ]] && pid=${line%%$'\t'*}
     done
     if (( pid )); then
       MCC_PID=$pid MCC_XPID=$pid
@@ -290,7 +289,7 @@ _mcc_start() {
   mkfifo $MCC_S/console 2>/dev/null || { _mcc_toast err "$LOTUS_L[mc_err_fifo]"; return 1 }
   : >| $MCC_S/console.log
   _mcc_log_open $MCC_S/console.log
-  perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' nohup /bin/zsh $LOTUS_ROOT/lib/mc/run.zsh $MCC_DIR >/dev/null 2>&1 < /dev/null &!
+  lotus_os_detach ${commands[zsh]:-/bin/zsh} $LOTUS_ROOT/lib/mc/run.zsh $MCC_DIR
   MCC_MODE=ours MCC_STATE=preparing MCC_UP=0
   lotus_log INFO minecraft "Server started: $MCC_NAME"
   # the pid files take a moment
@@ -847,12 +846,11 @@ _mcc_busy() {
   for f in $dir/.lotus/pid(N) $dir/.lotus/wrapper(N); do
     _mcc_is_ours $(<$f) && return 0
   done
-  (( $+commands[lsof] )) || return 1
-  for line in "${(@f)$(lsof -a -u ${UID:-$(id -u)} -d cwd -Fpn 2>/dev/null)}"; do
-    [[ $line == p* ]] && { pid=${line#p}; continue }
-    [[ $line == n* && ( ${line#n} == $dir || ${line#n} == $dir/* ) ]] || continue
+  for line in "${(@f)$(lotus_os_proc_in $dir)}"; do
+    [[ -n $line ]] || continue
+    pid=${line%%$'\t'*}
     (( pid == $$ )) && continue
-    [[ $(ps -o args= -p $pid 2>/dev/null) == *(java|start.command|run.zsh|server.jar|paperclip)* ]] && return 0
+    [[ ${line#*$'\t'} == *(java|start.command|run.zsh|server.jar|paperclip)* ]] && return 0
   done
   return 1
 }
@@ -866,6 +864,14 @@ _mcc_trash() {
   _mcc_can_delete $1 || return 1
   if _mcc_busy $dir; then
     MCP_ERR=${LOTUS_L[mc_del_busy]:-Something of the server still runs in its folder – stop it (or close its start.command window), then delete again.}
+    return 1
+  fi
+  if [[ $LOTUS_OS != macos ]]; then
+    # Linux: the trash of the desktop (gio, trash-put). Without one nothing is deleted – never "for good instead".
+    lotus_os_trash $dir 2>/dev/null; local -i st=$?
+    if (( st == 0 )); then REPLY=${XDG_DATA_HOME:-$HOME/.local/share}/Trash/files/${dir:t}; return 0; fi
+    (( st == 2 )) && MCP_ERR=${LOTUS_L[mc_del_notrash]:-There is no trash this system lets Lotus use (install gio or trash-cli) – delete the folder yourself: $dir} \
+                  || MCP_ERR=${LOTUS_L[mc_del_nomove]:-It could not be moved to the Trash – nothing was deleted.}
     return 1
   fi
   if [[ -d $trash ]]; then
