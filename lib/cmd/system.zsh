@@ -84,7 +84,7 @@ lotus_uninstall() {
   rm -rf $LOTUS_DATA/runtime $LOTUS_DATA/models $LOTUS_DATA/llm
   [[ $LOTUS_DATA != $LOTUS_ROOT ]] && rmdir $LOTUS_DATA 2>/dev/null
   local item
-  for item in lotus-ai lotus-ai-claude; do security delete-generic-password -s $item >/dev/null 2>&1; done
+  for item in lotus-ai lotus-ai-claude lotus-hf; do lotus_os_secret_del $item; done
 
   if is_brew; then
     ui_step $LOTUS_L[removed_brew]
@@ -153,7 +153,15 @@ lotus_doctor() {
   local -a v
   _row() { print -r -- "  $1 ${(r:17:)2} $3" }
   ui_header Doctor "lotus $LOTUS_VERSION"
-  _row $ok macOS "$(sw_vers -productVersion 2>/dev/null) on ${$(uname -m)/arm64/Apple silicon}"
+  if [[ $LOTUS_OS == macos ]]; then
+    lotus_os_version
+    _row $ok macOS "$REPLY on ${$(uname -m)/arm64/Apple silicon}"
+  else
+    _row $ok Linux "${(C)LOTUS_DISTRO}${LOTUS_OS_VERSION:+ $LOTUS_OS_VERSION} on $LOTUS_ARCH${${LOTUS_WSL:#0}:+ (WSL)}"
+    _row $ok "Session" "${LOTUS_SESSION}${${LOTUS_DESKTOP:#none}:+ · $LOTUS_DESKTOP}"
+    if [[ -n $LOTUS_PKG ]]; then _row $ok "Packages" "$LOTUS_PKG${LOTUS_PKG_EXTRA:+ (and ${LOTUS_PKG_EXTRA// /, })}"
+    else _row $opt "Packages" "no package manager found – /install and /brew need one"; fi
+  fi
   _row $ok zsh "$ZSH_VERSION"
   _row $ok Lotus "$LOTUS_ROOT"
   if [[ -x $LOTUS_FF ]]; then _row $ok fastfetch "$($LOTUS_FF --version 2>/dev/null) ($LOTUS_FF)"
@@ -167,8 +175,13 @@ lotus_doctor() {
   _row $ok $LOTUS_L[doc_music] "${${(f)"$(<$LOTUS_CACHE/np-$LOTUS_MODE-$LOTUS_LANG)"}[1]}"$'\e[0m'
   ui_blank
   ui_dim "Optional, for single commands"
-  (( $+commands[brew] )) && _row $ok Homebrew "$(brew --prefix)  (/brew, /install)" || _row $opt Homebrew "not installed – /brew and /install need it"
-  (( $+commands[jq] )) && _row $ok jq "$commands[jq]" || _row $opt jq "not found – plutil is used instead"
+  if [[ $LOTUS_OS == macos ]]; then
+    (( $+commands[brew] )) && _row $ok Homebrew "$(brew --prefix)  (/brew, /install)" || _row $opt Homebrew "not installed – /brew and /install need it"
+    (( $+commands[jq] )) && _row $ok jq "$commands[jq]" || _row $opt jq "not found – plutil is used instead"
+  else
+    (( $+commands[brew] )) && _row $ok Homebrew "$(brew --prefix)  (also usable for /brew)"
+    if (( $+commands[jq] )); then _row $ok jq "$commands[jq]"; else lotus_pkg_hint jq; _row $opt jq "not found – some commands need it: $REPLY"; fi
+  fi
   if (( $+commands[yt-dlp] && $+commands[ffmpeg] )); then
     source $LOTUS_ROOT/lib/cmd/convert.zsh
     lotus_ytdlp_behind
@@ -185,9 +198,12 @@ lotus_doctor() {
     _row $opt yt-dlp "yt-dlp and ffmpeg are needed for /convert"
   fi
   (( $+commands[ideviceinfo] )) && _row $ok libimobiledevice "(/ios devices)" || _row $opt libimobiledevice "optional: shows the iOS version of connected devices"
-  /usr/libexec/java_home >/dev/null 2>&1 && _row $ok Java "$(/usr/libexec/java_home 2>/dev/null)  (/minecraft)" || _row $opt Java "not installed – /minecraft can set it up"
-  xcrun --find swiftc >/dev/null 2>&1 && _row $ok Swift "for the AI terminal (/ai)" || _row $opt Swift "Command Line Tools are needed for the AI terminal: xcode-select --install"
-  { [[ -n $ANTHROPIC_API_KEY ]] || security find-generic-password -s lotus-ai-claude >/dev/null 2>&1 } && _row $ok Claude "API key in the Keychain  (/ai)" || _row $opt Claude "optional AI provider: lotus ai login"
+  if lotus_os_java 17; then _row $ok Java "$REPLY  (/minecraft)"; else _row $opt Java "not installed – /minecraft can set it up"; fi
+  if [[ $LOTUS_OS == macos ]]; then
+    xcrun --find swiftc >/dev/null 2>&1 && _row $ok Swift "for the AI terminal (/ai)" || _row $opt Swift "Command Line Tools are needed for the AI terminal: xcode-select --install"
+  elif [[ -x $LOTUS_DATA/bin/lotus-ai ]] || (( $+commands[swiftc] )); then _row $ok "AI terminal" "lotus-ai  (/ai)"
+  else _row $opt "AI terminal" "lotus-ai is downloaded the first time you use /ai"; fi
+  { [[ -n $ANTHROPIC_API_KEY ]] || lotus_os_secret_get lotus-ai-claude } && _row $ok Claude "API key in the ${${LOTUS_OS:#linux}:+Keychain}${${LOTUS_OS:#macos}:+${${LOTUS_OS_SECRET_WHERE:#file}:+desktop keyring}${${LOTUS_OS_SECRET_WHERE:#keyring}:+protected file}}  (/ai)" || _row $opt Claude "optional AI provider: lotus ai login"
   (( $+commands[ollama] )) && _row $ok Ollama "$commands[ollama]  (/ai)" || _row $opt Ollama "optional AI provider for /ai"
   ui_blank
   # Remove BG: when the feature is on, or on request (lotus doctor --bg)

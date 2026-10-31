@@ -21,6 +21,18 @@ check_has() {   # <what> <text> <part>
   else (( FAILED++ )); print -r -- "  ✗ $1"$'\n'"      missing: $3"$'\n'"      in: ${2[1,400]}"; fi
 }
 
+# The same in every test, whatever the system (the tests use these instead of script, sed -i and stat):
+#   tpty <command…>    runs it in a pseudo terminal, its output on stdout (macOS: script -q /dev/null …, Linux: script -qefc)
+#   sedi <sed args…>   sed -i with the same syntax on macOS and Linux
+#   fmode <file>       the permissions as octal digits (600)
+#   onlyon <os> <why>  skip the rest of a test file when it is for another system
+tpty()  { if [[ $OSTYPE == darwin* ]]; then script -q /dev/null "$@"; else script -qefc "${(j: :)${(q)@}}" /dev/null; fi }
+sedi()  { if [[ $OSTYPE == darwin* ]]; then sed -i '' "$@"; else sed -i "$@"; fi }
+fmode() { if [[ $OSTYPE == darwin* ]]; then stat -f %Lp "$1"; else stat -c %a "$1"; fi }
+typeset -g TEST_OS=macos
+[[ $OSTYPE == darwin* ]] || TEST_OS=linux
+onlyon() { [[ $1 == $TEST_OS ]] || { print -r -- "  · skipped on $TEST_OS: $2"; PASSED_SKIP=1 }; [[ $1 == $TEST_OS ]] }
+
 local file
 local -a files=($ROOT/tests/test-*.zsh(N))
 (( $# )) && files=(${^@:/(#m)*/$ROOT/tests/test-$MATCH.zsh})
@@ -28,7 +40,8 @@ for file in $files; do
   print -r -- "${file:t:r}"
   local home=$(mktemp -d "${TMPDIR:-/tmp}/lotus-test.XXXXXX")
   (
-    export LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+    if [[ $TEST_OS == macos ]]; then export LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+    else export LC_ALL=C.UTF-8 LANG=C.UTF-8 USER=${USER:-$(id -un)}; fi
     export HOME=$home XDG_CONFIG_HOME= XDG_CACHE_HOME= XDG_STATE_HOME= XDG_DATA_HOME= LOTUS_ROOT=$ROOT
     PASSED=0 FAILED=0          # this file's own count
     source $file

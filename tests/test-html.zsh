@@ -8,7 +8,7 @@ source $LOTUS_ROOT/lib/ui.zsh
 lotus_load
 lotus() { $LOTUS_ROOT/bin/lotus "$@" }
 plain() { sed $'s/\e\\[[0-9;?]*[a-zA-Z]//g' | tr -d '\r' }
-answer() { (sleep 1.5; print -rn -- $1; sleep 0.5) | script -q /dev/null zsh -fc "$2" 2>&1 | plain }
+answer() { (sleep 1.5; print -rn -- $1; sleep 0.5) | tpty zsh -fc "$2" 2>&1 | plain }
 if (( ! $+commands[python3] )); then print -r -- "  – no python3: skipped"; return 0; fi
 
 check_has "help" "$(lotus html help 2>&1 | plain)" "/html all"
@@ -267,7 +267,7 @@ lotus liveserver stop >/dev/null 2>&1
 touch $S/css/style.css
 rm -f $S/css/style.css.docx
 keys() { (sleep 2; print -rn -- $'\r'; sleep 0.6; print -rn -- $'\r'; sleep 0.6; print -rn -- $'\r'; sleep 0.6; print -rn -- n; sleep 1) |
-         script -q /dev/null zsh -fc "cd $S && $LOTUS_ROOT/bin/lotus html" 2>&1 | plain }
+         tpty zsh -fc "cd $S && $LOTUS_ROOT/bin/lotus html" 2>&1 | plain }
 out=$(keys)
 check_has "asks what – the newest file first" "$out" "What should become a document?"
 check_has "  – and offers all of the folder" "$out" "All of site"

@@ -62,7 +62,7 @@ lotus_logo_import() {
   local text
   ui_header Logo "your own ASCII art"
   if [[ $1 == --clipboard ]]; then
-    text=$(pbpaste 2>/dev/null)
+    text=$(lotus_os_clip_paste 2>/dev/null)
   else
     ui_text "Paste your ASCII art, then type a single . on its own line (or press Ctrl-D)."
     ui_dim  "Tip: the Lotus website has an ASCII art page with a prompt for AI tools."

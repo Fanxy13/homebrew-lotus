@@ -1,0 +1,9 @@
+# Lotus – programs that Lotus downloads itself when the system has no package for them (install.sh, install.ps1, lotus doctor).
+# Pinned to the version Lotus is tested with; the sha256 is the digest GitHub publishes for the release asset. A download
+# that does not match is deleted, never run. Refresh with scripts/vendor-update.py.
+# program	version	platform	url	sha256
+fastfetch	2.70.0	linux-aarch64	https://github.com/fastfetch-cli/fastfetch/releases/download/2.70.0/fastfetch-linux-aarch64.tar.gz	fff4a127e4d76242e3bdac2a12430fc252fd6086d3eb30aee0382c3b0fece478
+fastfetch	2.70.0	linux-amd64	https://github.com/fastfetch-cli/fastfetch/releases/download/2.70.0/fastfetch-linux-amd64.tar.gz	945b941b2a85e8de88b4c89714ad18ee6a7a129bb3c544bb448e9e0e027c226a
+fastfetch	2.70.0	macos-universal	https://github.com/fastfetch-cli/fastfetch/releases/download/2.70.0/fastfetch-macos-universal.tar.gz	8e3e2f3583a5b43ea20c451edfe0dac7172835c5b7de97a96347168f31106558
+fastfetch	2.70.0	windows-aarch64	https://github.com/fastfetch-cli/fastfetch/releases/download/2.70.0/fastfetch-windows-aarch64.zip	d481b7b92641f1aadbb363579cd5025868027b65bd6d0c7b708bf623222b3b90
+fastfetch	2.70.0	windows-amd64	https://github.com/fastfetch-cli/fastfetch/releases/download/2.70.0/fastfetch-windows-amd64.zip	89e5a20f46ac04b154c7d0ea13dbac97e43f799a98d7ae4c598863ba357a8c7f

@@ -3,6 +3,7 @@
 # speed taken from it shoots up and falls to zero again and again.
 # A stand-in for lib/ai/download.py (no network): it reports 10 MB received every half second and
 # writes the model only at the end, the way Xet does.
+onlyon macos "the MLX model download (on Linux the local model is llama.cpp)" || return 0
 source $LOTUS_ROOT/lib/core.zsh
 source $LOTUS_ROOT/lib/ui.zsh
 lotus_load

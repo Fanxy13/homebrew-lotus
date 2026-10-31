@@ -26,14 +26,17 @@ bg_model_field() {   # <id> <n> → REPLY  (1 id, 2 engine, 3 label, 4 MB, 5 inp
 }
 
 # Apple silicon or Intel – also right when the terminal itself runs under Rosetta
-bg_arch() { [[ $(sysctl -n hw.optional.arm64 2>/dev/null) == 1 ]] && REPLY=arm64 || REPLY=x86_64 }
-bg_memory_gb() { REPLY=$(( $(sysctl -n hw.memsize 2>/dev/null || print 0) / 1073741824 )) }
+bg_arch() {
+  if [[ $LOTUS_OS == macos ]]; then [[ $(sysctl -n hw.optional.arm64 2>/dev/null) == 1 ]] && REPLY=arm64 || REPLY=x86_64
+  else REPLY=$LOTUS_ARCH; fi
+}
+bg_memory_gb() { lotus_os_mem_bytes; REPLY=$(( REPLY / 1073741824 )) }
 
 # How to start the runtime's Python (natively, even from a Rosetta terminal) → reply
 bg_python() {
   reply=($BG_RUNTIME/bin/python3 -s -E)
   bg_arch
-  [[ $REPLY == arm64 && $(sysctl -n sysctl.proc_translated 2>/dev/null) == 1 ]] && reply=(arch -arm64 $reply)
+  [[ $LOTUS_OS == macos && $REPLY == arm64 && $(sysctl -n sysctl.proc_translated 2>/dev/null) == 1 ]] && reply=(arch -arm64 $reply)
 }
 
 bg_requirements() { bg_arch; REPLY=$LOTUS_ROOT/lib/bg/requirements-$REPLY.txt }

@@ -6,7 +6,7 @@ lotus_load
 lotus() { $LOTUS_ROOT/bin/lotus "$@" }
 plain() { sed $'s/\e\\[[0-9;?]*[a-zA-Z]//g' | tr -d '\r' }
 # keys typed on a keyboard: script gives Lotus a terminal, the keys come when it waits
-answer() { (sleep 1.5; print -rn -- $1; sleep 0.8) | script -q /dev/null zsh -fc "$2" 2>&1 | plain }
+answer() { (sleep 1.5; print -rn -- $1; sleep 0.8) | tpty zsh -fc "$2" 2>&1 | plain }
 P=$LOTUS_CONF/plugins D=$LOTUS_DATA/plugins
 # the installer looks at the clipboard – never the real one in a test
 zf_mkdir -p $HOME/bin

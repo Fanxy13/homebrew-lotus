@@ -63,13 +63,16 @@ _ai_build() {
 
 # ── Providers ─────────────────────────────────────────────────
 
+# A saved key (the Keychain on a Mac, the desktop keyring or a protected file elsewhere – lotus_os_secret_*)
+_ai_secret() { lotus_os_secret_get "$1" && print -rn -- "$REPLY" }
+
 _ai_claude_key() {
-  REPLY=${ANTHROPIC_API_KEY:-$(security find-generic-password -s lotus-ai-claude -w 2>/dev/null)}
+  REPLY=${ANTHROPIC_API_KEY:-$(_ai_secret lotus-ai-claude 2>/dev/null)}
   [[ -n $REPLY ]]
 }
 
 _ai_openai_key() {
-  REPLY=${LOTUS_AI_KEY:-$(security find-generic-password -s lotus-ai -w 2>/dev/null)}
+  REPLY=${LOTUS_AI_KEY:-$(_ai_secret lotus-ai 2>/dev/null)}
   [[ -n $REPLY ]]
 }
 
@@ -298,7 +301,7 @@ lotus_ai_summarize() {
     [[ $(file -b --mime-type -- $1) == text/* ]] || { ui_error "Not a text file" "$1" "Summaries work with text files, e.g. .txt or .md"; return 1 }
     text=$(<$1); src=${1:t}
   else
-    text=$(pbpaste 2>/dev/null); src=clipboard
+    text=$(lotus_os_clip_paste 2>/dev/null); src=clipboard
   fi
   [[ -z ${text// } ]] && { ui_error "Nothing to summarize" "The ${src:-clipboard} is empty." "Usage: /ai summarize <file>   or copy text first"; return 1 }
   (( ${#text} > 60000 )) && { text=${text[1,60000]}; ui_dim "Long text: the first 60,000 characters are used." }
@@ -325,7 +328,7 @@ lotus_ai_command() {
   case $REPLY in
     1) zf_mkdir -p $LOTUS_CACHE; print -r -- $cmd >| $LOTUS_CACHE/ai-prompt
        ui_success "Ready on your command line" ;;
-    2) print -rn -- $cmd | pbcopy && ui_success "Copied" ;;
+    2) print -rn -- $cmd | lotus_os_clip_copy && ui_success "Copied" || { ui_warn "There is no clipboard here – the command stays on the screen"; ui_text "$cmd" } ;;
   esac
 }
 
@@ -377,14 +380,23 @@ lotus_ai_key() {
     claude|anthropic) lotus_ai_login ;;
     openai)
       ui_header AI "API key"
-      ui_text "macOS will ask for the key and keep it in your Keychain (item: lotus-ai)."
-      security add-generic-password -U -s lotus-ai -a "$USER" -w && ui_success "Saved in the Keychain" ;;
+      lotus_os_secret_store_name
+      ui_text "Paste the key – Lotus keeps it in $REPLY (item: lotus-ai)."
+      local key
+      print -rn -- "  Paste the key "$'\e['"$LOTUS_C[dim]m(hidden, Enter when done)"$'\e[0m'": "
+      read -rs key < /dev/tty || return 1
+      print
+      key=${key//[[:space:]]/}
+      [[ -n $key ]] || { ui_info $LOTUS_L[cancelled]; return 0 }
+      if lotus_os_secret_set lotus-ai "$key"; then lotus_os_secret_store_name; ui_success "Saved in $REPLY"
+      else ui_error "The key could not be saved" "" "Set LOTUS_AI_KEY in your shell instead."; fi ;;
     remove)
       ui_choose "Remove which key?" "Claude" "OpenAI-compatible API" || return 0
       local item=lotus-ai-claude
       (( REPLY == 2 )) && item=lotus-ai
-      ui_confirm "Remove the key \"$item\" from the Keychain?" n || return 0
-      security delete-generic-password -s $item >/dev/null 2>&1 && ui_success "Removed" || ui_warn "There was no saved key." ;;
+      lotus_os_secret_store_name
+      ui_confirm "Remove the key \"$item\" from $REPLY?" n || return 0
+      lotus_os_secret_del $item && ui_success "Removed" || ui_warn "There was no saved key." ;;
     *) ui_error "Unknown key type" "$which" "Use: lotus ai login   or   lotus ai key openai" ;;
   esac
 }
@@ -403,7 +415,7 @@ lotus_ai_login() {
   ui_text "2  Copy the key and paste it here. Lotus checks it and keeps it in your Keychain."
   ui_dim "   Claude is paid per use by Anthropic – a typical question costs well under one cent."
   ui_blank
-  ui_confirm "Open the key page in your browser now?" y && open "https://console.anthropic.com/settings/keys"
+  ui_confirm "Open the key page in your browser now?" y && { lotus_os_open "https://console.anthropic.com/settings/keys" || ui_dim "  https://console.anthropic.com/settings/keys" }
   ui_blank
   local key tries=0
   while (( tries++ < 3 )); do
@@ -427,9 +439,10 @@ lotus_ai_login() {
     esac
   done
   (( tries > 3 )) && return 1
-  print -r -- "add-generic-password -U -s lotus-ai-claude -a ${USER:-lotus} -w $key" | security -i >/dev/null 2>&1
-  if [[ $(security find-generic-password -s lotus-ai-claude -w 2>/dev/null) != $key ]]; then
-    ui_error "The key could not be saved in the Keychain" "" "Try again, or set ANTHROPIC_API_KEY in your ~/.zshrc."
+  lotus_os_secret_set lotus-ai-claude "$key"
+  if [[ $(_ai_secret lotus-ai-claude 2>/dev/null) != $key ]]; then
+    lotus_os_secret_store_name
+    ui_error "The key could not be saved in $REPLY" "" "Try again, or set ANTHROPIC_API_KEY in your shell's startup file."
     return 1
   fi
   if [[ ${LOTUS_AI_PROVIDER:-auto} != (auto|claude) ]]; then
@@ -437,19 +450,22 @@ lotus_ai_login() {
     [[ $LOTUS_AI_MODEL == claude-* ]] || LOTUS_AI_MODEL=
     lotus_save
   fi
-  lotus_log INFO ai "Claude connected (key in the Keychain)"
+  lotus_os_secret_store_name
+  lotus_log INFO ai "Claude connected (key in $REPLY)"
+  [[ $LOTUS_OS_SECRET_WHERE == file ]] && ui_warn "There is no keyring here: the key is kept in a file only you can read (${LOTUS_CONF/#$HOME/~}/secrets)."
   ui_success "Claude is connected"
   ui_dim "Type /ai to start. Inside, /model switches between Opus, Sonnet and Haiku."
   ui_blank
 }
 
 lotus_ai_logout() {
-  if ! security find-generic-password -s lotus-ai-claude >/dev/null 2>&1; then
+  if ! lotus_os_secret_get lotus-ai-claude; then
     ui_info "No Claude key is saved."
     return 0
   fi
-  ui_confirm "Remove the Claude key from your Keychain?" n || return 0
-  security delete-generic-password -s lotus-ai-claude >/dev/null 2>&1 && ui_success "Claude is disconnected"
+  lotus_os_secret_store_name
+  ui_confirm "Remove the Claude key from $REPLY?" n || return 0
+  lotus_os_secret_del lotus-ai-claude && ui_success "Claude is disconnected"
   [[ $LOTUS_AI_PROVIDER == claude ]] && { LOTUS_AI_PROVIDER=auto; lotus_save }
 }
 
@@ -477,7 +493,7 @@ _llm_row() {   # <id> → reply (id label repo revision GB RAM text)
 
 _llm_ok() { [[ -n $LOTUS_AI_LOCAL && -x $LLM_RUNTIME/bin/mlx_lm.server && -r $LLM_MODELS/$LOTUS_AI_LOCAL/config.json ]] }
 
-_llm_ram() { REPLY=$(( $(sysctl -n hw.memsize 2>/dev/null || print 0) / 1073741824 )) }
+_llm_ram() { lotus_os_mem_bytes; REPLY=$(( REPLY / 1073741824 )) }
 
 # Python 3.11–3.14 for arm64 → REPLY
 _llm_python() {
@@ -517,25 +533,27 @@ _llm_bar() {   # <part> <whole> <width> [color]
 }
 
 # The Hugging Face token (optional: faster downloads, higher limits) – from $HF_TOKEN or the Keychain
-_llm_token() { REPLY=${HF_TOKEN:-$(security find-generic-password -s lotus-hf -w 2>/dev/null)}; [[ -n $REPLY ]] }
+_llm_token() { REPLY=${HF_TOKEN:-$(_ai_secret lotus-hf 2>/dev/null)}; [[ -n $REPLY ]] }
 
 # Connect or remove the token: the page opens, the token is pasted hidden, checked and kept in the Keychain
 _llm_token_flow() {
   print -n $'\e[H\e[2J'
   ui_hero "AI on this Mac · Faster downloads" "A free Hugging Face account gives faster downloads and higher limits. Optional – downloads work without it."
   if _llm_token; then
-    ui_text "A token is connected (Keychain item lotus-hf)."
+    lotus_os_secret_store_name
+    ui_text "A token is connected ($REPLY, item lotus-hf)."
     ui_blank
     ui_confirm "Remove it?" n || return 0
-    security delete-generic-password -s lotus-hf >/dev/null 2>&1
+    lotus_os_secret_del lotus-hf
     ui_success "Removed – downloads continue without an account"
     return 0
   fi
   ui_text "1  Sign in at huggingface.co (or create a free account)."
   ui_text "2  Create a token with the type \"Read\" and copy it."
-  ui_text "3  Paste it here – Lotus checks it and keeps it in your Keychain."
+  lotus_os_secret_store_name
+  ui_text "3  Paste it here – Lotus checks it and keeps it in $REPLY."
   ui_blank
-  ui_confirm "Open the token page now?" y && open "https://huggingface.co/settings/tokens"
+  ui_confirm "Open the token page now?" y && { lotus_os_open "https://huggingface.co/settings/tokens" || ui_dim "  https://huggingface.co/settings/tokens" }
   ui_blank
   local tok name
   print -rn -- "  Paste the token "$'\e['"$LOTUS_C[dim]m(hidden, Enter when done)"$'\e[0m'": "
@@ -547,9 +565,9 @@ _llm_token_flow() {
   ui_step "Checking it with Hugging Face …"
   name=$(print -r -- "header = \"Authorization: Bearer $tok\"" | curl -fsS -m 15 -K - https://huggingface.co/api/whoami-v2 2>/dev/null | lotus_jq -r '.name // empty' 2>/dev/null)
   [[ -n $name ]] || { ui_warn "Hugging Face did not accept this token – copy all of it and try again."; return 1 }
-  print -r -- "add-generic-password -U -s lotus-hf -a ${USER:-lotus} -w $tok" | security -i >/dev/null 2>&1
-  _llm_token || { ui_error "The token could not be saved in the Keychain"; return 1 }
-  lotus_log INFO ai "Hugging Face token connected (Keychain)"
+  lotus_os_secret_set lotus-hf "$tok"
+  _llm_token || { lotus_os_secret_store_name; ui_error "The token could not be saved in $REPLY"; return 1 }
+  lotus_log INFO ai "Hugging Face token connected"
   ui_success "Connected as $name – downloads are faster now"
 }
 

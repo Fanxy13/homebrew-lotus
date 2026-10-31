@@ -73,7 +73,7 @@ fi
 
 B=http://127.0.0.1:$port
 key=$(<$LOTUS_STATE/ai-server.key)
-check "the access key file is private" eval '[[ $(stat -f %Lp $LOTUS_STATE/ai-server.key) == 600 ]]'
+check "the access key file is private" eval '[[ $(fmode $LOTUS_STATE/ai-server.key) == 600 ]]'
 code() { curl -s -m 5 -o /dev/null -w '%{http_code}' "$@" }
 check_has "health" "$(curl -s -m 5 $B/api/health)" '"app":"lotus-ai"'
 check_eq "the page without the key: locked" "$(code $B/)" 401
@@ -130,7 +130,7 @@ check_has "and ends" "$out" '"type":"done"'
 saved=$(curl -s -m 5 $H $B/api/chats/$chat)
 check_has "the conversation is kept" "$saved" '"role":"assistant"'
 check_has "with its title" "$saved" '"title":"please run the check"'
-check "the conversation file is private" eval '[[ $(stat -f %Lp $LOTUS_STATE/ai-chats/$chat.json) == 600 ]]'
+check "the conversation file is private" eval '[[ $(fmode $LOTUS_STATE/ai-chats/$chat.json) == 600 ]]'
 out=$(curl -sN -m 30 $H -H 'Content-Type: application/json' -d '{"text":"hello"}' $B/api/chats/$chat/send)
 check_has "a plain answer streams as text" "$out" 'from** the test model'
 out=$(send_to $chat "please run the check again")
@@ -455,7 +455,7 @@ setting LOTUS_AI_PERM_RUN ask >/dev/null
 # ── It works on without a page: only the web chat has to run; the terminal follows it (lotus ai stats) ──
 setting LOTUS_AI_PERM_MODE ask >/dev/null
 check_has "the web chat says what it is doing in a file only you can read" "$(<$LOTUS_STATE/ai-server.now)" "\"port\":$port"
-check "that file is private" eval '[[ $(stat -f %Lp $LOTUS_STATE/ai-server.now) == 600 ]]'
+check "that file is private" eval '[[ $(fmode $LOTUS_STATE/ai-server.now) == 600 ]]'
 gone=$(curl -s -m 5 -X POST $H $B/api/chats | sed -n 's/.*"id":"\([a-z0-9]*\)".*/\1/p')
 curl -sN -m 1 $H -H 'Content-Type: application/json' -d '{"text":"please take your time"}' $B/api/chats/$gone/send >/dev/null 2>&1
 check_has "the page is gone: it works on" "$(curl -s -m 5 $H $B/api/state)" "\"busy\":\"$gone\""
@@ -514,7 +514,7 @@ check_has "stopped" "$(curl -s -m 5 $H $B/api/chats/$halt)" '"text":"Stopped"'
 
 # the numbers: one line per answer, from the web chat and from /ai – only counts and times
 stats=$LOTUS_STATE/ai-stats.tsv
-check "the statistics file is private" eval '[[ $(stat -f %Lp $stats) == 600 ]]'
+check "the statistics file is private" eval '[[ $(fmode $stats) == 600 ]]'
 check_has "answers from the web chat are counted" "$(<$stats)" $'\tweb\t'
 check_has "and from /ai in the terminal" "$(<$stats)" $'\tterminal\t'
 check_has "with the steps by tool" "$(<$stats)" 'run_command:1'

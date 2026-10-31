@@ -1,5 +1,5 @@
-#!/bin/zsh
-# lotus – start screen and command center for the macOS terminal
+#!/usr/bin/env zsh
+# lotus – start screen and command center for the terminal (macOS and Linux; Windows has its own: win/)
 setopt extendedglob
 typeset -gF _lotus_t0=$EPOCHREALTIME
 # Homebrew runs install steps with a temporary $HOME – use the real one
@@ -10,7 +10,16 @@ fi
 # Pets, blooms and the logo are drawn with Unicode block characters: without a UTF-8 locale (a terminal
 # that sets no language) zsh would treat them as bytes and drop them. Only for Lotus' own process.
 zmodload -F zsh/langinfo p:langinfo 2>/dev/null
-[[ ${langinfo[CODESET]:-UTF-8} == UTF-8 ]] || export LC_CTYPE=en_US.UTF-8
+if [[ ${langinfo[CODESET]:-UTF-8} != UTF-8 ]]; then
+  if [[ $OSTYPE == darwin* ]]; then export LC_CTYPE=en_US.UTF-8
+  else
+    # Linux: C.UTF-8 is built into glibc 2.35+ and every Debian-based system; else the first UTF-8 locale there is
+    _utf8=C.UTF-8
+    [[ -n ${(M)${(f)"$(locale -a 2>/dev/null)"}:#(#i)(C.utf-8|C.utf8)} ]] || _utf8=${${(M)${(f)"$(locale -a 2>/dev/null)"}:#(#i)*.utf-#8}[1]}
+    [[ -n $_utf8 ]] && export LC_CTYPE=$_utf8
+    unset _utf8
+  fi
+fi
 source ${0:A:h:h}/lib/core.zsh
 source $LOTUS_ROOT/lib/ui.zsh
 source $LOTUS_ROOT/lib/fuzzy.zsh
@@ -42,7 +51,7 @@ typeset -A LOTUS_MODULES=(
   ios ios  minecraft minecraft  mc minecraft  convert convert  visual visual
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
   bg bg  log log  features setup  pets pets  pet pets  feed pets  zetamac pets  clock clock  caffeine caffeine  awake caffeine  ai-tool aitools
-  plugin plugin  plugins plugin  plugin-tool plugin
+  plugin plugin  plugins plugin  plugin-tool plugin  plugin-startup plugin
   img img  liveserver live  html html
 )
 

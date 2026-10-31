@@ -142,8 +142,7 @@ img_ask() {
   if (( W >= 44 )); then ui_drop_zone $(( W - 8 > 60 ? 60 : W - 8 )) "Drop images or a folder here" "HEIC · PNG · JPEG · WebP · RAW · folders"
   else ui_text "Drag images or a folder into this window"; fi
   local clip
-  clip=$(osascript -l JavaScript $LOTUS_ROOT/lib/bg/clipboard.js peek 2>/dev/null)
-  [[ -n $clip ]] || clip=none
+  lotus_os_clip_peek; clip=$REPLY
   if [[ $clip == image\ * ]]; then
     print -r -- "    "$'\e['"$LOTUS_C[key]m✓"$_UI_R" An image in the clipboard (${${clip#image }/x/ × }) – ⏎ takes it"
   elif [[ $clip == files\ * ]]; then
@@ -161,7 +160,7 @@ img_ask() {
     zf_mkdir -p $dir && chmod 700 $dir
     rm -f $dir/*(N.mh+24)
     strftime -s stamp '%Y-%m-%d %H.%M.%S' $EPOCHSECONDS
-    reply=(${(f)"$(osascript -l JavaScript $LOTUS_ROOT/lib/bg/clipboard.js save "$dir/Clipboard $stamp.png" 2>/dev/null)"})
+    reply=(${(f)"$(lotus_os_clip_save "$dir/Clipboard $stamp.png" 2>/dev/null)"})
     reply=(${reply:#})
     (( ${#reply} ))
     return
@@ -325,7 +324,8 @@ img_run() {   # <label> <type> <quality> <max> <bytes in>
   trap 'IMG_STOP=1' INT
   _bg_cancel() { IMG_STOP=1 BG_CANCEL=0 }
   IMG_STOP=0 IMG_DONE=0 IMG_BYTES_OUT=0 IMG_FAIL=() BG_CANCEL=0
-  local -i jobs=$(sysctl -n hw.perflevel0.physicalcpu 2>/dev/null || sysctl -n hw.physicalcpu 2>/dev/null || print 4)
+  lotus_os_cpu_count perf
+  local -i jobs=$REPLY
   (( jobs < 2 )) && jobs=2
   (( jobs > 8 )) && jobs=8
   local -a stages=()
@@ -468,6 +468,6 @@ img_result() {   # <label> <bytes in>
   ui_blank
   local first=
   for a in $IMG_OUT; do [[ -e $a ]] && { first=$a; break }; done
-  [[ -n $first ]] && ui_confirm "Show ${${IMG_DONE:#1}:+them}${${IMG_DONE:#<2->}:+it} in Finder?" y && open -R -- "$first"
+  [[ -n $first ]] && ui_confirm "Show ${${IMG_DONE:#1}:+them}${${IMG_DONE:#<2->}:+it} in $LOTUS_FILES_APP?" y && lotus_os_reveal "$first"
   return 0
 }

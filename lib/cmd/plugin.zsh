@@ -27,6 +27,7 @@ lotus_cmd_plugin() {
   local cmd=$1; shift
   lotus_features
   if [[ $cmd == plugin-tool ]]; then lotus_plugin_tool "$@"; return; fi
+  if [[ $cmd == plugin-startup ]]; then _plg_startup_refresh "$@"; return; fi
   local sub=${1:-list}
   (( $# )) && shift
   case $sub in
@@ -64,6 +65,7 @@ _plg_read() {
   typeset -ga PLG_TOOLS=()
   [[ -r $dir/plugin.conf ]] || return 1
   PLG[dir]=$dir PLG[access]=limited PLG[network]=no PLG[startup.every]=300
+  PLG[os]=macos      # where it runs: a plugin written before 3.0 was made for macOS and says so only when it also runs elsewhere
   for line in "${(@f)$(<$dir/plugin.conf)}"; do
     line=${line//$'\r'/}
     [[ $line == [[:space:]]#\#* || $line != *=* ]] && continue
@@ -91,6 +93,14 @@ _plg_read() {
   done
   # "command = x" is the command with the plugin's own name
   if [[ -n $PLG_CMDS[__self] ]]; then PLG_CMDS[$PLG[name]]=$PLG_CMDS[__self]; unset 'PLG_CMDS[__self]'; fi
+  # "command x.linux = x.sh": the program for one system; the one for this system replaces the plain one
+  local k
+  for k in ${(k)PLG_CMDS}; do
+    [[ $k == *.(macos|linux|windows) ]] || continue
+    [[ $k == *.$LOTUS_OS ]] && PLG_CMDS[${k%.$LOTUS_OS}]=$PLG_CMDS[$k]
+    unset "PLG_CMDS[$k]"
+  done
+  [[ -n $PLG[startup.$LOTUS_OS] ]] && PLG[startup]=$PLG[startup.$LOTUS_OS]
   return 0
 }
 
@@ -172,8 +182,9 @@ _plg_problems() {
 # The fingerprint of every file of the plugin (not its .git) → REPLY
 _plg_fingerprint() {
   local dir=$1
-  REPLY=$(cd $dir && find . -type f ! -path './.git/*' -print0 2>/dev/null | LC_ALL=C sort -z | xargs -0 shasum -a 256 2>/dev/null | shasum -a 256)
-  REPLY=${REPLY%% *}
+  local sums=$(cd $dir && find . -type f ! -path './.git/*' -print0 2>/dev/null | LC_ALL=C sort -z | xargs -0 ${${commands[sha256sum]:+sha256sum}:-shasum -a 256} 2>/dev/null)
+  print -r -- $sums | lotus_os_sha256_stdin
+  [[ -n $REPLY ]] || REPLY=nofingerprint
 }
 
 # The line of a plugin → reply (name state access fingerprint); status 1 when it is not in the list
@@ -216,6 +227,14 @@ _plg_ready() {
   REPLY=
   lotus_feature_on plugins || { REPLY="Plugins are turned off – turn them on with: lotus features plugins on"; return 1 }
   _plg_read $dir || { REPLY="There is no plugin \"$name\" – lotus plugin lists them"; return 1 }
+  [[ $PLG[os] == all || " ${PLG[os]} " == *" $LOTUS_OS "* ]] || { REPLY="The plugin \"$name\" is not for this system – it lists: ${PLG[os]}. If it also runs on $LOTUS_OS, its author (or you) can add: os = ${PLG[os]} $LOTUS_OS"; return 1 }
+  local need
+  for need in ${(s:,:)${PLG[requires]// /}}; do
+    (( $+commands[$need] )) && continue
+    lotus_pkg_hint $need
+    REPLY="The plugin \"$name\" needs $need, which is missing – install it with: $REPLY"
+    return 1
+  done
   _plg_entry $name || { REPLY="The plugin \"$name\" is not installed yet – install it with: lotus plugin install $dir"; return 1 }
   local -a e=("${reply[@]}")
   [[ $e[2] == on ]] || { REPLY="The plugin \"$name\" is turned off – lotus plugin on $name"; return 1 }
@@ -231,29 +250,6 @@ _plg_ready() {
 
 # ── Running a program of a plugin ─────────────────────────────
 
-# The sandbox of a limited plugin (sandbox-exec): its own folder to read, its data folder and the temporary
-# folder to write, nothing of the home folder or other disks, no keychain, no Apple Events (no controlling
-# other apps), no internet unless the plugin says network = yes.
-_plg_profile() {   # <dir> <data> <network yes|no> → REPLY
-  local q=$'"' tmp=${TMPDIR:-/tmp}
-  REPLY="(version 1)
-(allow default)
-(allow file-write* (subpath $q${tmp:A}$q) (subpath \"/private/tmp\") (subpath \"/private/var/folders\"))
-(deny file-read* (subpath $q${HOME:A}$q) (subpath \"/Volumes\"))
-(deny file-write* (subpath $q${HOME:A}$q) (subpath \"/Volumes\"))
-(allow file-read* (subpath $q${1:A}$q) (subpath $q${2:A}$q))
-(allow file-write* (subpath $q${2:A}$q))
-(deny process-exec (literal \"/usr/bin/security\") (literal \"/usr/bin/osascript\") (literal \"/usr/bin/sudo\") (literal \"/usr/bin/su\"))
-(deny appleevent-send)
-(deny mach-lookup (global-name \"com.apple.SecurityServer\") (global-name \"com.apple.securityd.xpc\"))"
-  [[ $3 == yes ]] || REPLY+=$'\n(deny network*)'
-  # a file the AI gave a tool (a path parameter – it asked the user already, like read_file): this one file to read
-  local f
-  for f in ${(f)LOTUS_PLUGIN_READ}; do
-    [[ $f == /* && $f != *[\"\\]* ]] && REPLY+=$'\n'"(allow file-read* (literal $q${f:A}$q))"
-  done
-}
-
 # Runs <program> of the plugin (read by _plg_read) with the arguments. Limited plugins in their sandbox and with
 # a clean environment; full ones with Lotus' folders and functions. Never with the AI's API keys.
 #   _plg_exec <program and its fixed arguments> [arguments…]   (LOTUS_PLUGIN_ENV: more NAME=value for it)
@@ -266,7 +262,7 @@ _plg_exec() {
   zf_mkdir -p $data
   local -a run
   case $prog in
-    *.zsh) run=(/bin/zsh -f $prog) ;;
+    *.zsh) run=(${commands[zsh]:-/bin/zsh} -f $prog) ;;
     *.sh)  run=(/bin/sh $prog) ;;
     *.py)  run=(python3 $prog) ;;
     *.js|*.mjs) run=(node $prog) ;;
@@ -274,7 +270,7 @@ _plg_exec() {
     *)     [[ -x $prog ]] || chmod +x $prog 2>/dev/null; run=($prog) ;;
   esac
   local -a env=(
-    PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin HOME=$HOME TMPDIR=${TMPDIR:-/tmp}
+    PATH=${${LOTUS_OS:#linux}:+/opt/homebrew/bin:}/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${${LOTUS_OS:#macos}:+:$HOME/.local/bin} HOME=$HOME TMPDIR=${TMPDIR:-/tmp}
     LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} TERM=${TERM:-xterm-256color} COLUMNS=${COLUMNS:-80}
     LOTUS_PLUGIN=$name LOTUS_PLUGIN_DIR=$dir LOTUS_PLUGIN_DATA=$data LOTUS_VERSION=$LOTUS_VERSION LOTUS_LANG=$LOTUS_LANG
     LOTUS_COLOR_KEY=$LOTUS_C[key] LOTUS_COLOR_ACCENT=$LOTUS_C[accent] LOTUS_COLOR_DIM=$LOTUS_C[dim] LOTUS_COLOR_LOGO=$LOTUS_C[logo]
@@ -285,8 +281,14 @@ _plg_exec() {
           LOTUS_NAME=$LOTUS_NAME USER=$USER SHELL=$SHELL LOTUS_PWD=$PWD)    # LOTUS_PWD: the folder you called it in
     (cd $dir && exec env -i $env $run $fixed[2,-1] "$@")
   else
-    _plg_profile $dir $data $PLG[network]
-    (cd $dir && exec env -i $env /usr/bin/sandbox-exec -p $REPLY $run $fixed[2,-1] "$@")
+    if ! lotus_os_sandbox_available; then
+      lotus_pkg_hint bwrap
+      print -u2 -r -- "lotus: the plugin $name runs in a sandbox and this system has none. Install it with: $REPLY"
+      return 126
+    fi
+    lotus_os_sandbox_wrap $dir $data $PLG[network] ${(f)LOTUS_PLUGIN_READ}
+    local -a wrap=("${reply[@]}")
+    (cd $dir && exec env -i $env $wrap $run $fixed[2,-1] "$@")
   fi
 }
 
@@ -423,10 +425,23 @@ lotus_plugin_lines() {
     if (( ! ${#st} || EPOCHSECONDS - st[1] > ${PLG[startup.every]:-300} )); then
       zf_mkdir -p ${cache:h}
       touch $cache     # one refresh at a time
-      # not stopped when the terminal closes (the start screen of a window that is closed right away)
-      ( trap '' HUP; _plg_with_timeout 10 _plg_exec $PLG[startup] >| $cache.new 2>/dev/null && zf_mv -f $cache.new $cache ) &!
+      # a process of its own, detached from the terminal: the start screen of a window that is closed right away must
+      # not stop it (and no race between the fork and a trap in the job)
+      lotus_os_detach ${commands[zsh]:-zsh} -f $LOTUS_ROOT/bin/lotus plugin-startup $n
     fi
   done
+}
+
+# lotus plugin-startup <name>: makes the start screen line of a plugin (started by lotus_plugin_lines, detached)
+_plg_startup_refresh() {
+  local n=$1 cache
+  [[ $n == [a-z][a-z0-9-]## ]] || return 2
+  _plg_read $LOTUS_PLUGINS/$n && [[ -n $PLG[startup] ]] || return 1
+  _plg_ready $n || return 1
+  cache=$LOTUS_PLUGIN_DATA/$n/.startup-line
+  zf_mkdir -p ${cache:h}
+  _plg_with_timeout 10 _plg_exec $PLG[startup] >| $cache.new 2>/dev/null && zf_mv -f $cache.new $cache
+  rm -f $cache.new
 }
 
 # ── lotus plugin: list, info, check ───────────────────────────
@@ -567,6 +582,10 @@ description = What it does, in one sentence
 access      = $access
 # limited plugins: may it use the internet? (yes / no)
 network     = no
+# The systems it runs on: macos, linux, windows. A plugin is never started on one that is not listed.
+# For one program per system: command $name.windows = $name.ps1
+os          = macos linux
+# Programs it needs (Lotus says what is missing and how to install it): requires = python3, ffmpeg
 
 # A command: lotus $name … runs $name.zsh with the arguments
 command $name = $name.zsh
@@ -998,7 +1017,7 @@ _plg_installer() {
       ui_text "Drag plugin folders or packs here, or paste a git link"
     fi
     # a git link on the clipboard: Enter alone installs it
-    clip= c=$(pbpaste 2>/dev/null | head -c 400)
+    clip= c=$(lotus_os_clip_paste 2>/dev/null | head -c 400)
     c=${${c##[[:space:]]##}%%[[:space:]]##}
     [[ $c == (https://|git@)[^[:space:]]## && $c != $used ]] && clip=$c
     ui_blank

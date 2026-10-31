@@ -14,7 +14,7 @@ lotus_cmd_app() {
     return 1
   fi
   local name=$REPLY
-  if open -a "$path_of[$name]" 2>/dev/null; then
+  if lotus_os_open_app "$path_of[$name]" 2>/dev/null; then
     ui_info "Opening $name"
   else
     ui_error "Could not open $name" "$path_of[$name]"
@@ -22,14 +22,5 @@ lotus_cmd_app() {
   fi
 }
 
-# Installed apps → LOTUS_APPS[name]=path (the first location wins)
-lotus_installed_apps() {
-  typeset -gA LOTUS_APPS=()
-  local p n
-  for p in /Applications/*.app(N) /Applications/*/*.app(N) ~/Applications/*.app(N) \
-           /System/Applications/*.app(N) /System/Applications/Utilities/*.app(N) \
-           /Applications/Utilities/*.app(N) /System/Library/CoreServices/Finder.app(N); do
-    n=${p:t:r}
-    [[ -z $LOTUS_APPS[$n] ]] && LOTUS_APPS[$n]=$p
-  done
-}
+# Installed apps → LOTUS_APPS[name]=path or desktop file (the first location wins)
+lotus_installed_apps() { lotus_os_apps }

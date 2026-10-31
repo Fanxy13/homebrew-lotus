@@ -4,12 +4,13 @@
 # rooms, the data in the plugin's data folder only and private, the chat in a terminal (the demo: two simulated
 # people, one of them a relay away) and the terminal given back as it was. Bluetooth itself needs Macs with
 # Bluetooth: the test with three of them is in plugins/meshchat/README.md.
+onlyon macos "MeshChat uses CoreBluetooth and runs on macOS only" || return 0
 source $LOTUS_ROOT/lib/core.zsh
 source $LOTUS_ROOT/lib/ui.zsh
 lotus_load
 lotus() { $LOTUS_ROOT/bin/lotus "$@" }
 plain() { sed $'s/\e\\[[0-9;?]*[a-zA-Z]//g' | tr -d '\r' }
-answer() { (sleep 1.5; print -rn -- $1; sleep 0.8) | script -q /dev/null zsh -fc "$2" 2>&1 | plain }
+answer() { (sleep 1.5; print -rn -- $1; sleep 0.8) | tpty zsh -fc "$2" 2>&1 | plain }
 D=$LOTUS_DATA/plugins/meshchat
 
 # ── installed like any plugin: limited, no internet ──
@@ -57,13 +58,13 @@ check_has "hops are no setting: every message goes as far as it can" "$(lotus me
 check_has "the settings file" "$(<$D/settings)" "LINKS=3"
 
 # ── its data: in its data folder, readable by you only ──
-check_eq "the settings are readable by you only" "$(stat -f %Lp $D/settings)" 600
-check_eq "the data folder too" "$(stat -f %Lp $D)" 700
+check_eq "the settings are readable by you only" "$(fmode $D/settings)" 600
+check_eq "the data folder too" "$(fmode $D)" 700
 check "nothing of it outside its data folder" eval '[[ -z $(print -l $HOME/*meshchat*(N)) && ! -e $HOME/Library/Preferences/io.github.fanxy13.lotus.meshchat.plist ]]'
 
 # ── the chat in a terminal: the demo, with keys typed into it ──
 out=$( (sleep 4; print -rn -- "hello mesh"; sleep 0.4; print -rn -- $'\r'; sleep 5; print -rn -- "/who"$'\r'; sleep 1.5; print -rn -- $'\x03'; sleep 2) \
-  | script -q /dev/null zsh -fc "COLUMNS=100 $LOTUS_ROOT/bin/lotus meshchat demo" 2>&1)
+  | tpty zsh -fc "COLUMNS=100 $LOTUS_ROOT/bin/lotus meshchat demo" 2>&1)
 text=$(print -r -- $out | plain)
 check_has "the demo: the chat's screen" "$text" "lotus / MeshChat"
 check_has "one chat: everyone nearby" "$text" "everyone nearby"

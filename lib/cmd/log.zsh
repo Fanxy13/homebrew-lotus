@@ -315,7 +315,7 @@ lotus_log_view() {
                   [[ ${rows[j2]} == e\|* ]] || continue
                   i=${rows[j2]#e|}; out+=("${E_TS[i]}  ${E_LV[i]}  ${E_CP[i]}  ${E_MSG[i]}")
                 done
-                print -rl -- $out | pbcopy && note="${LOTUS_L[log_copied]//\%d/${#out}}" ;;
+                print -rl -- $out | lotus_os_clip_copy && note="${LOTUS_L[log_copied]//\%d/${#out}}" ;;
       c)        print -n $'\e['"${H};1H"$'\e[K\e[?25h    '
                 if read -q "?${LOTUS_L[log_clear_q]} [y/N] " < /dev/tty; then
                   rm -f $LOTUS_LOG(N) $LOTUS_LOG.<1-9>(N)

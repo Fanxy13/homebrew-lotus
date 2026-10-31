@@ -71,7 +71,8 @@ lotus_mc_new() {
 
   # 5. memory
   _mc_step 5 "Memory (RAM)"
-  local -i total=$(( $(sysctl -n hw.memsize) / 1073741824 )) g
+  lotus_os_mem_bytes
+  local -i total=$(( REPLY / 1073741824 )) g
   local -a opts=()
   for g in 2 4 6 8 12; do (( g <= total / 2 )) && opts+=("$g GB"); done
   (( ${#opts} )) || opts=("2 GB")

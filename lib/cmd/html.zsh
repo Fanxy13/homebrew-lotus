@@ -291,9 +291,9 @@ html_main() {
   if (( ask )) && (( $+commands[open] )); then
     ui_blank
     if [[ -n $folder ]]; then
-      ui_confirm "Show the folder in Finder?" y && open -- $folder
+      ui_confirm "Show the folder in $LOTUS_FILES_APP?" y && lotus_os_open $folder
     elif [[ -n $first ]]; then
-      ui_confirm "Open it?" y && open -- $first
+      ui_confirm "Open it?" y && lotus_os_open $first
     fi
   fi
   return 0

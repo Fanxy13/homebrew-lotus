@@ -1136,7 +1136,7 @@ lotus_pets_add() {
     [[ -f $src && -r $src ]] || { ui_error "File not found" "$src"; return 1 }
     text=$(<$src)
   else
-    text=$(pbpaste 2>/dev/null)
+    text=$(lotus_os_clip_paste 2>/dev/null)
   fi
   # what an AI answers often sits in a code block
   text=${text//\`\`\`[a-z]#/}

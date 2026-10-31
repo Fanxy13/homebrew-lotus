@@ -101,7 +101,7 @@ lotus_install_card() {
   ui_blank
   if [[ $inst == yes ]]; then
     ui_success "$name is already installed"
-    ui_confirm "Open it?" y && open -a "${f[4]:r}" 2>/dev/null
+    ui_confirm "Open it?" y && lotus_os_open_app "${f[4]:r}" 2>/dev/null
     return 0
   fi
   ui_confirm "Install $name?" n || return 0

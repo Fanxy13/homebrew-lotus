@@ -1,6 +1,7 @@
 # lotus – audio control: /np /play /pause /skip /back /repeat /mute /vu /vd
-# Spotify and Music are controlled directly (AppleScript). Other players get
-# the macOS media keys, which needs the Accessibility permission for the terminal.
+# What plays comes from fastfetch (macOS, Linux and Windows). The controls are the platform layer's
+# (lib/platform/*.zsh): on macOS Spotify and Music are controlled directly (AppleScript) and other players get the
+# macOS media keys, which needs the Accessibility permission for the terminal; on Linux every MPRIS player works.
 
 lotus_cmd_audio() {
   shift   # "audio"
@@ -24,15 +25,6 @@ lotus_np_state() {
   LOTUS_NP=(title "$v[1]" artist "$v[2]" album "$v[3]" status "$v[4]" player "$v[5]" id "$v[6]" pos "$v[7]" len "$v[8]")
 }
 
-# AppleScript target for players Lotus can control directly
-_lotus_scriptable() {
-  case $LOTUS_NP[id] in
-    com.spotify.client) REPLY=Spotify ;;
-    com.apple.Music)    REPLY=Music ;;
-    *)                  REPLY= ; return 1 ;;
-  esac
-}
-
 lotus_audio_now() {
   if [[ -z $LOTUS_NP[title] ]]; then
     ui_header "Now playing"
@@ -49,53 +41,19 @@ lotus_audio_now() {
   ui_blank
 }
 
-# NX key codes: play/pause 16, next 17, previous 18
-_lotus_media_key() {
-  osascript -l JavaScript - $1 <<'JXA' >/dev/null 2>&1
-ObjC.import('Cocoa');
-function run(argv) {
-  const code = parseInt(argv[0]);
-  for (const down of [true, false]) {
-    const flags = down ? 0xa00 : 0xb00;
-    const data1 = (code << 16) | ((down ? 0xa : 0xb) << 8);
-    const ev = $.NSEvent.otherEventWithTypeLocationModifierFlagsTimestampWindowNumberContextSubtypeData1Data2(
-      14, $.NSMakePoint(0, 0), flags, 0, 0, null, 8, data1, -1);
-    $.CGEventPost(0, ev.CGEvent);
-  }
-}
-JXA
-}
-
-_lotus_ax_trusted() {
-  [[ $(osascript -l JavaScript -e 'ObjC.import("ApplicationServices"); $.AXIsProcessTrusted()' 2>/dev/null) == true ]]
-}
-
 lotus_audio_transport() {
-  local action=$1 app label
+  local action=$1 label
   label=${${${${action/next/Next track}/previous/Previous track}/play/Play}/pause/Pause}
   if [[ -z $LOTUS_NP[title] ]]; then
     ui_warn "Nothing is playing right now"
     [[ $action == play ]] || return 1
   fi
-  if _lotus_scriptable; then
-    app=$REPLY
-    local verb=${${${${action/next/next track}/previous/previous track}/play/play}/pause/pause}
-    if osascript -e "tell application \"$app\" to $verb" >/dev/null 2>&1; then
-      ui_info "$label  $LOTUS_NP[player]"
-    else
-      ui_error "$app did not respond" "macOS may have asked for permission to control $app." "Allow it in System Settings → Privacy & Security → Automation."
-      return 1
-    fi
-  else
-    if ! _lotus_ax_trusted; then
-      ui_error "Lotus cannot press media keys yet" "${LOTUS_NP[player]:-This player} is controlled with the macOS media keys." \
-        "Allow your terminal app in System Settings → Privacy & Security → Accessibility."
-      return 1
-    fi
-    local -A codes=(play 16 pause 16 next 17 previous 18)
-    _lotus_media_key $codes[$action]
-    ui_info "$label  ${LOTUS_NP[player]:-media key}"
-  fi
+  lotus_os_media $action "$LOTUS_NP[id]" "$LOTUS_NP[player]"
+  case $? in
+    0) ui_info "$label  $REPLY" ;;
+    2) ui_error "This system cannot $action here" "${LOTUS_NP[player]:-The player} cannot be controlled from the terminal." ""; return 1 ;;
+    *) ui_error "${LOTUS_OS_MSG[1]:-The player did not respond}" "${LOTUS_OS_MSG[2]}" "${LOTUS_OS_MSG[3]}"; return 1 ;;
+  esac
   if [[ $action == (next|previous) ]]; then
     sleep 0.6
     lotus_np_state && ui_dim "  ♫ $LOTUS_NP[title]${LOTUS_NP[artist]:+ — $LOTUS_NP[artist]}"
@@ -103,29 +61,27 @@ lotus_audio_transport() {
 }
 
 lotus_audio_repeat() {
-  if ! _lotus_scriptable; then
-    ui_error "Repeat works with Spotify and Music" "${LOTUS_NP[player]:-Nothing} is playing right now." "Other players do not let macOS change their repeat mode."
-    return 1
-  fi
-  local state
-  if [[ $REPLY == Spotify ]]; then
-    state=$(osascript -e 'tell application "Spotify"' -e 'set repeating to not repeating' -e 'return repeating' -e 'end tell' 2>/dev/null)
-    [[ $state == true ]] && ui_info "Repeat on  Spotify" || ui_info "Repeat off  Spotify"
-  else
-    state=$(osascript -e 'tell application "Music"' -e 'if song repeat is off then' -e 'set song repeat to all' -e 'else' -e 'set song repeat to off' -e 'end if' -e 'return song repeat as text' -e 'end tell' 2>/dev/null)
-    ui_info "Repeat ${state:-?}  Music"
-  fi
+  lotus_os_media repeat "$LOTUS_NP[id]" "$LOTUS_NP[player]"
+  case $? in
+    0) ui_info "$REPLY" ;;
+    *) if [[ $LOTUS_OS == macos ]]; then
+         ui_error "Repeat works with Spotify and Music" "${LOTUS_NP[player]:-Nothing} is playing right now." "Other players do not let macOS change their repeat mode."
+       else
+         ui_error "This player does not let Lotus change its repeat mode" "${LOTUS_NP[player]:-Nothing} is playing right now." "Players that support MPRIS with a loop status work (Spotify, VLC, mpv with a plugin …)."
+       fi
+       return 1 ;;
+  esac
 }
 
 lotus_audio_mute() {
-  local muted=$(osascript -e 'set m to not (output muted of (get volume settings))' -e 'set volume output muted m' -e 'return m' 2>/dev/null)
-  [[ $muted == true ]] && ui_info "Muted" || ui_info "Sound on"
+  lotus_os_volume mute || { ui_error "The volume cannot be changed from here" "" "${${LOTUS_OS:#macos}:+Install wpctl (PipeWire), pactl (PulseAudio) or amixer (ALSA).}"; return 1 }
+  [[ $REPLY == 1 ]] && ui_info "Muted" || ui_info "Sound on"
 }
 
 lotus_audio_volume() {
-  local -i step=-6 vol
-  [[ $1 == up ]] && step=6
-  vol=$(osascript -e "set v to (output volume of (get volume settings)) + $step" -e 'if v > 100 then set v to 100' -e 'if v < 0 then set v to 0' -e 'set volume output volume v' -e 'return v' 2>/dev/null)
+  local -i vol
+  lotus_os_volume $1 || { ui_error "The volume cannot be changed from here" "" "${${LOTUS_OS:#macos}:+Install wpctl (PipeWire), pactl (PulseAudio) or amixer (ALSA).}"; return 1 }
+  vol=$REPLY
   ui_progress "Volume" $vol
   (( vol < 100 )) && print
 }

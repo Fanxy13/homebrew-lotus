@@ -27,7 +27,7 @@ lotus_caffeine_state() {
   local -a v=(${=$(<$f)})
   [[ $v[1] == <-> && $v[2] == <-> && $v[3] == <-> ]] || { rm -f -- "${f:?}"; return 1 }
   # gone, or the number now belongs to another program: forget it
-  if ! kill -0 $v[1] 2>/dev/null || [[ $(ps -p $v[1] -o comm= 2>/dev/null) != *caffeinate ]]; then
+  if ! lotus_os_awake_is $v[1]; then
     rm -f -- "${f:?}"
     return 1
   fi
@@ -46,20 +46,18 @@ lotus_caffeine_on() {
   [[ $arg == <-> ]] || { ui_error "Minutes must be a number" "$arg" "Example: lotus caffeine on 90"; return 2 }
   local -i min=$arg
   (( min > 1440 )) && { ui_error "At most 24 hours (1440 minutes)" "" "For longer: lotus caffeine on 0 – until you turn it off"; return 2 }
-  command -v caffeinate >/dev/null || { ui_error "caffeinate is missing" "It comes with macOS." ""; return 1 }
   lotus_caffeine_state && lotus_caffeine_off quiet
   zf_mkdir -p $LOTUS_STATE
-  local -a args=(-d -i -m)            # display, idle sleep and disk stay awake
-  (( min )) && args+=(-t $(( min * 60 )))
-  nohup caffeinate $args >/dev/null 2>&1 &!
-  local -i pid=$!
-  sleep 0.1
-  if ! kill -0 $pid 2>/dev/null; then
-    ui_error "caffeinate did not start" "" ""
-    return 1
-  fi
+  lotus_os_awake_start $(( min * 60 ))
+  case $? in
+    0) ;;
+    2) ui_error "Lotus cannot keep this system awake" "${${LOTUS_OS:#macos}:+It needs systemd-inhibit (systemd) or gnome-session-inhibit.}${${LOTUS_OS:#linux}:+caffeinate comes with macOS and is missing.}" ""; return 1 ;;
+    *) lotus_os_awake_name; ui_error "$REPLY did not start" "${${LOTUS_OS:#macos}:+It needs a running login manager (a desktop session or logind) – a container has none.}" ""; return 1 ;;
+  esac
+  local -i pid=$REPLY
   print -r -- "$pid $EPOCHSECONDS $(( min ? EPOCHSECONDS + min * 60 : 0 ))" >| $LOTUS_STATE/caffeine
-  lotus_log INFO caffeine "Keeping the Mac awake${min:+ for $min min} (caffeinate $pid)"
+  lotus_os_awake_name
+  lotus_log INFO caffeine "Keeping the system awake${min:+ for $min min} ($REPLY $pid)"
   if (( min )); then
     local until
     strftime -s until '%H:%M' $(( EPOCHSECONDS + min * 60 ))
@@ -75,9 +73,9 @@ lotus_caffeine_off() {
     [[ $1 == quiet ]] || ui_info "${LOTUS_L[caf_was_off]:-Keep awake is not on}"
     return 0
   fi
-  kill $CAF_PID 2>/dev/null
+  lotus_os_awake_stop $CAF_PID
   rm -f -- "${LOTUS_STATE:?}/caffeine"
-  lotus_log INFO caffeine "Stopped keeping the Mac awake (caffeinate $CAF_PID)"
+  lotus_log INFO caffeine "Stopped keeping the system awake (pid $CAF_PID)"
   [[ $1 == quiet ]] || ui_success "${LOTUS_L[caf_off]:-Your Mac may sleep again}"
 }
 

@@ -7,7 +7,7 @@ lotus_load
 lotus() { $LOTUS_ROOT/bin/lotus "$@" }
 plain() { sed $'s/\e\\[[0-9;?]*[a-zA-Z]//g' | tr -d '\r' }
 # a question answered on a keyboard: script gives it a terminal, the answer comes when it waits
-answer() { (sleep 1.5; print -rn -- $1; sleep 0.5) | script -q /dev/null zsh -fc "$2" 2>&1 | plain }
+answer() { (sleep 1.5; print -rn -- $1; sleep 0.5) | tpty zsh -fc "$2" 2>&1 | plain }
 P=$LOTUS_CONF/plugins
 
 check_has "none at first" "$(lotus plugin 2>&1 | plain)" "No plugins yet"
@@ -28,18 +28,29 @@ lotus nosuchthing >/dev/null 2>&1; check_eq "a word no plugin has is still unkno
 print -r -- "command broken = missing.zsh" >> $P/demo/plugin.conf
 check_has "check finds the problem" "$(lotus plugin check demo 2>&1 | plain)" "missing.zsh is not a file in the plugin's folder"
 check_has "and it does not run" "$(lotus demo 2>&1 | plain)" "has a problem in its plugin.conf"
-sed -i '' '/command broken/d' $P/demo/plugin.conf
+sedi '/command broken/d' $P/demo/plugin.conf
 
 # ── the sandbox of a limited plugin ──
 print -r -- "secret" >| $HOME/secret.txt
+# Linux: bubblewrap has to work here (a container needs root and --privileged; the CI sets the kernel up instead)
+if [[ $TEST_OS == linux ]]; then
+  lotus_os_sandbox_available || { print -r -- "  · the sandbox tests need bubblewrap with user namespaces (docker run --privileged -u root, LOTUS_TEST_PRIV=1)"; return 0 }
+  mkdir -p /run/user/$(id -u) 2>/dev/null && : >| /run/user/$(id -u)/lotus-test-marker 2>/dev/null
+fi
 cat >| $P/demo/demo.zsh <<'EOF'
 cat $HOME/secret.txt >/dev/null 2>&1 && print "home: READ" || print "home: blocked"
 print x > $HOME/written.txt 2>/dev/null && print "write home: WRITTEN" || print "write home: blocked"
 print x > $LOTUS_PLUGIN_DATA/mine.txt && print "own data: written"
 cat $LOTUS_PLUGIN_DIR/plugin.conf >/dev/null && print "own folder: read"
 [[ -r $LOTUS_CONF/settings.zsh ]] && print "settings: READ" || print "settings: hidden"
-/usr/bin/security list-keychains >/dev/null 2>&1 && print "keychain: OPEN" || print "keychain: blocked"
-/usr/bin/osascript -e 1 >/dev/null 2>&1 && print "apple events: OPEN" || print "apple events: blocked"
+if [[ $OSTYPE == darwin* ]]; then
+  /usr/bin/security list-keychains >/dev/null 2>&1 && print "keychain: OPEN" || print "keychain: blocked"
+  /usr/bin/osascript -e 1 >/dev/null 2>&1 && print "apple events: OPEN" || print "apple events: blocked"
+else
+  # Linux: the session's runtime folder holds the keyring's and the desktop's sockets
+  [[ -e /run/user/$(id -u)/lotus-test-marker ]] && print "keychain: OPEN" || print "keychain: blocked"
+  print "apple events: blocked"      # there is nothing like it here
+fi
 env | grep -q -e sk-test-secret -e GITHUB_TOKEN && print "keys: VISIBLE" || print "keys: none"
 [[ -n $LOTUS_PWD ]] && print "folder: SHOWN" || print "folder: hidden"
 python3 -c "import socket,sys; s=socket.create_connection(('127.0.0.1', int(sys.argv[1])), 3); print('network: OPEN')" $(<$LOTUS_PLUGIN_DIR/port) 2>/dev/null || print "network: blocked"
@@ -52,7 +63,7 @@ python3 -m http.server $port --bind 127.0.0.1 >/dev/null 2>&1 &
 srv=$!
 for p in {1..30}; do curl -s -m 1 -o /dev/null http://127.0.0.1:$port/ && break; sleep 0.1; done
 print -r -- $port >| $P/demo/port      # the plugin sees only its own folder: the port goes there
-_plg_net() { sed -i '' "s/^network .*/network     = $1/" $P/demo/plugin.conf }
+_plg_net() { sedi "s/^network .*/network     = $1/" $P/demo/plugin.conf }
 out=$(LOTUS_AI_CLAUDE_KEY=sk-test-secret GITHUB_TOKEN=x lotus demo 2>&1 | plain)
 check_has "limited: your files cannot be read" "$out" "home: blocked"
 check_has "nor written" "$out" "write home: blocked"
@@ -151,10 +162,12 @@ if lotus_can_swift && (( $+commands[python3] )); then
 fi
 
 # ── under the start screen ──
-startup() { script -q /dev/null zsh -fc "source $LOTUS_ROOT/lib/core.zsh; source $LOTUS_ROOT/lib/ui.zsh; lotus_load; lotus_plugin_startup" </dev/null 2>&1 | plain }
+startup() { tpty zsh -fc "source $LOTUS_ROOT/lib/core.zsh; source $LOTUS_ROOT/lib/ui.zsh; lotus_load; lotus_plugin_startup" </dev/null 2>&1 | plain }
 startup >/dev/null
 for p in {1..40}; do [[ -s $LOTUS_DATA/plugins/todo/.startup-line ]] && break; sleep 0.1; done
-check_has "a plugin's start screen line" "$(startup)" "To-do · 2 open – lotus todo"
+# two open when the AI (needs the Swift program) put bread on the list above, else one
+(( 2 )); want=2; lotus_can_swift && (( $+commands[python3] )) || want=1
+check_has "a plugin's start screen line" "$(startup)" "To-do · $want open – lotus todo"
 
 # ── on, off, remove ──
 lotus features plugins off >/dev/null 2>&1

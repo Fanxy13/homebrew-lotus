@@ -185,7 +185,7 @@ _ais_start() {   # <quiet> <open>
     ui_dim "Only this Mac can open it. Every command it wants to run asks you first in the browser."
   fi
   if (( open )); then
-    open "http://127.0.0.1:$port/?key=$key" 2>/dev/null && ui_dim "It opens in your browser now · later: lotus ai server open · stop: lotus ai server stop"
+    lotus_os_open "http://127.0.0.1:$port/?key=$key" 2>/dev/null && ui_dim "It opens in your browser now · later: lotus ai server open · stop: lotus ai server stop"
   else
     ui_dim "Open it: lotus ai server open · stop: lotus ai server stop"
   fi

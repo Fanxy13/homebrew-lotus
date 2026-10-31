@@ -140,10 +140,7 @@ bg_ask_paths() {
 # Read with macOS' own JavaScript for Automation (lib/bg/clipboard.js) – no extra tools.
 
 # What the clipboard holds → REPLY: "files <n>", "image <w>x<h>" or "none"
-bg_clipboard_peek() {
-  REPLY=$(osascript -l JavaScript $LOTUS_ROOT/lib/bg/clipboard.js peek 2>/dev/null)
-  [[ -n $REPLY ]] || REPLY=none
-}
+bg_clipboard_peek() { lotus_os_clip_peek }
 
 # The clipboard as input → reply (paths): copied files as they are, an image saved as PNG
 # in ~/.cache/lotus/bg/clipboard (removed after a day). Status 1 when there is nothing to use.
@@ -152,7 +149,7 @@ bg_clipboard_take() {
   zf_mkdir -p $dir && chmod 700 $dir
   rm -f $dir/*(N.mh+24)
   strftime -s stamp '%Y-%m-%d %H.%M.%S' $EPOCHSECONDS
-  reply=(${(f)"$(osascript -l JavaScript $LOTUS_ROOT/lib/bg/clipboard.js save "$dir/Clipboard $stamp.png" 2>/dev/null)"})
+  reply=(${(f)"$(lotus_os_clip_save "$dir/Clipboard $stamp.png" 2>/dev/null)"})
   reply=(${reply:#})
   (( ${#reply} )) || return 1
   lotus_log INFO bg "From the clipboard: ${#reply} item(s)"
@@ -446,8 +443,8 @@ bg_result() {
     local res=$BG_INFO[resolution]
     ui_keyx
     case $REPLY in
-      o|O)  [[ -e $output ]] && open -- $output ;;
-      f|F)  [[ -e $output ]] && open -R -- $output || open -- ${output:h} ;;
+      o|O)  [[ -e $output ]] && lotus_os_open $output ;;
+      f|F)  [[ -e $output ]] && lotus_os_reveal $output || lotus_os_open ${output:h} ;;
       r|R)  if bg_refine $input; then refined=1 output=$BG_DONE[2] secs=$BG_DONE[3]; fi
             BG_INFO[resolution]=${BG_INFO[resolution]:-$res} ;;
       d|D)  [[ -e $output ]] || continue
@@ -531,7 +528,7 @@ bg_batch_summary() {
     print -r -- "    ${k}f${_UI_R} ${LOTUS_L[bg_k_finder]}   ${k}q${_UI_R} ${LOTUS_L[bg_k_done]}"
     ui_has_tty || return 0
     ui_keyx
-    [[ $REPLY == (f|F) ]] && open -- ${BG_DONE[2]:h}
+    [[ $REPLY == (f|F) ]] && lotus_os_open ${BG_DONE[2]:h}
   fi
   ui_blank
 }

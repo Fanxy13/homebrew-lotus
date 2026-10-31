@@ -86,7 +86,7 @@ lotus_cmd_convert() {
   fi
   ui_success "Done: ${file/#$HOME/~}${size:+  ($size)}"
   lotus_pet_react done
-  ui_confirm "Show it in Finder?" y && open -R "$file"
+  ui_confirm "Show it in $LOTUS_FILES_APP?" y && lotus_os_reveal "$file"
 }
 
 # yt-dlp: Lotus' own copy when there is one, else the one on the PATH

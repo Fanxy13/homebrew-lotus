@@ -8,7 +8,7 @@ source $LOTUS_ROOT/lib/ui.zsh
 lotus_load
 lotus() { $LOTUS_ROOT/bin/lotus "$@" }
 plain() { sed $'s/\e\\[[0-9;?]*[a-zA-Z]//g' | tr -d '\r' }
-answer() { (sleep 1.5; print -rn -- $1; sleep 0.5) | script -q /dev/null zsh -fc "$2" 2>&1 | plain }
+answer() { (sleep 1.5; print -rn -- $1; sleep 0.5) | tpty zsh -fc "$2" 2>&1 | plain }
 if (( ! $+commands[python3] )); then print -r -- "  – no python3: skipped"; return 0; fi
 zmodload zsh/net/tcp
 
@@ -227,7 +227,7 @@ mkold() {   # <author>
   print -r -- 'docx|page' >| $LOTUS_DATA/plugins/liveserver/html-last
   print -r -- $'todo\ton\tlimited\tabc\nliveserver\ton\tfull\tdef' >| $LOTUS_CONF/plugins.tsv
 }
-tty() { script -q /dev/null zsh -fc "$LOTUS_ROOT/bin/lotus version" 2>&1 | plain }
+tty() { tpty zsh -fc "$LOTUS_ROOT/bin/lotus version" 2>&1 | plain }
 mkold Somebody
 out=$(tty)
 check "a plugin of someone else with that name stays" test -e $P/liveserver/plugin.conf

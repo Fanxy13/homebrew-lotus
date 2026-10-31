@@ -47,7 +47,7 @@ lotus_open_url() {   # <url> [label|quiet]
     ui_error "That is not a valid link" "$1" "Links need to start with http:// or https://"
     return 1
   fi
-  open "$1" 2>/dev/null || { ui_error "Could not open the link" "$1"; return 1 }
+  lotus_os_open "$1" 2>/dev/null || { lotus_os_open_failed "$1"; return 1 }
   [[ $2 == quiet ]] || ui_info "Opening ${2:-$1}"
 }
 

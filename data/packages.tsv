@@ -1,0 +1,24 @@
+# Lotus – the package that provides a program, for each package manager (lib/platform/pkg.zsh: lotus_pkg_name, lotus_pkg_hint).
+# program = the command Lotus looks for. "-" = no such package for that manager.
+# Checked against the real repositories: apt (Ubuntu 24.04, Debian 12), dnf (Fedora 42), pacman (Arch, 2026-10-31).
+# zypper, apk, winget and scoop names are the ones the projects publish; they are checked on their systems by the CI.
+# program	brew	apt	dnf	pacman	zypper	apk	winget	scoop	note
+zsh	zsh	zsh	zsh	zsh	zsh	zsh	-	-	
+curl	curl	curl	curl	curl	curl	curl	-	curl	
+git	git	git	git	git	git	git	Git.Git	git	
+python3	python	python3	python3	python	python3	python3	Python.Python.3.13	python	venv and pip come with it on most systems; Debian and Ubuntu need python3-venv too
+jq	jq	jq	jq	jq	jq	jq	jqlang.jq	jq	
+ffmpeg	ffmpeg	ffmpeg	ffmpeg-free	ffmpeg	ffmpeg	ffmpeg	Gyan.FFmpeg	ffmpeg	Fedora: ffmpeg-free has no MP3 encoder – the full ffmpeg is in RPM Fusion
+yt-dlp	yt-dlp	yt-dlp	yt-dlp	yt-dlp	yt-dlp	yt-dlp	yt-dlp.yt-dlp	yt-dlp	Debian and Ubuntu ship an old one – Lotus can keep its own copy
+fastfetch	fastfetch	fastfetch	fastfetch	fastfetch	fastfetch	fastfetch	Fastfetch-cli.Fastfetch	fastfetch	not in Debian 12 or Ubuntu 24.04 – the installer downloads the release instead
+magick	imagemagick	imagemagick	ImageMagick	imagemagick	ImageMagick	imagemagick	ImageMagick.ImageMagick	imagemagick	the converter for /img on Linux and Windows
+vips	vips	libvips-tools	vips-tools	libvips	vips-tools	vips-tools	-	vips	
+bwrap	-	bubblewrap	bubblewrap	bubblewrap	bubblewrap	bubblewrap	-	-	the sandbox of limited plugins on Linux
+playerctl	playerctl	playerctl	playerctl	playerctl	playerctl	playerctl	-	-	media keys over MPRIS
+xclip	-	xclip	xclip	xclip	xclip	xclip	-	-	clipboard on X11
+wl-copy	-	wl-clipboard	wl-clipboard	wl-clipboard	wl-clipboard	wl-clipboard	-	-	clipboard on Wayland
+notify-send	-	libnotify-bin	libnotify	libnotify	libnotify-tools	libnotify	-	-	
+secret-tool	-	libsecret-tools	libsecret	libsecret	libsecret-tools	libsecret	-	-	API keys in the desktop keyring
+zenity	-	zenity	zenity	zenity	zenity	zenity	-	-	a folder picker
+java	openjdk@21	openjdk-21-jre-headless	java-21-openjdk-headless	jre21-openjdk-headless	java-21-openjdk-headless	openjdk21-jre-headless	EclipseAdoptium.Temurin.21.JRE	temurin21-jre	Minecraft 1.20.5 and newer needs Java 21; Debian 12 has only Java 17 – Temurin from adoptium.net works there
+unzip	unzip	unzip	unzip	unzip	unzip	unzip	-	unzip	

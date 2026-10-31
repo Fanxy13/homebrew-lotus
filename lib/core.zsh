@@ -11,6 +11,7 @@ zmodload zsh/datetime
 zmodload -F zsh/stat b:zstat
 zmodload -F zsh/files b:zf_mv b:zf_mkdir
 source $LOTUS_ROOT/lib/log.zsh
+source $LOTUS_ROOT/lib/platform.zsh     # what system this is, and the functions that differ (lib/platform/*.zsh)
 source $LOTUS_ROOT/lib/art.zsh
 
 # ── Settings ──────────────────────────────────────────────────
@@ -54,7 +55,9 @@ lotus_defaults() {
   typeset -g LOTUS_BG_READY=0 LOTUS_BG_MODEL=auto LOTUS_BG_BACKEND=auto LOTUS_BG_REFINE=ask LOTUS_BG_PREVIEW=0
   typeset -g LOTUS_BG_OUTPUT='~/Pictures/Lotus/Background Removed'
   typeset -g LOTUS_LOG_LEVEL=info LOTUS_LOG_RETENTION=7 LOTUS_LOG_STARTUP=0
-  typeset -g LOTUS_PET_START=1 LOTUS_PET_HELP=1 LOTUS_PET_REACT=1 LOTUS_PET_BRAIN=apple
+  # who answers for the pets: Apple Intelligence on a Mac, the AI of /ai everywhere else
+  typeset -g LOTUS_PET_START=1 LOTUS_PET_HELP=1 LOTUS_PET_REACT=1 LOTUS_PET_BRAIN=ai
+  [[ $LOTUS_OS == macos ]] && LOTUS_PET_BRAIN=apple
   typeset -g LOTUS_CONFIGURED=0 LOTUS_CONFIG_VERSION=0
   typeset -gA LOTUS_SHORTCUTS=()
 }
@@ -66,7 +69,8 @@ lotus_load() {
     lotus_migrate
   fi
   if [[ -z $LOTUS_NAME ]]; then
-    local -a full=(${=$(id -F 2>/dev/null)})
+    lotus_os_fullname
+    local -a full=(${=REPLY})
     (( ${#full[1]} > 1 )) && LOTUS_NAME=$full[1] || LOTUS_NAME=${(C)${USER:-${LOGNAME:-$(id -un)}}}
   fi
   [[ $LOTUS_INTERVAL == <1-60> ]] || LOTUS_INTERVAL=2
@@ -204,7 +208,10 @@ lotus_feature_set() {   # <id> <0|1>
 
 # ── Swift helpers ─────────────────────────────────────────────
 
-lotus_can_swift() { xcode-select -p >/dev/null 2>&1 && xcrun --find swiftc >/dev/null 2>&1 }
+lotus_can_swift() {
+  if [[ $LOTUS_OS == macos ]]; then xcode-select -p >/dev/null 2>&1 && xcrun --find swiftc >/dev/null 2>&1
+  else (( $+commands[swiftc] )); fi
+}
 
 # Builds a small Swift program once and keeps it in the cache; the name changes with the source.
 #   lotus_swift_build <name> <source files…>   → REPLY = program path (status 1 when it cannot be built)
@@ -217,7 +224,9 @@ lotus_swift_build() {
   local bin=$REPLY
   zf_mkdir -p ${bin:h}
   lotus_log INFO swift "Building $name"
-  if ! xcrun swiftc -Onone -parse-as-library -swift-version 5 -o $bin.tmp "$@" >/dev/null 2>$LOTUS_CACHE/$name-build.log; then
+  local -a swiftc=(swiftc)
+  [[ $LOTUS_OS == macos ]] && swiftc=(xcrun swiftc)
+  if ! $swiftc -Onone -parse-as-library -swift-version 5 -o $bin.tmp "$@" >/dev/null 2>$LOTUS_CACHE/$name-build.log; then
     rm -f $bin.tmp
     lotus_log ERROR swift "$name: the Swift compiler failed, see ${LOTUS_CACHE}/$name-build.log"
     return 1
@@ -236,14 +245,14 @@ lotus_detect_tc() {
     256)       LOTUS_TC=0; return ;;
   esac
   if [[ $COLORTERM == (truecolor|24bit) ||
-        $TERM_PROGRAM == (iTerm.app|WezTerm|ghostty|vscode|WarpTerminal|Hyper|Tabby|kitty|zed) ]]; then
+        $TERM_PROGRAM == (iTerm.app|WezTerm|ghostty|vscode|WarpTerminal|Hyper|Tabby|kitty|zed) ||
+        -n $WT_SESSION || -n $KONSOLE_VERSION || -n $KITTY_WINDOW_ID || -n $ALACRITTY_LOG || $TERM == (*-direct|xterm-kitty|alacritty|foot|foot-extra) ||
+        ${VTE_VERSION:-0} -ge 3600 ]]; then
     LOTUS_TC=1
   elif [[ $TERM_PROGRAM == Apple_Terminal ]]; then
     # Terminal.app supports 24-bit color from macOS 26 on
-    local f=$LOTUS_CACHE/macos v
-    if [[ -r $f ]]; then v=$(<$f)
-    else v=$(sw_vers -productVersion 2>/dev/null); zf_mkdir -p $LOTUS_CACHE; print -r -- $v >| $f; fi
-    (( ${${v%%.*}:-0} >= 26 )) && LOTUS_TC=1 || LOTUS_TC=0
+    lotus_os_version
+    (( ${${REPLY%%.*}:-0} >= 26 )) && LOTUS_TC=1 || LOTUS_TC=0
   else
     LOTUS_TC=0
   fi
@@ -320,10 +329,11 @@ lotus_urlencode() {
 
 # ── JSON ──────────────────────────────────────────────────────
 
-# jq ships with macOS 15 and newer; older systems get it from Homebrew
+# jq ships with macOS 15 and newer; other systems get it from their package manager
 lotus_jq() {
   if (( $+commands[jq] )); then jq "$@"; return; fi
-  print -u2 -- "lotus: this command needs jq on your macOS version – install it with: brew install jq"
+  lotus_pkg_hint jq
+  print -u2 -- "lotus: this command needs jq – install it with: $REPLY"
   return 1
 }
 
