@@ -1,8 +1,8 @@
 # Lotus
 
-**A start screen and command center for the macOS terminal.**
-Open apps, search and install software, check the weather, ask Apple Intelligence,
-control your music, remove image backgrounds on your Mac, set up a Minecraft server –
+**A start screen and command center for the terminal – on macOS and Linux. Windows is in development.**
+Open apps, search and install software, check the weather, ask an AI (Apple Intelligence, Claude, a local model),
+control your music, remove image backgrounds, set up a Minecraft server –
 all from the terminal, under the lotus start screen you know from 1.x.
 
 **[Website](https://fanxy13.github.io/homebrew-lotus/)** ·
@@ -29,6 +29,14 @@ all from the terminal, under the lotus start screen you know from 1.x.
 
 ## Install
 
+| System | Status | Install |
+|---|---|---|
+| macOS 11 or newer | supported | `curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh \| zsh` or `brew install Fanxy13/lotus/lotus` |
+| Linux (x86_64, arm64) | beta – tested in containers on Ubuntu 24.04, Debian 12, Fedora 42, Arch | `curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh \| sh` |
+| Windows 11 | in development – not available yet | – |
+
+On macOS:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | zsh
 ```
@@ -39,6 +47,16 @@ or with Homebrew:
 brew install Fanxy13/lotus/lotus
 ```
 
+On Linux (no administrator rights; the script asks before it installs zsh, Lotus' engine, and shows the command first):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | sh
+```
+
+Lotus loads into **zsh and bash** (`lotus setup` puts its lines into the startup file of the shell you log in with).
+What works on which system is listed on the [website](https://fanxy13.github.io/homebrew-lotus/#platforms) and in
+[dev/3.0/MATRIX.md](dev/3.0/MATRIX.md) – only what is tested on a system is marked as working there.
+
 Open a new terminal window. A short setup – in the Matcha colors, with a lotus that opens
 a little more with every step – asks for the interface language, your name, a theme,
 whether Lotus should start with every terminal window, and which features to turn on –
@@ -48,9 +66,10 @@ Run it again any time with `lotus setup`; switch features with `lotus features`.
 Want Lotus on a key combination? Add the **[Open Lotus](https://www.icloud.com/shortcuts/0ad5b36d73e745bebbaba4635344382e)**
 shortcut, then give it a keyboard shortcut in the Shortcuts app (info button → Add Keyboard Shortcut).
 
-Needs macOS 11 or newer and zsh. [fastfetch](https://github.com/fastfetch-cli/fastfetch)
-is installed automatically. Optional tools (Homebrew, yt-dlp, Java, …) are offered
-when a command needs them – nothing is installed without asking.
+Needs macOS 11 or newer, or a Linux with zsh (the installer offers it). [fastfetch](https://github.com/fastfetch-cli/fastfetch)
+is installed automatically (on Linux a pinned release, checked against its sha256). Optional tools (yt-dlp, ffmpeg, Java,
+ImageMagick, a package manager on a Mac …) are offered when a command needs them, with the exact command and a question
+first – nothing is installed without asking, and Lotus never sees or stores a password.
 
 ## Lotus 2.3 – Pets
 

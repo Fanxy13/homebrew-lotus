@@ -46,6 +46,20 @@
       </table>
     </div>
 
+    <h2 class="section" id="platforms">Systems</h2>
+    <p>Lotus runs on <strong>macOS</strong> (supported) and <strong>Linux</strong> (beta: tested in containers on Ubuntu 24.04, Debian 12, Fedora 42 and Arch). A native <strong>Windows</strong> version is in development and not available yet.</p>
+    <h3 style="margin-top:22px" id="linux">Linux</h3>
+    <p>One line &ndash; no administrator rights, nothing outside your home folder:</p>
+    <div class="codeblock"><code><span class="dollar">$</span> <span data-install="linux">curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | sh</span></code><button class="copy" data-install="linux" data-copy="" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+    <p>The script checks the system, asks before it installs zsh (Lotus' engine) and shows the command first, downloads Lotus and fastfetch (checked against a pinned digest), and starts the setup. Lotus loads into <strong>zsh and bash</strong>; <code>lotus setup</code> adds its lines to the startup file of the shell you log in with (<code>~/.zshrc</code> or <code>~/.bashrc</code>), or both. In bash the <code>/commands</code> need version 4.4; the live now-playing lines under the start screen are zsh only.</p>
+    <p>What the programs of your distribution provide is asked for only when a command needs it, with the exact command, for apt, dnf, pacman, zypper and apk: <code>jq</code>, <code>ffmpeg</code>, <code>yt-dlp</code>, <code>imagemagick</code>, <code>playerctl</code>, <code>bubblewrap</code> (the plugin sandbox), Chromium or Chrome (so that the AI can look at pages it builds). A plugin that needs a sandbox is refused, never run without one, where bubblewrap cannot start.</p>
+    <p>The AI program is one static file. A release carries it for Linux (x86_64 and arm64), Lotus checks its sha256 against the digest it ships with and deletes a file that does not match. With the Swift toolchain installed, Lotus builds it itself.</p>
+    <h3 style="margin-top:22px" id="windows">Windows</h3>
+    <p>In development: a native PowerShell 7 module for Windows 11 and Windows Terminal, installed with winget or Scoop. It is not in a release yet, so there is nothing to install and no command here.</p>
+    <h3 style="margin-top:22px" id="matrix">What works where</h3>
+    <div class="pf-table-wrap"><table class="pf-table" id="pf-table-docs"><thead><tr><th scope="col">What</th><th scope="col">macOS</th><th scope="col">Linux</th><th scope="col">Windows</th></tr></thead><tbody></tbody></table></div>
+    <p class="muted"><strong>Yes</strong> = tested on that system &middot; <strong>Partly</strong> = works, with the limit named &middot; <strong>Soon</strong> = being built &middot; <strong>No</strong> = not possible there.</p>
+
     <h2 class="section" id="setup">First start</h2>
     <p>The first time Lotus runs, a short setup walks through five steps in the Matcha colors, with a small lotus that opens a little more with every step – <kbd>esc</kbd> goes back, nothing is saved before Finish, and everything can be changed later:</p>
     <ol class="steps">

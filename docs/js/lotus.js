@@ -48,6 +48,7 @@ const Lotus = (() => {
     return {
       curl: `curl -fsSL https://raw.githubusercontent.com/${p.repo}/main/install.sh | zsh`,
       brew: `brew install ${owner}/lotus/lotus`,
+      linux: `curl -fsSL https://raw.githubusercontent.com/${p.repo}/main/install.sh | sh`,
     };
   }
 
@@ -188,9 +189,32 @@ const Lotus = (() => {
     document.head.appendChild(link);
   }
 
+  // ── What runs where (data/platforms.tsv, data/platform-matrix.tsv) ──
+  const STATUS = { supported: 'Supported', beta: 'Beta', development: 'In development' };
+  const MARKS = { yes: 'Yes', partial: 'Partly', soon: 'Soon', no: 'No' };
+  async function fillPlatforms() {
+    const cards = document.getElementById('pf-cards');
+    if (cards) {
+      const rows = await tsv('platforms');
+      cards.innerHTML = rows.map(([id, label, status, needs, note]) => `
+        <article class="pf-card pf-${esc(status)}">
+          <header><h3>${esc(label)}</h3><span class="badge badge-${esc(status)}">${esc(STATUS[status] || status)}</span></header>
+          <p>${esc(needs)}</p>
+          <p class="muted">${esc(note || '')}</p>
+        </article>`).join('');
+    }
+    const bodies = document.querySelectorAll('.pf-table tbody');
+    if (bodies.length) {
+      const rows = await tsv('platform-matrix');
+      const html = rows.map(([feature, mac, linux, win, note]) => `<tr><th scope="row">${esc(feature)}${note ? `<small>${esc(note)}</small>` : ''}</th>` +
+        [mac, linux, win].map((v) => `<td><span class="st st-${esc(v)}">${esc(MARKS[v] || v)}</span></td>`).join('') + '</tr>').join('');
+      bodies.forEach((b) => { b.innerHTML = html; });
+    }
+  }
+
   // Theme, links and reveal for every page
   setTheme(savedTheme() || 'matcha', { save: false });
-  addEventListener('DOMContentLoaded', () => { reveal(); fillProject(); });
+  addEventListener('DOMContentLoaded', () => { reveal(); fillProject(); fillPlatforms().then(() => reveal()); });
 
   return { tsv, text, project, installCommands, loadThemes, setTheme, applyColors, copy, copyButton, esc, reveal, MARK };
 })();

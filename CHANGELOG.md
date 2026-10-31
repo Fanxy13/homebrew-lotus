@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased – Lotus 3.0: Linux, and the way to Windows
+
+Not released. What is here has been tested on the system named; `dev/3.0/PROGRESS.md` lists what is not.
+
+- **Linux (beta).** Lotus runs on Ubuntu, Debian, Fedora and Arch with zsh or bash. The tests run in containers on all four
+  (`tests/docker/par.sh <distro>`); a GitHub Actions workflow runs them on every push once it is pushed.
+- **One platform layer.** Commands no longer call `osascript`, `open`, `pbcopy`, `caffeinate`, `sips` or `security` themselves: they
+  call `lotus_os_*` and `lotus_pkg_*` (`lib/platform/`), which have a macOS and a Linux implementation. What a system cannot do says so
+  in words; nothing is silently skipped. Package managers: apt, dnf, pacman, zypper, apk and Homebrew – always the exact command first,
+  then a question; `sudo` only in the open, never a stored password.
+- **Install on Linux:** `install.sh` is plain `sh` (it also reads under dash) and installs into `~/.local` – no administrator rights;
+  zsh is installed only after a yes. fastfetch comes from a pinned release with its sha256 (`data/vendor.tsv`). The old script fetched
+  fastfetch from addresses that no longer exist.
+- **bash.** `lib/init.bash` shows the start screen, forwards `/commands` (Enter rewrites the line before bash reads it), keeps your
+  history and colors the prompt. It needs bash 4.4; `lotus setup` writes the lines into `~/.zshrc`, `~/.bashrc` or both (`LOTUS_SHELLS`).
+- **The AI on Linux.** The Swift program builds there: one static file (Swift's Static Linux SDK, runs on any Linux). Without a Swift
+  compiler Lotus downloads it for the release and compares its sha256 with the pin; a wrong file is deleted, never run. The AI
+  looks at the pages it builds with headless Chromium, Chrome or Edge over a pipe – no port is opened. Commands run with `posix_spawn`
+  (Foundation would wait for a server the AI started with `&`). Permission rules know `systemctl`, `ip`, `apt`, `dnf`, `pacman`,
+  `flatpak`, `gsettings`, the clipboard tools and more; keyrings, `.password-store` and Lotus' own `secrets` folder are private.
+- **Plugins** say which systems they are for (`os = macos linux`), what they need (`requires`) and can have a command per system.
+  Limited plugins run in bubblewrap on Linux; where it cannot start, they are refused – never run unprotected.
+- **Images and covers off the Mac:** `/img convert` with ImageMagick, the album cover over MPRIS (playerctl; only real pictures are
+  opened), the trash of your desktop (or Lotus' own, in the freedesktop.org format) for deleted Minecraft servers.
+- **Fixed on the Mac:** `sips` of macOS 27 rejects `--`; the Minecraft server icon and the image fallback called it that way.
+- Local models that Lotus runs itself (MLX) stay Apple silicon only; `lotus ai local` says how to use Ollama or llama.cpp elsewhere.
+- Not yet: Windows (a native PowerShell 7 module is being built), `/app`, `/install` and `/brew` on Linux, Remove BG on Linux.
+- Tests: `tests/test-bash.zsh`, `tests/test-install.zsh` (the installer from start to end: install, again, uninstall, no zsh),
+  `tests/test-autocheck.zsh` (which commands auto mode runs without asking); the others run on Linux too.
+
 ## 2.23.0 – Live Server and /html, built in
 
 - **Live Server and `/html` are part of Lotus now** – no plugin to install: `/liveserver` and `/html` are there after an update, in `lotus cheatsheet`, in the pets' knowledge and in the website's commands. They are one feature, "Live Server" (`lotus features live off` turns both off). The old `liveserver` plugin is removed the first time Lotus starts after the update – only Lotus' own one, by its `plugin.conf`; a plugin of someone else with that name stays – and what it knew comes along: servers that still run (`/liveserver stop` finds them), the list of documents `/html` made, and its last choice. Lotus says so once. Its files are in `lib/live` and `lib/html`, what they keep in `~/.local/state/lotus/live`

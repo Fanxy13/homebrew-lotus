@@ -1,0 +1,5 @@
+# The systems Lotus runs on – read by the website and the README. status: supported · beta · development
+# id	label	status	needs	note
+macos	macOS	supported	macOS 11 or newer, zsh (bash 4.4 or newer works too)	Apple silicon and Intel. Homebrew or the install script.
+linux	Linux	beta	zsh (the installer offers it), curl, a terminal with UTF-8	Tested in containers on Ubuntu 24.04, Debian 12, Fedora 42 and Arch. zsh or bash as your shell. The install script; no administrator rights.
+windows	Windows	development	Windows 11, PowerShell 7, Windows Terminal	A native PowerShell module, no WSL. In development: not available yet.

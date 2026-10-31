@@ -1,0 +1,21 @@
+# What works where – read by the website and the README. yes = tested on that system · partial = works with the limit in the note · soon = being built · no = not possible there
+# feature	macos	linux	windows	note
+Start screen, themes, settings, setup	yes	yes	soon	
+Slash commands and your own shortcuts	yes	yes	soon	In bash the typed line is rewritten, so you see the real command.
+Pets and the math game	yes	yes	soon	
+Clock and keep awake	yes	yes	soon	macOS: caffeinate · Linux: systemd-inhibit
+AI terminal and web chat (Claude, Ollama, any OpenAI-compatible API)	yes	yes	soon	On Linux the AI program is one downloaded file checked against a pinned digest, or built when the Swift toolchain is installed. Apple Intelligence is macOS only.
+A local model that Lotus runs (MLX)	yes	no	no	Apple silicon only. Elsewhere use Ollama or llama.cpp: /ai talks to both.
+The AI looks at the web pages it builds	yes	partial	soon	Linux needs Chromium, Chrome or Edge.
+Image converter (/img convert)	yes	yes	soon	macOS: Apple ImageIO · Linux: ImageMagick
+Remove BG	yes	soon	soon	
+MP3 and MP4 converter	yes	yes	soon	yt-dlp and ffmpeg
+Live Server and /html	yes	yes	soon	
+Minecraft server setup	yes	yes	soon	Java 17 or newer; Lotus can fetch one with a checksum.
+Plugins	yes	yes	soon	Limited plugins run in a sandbox (macOS: sandbox-exec · Linux: bubblewrap). Without one they are refused, never run unprotected.
+Now playing line and album cover	yes	partial	soon	Linux: over MPRIS (playerctl), tested with a stand-in player.
+Music controls and visualizer	yes	partial	soon	Linux: playerctl.
+Open apps, install software (/app, /install, /brew)	yes	soon	soon	Linux: your package manager, with a preview and a question first.
+Install and uninstall	yes	yes	soon	
+Update	yes	partial	soon	Linux: built, not yet tested.
+iPhone and iPad tools (/ios)	yes	no	no	Needs Apple tools.

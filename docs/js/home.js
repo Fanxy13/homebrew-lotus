@@ -6,12 +6,38 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ── Install commands (from data/project.tsv) ────────────────
+  // The system the visitor is on picks the command first; Windows has nothing to install yet and says so
+  const mine = () => {
+    const ua = navigator.userAgent || '';
+    if (/Windows/i.test(ua)) return 'windows';
+    if (/Android|iPhone|iPad/i.test(ua)) return 'curl';
+    if (/Mac/i.test(ua)) return 'curl';
+    if (/Linux|X11/i.test(ua)) return 'linux';
+    return 'curl';
+  };
+  const WINDOWS = 'Windows is in development \u2013 there is nothing to install yet';
+  const NOTES = {
+    curl: 'A short setup asks for your name, theme and language. ',
+    brew: 'A short setup asks for your name, theme and language. ',
+    linux: 'The script asks before it installs zsh and shows the command first. No administrator rights. ',
+    windows: 'A native PowerShell 7 version for Windows 11 is being built. The table above says what is tested where. ',
+  };
   let CMDS = {};
+  function showCommand(pill, key) {
+    pill.dataset.cmd = key;
+    pill.classList.toggle('no-copy', key === 'windows');
+    const dollar = $('.dollar', pill);
+    if (dollar) dollar.hidden = key === 'windows';
+    $('.cmd-text', pill).textContent = key === 'windows' ? WINDOWS : (CMDS[key] || '');
+  }
   Lotus.installCommands().then((c) => {
     CMDS = c;
-    $$('.install-pill').forEach((p) => { $('.cmd-text', p).textContent = CMDS[p.dataset.cmd]; });
+    $$('.install-pill').forEach((p) => showCommand(p, p.closest('.hero') ? mine() : p.dataset.cmd));
   });
-  $$('.install-copy').forEach((b) => b.addEventListener('click', () => Lotus.copy(CMDS[b.closest('.install-pill').dataset.cmd], b)));
+  $$('.install-copy').forEach((b) => b.addEventListener('click', () => {
+    const cmd = CMDS[b.closest('.install-pill').dataset.cmd];
+    if (cmd) Lotus.copy(cmd, b);
+  }));
 
   const tabs = $$('.tab'), glider = $('.tab-glider');
   function selectTab(tab) {
@@ -19,13 +45,14 @@
     glider.style.width = tab.offsetWidth + 'px';
     glider.style.transform = `translateX(${tab.offsetLeft - 4}px)`;
     const pill = $('.install .install-pill');
-    pill.dataset.cmd = tab.dataset.cmd;
     const text = $('.cmd-text', pill);
     text.animate([{ opacity: 0, transform: 'translateY(6px)', filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 400, easing: 'cubic-bezier(.22,1,.36,1)' });
-    text.textContent = CMDS[tab.dataset.cmd] || text.textContent;
+    showCommand(pill, tab.dataset.cmd);
+    const note = $('#install-note');
+    if (note) note.firstChild.textContent = NOTES[tab.dataset.cmd] || NOTES.curl;
   }
   tabs.forEach((t) => t.addEventListener('click', () => selectTab(t)));
-  addEventListener('load', () => selectTab($('.tab.active')));
+  addEventListener('load', () => selectTab(tabs.find((t) => t.dataset.cmd === mine()) || $('.tab.active')));
 
   // ── Themes tile: one orb per theme in data/themes.tsv ───────
   Lotus.loadThemes().then((themes) => {

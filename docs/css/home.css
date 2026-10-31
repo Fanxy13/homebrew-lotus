@@ -268,11 +268,36 @@ header, section { position: relative; z-index: 2; }
 .install h2 { margin: 0 0 26px; font: italic 400 clamp(64px, 11vw, 140px)/.9 var(--serif); letter-spacing: -.03em; }
 .tabs { position: relative; display: inline-flex; padding: 4px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line); margin-bottom: 18px; }
 .tab { position: relative; z-index: 1; padding: 7px 18px; font-size: 14px; color: var(--muted); border-radius: 9px; transition: color .3s; }
-.tab.active { color: #111; }
+.tab.active { color: var(--bg); }
 .tab-glider { position: absolute; top: 4px; bottom: 4px; left: 4px; border-radius: 9px; background: var(--text); transition: transform .45s var(--ease), width .45s var(--ease); }
 .install-pill.big { padding: 12px 12px 12px 24px; }
 .install-pill.big code { font-size: 15px; }
 .install-note { margin-top: 18px; color: var(--muted); font-size: 14px; }
+
+/* ── Systems ───────────────────────────────────────────────────── */
+.install-pill.no-copy .install-copy { display: none; }
+.platforms { padding: 120px 16px 40px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.platforms h2 { margin: 0 0 14px; font: italic 400 clamp(56px, 9vw, 112px)/.95 var(--serif); letter-spacing: -.03em; }
+.pf-lead { max-width: 560px; color: var(--muted); margin: 0 0 36px; }
+.pf-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; width: min(1000px, 100%); text-align: left; }
+.pf-card { padding: 22px; border-radius: 18px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); }
+.pf-card header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.pf-card h3 { margin: 0; font: 600 20px var(--sans, inherit); }
+.pf-card p { margin: 6px 0 0; font-size: 14px; line-height: 1.5; }
+@media (max-width: 800px) { .pf-cards { grid-template-columns: 1fr; } }
+
+/* ── Questions ─────────────────────────────────────────────────── */
+.faq { padding: 40px 16px 120px; display: flex; flex-direction: column; align-items: center; }
+.faq h2 { margin: 0 0 28px; font: italic 400 clamp(48px, 8vw, 96px)/.95 var(--serif); letter-spacing: -.03em; }
+.faq-list { width: min(760px, 100%); border-top: 1px solid var(--line); }
+.faq details { border-bottom: 1px solid var(--line); padding: 4px 0; }
+.faq summary { cursor: pointer; list-style: none; padding: 16px 28px 16px 0; font-weight: 500; position: relative; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: ""; position: absolute; right: 6px; top: 50%; width: 8px; height: 8px; margin-top: -6px; border-right: 1.6px solid var(--muted); border-bottom: 1.6px solid var(--muted); transform: rotate(45deg); transition: transform .3s var(--ease); }
+.faq details[open] summary::after { transform: rotate(-135deg); margin-top: -2px; }
+.faq details p { margin: 0 0 18px; color: var(--muted); line-height: 1.65; }
+.faq-more { margin-top: 26px; color: var(--muted); font-size: 14px; }
+.faq-more a { color: var(--ink-accent); }
 
 /* ── Reveal on scroll ──────────────────────────────────────────── */
 .tile.reveal.in { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); }
