@@ -90,11 +90,16 @@ A full run of all four distributions has to be repeated before anything is calle
 - Linux installer `install.sh`: POSIX sh, checks the system, offers zsh (command shown first, never silent), pinned fastfetch.
 - Plugins: `os`, `requires`, per-OS commands in `plugin.conf`; sandbox with bubblewrap; a limited plugin that cannot be
   sandboxed is refused, never run unprotected.
+- Bash adapter (see Open, item 1) and the `LOTUS_SHELLS` setting.
 - XDG trash written by Lotus itself when no trash program is installed (Minecraft server delete).
 
 ## Open (in the order I would do it)
 
-1. Bash adapter (`lib/init.bash`, `lotus setup` for `~/.bashrc`): most Linux users have bash as login shell.
+1. Bash adapter: **built, not yet covered by a test file.** `lib/init.bash`, `lotus bash-init` (lib/cmd/shell.zsh), hook lines for
+   `~/.bashrc` (`lotus_hook`, `LOTUS_SHELLS`). One manual run in a pseudo terminal on Debian showed: the `lotus` function works,
+   `/nosuchword abc` is rewritten to `lotus suggest …`, the history keeps the typed line, the prompt gets the theme color.
+   Still to do: `tests/test-bash.zsh` (Enter rewriting with a shortcut, pets, links, prefill of `/ai command`), a shell step in the
+   setup wizard, the doctor row for `.bashrc`, live now-playing lines in bash (not planned: documented limitation).
 2. `/install` and `/brew` on Linux (apps list per package manager, always preview and confirm).
 3. `lotus update` and `lotus uninstall` on Linux; installer end-to-end tests in containers.
 4. Remove BG on Linux (Python environment, CPU/CUDA wheels), editor in the browser instead of AppKit.

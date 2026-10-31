@@ -25,6 +25,7 @@ source $LOTUS_ROOT/lib/ui.zsh
 source $LOTUS_ROOT/lib/fuzzy.zsh
 
 LOTUS_RC=${ZDOTDIR:-$HOME}/.zshrc
+LOTUS_RC_BASH=$HOME/.bashrc
 
 # Whatever happens (ctrl-c, an error), the cursor comes back. Traps never start other programs:
 # a signal can arrive in the middle of output, and a program started from there could hang.
@@ -51,7 +52,7 @@ typeset -A LOTUS_MODULES=(
   ios ios  minecraft minecraft  mc minecraft  convert convert  visual visual
   shortcuts shortcuts  shortcut shortcuts  run shortcuts  logo logo
   bg bg  log log  features setup  pets pets  pet pets  feed pets  zetamac pets  clock clock  caffeine caffeine  awake caffeine  ai-tool aitools
-  plugin plugin  plugins plugin  plugin-tool plugin  plugin-startup plugin
+  plugin plugin  plugins plugin  plugin-tool plugin  plugin-startup plugin  bash-init shell
   img img  liveserver live  html html
 )
 

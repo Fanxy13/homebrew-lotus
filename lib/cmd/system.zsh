@@ -34,42 +34,79 @@ lotus_setup() {
   lotus_hook
 }
 
-# Adds the lotus block to ~/.zshrc. It finds lotus through the `lotus` command,
-# so it keeps working after Homebrew upgrades – without starting a process.
-lotus_hook() {
+# The shells whose startup file gets the Lotus lines → reply (zsh, bash). LOTUS_SHELLS when set (lotus setup, settings),
+# else the shell you log in with; anything else (fish …) gets zsh, the engine.
+lotus_shells() {
+  reply=(${=LOTUS_SHELLS})
+  if (( ! ${#reply} )); then
+    case ${${SHELL:-/bin/zsh}:t} in
+      bash) reply=(bash) ;;
+      *)    reply=(zsh) ;;
+    esac
+  fi
+}
+
+# The startup file of a shell
+_lotus_rc() {
+  case $1 in
+    zsh)  REPLY=$LOTUS_RC ;;
+    bash) REPLY=$LOTUS_RC_BASH ;;
+  esac
+}
+
+# The block for a shell. It finds lotus through the `lotus` command, so it keeps working after Homebrew upgrades –
+# without starting a process (zsh); bash asks `command -v` once.
+_lotus_hook_block() {
   local block="# >>> lotus >>>"$'\n'
   if [[ $LOTUS_ROOT == $HOME/.local/share/lotus && ${path[(I)$HOME/.local/bin]} == 0 ]]; then
     block+='export PATH="$HOME/.local/bin:$PATH"'$'\n'
   fi
-  block+='(( $+commands[lotus] )) && source ${${commands[lotus]:A}:h:h}/lib/init.zsh'$'\n'"# <<< lotus <<<"
+  case $1 in
+    zsh)  block+='(( $+commands[lotus] )) && source ${${commands[lotus]:A}:h:h}/lib/init.zsh'$'\n' ;;
+    bash) block+='command -v lotus >/dev/null 2>&1 && . "$(dirname "$(dirname "$(readlink -f "$(command -v lotus)")")")/lib/init.bash"'$'\n' ;;
+  esac
+  REPLY="$block# <<< lotus <<<"
+}
 
-  local rc=
-  [[ -r $LOTUS_RC ]] && rc=$(<$LOTUS_RC)
-  if [[ $rc == *'# >>> lotus >>>'*'# <<< lotus <<<'* ]]; then
-    rc=${rc/'# >>> lotus >>>'*'# <<< lotus <<<'/$block}
-  else
-    rc+=${rc:+$'\n\n'}$block
-  fi
-  print -r -- $rc >| $LOTUS_RC
-  ui_success "$LOTUS_L[added_to] $LOTUS_RC"
+# Adds the lotus block to the startup file of each shell (see lotus_shells)
+lotus_hook() {
+  local sh file rc
+  lotus_shells
+  for sh in $reply; do
+    _lotus_rc $sh; file=$REPLY
+    _lotus_hook_block $sh; local block=$REPLY
+    rc=
+    [[ -r $file ]] && rc=$(<$file)
+    if [[ $rc == *'# >>> lotus >>>'*'# <<< lotus <<<'* ]]; then
+      rc=${rc/'# >>> lotus >>>'*'# <<< lotus <<<'/$block}
+    else
+      rc+=${rc:+$'\n\n'}$block
+    fi
+    print -r -- $rc >| $file
+    ui_success "$LOTUS_L[added_to] $file"
+  done
   ui_info $LOTUS_L[open_new]
 }
 
-# Removes the lotus lines from ~/.zshrc (also used by `brew uninstall lotus`)
+# Removes the lotus lines from the startup files of both shells (also used by `brew uninstall lotus`)
 lotus_unhook() {
-  [[ -r $LOTUS_RC ]] || return 0
-  local rc=$(<$LOTUS_RC)
-  [[ $rc == *'# >>> lotus >>>'* ]] || return 0
-  rc=${rc/$'\n'#'# >>> lotus >>>'*'# <<< lotus <<<'/}
-  print -r -- $rc >| $LOTUS_RC
-  ui_success "$LOTUS_L[removed_from] $LOTUS_RC"
+  local sh file rc
+  for sh in zsh bash; do
+    _lotus_rc $sh; file=$REPLY
+    [[ -r $file ]] || continue
+    rc=$(<$file)
+    [[ $rc == *'# >>> lotus >>>'* ]] || continue
+    rc=${rc/$'\n'#'# >>> lotus >>>'*'# <<< lotus <<<'/}
+    print -r -- $rc >| $file
+    ui_success "$LOTUS_L[removed_from] $file"
+  done
 }
 
 # Removes everything lotus created. With --yes no question is asked.
 lotus_uninstall() {
   if [[ $1 != --yes ]]; then
     ui_header Uninstall
-    ui_text "Removes Lotus, its settings, pets, shortcuts, AI memory and keys, the log, the Remove BG models, cache and the lines in ~/.zshrc."
+    ui_text "Removes Lotus, its settings, pets, shortcuts, AI memory and keys, the log, the Remove BG models, cache and the lines in your shell's startup file (~/.zshrc, ~/.bashrc)."
     ui_blank
     ui_confirm "Uninstall Lotus completely?" n || { ui_info $LOTUS_L[cancelled]; return 1 }
   fi

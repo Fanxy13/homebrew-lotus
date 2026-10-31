@@ -31,6 +31,7 @@ typeset -ga LOTUS_KEYS=(
   LOTUS_BG_READY LOTUS_BG_MODEL LOTUS_BG_BACKEND LOTUS_BG_OUTPUT LOTUS_BG_REFINE LOTUS_BG_PREVIEW
   LOTUS_LOG_LEVEL LOTUS_LOG_RETENTION LOTUS_LOG_STARTUP
   LOTUS_PET_START LOTUS_PET_HELP LOTUS_PET_REACT LOTUS_PET_BRAIN
+  LOTUS_SHELLS
   LOTUS_CONFIGURED LOTUS_CONFIG_VERSION
 )
 
@@ -58,6 +59,8 @@ lotus_defaults() {
   # who answers for the pets: Apple Intelligence on a Mac, the AI of /ai everywhere else
   typeset -g LOTUS_PET_START=1 LOTUS_PET_HELP=1 LOTUS_PET_REACT=1 LOTUS_PET_BRAIN=ai
   [[ $LOTUS_OS == macos ]] && LOTUS_PET_BRAIN=apple
+  # which shells show Lotus: zsh, bash or both (empty: the one you log in with)
+  typeset -g LOTUS_SHELLS=
   typeset -g LOTUS_CONFIGURED=0 LOTUS_CONFIG_VERSION=0
   typeset -gA LOTUS_SHORTCUTS=()
 }
@@ -74,6 +77,8 @@ lotus_load() {
     (( ${#full[1]} > 1 )) && LOTUS_NAME=$full[1] || LOTUS_NAME=${(C)${USER:-${LOGNAME:-$(id -un)}}}
   fi
   [[ $LOTUS_INTERVAL == <1-60> ]] || LOTUS_INTERVAL=2
+  local -a _shells=(${=LOTUS_SHELLS}) _known=(zsh bash)
+  LOTUS_SHELLS=${(j: :)${(u)_shells:*_known}}      # only zsh and bash, each once
   [[ $LOTUS_LOGO_THEME == 0 ]] || LOTUS_LOGO_THEME=1
   [[ $LOTUS_LOGO_FADE == 0 ]] || LOTUS_LOGO_FADE=1
   [[ $LOTUS_COVER == 0 ]] || LOTUS_COVER=1
