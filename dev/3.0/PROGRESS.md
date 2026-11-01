@@ -77,9 +77,21 @@ the zsh engine wrote (`win/tests/fixtures/settings.zsh`), read and changed by Po
 | bash (the adapter in a real pseudo terminal, the lines in the startup files) | 24 / 0 | Debian 24 / 0, Fedora 24 / 0 | 15 / 0 (the system bash is 3.2: the live part is skipped) |
 | install (install.sh from start to end: install, again, other login shell, uninstall, no zsh) | 24 / 0 | Debian 24 / 0, Fedora 23 / 0 | 21 / 0 |
 
-Last complete Ubuntu run before the fixes of today: 827 pass, 38 fail. The remaining failures then were art, img, llm,
-minecraft, plugin (all fixed above, per file) and one in liveserver ("Lotus says nothing", also failing on the untouched base).
-A full run of all four distributions has to be repeated before anything is called finished.
+### Full runs (2026-11-01, `LOTUS_TEST_PRIV=1 tests/docker/par.sh <distro>`, every test file in a container of its own)
+
+| System | Result | What failed, and what became of it |
+|---|---|---|
+| macOS (this Mac, Apple silicon) | 1082 pass, 8 fail | the same 8 as on untouched 2.23.0 on this Mac: 2 html (`/private/var` against `HOME`), 1 liveserver (`script` has no pty here), 5 Minecraft (session and `lsof` checks). Environment, not code |
+| Ubuntu 24.04 | 1010 pass, 4 fail | 3 convert (the test assumed a user who is not root – fixed), 1 liveserver (the test took the last letter of a one-line answer – fixed) |
+| Debian 12 | 1005 pass, 26 fail | 22 plugin: **a real bug** – the sandbox hid `/var/run/dbus` and `/run/dbus` as two folders though `/var/run` is a link to `/run` (fixed, each folder once under its real name); the rest as on Ubuntu |
+| Fedora 42 | 1015 pass, 15 fail | html (the image had no fonts and the PDF writer looked in Debian's folders only – fonts are found in any font folder now, the image has them), Minecraft (the image has `gio`, which trashes differently – `LOTUS_TRASH=own` makes the test independent), convert and liveserver as above |
+| Arch | 694 pass, 4 fail | the image did not exist before (built now); html (no `cmp` in the image), Minecraft (a log line read a moment too early on an emulated CPU – the test waits), convert, liveserver as above |
+
+After these fixes the affected files were run again: html, convert, Minecraft, plugin, bash and install on Ubuntu, Debian and Fedora and html and Minecraft on Arch pass;
+liveserver passes on Debian. A complete second run of all four distributions has not been done – the first CI run is that.
+
+Also found by the matrix: the Lotus-owned yt-dlp (`/convert`) always downloaded the macOS build, also on Linux (it picks the file for the system now);
+the texts said "macOS user" on Linux.
 
 ## What exists
 
