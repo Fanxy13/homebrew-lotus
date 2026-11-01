@@ -35,8 +35,8 @@ jobs:
         run: xcrun swiftc --version && sw_vers
       - name: The AI program type-checks
         run: xcrun swiftc -typecheck -parse-as-library -swift-version 5 lib/ai/*.swift
-      - name: Tests
-        run: zsh tests/run.zsh
+      - name: Tests (in a pseudo terminal – a CI job has none, and some tests start programs on one)
+        run: python3 -c "import os, pty, sys; sys.exit(os.waitstatus_to_exitcode(pty.spawn(['zsh', 'tests/run.zsh'])))"
 
   ai-linux:
     name: AI program for Linux (${{ matrix.arch }})

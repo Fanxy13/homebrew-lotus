@@ -165,14 +165,16 @@ html_main() {
     fi
   done
   if [[ $scope == all ]]; then
-    if [[ $root == ($HOME|/|${HOME:h}) ]]; then
-      ui_error "That is your whole ${${${root:#$HOME}:+disk}:-home folder} – go to the folder of a project first" "" \
+    # the folder is a real path (:A); HOME may be a link to one (the temporary folders of macOS are), so both count
+    local home_real=${HOME:A}
+    if [[ $root == ($HOME|$home_real|/|${HOME:h}|${home_real:h}) ]]; then
+      ui_error "That is your whole ${${${root:#($HOME|$home_real)}:+disk}:-home folder} – go to the folder of a project first" "" \
         "cd ~/path/to/site   then   /html all"
       return 1
     fi
     html_scan $root
     if (( ! ${#HTML_FILES} )); then
-      ui_error "No web files in ${root/#$HOME/~}" "" "Pages (.html), style sheets (.css) and scripts (.js) – /html <file> for one of its own"
+      ui_error "No web files in ${${root/#$home_real/~}/#$HOME/~}" "" "Pages (.html), style sheets (.css) and scripts (.js) – /html <file> for one of its own"
       return 1
     fi
     html_count
