@@ -22,6 +22,7 @@ LOTUS_L+=(
   sw_quit_cfg 'Tus ajustes se quedan como están.'  sw_quit_stay 'Seguir'  sw_quit_leave 'Salir'
   sw_feat_sum '%s de %t activadas'
   sw_done 'Todo listo, %s.'  sw_done_hint 'Escribe /lotus cheatsheet para ver todo lo que hace Lotus.'
+  sw_shells_q '¿En qué shells debe aparecer Lotus?'  sw_shells_login 'Solo %s'  sw_shells_login_d 'el shell con el que inicias sesión'  sw_shells_both_d 'ambos cargan Lotus'
   sw_feat_title 'Funciones'  sw_feat_sub 'Lo que activa Lotus. Desactivada: sin comando, sin ajustes, nada descargado.'
   sw_feat_saved 'Funciones guardadas – abre una ventana nueva o escribe: lotus'
   sw_feat_same 'Nada cambió.'  sw_feat_unknown 'Función desconocida'  sw_feat_onoff 'Indica on u off'

@@ -821,6 +821,30 @@ _sw_pages() {
   done
 }
 
+# A bash that Lotus can work with (4.4 or newer): READLINE_LINE and local - are what init.bash needs
+_lotus_bash_ok() {
+  (( $+commands[bash] )) || return 1
+  local v=$(bash -c 'echo $((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1]))' 2>/dev/null)
+  [[ $v == <-> ]] && (( v >= 404 ))
+}
+
+# Which shells load Lotus – asked only where there is a real choice: zsh and a usable bash are both installed and nothing was
+# chosen yet (a Mac with its old bash 3.2 is not asked). The answer is LOTUS_SHELLS; lotus_hook writes the lines.
+lotus_ask_shells() {
+  [[ -z $LOTUS_SHELLS ]] && (( $+commands[zsh] )) && _lotus_bash_ok || return 0
+  ui_has_tty || return 0
+  lotus_shells
+  local login=$reply[1]
+  local lab=${LOTUS_L[sw_shells_login]:-%s only}
+  ui_blank
+  print -r -- "  ${_UI_B}${LOTUS_L[sw_shells_q]:-Which shells should show Lotus?}${_UI_R}"
+  ui_select 1 "${lab//\%s/$login}|${LOTUS_L[sw_shells_login_d]:-the shell you log in with}" "zsh + bash|${LOTUS_L[sw_shells_both_d]:-both load Lotus}" || return 0
+  case $REPLY in
+    2) LOTUS_SHELLS="zsh bash" ;;
+    *) LOTUS_SHELLS=$login ;;
+  esac
+}
+
 lotus_cmd_setup_wizard() {
   lotus_lang_group setup
   if ! ui_has_tty; then return 1; fi
@@ -859,6 +883,7 @@ lotus_cmd_setup_wizard() {
     return 1
   fi
 
+  lotus_ask_shells
   LOTUS_CONFIGURED=1 LOTUS_CONFIG_VERSION=3
   lotus_colors
   lotus_save

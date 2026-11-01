@@ -45,6 +45,7 @@ LOTUS_L+=(
   sw_feat_sum     '%s of %t on'
   sw_done         'All set, %s.'
   sw_done_hint    'Type /lotus cheatsheet to see everything Lotus can do.'
+  sw_shells_q 'Which shells should show Lotus?'  sw_shells_login '%s only'  sw_shells_login_d 'the shell you log in with'  sw_shells_both_d 'both load Lotus'
   sw_feat_title   'Features'
   sw_feat_sub     'What Lotus turns on. Off means: no command, no settings, nothing downloaded.'
   sw_feat_saved   'Features saved – open a new terminal window or type: lotus'

@@ -208,8 +208,13 @@ lotus_doctor() {
   else _row $bad fastfetch $LOTUS_L[doc_missing]; fi
   _row $ok $LOTUS_L[doc_colors] "$LOTUS_MODE (${TERM_PROGRAM:-$LOTUS_L[unknown_term]})"
   _row $ok Settings "$LOTUS_CONF/settings.zsh"
-  if [[ -r $LOTUS_RC && $(<$LOTUS_RC) == *'# >>> lotus >>>'* ]]; then _row $ok .zshrc $LOTUS_L[doc_rc_ok]
-  else _row $bad .zshrc $LOTUS_L[doc_rc_no]; fi
+  local sh rcfile
+  lotus_shells
+  for sh in $reply; do
+    _lotus_rc $sh; rcfile=$REPLY
+    if [[ -r $rcfile && $(<$rcfile) == *'# >>> lotus >>>'* ]]; then _row $ok .${sh}rc $LOTUS_L[doc_rc_ok]
+    else _row $bad .${sh}rc $LOTUS_L[doc_rc_no]; fi
+  done
   lotus_build
   lotus_np_query
   _row $ok $LOTUS_L[doc_music] "${${(f)"$(<$LOTUS_CACHE/np-$LOTUS_MODE-$LOTUS_LANG)"}[1]}"$'\e[0m'

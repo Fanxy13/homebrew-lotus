@@ -40,6 +40,26 @@ SHELL=/bin/bash lotus_shells; check_eq "no choice made: the login shell (bash)" 
 SHELL=/usr/bin/fish lotus_shells; check_eq "no choice made, an unknown shell: zsh, the engine" "$reply" "zsh"
 LOTUS_SHELLS="fish zsh zsh"; lotus_save quiet; lotus_load; check_eq "only zsh and bash are kept, each once" "$LOTUS_SHELLS" "zsh"
 
+# ── the question in the setup: asked only where there is a real choice ──
+source $LOTUS_ROOT/lib/cmd/setup.zsh
+ui_has_tty() { true }
+_UI_B= _UI_R=
+ui_select() { REPLY=$ASK_REPLY }
+if (( $+commands[zsh] )) && _lotus_bash_ok; then
+  LOTUS_SHELLS= ASK_REPLY=2; lotus_ask_shells >/dev/null
+  check_eq "setup: both shells" "$LOTUS_SHELLS" "zsh bash"
+  LOTUS_SHELLS= ASK_REPLY=1; SHELL=/bin/bash lotus_ask_shells >/dev/null
+  check_eq "setup: only the shell you log in with (bash)" "$LOTUS_SHELLS" "bash"
+  LOTUS_SHELLS=zsh ASK_REPLY=2; lotus_ask_shells >/dev/null
+  check_eq "setup: a choice made before is not asked again" "$LOTUS_SHELLS" "zsh"
+else
+  print -r -- "  - no bash 4.4 here: the setup does not ask which shells"
+  LOTUS_SHELLS= ASK_REPLY=2; lotus_ask_shells >/dev/null
+  check_eq "setup: without a usable bash it does not ask" "$LOTUS_SHELLS" ""
+fi
+unfunction ui_select ui_has_tty
+LOTUS_SHELLS=
+
 # ── a real bash ──
 if ! (( $+commands[bash] )); then print -r -- "  - bash is not installed – skipped"; return 0; fi
 typeset -i bv=$(bash -c 'echo $((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1]))')

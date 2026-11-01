@@ -22,6 +22,7 @@ LOTUS_L+=(
   sw_quit_cfg 'Deine Einstellungen bleiben, wie sie sind.'  sw_quit_stay 'Weiter einrichten'  sw_quit_leave 'Verlassen'
   sw_feat_sum '%s von %t an'
   sw_done 'Alles bereit, %s.'  sw_done_hint 'Tippe /lotus cheatsheet, um alles zu sehen, was Lotus kann.'
+  sw_shells_q 'In welchen Shells soll Lotus erscheinen?'  sw_shells_login 'Nur %s'  sw_shells_login_d 'die Shell, mit der du dich anmeldest'  sw_shells_both_d 'beide laden Lotus'
   sw_feat_title 'Funktionen'  sw_feat_sub 'Was Lotus einschaltet. Aus heisst: kein Befehl, keine Einstellungen, kein Download.'
   sw_feat_saved 'Funktionen gespeichert – öffne ein neues Terminalfenster oder tippe: lotus'
   sw_feat_same 'Nichts geändert.'  sw_feat_unknown 'Unbekannte Funktion'  sw_feat_onoff 'Bitte on oder off angeben'
