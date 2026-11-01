@@ -1,8 +1,9 @@
 # Lotus for Windows – preview
 
 A native PowerShell 7 module for Windows 11 and Windows Terminal: no WSL, no Git Bash, no compatibility layer.
-**Status: a foundation, written without a Windows machine and not yet run on one.** The tests in `tests/` run on Windows in CI
-(`.github/workflows/test.yml`, the job "Windows") once the branch is pushed; until they have run, nothing here is claimed to work.
+**Status: a foundation.** It was written without a Windows machine. The 15 tests in `tests/` pass on PowerShell 7.6.9 on a Mac (the code paths for
+non-Windows systems); the Windows paths run for the first time in CI (`.github/workflows/test.yml`, the job "Windows"). Until then nothing
+that needs Windows itself is claimed to work.
 
 ## What is here
 
@@ -14,6 +15,7 @@ A native PowerShell 7 module for Windows 11 and Windows Terminal: no WSL, no Git
 | `Private/Settings.ps1` | `settings.zsh`, the same file format on every system |
 | `Private/Hook.ps1` | the block in `$PROFILE.CurrentUserAllHosts` (`# >>> lotus >>>` … `# <<< lotus <<<`) |
 | `Private/Start.ps1` | the start screen: the logo in the theme's color next to fastfetch's information |
+| `../install.ps1` | the installer: copies Lotus to `%LOCALAPPDATA%\\lotus\\app`, offers fastfetch (command first, then a question), writes the profile block |
 | `Public/lotus.ps1` | `lotus`, `lotus version`, `doctor`, `themes`, `settings [get\|set]`, `setup --hook`, `unhook`, `uninstall`, `help` |
 
 Every other command says that it is not available on Windows yet and links to the table of what works where. Nothing is faked.

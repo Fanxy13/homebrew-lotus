@@ -27,34 +27,41 @@ Documents of this folder
 | AI program for Linux | `tests/docker/swift-static.sh [arm64\|x86_64]` → `tests/docker/.build/lotus-ai-linux-<arch>` | one static file (Swift 6.1 Static Linux SDK, musl, 60 MB, 24 MB gzipped); runs on Debian, Ubuntu, Fedora and Alpine (tested). The tests find it through `LOTUS_PREBUILT_DIR` |
 | Compile check only | `tests/docker/swift-build.sh` | errors of the Linux build, nothing else |
 | macOS type check | `xcrun swiftc -typecheck -parse-as-library -swift-version 5 lib/ai/*.swift` | must stay clean |
-| PowerShell 7.6.9 | tarball in `~/.local/share/lotus-dev/` (SHA-256 checked against the release notes) | **not extracted: running a downloaded binary was blocked by the safety check – the owner decides** |
-| Windows | none here | only GitHub Actions (`windows-latest`) can test Windows; needs a pushed branch (the owner decides) |
+| PowerShell 7.6.9 | the release tarball for macOS arm64, its sha256 compared with the digest GitHub publishes; unpacked into a folder of its own, used only for the Lotus tests, then deleted | run with the owner's yes. Pester 5.9.1 was saved from the PowerShell Gallery into a folder of its own |
+| Windows | none here | the PowerShell tests run here on macOS (the code paths for `$IsWindows = $false`); the Windows paths (`%APPDATA%`, winget, Windows Terminal) are tested only by GitHub Actions (`windows-latest`) |
 | Logs of local runs | `~/.local/share/lotus-dev/logs/` | |
 
-## Decisions that are the owner's (blocked, not worked around)
+## Decisions of the owner
 
-1. Running the downloaded PowerShell binary here (to test the Windows module locally) was refused by the safety check.
-2. Relaxing the Colima VM's `kernel.apparmor_restrict_unprivileged_userns` (to run the sandbox tests without `--privileged`) was refused.
-   Workaround in use: sandbox tests run in `--privileged -u root` containers (`LOTUS_TEST_PRIV=1`).
-3. Pushing a branch so that GitHub Actions can test Windows and the Linux distributions in CI.
-4. `~/Code/lotus` (main checkout) holds the unreleased AI design-kit work on top of 2.15.2. It is untouched and has to be merged on purpose.
+1. Running PowerShell here to test the Windows module: **yes** (asked 2026-11-01, "both" local and CI). Done with a verified tarball; deleted afterwards.
+2. Pushing the work branch `v3` so that GitHub Actions can test Windows and the Linux distributions: **yes**, as a branch only – no tag, no release, `main` is not touched.
+3. Still the owner's: a release (needs the word "push"), and what to do with the unreleased AI design-kit work in the main checkout (based on 2.15.2; it has to be merged on purpose).
+4. Not done: relaxing the Colima VM's `kernel.apparmor_restrict_unprivileged_userns` (refused by the safety check). The sandbox tests run in `--privileged -u root` containers instead (`LOTUS_TEST_PRIV=1`).
 5. The installer of the released line (`install.sh` on `main`) downloads fastfetch from URLs that now answer 404 (the release
    ships `fastfetch-macos-universal.tar.gz`). The new `install.sh` here fixes it (pinned digests in `data/vendor.tsv`);
-   the owner can ask for a hotfix of the old line.
+   a hotfix of the old line is possible if wanted.
 
 ## Phases
 
 | # | Phase | Status | Notes |
 |---|---|---|---|
 | 1 | Repository audit and compatibility matrix | done | `MATRIX.md` written from the code, not from memory |
-| 2 | Cross-platform architecture | done | `ARCHITECTURE.md`; platform layer `lib/platform*.zsh` for macOS and Linux; Windows has its own module (planned) |
-| 3 | Port the features | in progress | Linux: everything below under "Linux, tested". Windows: not started (see open) |
-| 4 | Platform extras | in progress | Linux: systemd inhibit, MPRIS, notify-send, XDG trash, desktop detection are in. Windows: not started |
-| 5 | Install and setup | in progress | new `install.sh` (macOS, Linux) tested in containers; wizard/`lotus setup` not yet adapted for bash; `install.ps1` not started |
-| 6 | Website | planned | |
-| 7 | Tests and CI | in progress | local container matrix works; GitHub Actions workflow not written yet |
-| 8 | Release docs | planned | README, CHANGELOG, docs, release notes for 3.0 |
-| 9 | Video package | planned | script, storyboard, commands, B-roll list; nothing invented |
+| 2 | Cross-platform architecture | done | `ARCHITECTURE.md`; platform layer `lib/platform*.zsh` for macOS and Linux; Windows has its own module (`win/`) |
+| 3 | Port the features | in progress | Linux: see "Linux, tested". Windows: the foundation only (below) |
+| 4 | Platform extras | in progress | Linux: systemd inhibit, MPRIS, notify-send, XDG trash, desktop detection. Windows: not started |
+| 5 | Install and setup | in progress | `install.sh` (macOS, Linux) and `install.ps1` (Windows) are tested end to end; the setup wizard has no shell step yet; `lotus update` on Linux is untested |
+| 6 | Website | done for macOS and Linux | systems section with the table of what works where, install tabs per system (the visitor's system first), questions; `scripts/check-site.py`; Windows says "in development" |
+| 7 | Tests and CI | written, not yet run | `.github/workflows/test.yml` (macOS arm64 and Intel, four Linux distributions in containers, Windows with Pester, the site check) and `build-ai.yml`; the first run happens when the branch is pushed |
+| 8 | Release docs | drafted | README and CHANGELOG ("Unreleased – Lotus 3.0") say what is tested; release notes are written when there is a release |
+| 9 | Video package | done (text) | `dev/3.0/video/`: script, storyboard, commands, recording, editing, YouTube. Nothing recorded |
+
+## Windows (win/), tested on PowerShell 7.6.9 here
+
+`Lotus.psd1`, `Lotus.psm1`, `Private/{Paths,Data,Settings,Hook,Start}.ps1`, `Public/lotus.ps1`, `install.ps1`. `lotus`, `version`, `doctor`,
+`themes`, `settings [get|set]`, `setup --hook`, `unhook`, `uninstall`, `help`, and the start screen (logo in the theme's color next to fastfetch).
+Everything else says "not available on Windows yet". 15 Pester tests pass (`Invoke-Pester -Path win/tests`), among them the settings file that
+the zsh engine wrote (`win/tests/fixtures/settings.zsh`), read and changed by PowerShell. Not tested: anything that needs Windows itself
+(`%APPDATA%` paths, winget, Windows Terminal, the real profile) – CI does that.
 
 ## Linux, tested (container runs of this branch; macOS result next to it)
 
@@ -67,6 +74,8 @@ Documents of this folder
 | minecraft | 163 / 0 | | 166 / 5 (the same 5 fail on untouched 2.23.0 on this Mac) |
 | plugin (sandbox needs bubblewrap) | 13 / 0 without a sandbox (plugins are refused), 61 / 0 privileged | | 63 / 0 |
 | llm (local model logic with a stand-in server) | 13 / 0 | Debian 16 / 0 | 13 / 0 |
+| bash (the adapter in a real pseudo terminal, the lines in the startup files) | 24 / 0 | Debian 24 / 0, Fedora 24 / 0 | 15 / 0 (the system bash is 3.2: the live part is skipped) |
+| install (install.sh from start to end: install, again, other login shell, uninstall, no zsh) | 24 / 0 | Debian 24 / 0, Fedora 23 / 0 | 21 / 0 |
 
 Last complete Ubuntu run before the fixes of today: 827 pass, 38 fail. The remaining failures then were art, img, llm,
 minecraft, plugin (all fixed above, per file) and one in liveserver ("Lotus says nothing", also failing on the untouched base).
@@ -95,20 +104,16 @@ A full run of all four distributions has to be repeated before anything is calle
 
 ## Open (in the order I would do it)
 
-1. Bash adapter: **built, not yet covered by a test file.** `lib/init.bash`, `lotus bash-init` (lib/cmd/shell.zsh), hook lines for
-   `~/.bashrc` (`lotus_hook`, `LOTUS_SHELLS`). One manual run in a pseudo terminal on Debian showed: the `lotus` function works,
-   `/nosuchword abc` is rewritten to `lotus suggest …`, the history keeps the typed line, the prompt gets the theme color.
-   Still to do: `tests/test-bash.zsh` (Enter rewriting with a shortcut, pets, links, prefill of `/ai command`), a shell step in the
-   setup wizard, the doctor row for `.bashrc`, live now-playing lines in bash (not planned: documented limitation).
-2. `/install` and `/brew` on Linux (apps list per package manager, always preview and confirm).
-3. `lotus update` and `lotus uninstall` on Linux; installer end-to-end tests in containers.
-4. Remove BG on Linux (Python environment, CPU/CUDA wheels), editor in the browser instead of AppKit.
-5. The wording pass: "this Mac" → `$LOTUS_THIS` in the remaining shell and Swift texts; the AI system prompt templated per OS.
-6. Native local models on Linux/Windows (llama.cpp or Ollama managed by `lotus ai local`) – today `lotus ai local` says how to use Ollama or llama-server.
-7. **Windows module** (PowerShell 7): not started. Needs the owner's decisions 1 and 3 for any test.
-8. GitHub Actions matrix, packaging (deb/rpm/PKGBUILD/Scoop/winget manifests).
-9. Website redesign, docs, README, CHANGELOG, release notes.
-10. Video package (text and storyboard only; nothing recorded or invented).
+1. Run CI once (push of `v3`), fix what Windows and the Intel Mac show.
+2. A shell step in the setup wizard (zsh, bash or both), the doctor row for `.bashrc`.
+3. `/install`, `/brew` and `/app` on Linux (apps list per package manager, always preview and confirm); `lotus update` tested on Linux.
+4. Windows: setup wizard, settings screen, features, winget (preview first, then a question), the AI program for Windows (static build pinned by
+   sha256), music controls, keep awake (`SetThreadExecutionState`), notifications, image converter, plugins (no sandbox: every plugin needs approval),
+   packages for winget and Scoop.
+5. Remove BG on Linux (Python environment, CPU/CUDA wheels), editor in the browser instead of AppKit.
+6. The wording pass: "this Mac" → `$LOTUS_THIS` in the remaining shell and Swift texts; the AI system prompt templated per OS.
+7. Native local models on Linux/Windows (llama.cpp or Ollama managed by `lotus ai local`) – today `lotus ai local` says how to use them.
+8. The release: version, tag, `data/vendor.tsv` digests of the AI program (second commit), Cask checksum, release notes, and the video.
 
 ## Log
 
