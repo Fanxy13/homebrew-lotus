@@ -22,11 +22,12 @@ check_has() {   # <what> <text> <part>
 }
 
 # The same in every test, whatever the system (the tests use these instead of script, sed -i and stat):
-#   tpty <command…>    runs it in a pseudo terminal, its output on stdout (macOS: script -q /dev/null …, Linux: script -qefc)
+#   tpty <command…>    runs it in a pseudo terminal, its output on stdout (python's pty module: the same on every system, and it
+#                      works in a CI job that has no terminal – BSD script needs one)
 #   sedi <sed args…>   sed -i with the same syntax on macOS and Linux
 #   fmode <file>       the permissions as octal digits (600)
 #   onlyon <os> <why>  skip the rest of a test file when it is for another system
-tpty()  { if [[ $OSTYPE == darwin* ]]; then script -q /dev/null "$@"; else script -qefc "${(j: :)${(q)@}}" /dev/null; fi }
+tpty()  { python3 -c 'import os, pty, sys; sys.exit(os.waitstatus_to_exitcode(pty.spawn(sys.argv[1:])))' "$@" }
 sedi()  { if [[ $OSTYPE == darwin* ]]; then sed -i '' "$@"; else sed -i "$@"; fi }
 fmode() { if [[ $OSTYPE == darwin* ]]; then stat -f %Lp "$1"; else stat -c %a "$1"; fi }
 typeset -g TEST_OS=macos
