@@ -53,6 +53,7 @@ function Show-LotusThemes {
 
 function Invoke-LotusSettings {
     param($Rest)
+    $Rest = @($Rest | Where-Object { $null -ne $_ })      # an empty array arrives as $null
     $paths = Get-LotusPaths
     switch ("$($Rest[0])") {
         'get' {
@@ -74,6 +75,7 @@ function Invoke-LotusSettings {
 
 function Invoke-LotusSetup {
     param($Rest)
+    $Rest = @($Rest | Where-Object { $null -ne $_ })      # an empty array arrives as $null
     $path = Add-LotusHook
     Write-Host "  Lotus is loaded from $path"
     Write-Host '  Open a new PowerShell window. The setup wizard is not on Windows yet; set your name with: lotus settings set LOTUS_NAME Ada'
@@ -81,6 +83,7 @@ function Invoke-LotusSetup {
 
 function Invoke-LotusUninstall {
     param($Rest)
+    $Rest = @($Rest | Where-Object { $null -ne $_ })      # an empty array arrives as $null
     $paths = Get-LotusPaths
     Write-Host '  This removes your Lotus settings and cache and the Lotus lines in your PowerShell profile:'
     Write-Host "    $($paths.Conf)"
@@ -101,7 +104,7 @@ function Invoke-LotusDoctor {
     $rows = @(
         @('PowerShell 7.2 or newer', (($PSVersionTable.PSVersion.Major -gt 7) -or ($PSVersionTable.PSVersion.Major -eq 7 -and $PSVersionTable.PSVersion.Minor -ge 2)), "$($PSVersionTable.PSVersion)"),
         @('Windows Terminal', [bool]$env:WT_SESSION, $(if ($env:WT_SESSION) { 'yes' } else { 'not detected: colors may be fewer' })),
-        @('fastfetch (system information)', [bool](Get-Command fastfetch -ErrorAction SilentlyContinue), 'winget install Fastfetch-cli.Fastfetch'),
+        @('fastfetch (system information)', [bool](Get-Command fastfetch -ErrorAction SilentlyContinue), $(if (Get-Command fastfetch -ErrorAction SilentlyContinue) { (Get-Command fastfetch).Source } else { 'winget install Fastfetch-cli.Fastfetch' })),
         @('Lotus data and logos', (Test-Path -LiteralPath (Join-Path $paths.Root 'logos')), $paths.Root),
         @('Settings file', (Test-Path -LiteralPath $paths.Settings), $paths.Settings),
         @('Loaded by your profile', (Test-LotusHook), 'lotus setup --hook')

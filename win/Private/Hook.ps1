@@ -13,8 +13,12 @@ function Get-LotusHookBlock {
     ) -join "`n"
 }
 
+function Get-LotusProfilePath {
+    if ($env:LOTUS_PROFILE) { $env:LOTUS_PROFILE } else { $PROFILE.CurrentUserAllHosts }
+}
+
 function Add-LotusHook {
-    param([string]$ProfilePath = $PROFILE.CurrentUserAllHosts)
+    param([string]$ProfilePath = (Get-LotusProfilePath))
     $text = if (Test-Path -LiteralPath $ProfilePath) { Get-Content -LiteralPath $ProfilePath -Raw -Encoding utf8 } else { '' }
     if ($null -eq $text) { $text = '' }
     $block = Get-LotusHookBlock
@@ -30,7 +34,7 @@ function Add-LotusHook {
 }
 
 function Remove-LotusHook {
-    param([string]$ProfilePath = $PROFILE.CurrentUserAllHosts)
+    param([string]$ProfilePath = (Get-LotusProfilePath))
     if (-not (Test-Path -LiteralPath $ProfilePath)) { return $false }
     $text = Get-Content -LiteralPath $ProfilePath -Raw -Encoding utf8
     if ($null -eq $text) { return $false }
@@ -42,6 +46,6 @@ function Remove-LotusHook {
 }
 
 function Test-LotusHook {
-    param([string]$ProfilePath = $PROFILE.CurrentUserAllHosts)
+    param([string]$ProfilePath = (Get-LotusProfilePath))
     (Test-Path -LiteralPath $ProfilePath) -and ((Get-Content -LiteralPath $ProfilePath -Raw -Encoding utf8) -like "*$($script:HookStart)*")
 }

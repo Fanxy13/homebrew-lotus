@@ -78,6 +78,8 @@ Describe 'settings.zsh' {
     It 'is used through lotus settings' {
         lotus settings set LOTUS_NAME Grace | Out-Null
         (lotus settings get LOTUS_NAME) | Should -Be 'Grace'
+        $all = lotus settings *>&1 | Out-String
+        $all | Should -Match 'LOTUS_NAME\s+Grace'
     }
 }
 
@@ -98,6 +100,18 @@ Describe 'the lines in the PowerShell profile' {
             $after | Should -Not -Match 'lotus'
             $after | Should -Match 'Set-Alias ll'
         }
+    }
+}
+
+Describe 'doctor and themes' {
+    It 'says what is there' {
+        $out = lotus doctor *>&1 | Out-String
+        $out | Should -Match 'PowerShell 7.2 or newer'
+        $out | Should -Match 'Settings file'
+    }
+    It 'lists every theme of data/themes.tsv' {
+        $out = lotus themes *>&1 | Out-String
+        foreach ($name in 'matcha', 'sakura', 'ocean') { $out | Should -Match $name }
     }
 }
 
