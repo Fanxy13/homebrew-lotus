@@ -89,11 +89,16 @@ check_eq "less than a month behind: not asked" "$out" ""
 # another macOS user's yt-dlp (their Homebrew): Lotus says so and offers its own, never sudo
 chmod 555 $HOME/bin
 lotus_ytdlp_info
-check_eq "a folder this user cannot change: whose it is" "$reply[3]" "$USER"
-out=$(lotus_ytdlp_update 2>&1; print "status=$?")
-check_has "cannot update it: says why" "$out" "is in a folder of the macOS user $USER"
-check_has "and what Lotus can do instead" "$out" "the official macOS build from github.com/yt-dlp"
-check_has "without a keyboard: nothing done" "$out" "status=1"
+if (( EUID == 0 )); then
+  print -r -- "  - root can change every folder: the checks of a folder that belongs to someone else are skipped"
+else
+  [[ $LOTUS_OS == macos ]] && who="macOS user" build="macOS" || who="user" build="Linux"
+  check_eq "a folder this user cannot change: whose it is" "$reply[3]" "$USER"
+  out=$(lotus_ytdlp_update 2>&1; print "status=$?")
+  check_has "cannot update it: says why" "$out" "is in a folder of the $who $USER"
+  check_has "and what Lotus can do instead" "$out" "the official $build build from github.com/yt-dlp"
+  check_has "without a keyboard: nothing done" "$out" "status=1"
+fi
 chmod 755 $HOME/bin
 # Lotus' own copy wins once it is there
 zf_mkdir -p ${LOTUS_YTDLP_OWN:h}

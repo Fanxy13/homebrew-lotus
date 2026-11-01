@@ -61,6 +61,8 @@ ready() { _mcc_probe; _mcc_log_poll; _mcc_probe; [[ $MCC_STATE == running ]] }
 check "the server runs and is ready" wait_for 5 ready
 check "the server got its own session (Ctrl-C does not reach it)" eval '[[ $(ps -o sid= -p $MCC_PID | tr -d " ") != $(ps -o sid= -p $$ | tr -d " ") ]]'
 check_eq "a player who joined is online" "$MCC_PORDER" Steve
+seen() { _mcc_log_poll; [[ ${(j:|:)MCC_EVENTS} == *"Steve joined"*"<Steve> hello there"* ]] }
+wait_for 5 seen          # the server writes the chat line a moment after the join (slower on an emulated CPU)
 check_has "events: ready, join, chat" "${(j:|:)MCC_EVENTS}" "join"$'\t'"Steve joined"
 check_has "the chat line is an event" "${(j:|:)MCC_EVENTS}" "<Steve> hello there"
 check_eq "spawn progress read, then done" $MCC_PROGRESS 100
@@ -341,6 +343,7 @@ rm -f $HOME/Minecraft/link-to-server
 # from the control center: Settings → Delete server, the name typed, the running server stopped first
 # (the Trash: ~/.Trash on a Mac, the freedesktop.org Trash elsewhere)
 tr=$HOME/.Trash; [[ $TEST_OS == linux ]] && tr=$HOME/.local/share/Trash/files
+export LOTUS_TRASH=own          # Linux: Lotus' own trash even where gio or trash-cli are installed (they are in some images)
 mkdir -p $tr
 _mcc_init $S
 _mcc_start

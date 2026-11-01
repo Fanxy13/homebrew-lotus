@@ -323,7 +323,7 @@ lotus_convert_failed() {
 # ── Keeping yt-dlp up to date ─────────────────────────────────
 
 # Version, age (days, in REPLY), how it was installed – brew, pipx, pip, self or lotus (Lotus' own copy) – and
-# whether this macOS user can update it: reply=(version how ok|<the user it belongs to>)
+# whether this user can update it: reply=(version how ok|<the user it belongs to>)
 lotus_ytdlp_info() {
   setopt localoptions extendedglob
   local bin how=self can=ok v dir
@@ -422,10 +422,11 @@ lotus_ytdlp_update() {
   [[ $how == lotus ]] && bin=$LOTUS_YTDLP_OWN
   if [[ $can != ok ]]; then
     lotus_log INFO convert "yt-dlp ($how) belongs to $can – $USER cannot update it"
-    if [[ $how == brew ]]; then ui_warn "Homebrew on this Mac belongs to the macOS user $can."
-    else ui_warn "yt-dlp is in a folder of the macOS user $can."; fi
+    local mac=; [[ $LOTUS_OS == macos ]] && mac="macOS "
+    if [[ $how == brew ]]; then ui_warn "Homebrew on $LOTUS_THIS belongs to the ${mac}user $can."
+    else ui_warn "yt-dlp is in a folder of the ${mac}user $can."; fi
     ui_dim "  As $USER, Lotus cannot update it. It can keep its own yt-dlp for you:"
-    ui_dim "  the official macOS build from github.com/yt-dlp, checked against its checksum."
+    ui_dim "  the official ${${${LOTUS_OS:#linux}:+macOS}:-Linux} build from github.com/yt-dlp, checked against its checksum."
     ui_dim "  Only /convert uses it, and it updates itself."
     ui_has_tty && ui_confirm "Get the newest yt-dlp just for you?" y || return 1
     lotus_ytdlp_own
@@ -461,19 +462,32 @@ lotus_ytdlp_update() {
   return 1
 }
 
-# Lotus' own yt-dlp: the official macOS build of the newest release from github.com/yt-dlp, checked against the
+# Lotus' own yt-dlp: the official build for this system (macOS, Linux x86_64 or arm64) of the newest release from github.com/yt-dlp, checked against the
 # release's SHA2-256SUMS before it is used. Nothing outside Lotus' folder changes.
+# The file of the official yt-dlp release that runs on this system → REPLY (status 1: there is none for this system)
+_ytdlp_asset() {
+  case $LOTUS_OS-$LOTUS_ARCH in
+    macos-*)       REPLY=yt-dlp_macos ;;
+    linux-x86_64)  REPLY=yt-dlp_linux ;;
+    linux-arm64)   REPLY=yt-dlp_linux_aarch64 ;;
+    *)             REPLY=; return 1 ;;
+  esac
+}
+
 lotus_ytdlp_own() {
   setopt localoptions extendedglob
-  local dir=${LOTUS_YTDLP_OWN:h} ver want sum tmp v
+  local dir=${LOTUS_YTDLP_OWN:h} ver want sum tmp v asset build=macOS
+  [[ $LOTUS_OS == linux ]] && build=Linux
+  _ytdlp_asset || { ui_error "There is no official yt-dlp build for this system" "" "Install it with your package manager: ${$(lotus_pkg_hint yt-dlp; print -r -- $REPLY)}"; return 1 }
+  asset=$REPLY
   lotus_ytdlp_latest || { ui_error "The newest yt-dlp could not be found" "github.com did not answer." "Try again later."; return 1 }
   ver=$REPLY
   local base=https://github.com/yt-dlp/yt-dlp/releases/download/$ver
   zf_mkdir -p $dir 2>/dev/null || { ui_error "Cannot write to ${dir/#$HOME/~}"; return 1 }
   tmp=$dir/yt-dlp.download
-  want=$(curl -fsSL -m 30 $base/SHA2-256SUMS 2>/dev/null | awk '$2 == "yt-dlp_macos" { print $1 }')
+  want=$(curl -fsSL -m 30 $base/SHA2-256SUMS 2>/dev/null | awk -v a=$asset '$2 == a { print $1 }')
   [[ $want == [0-9a-f](#c64) ]] || { ui_error "yt-dlp $ver could not be checked" "Its checksums did not come from github.com." "Try again later."; return 1 }
-  lotus_ytdlp_fetch $base/yt-dlp_macos $tmp $ver $want
+  lotus_ytdlp_fetch $base/$asset $tmp $ver $want
   case $? in
     0) ;;
     2) rm -f $tmp
@@ -512,7 +526,7 @@ lotus_ytdlp_fetch() {   # <url> <file> <version> <sha256>
   local -a st
   bg_ui_begin yt-dlp "download|Downloading yt-dlp $ver|Download" "check|Checking it|Checksum"
   bg_ui_sub "github.com/yt-dlp"
-  bg_ui_info format "the official macOS build"
+  bg_ui_info format "the official $build build"
   bg_ui_stage download
   curl -fsSL -m 900 -o $file $url 2>/dev/null &
   pid=$!

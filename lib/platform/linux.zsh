@@ -380,7 +380,8 @@ lotus_os_trash() {
   local f
   LOTUS_OS_TRASHED=
   for f in "$@"; do
-    if   (( $+commands[gio] ));        then gio trash -- $f 2>/dev/null || return 1
+    if   [[ $LOTUS_TRASH == own ]];    then _lotus_os_trash_xdg $f || return $?       # LOTUS_TRASH=own: Lotus' own trash, whatever is installed
+    elif (( $+commands[gio] ));        then gio trash -- $f 2>/dev/null || return 1
     elif (( $+commands[trash-put] ));  then trash-put -- $f 2>/dev/null || return 1
     elif (( $+commands[kioclient5] )); then kioclient5 move $f trash:/ 2>/dev/null || return 1
     else _lotus_os_trash_xdg $f || return $?; fi
@@ -674,7 +675,10 @@ lotus_os_sandbox_wrap() {
   [[ $net == yes ]] && reply+=(--share-net)
   reply+=(--ro-bind / / --dev /dev --proc /proc --tmpfs /tmp)
   for d in ${HOME:A} /home /root /mnt /media /run/media /run/user /run/dbus /var/run/dbus; do
-    [[ -d $d ]] && { reply+=(--tmpfs $d); hidden+=($d) }
+    [[ -d $d ]] || continue
+    d=${d:A}                                   # /var/run is a link to /run: the same folder is hidden once, under its real name
+    (( ${hidden[(Ie)$d]} )) && continue
+    reply+=(--tmpfs $d); hidden+=($d)
   done
   # the network needs the name servers: the resolver of systemd lives under /run
   [[ $net == yes && -d /run/systemd/resolve ]] && reply+=(--ro-bind /run/systemd/resolve /run/systemd/resolve)

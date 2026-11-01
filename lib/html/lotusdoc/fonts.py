@@ -29,6 +29,33 @@ FALLBACK = ["/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "/Library/Fo
             "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", "/usr/share/fonts/truetype/freefont/FreeSans.ttf"]
 
 
+# The same fonts live in other folders on other systems: Fedora keeps DejaVu in /usr/share/fonts/dejavu-sans-fonts, Arch in
+# /usr/share/fonts/TTF, Windows in C:\\Windows\\Fonts. A listed path that is not there is looked for by its file name.
+_FONT_DIRS = ["/usr/share/fonts", "/usr/local/share/fonts", os.path.expanduser("~/.local/share/fonts"), os.path.expanduser("~/.fonts"),
+              os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")]
+_INDEX = None
+
+
+def _index():
+    """File name (lower case) → path of every font file in the font folders; looked up once."""
+    global _INDEX
+    if _INDEX is None:
+        _INDEX = {}
+        for base in _FONT_DIRS:
+            for root, _dirs, files in os.walk(base):
+                for f in sorted(files):
+                    if f.lower().endswith((".ttf", ".ttc", ".otf")):
+                        _INDEX.setdefault(f.lower(), os.path.join(root, f))
+    return _INDEX
+
+
+def resolve(path):
+    """The path itself when the file is there, else the file of the same name in another font folder, else None."""
+    if os.path.exists(path):
+        return path
+    return _index().get(os.path.basename(path).lower())
+
+
 def _u16(d, o):
     return struct.unpack_from(">H", d, o)[0]
 
@@ -314,8 +341,9 @@ class Fonts:
     @staticmethod
     def _first(paths, bold, italic):
         for p in paths:
-            if os.path.exists(p):
-                f = load(p, bold, italic)
+            found = resolve(p)
+            if found:
+                f = load(found, bold, italic)
                 if f:
                     return f
         return None
@@ -332,8 +360,9 @@ class Fonts:
         if self._fallbacks is None:
             self._fallbacks = []
             for p in FALLBACK:
-                if os.path.exists(p):
-                    f = load(p)
+                found = resolve(p)
+                if found:
+                    f = load(found)
                     if f:
                         self._fallbacks.append(f)
         return self._fallbacks
