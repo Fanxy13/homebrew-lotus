@@ -257,3 +257,12 @@ Sandbox for `access = limited`:
 | Website | link check, command-copy check, headless screenshots | CI, local |
 
 A feature is listed as supported on a system only when its test ran there. The matrix keeps the status words honest.
+
+## Status of this design (2026-11-01)
+
+Built and tested (see PROGRESS.md for the numbers): the zsh platform layer for macOS and Linux (`lib/platform*.zsh`), the package layer, the
+bash adapter (`lib/init.bash`, the settings it needs come from `lotus bash-init`), `install.sh`, the AI program for Linux (static build, pinned
+digest, `lotus_prebuilt`), the plugin sandbox on Linux (bubblewrap, refusal without one).
+Built, tested on a Mac only for the non-Windows paths: the Windows module (`win/`, `install.ps1`) – its contract with the zsh engine is the shared
+data files and `settings.zsh`; a Pester test reads a settings file that the zsh engine wrote.
+Not built yet: everything else on the Windows list in section 6, the shell step of the setup wizard, `/install` and `/brew` on Linux.
