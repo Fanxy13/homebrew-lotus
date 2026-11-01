@@ -11,14 +11,14 @@ cask "lotus" do
 
   binary "homebrew-lotus-#{version}/bin/lotus"
 
-  # Hook lotus into ~/.zshrc right away, so one command is enough
+  # Hook lotus into ~/.zshrc (and ~/.bashrc when bash is your login shell) right away, so one command is enough
   postflight_steps do
     run "homebrew-lotus-#{version}/bin/lotus",
         base:           :staged_path,
         args:           ["setup", "--hook"],
         env:            { "LOTUS_FOR_USER" => "{{user}}" },
         print_stdout:   true,
-        writable_paths: [".zshrc", ".config/lotus", ".cache/lotus", ".local/state/lotus"],
+        writable_paths: [".zshrc", ".bashrc", ".config/lotus", ".cache/lotus", ".local/state/lotus"],
         writable_base:  :home
   end
 
@@ -29,7 +29,7 @@ cask "lotus" do
         args:           ["unhook"],
         env:            { "LOTUS_FOR_USER" => "{{user}}" },
         print_stdout:   true,
-        writable_paths: [".zshrc"],
+        writable_paths: [".zshrc", ".bashrc"],
         writable_base:  :home
   end
 

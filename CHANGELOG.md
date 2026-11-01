@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased – Lotus 3.0: Linux, and the way to Windows
+## 3.0.0 – Linux, and the way to Windows
 
-Not released. What is here has been tested on the system named; `dev/3.0/PROGRESS.md` lists what is not.
+What is tested on which system is the table on the website ("What works where") and `dev/3.0/PROGRESS.md`; nothing is claimed for a system it was not tested on.
+Windows is not in this release: a first PowerShell 7 module is in the repository (`win/`, `install.ps1`) and is tested in CI, but it can only show the start screen, the
+themes, the settings and `lotus doctor` – every other command says that it is not available on Windows yet.
 
 - **Linux (beta).** Lotus runs on Ubuntu, Debian, Fedora and Arch with zsh or bash. The tests run in containers on all four
-  (`tests/docker/par.sh <distro>`); a GitHub Actions workflow runs them on every push once it is pushed.
+  (`tests/docker/par.sh <distro>`), and GitHub Actions runs them on every push: the four distributions, both kinds of Mac and Windows.
 - **One platform layer.** Commands no longer call `osascript`, `open`, `pbcopy`, `caffeinate`, `sips` or `security` themselves: they
   call `lotus_os_*` and `lotus_pkg_*` (`lib/platform/`), which have a macOS and a Linux implementation. What a system cannot do says so
   in words; nothing is silently skipped. Package managers: apt, dnf, pacman, zypper, apk and Homebrew – always the exact command first,
@@ -26,7 +28,7 @@ Not released. What is here has been tested on the system named; `dev/3.0/PROGRES
   opened), the trash of your desktop (or Lotus' own, in the freedesktop.org format) for deleted Minecraft servers.
 - **Fixed on the Mac:** `sips` of macOS 27 rejects `--`; the Minecraft server icon and the image fallback called it that way.
 - Local models that Lotus runs itself (MLX) stay Apple silicon only; `lotus ai local` says how to use Ollama or llama.cpp elsewhere.
-- Not yet: Windows (a native PowerShell 7 module is being built), `/app`, `/install` and `/brew` on Linux, Remove BG on Linux.
+- Not yet: Windows beyond the first module, `/install` and `/brew` on Linux, Remove BG on Linux. (`/app` works on Linux: it opens the desktop entries of your system.)
 - Tests: `tests/test-bash.zsh`, `tests/test-install.zsh` (the installer from start to end: install, again, uninstall, no zsh),
   `tests/test-autocheck.zsh` (which commands auto mode runs without asking); the others run on Linux too.
 
@@ -42,7 +44,7 @@ Not released. What is here has been tested on the system named; `dev/3.0/PROGRES
 - Python's standard library only (3.9, the one of Apple's Command Line Tools, and newer) – nothing to install, nothing leaves the Mac, no bytecode written into Lotus' folder
 - Tests: `zsh tests/run.zsh liveserver html` – Live Server's rules (the Wi-Fi, the folder, the reload), every format of `/html` through Lotus with the documents checked by nothing but Python (every part of a .docx and .odt is XML, every object of a PDF where its table says, the text in it), the page open in the browser, a keyboard choosing, what is never written over, and the old plugin going away; `tests/test-plugin-install.zsh` counts four plugins in `plugins/`
 
-## Unreleased – MeshChat
+## Also in 3.0.0 – MeshChat (a plugin)
 
 - A new plugin, MeshChat: one chat with everyone around you over Bluetooth Low Energy – no internet, no Wi-Fi, no server, no rooms. Install it with `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat`, then `/meshchat` on every Mac: they find each other. `/meshchat demo` tries it without a second Mac: two simulated people, one of them a relay away
 - A mesh, as far as it goes: every Mac shows every message and passes it on – each message starts with the most the protocol allows, 16 relays – so Macs out of each other's range chat through the ones in between. Each message is shown once, however many paths it takes; a Mac that comes back into range gets what it missed – up to 32 messages from the last 14 minutes. One sender's share is 40 messages at once, then one a second. Links are made and remade by themselves, with retries that slow down (every 5 minutes after 8 failures) and end when the other Mac is gone, and scanning in bursts to spare the battery
