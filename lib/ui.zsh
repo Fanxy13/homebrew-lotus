@@ -5,6 +5,18 @@ typeset -g _UI_R=$'\e[0m' _UI_B=$'\e[1m'
 
 ui_c() { REPLY=$'\e['"${LOTUS_C[$1]:-0}m" }          # theme color by role → REPLY
 
+# The texts were written on a Mac: "this Mac", "Finder". Elsewhere they say what that system calls them (lib/platform.zsh).
+# The result is _ui_t (not REPLY: callers may still need theirs).
+typeset -g _ui_t=
+_ui_here() {
+  _ui_t=$*
+  [[ $LOTUS_OS == macos ]] && return 0
+  _ui_t=${_ui_t//this Mac/$LOTUS_THIS}
+  _ui_t=${_ui_t//your Mac/your computer}
+  _ui_t=${_ui_t//the Mac/$LOTUS_THE}
+  _ui_t=${_ui_t//Finder/$LOTUS_FILES_APP}
+}
+
 # Header:  lotus / Weather   (optional dim subtitle on the right)
 ui_header() {
   local a=$'\e[1;'"$LOTUS_C[accent]m" d=$'\e['"$LOTUS_C[dim]m"
@@ -13,24 +25,24 @@ ui_header() {
   print -r -- ""
 }
 
-ui_text()  { print -r -- "  $*" }
-ui_dim()   { print -r -- "  "$'\e['"$LOTUS_C[dim]m$*"$_UI_R }
+ui_text()  { _ui_here "$*"; print -r -- "  $_ui_t" }
+ui_dim()   { _ui_here "$*"; print -r -- "  "$'\e['"$LOTUS_C[dim]m$_ui_t"$_UI_R }
 ui_blank() { print -r -- "" }
 
-ui_success() { print -r -- "  "$'\e[1;'"$LOTUS_C[key]m✓${_UI_R} $*" }
-ui_warn()    { print -r -- "  "$'\e[1;'"$LOTUS_C[key2]m!${_UI_R} $*"; lotus_log WARN ${LOTUS_LOG_COMP:-ui} "$*" }
-ui_info()    { print -r -- "  "$'\e['"$LOTUS_C[accent]m›${_UI_R} $*" }
-ui_step()    { print -r -- "  "$'\e['"$LOTUS_C[dim]m…${_UI_R} $*" }
+ui_success() { _ui_here "$*"; print -r -- "  "$'\e[1;'"$LOTUS_C[key]m✓${_UI_R} $_ui_t" }
+ui_warn()    { _ui_here "$*"; print -r -- "  "$'\e[1;'"$LOTUS_C[key2]m!${_UI_R} $_ui_t"; lotus_log WARN ${LOTUS_LOG_COMP:-ui} "$_ui_t" }
+ui_info()    { _ui_here "$*"; print -r -- "  "$'\e['"$LOTUS_C[accent]m›${_UI_R} $_ui_t" }
+ui_step()    { _ui_here "$*"; print -r -- "  "$'\e['"$LOTUS_C[dim]m…${_UI_R} $_ui_t" }
 
 # Error screen: title, message, then optional hint lines (also written to the log)
 ui_error() {
-  local title=$1 msg=$2; shift $(( $# < 2 ? $# : 2 ))
+  _ui_here "$1"; local title=$_ui_t; _ui_here "$2"; local msg=$_ui_t; shift $(( $# < 2 ? $# : 2 ))
   lotus_log ERROR ${LOTUS_LOG_COMP:-ui} "$title${msg:+ – $msg}"
   print -r -- ""
   print -r -- "  "$'\e[1;38;5;203m'"✗ $title$_UI_R"
   [[ -n $msg ]] && print -r -- "    $msg"
   local h
-  for h in "$@"; do print -r -- "    "$'\e['"$LOTUS_C[dim]m$h$_UI_R"; done
+  for h in "$@"; do _ui_here "$h"; print -r -- "    "$'\e['"$LOTUS_C[dim]m$_ui_t$_UI_R"; done
   print -r -- ""
 }
 
@@ -158,9 +170,10 @@ ui_choose() {
 # A page title:   ◇ lotus / Remove BG     (optional dim line below)
 ui_hero() {
   local a=$'\e['"$LOTUS_C[accent]m" d=$'\e['"$LOTUS_C[dim]m"
+  _ui_here "$1"; local h1=$_ui_t; _ui_here "$2"; local h2=$_ui_t
   print -r -- ""
-  print -r -- "    ${a}◇${_UI_R} ${_UI_B}lotus${_UI_R}${d} / ${_UI_R}${_UI_B}$1${_UI_R}"
-  [[ -n $2 ]] && { print -r -- ""; print -r -- "    ${d}$2${_UI_R}" }
+  print -r -- "    ${a}◇${_UI_R} ${_UI_B}lotus${_UI_R}${d} / ${_UI_R}${_UI_B}$h1${_UI_R}"
+  [[ -n $h2 ]] && { print -r -- ""; print -r -- "    ${d}$h2${_UI_R}" }
   print -r -- ""
 }
 

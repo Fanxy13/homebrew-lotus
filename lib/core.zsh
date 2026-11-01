@@ -131,7 +131,25 @@ lotus_lang() {
   typeset -ga _lotus_lang_groups=()
   source $LOTUS_ROOT/lib/lang/en.zsh
   [[ $LOTUS_LANG != en && -r $LOTUS_ROOT/lib/lang/$LOTUS_LANG.zsh ]] && source $LOTUS_ROOT/lib/lang/$LOTUS_LANG.zsh
+  _lotus_lang_here
   return 0
+}
+
+# The texts were written on a Mac. Elsewhere "this Mac" and "Finder" become what the system calls them – in the language
+# the texts are in (the words are few: the computer, the file manager).
+_lotus_lang_here() {
+  [[ $LOTUS_OS == macos ]] && return 0
+  local k v
+  for k v in ${(kv)LOTUS_L}; do
+    case $LOTUS_LANG in
+      de) v=${v//diesem Mac/diesem Computer}; v=${v//diesen Mac/diesen Computer}; v=${v//deinem Mac/deinem Computer}; v=${v//Dein Mac/Dein Computer}; v=${v//dein Mac/dein Computer}
+          v=${v//deinen Mac/deinen Computer}; v=${v//dem Mac/dem Computer}; v=${v//der Mac/der Computer}; v=${v//den Mac/den Computer}; v=${v//Am Mac/Am Computer}; v=${v//Finder/Dateimanager} ;;
+      fr) v=${v//ce Mac/cet ordinateur}; v=${v//ton Mac/ton ordinateur}; v=${v//votre Mac/votre ordinateur}; v=${v//le Mac/l’ordinateur}; v=${v//du Mac/de l’ordinateur}; v=${v//Finder/le gestionnaire de fichiers} ;;
+      es) v=${v//este Mac/este ordenador}; v=${v//tu Mac/tu ordenador}; v=${v//el Mac/el ordenador}; v=${v//del Mac/del ordenador}; v=${v//en el Finder/en el gestor de archivos}; v=${v//Finder/gestor de archivos} ;;
+      *)  v=${v//this Mac/$LOTUS_THIS}; v=${v//your Mac/your computer}; v=${v//the Mac/$LOTUS_THE}; v=${v//Finder/$LOTUS_FILES_APP} ;;
+    esac
+    LOTUS_L[$k]=$v
+  done
 }
 
 # Texts of a bigger screen (setup, bg, log), loaded only when it opens: lotus_lang_group bg
@@ -140,6 +158,7 @@ lotus_lang_group() {
   _lotus_lang_groups+=($1)
   source $LOTUS_ROOT/lib/lang/$1.en.zsh
   [[ $LOTUS_LANG != en && -r $LOTUS_ROOT/lib/lang/$1.$LOTUS_LANG.zsh ]] && source $LOTUS_ROOT/lib/lang/$1.$LOTUS_LANG.zsh
+  _lotus_lang_here
   return 0     # English has no second file – that is not a failure (the setup took it for "back")
 }
 
