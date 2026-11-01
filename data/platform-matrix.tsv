@@ -15,7 +15,8 @@ Minecraft server setup	yes	yes	soon	Java 17 or newer; Lotus can fetch one with a
 Plugins	yes	yes	soon	Limited plugins run in a sandbox (macOS: sandbox-exec · Linux: bubblewrap). Without one they are refused, never run unprotected.
 Now playing line and album cover	yes	partial	soon	Linux: over MPRIS (playerctl), tested with a stand-in player.
 Music controls and visualizer	yes	partial	soon	Linux: playerctl.
-Open apps, install software (/app, /install, /brew)	yes	soon	soon	Linux: your package manager, with a preview and a question first.
+Open installed apps by name (/app)	yes	yes	soon	Linux: the desktop entries of your system, Flatpak and Snap.
+Install software (/install, /brew)	yes	soon	soon	Linux: your package manager, the exact command first and a question before anything is installed.
 Install and uninstall	yes	yes	soon	
 Update	yes	partial	soon	Linux: built, not yet tested.
 iPhone and iPad tools (/ios)	yes	no	no	Needs Apple tools.
