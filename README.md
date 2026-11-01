@@ -1,5 +1,7 @@
 # Lotus
 
+[![Tests](https://github.com/Fanxy13/homebrew-lotus/actions/workflows/test.yml/badge.svg?branch=v3)](https://github.com/Fanxy13/homebrew-lotus/actions/workflows/test.yml)
+
 **A start screen and command center for the terminal – on macOS and Linux. Windows is in development.**
 Open apps, search and install software, check the weather, ask an AI (Apple Intelligence, Claude, a local model),
 control your music, remove image backgrounds, set up a Minecraft server –
