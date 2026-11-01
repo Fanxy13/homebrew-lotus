@@ -21,6 +21,10 @@ for n in $names; do
   pass=$((pass + ${p:-0})); fail=$((fail + ${f:-0}))
 done
 echo "TOTAL $pass passed, $fail failed  (logs: $out)"
+# what failed, so that a CI log says it without the files
+for n in $names; do
+  if grep -q '✗' "$out/$n.log" 2>/dev/null; then echo "--- $n"; grep -A4 '✗' "$out/$n.log" | head -40; fi
+done
 # a test file that printed no result counts as failed too
 for n in $names; do grep -qE '^[0-9]+ passed, [0-9]+ failed' "$out/$n.log" || fail=$((fail + 1)); done
 [ "$fail" -eq 0 ]
