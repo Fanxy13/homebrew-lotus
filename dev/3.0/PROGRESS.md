@@ -3,9 +3,10 @@
 The one file to read first when this work is picked up again (after a break, or by another session).
 Update it at the end of every step: what was done, what was verified and how, what is left.
 
-- Branch: `v3` (worktree `~/Code/lotus-v3`), based on `origin/main` (Lotus 2.23.0). Commits so far are "work in progress".
-- Nothing here is released, tagged or pushed. A release needs the owner's explicit "push".
-- Commits are made as Fanxy13 without a co-author line (the owner's rule).
+- Released as **v3.0.0** on 2026-11-01: commit 51e7a71 on `main` with the tag, then a second commit with the digests of the AI program for Linux
+  (`data/vendor.tsv`) and the cask checksum, and the GitHub release (the two AI programs are its assets). Branch `v3` (worktree `~/Code/lotus-v3`) was its base.
+- Commits are made as Fanxy13 without a co-author line (the owner's rule). Pushing: `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push`.
+- What is not in the release is in "Open" below (Windows beyond its first module, `/install` and `/brew` on Linux, Remove BG on Linux …).
 - Rule for every status: **tested** means a test ran on that platform and passed; **built** means the code is there
   but no test has run on that platform yet; **planned** means nothing is written. Never write "works" for built.
 
