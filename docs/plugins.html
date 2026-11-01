@@ -45,6 +45,7 @@ description = A small to-do list in the terminal
 
 <span class="t-dim"># what it may do: limited (a sandbox) or full</span>
 access      = limited
+os          = macos linux
 network     = no
 
 <span class="t-dim"># lotus todo …</span>
@@ -66,7 +67,7 @@ startup.every = 60</pre></div>
       <div class="card"><h3>limited</h3><p class="muted small">The default. The plugin runs in a macOS sandbox: it reads only its own folder and writes only its data folder. No internet unless it says <code>network = yes</code>, no keychain, no controlling other apps, nothing of your files or Lotus' settings – and never the AI's API keys.</p></div>
       <div class="card"><h3>full</h3><p class="muted small">For plugins that work with Lotus itself or your files. It runs with your rights and can load Lotus' own functions: its settings, colors and look. Lotus asks you before it installs one, and again whenever one of its files changes.</p></div>
     </div>
-    <div class="callout warn" style="margin-top:18px"><p>A plugin is code that runs on your Mac. Lotus always shows what a plugin brings and may do before it installs it. Give full access only to plugins from people you trust.</p></div>
+    <div class="callout warn" style="margin-top:18px"><p>A plugin is code that runs on your computer. Lotus always shows what a plugin brings and may do before it installs it. Give full access only to plugins from people you trust.</p></div>
 
     <h2 class="section" id="installer">The installer: drag them in</h2>
     <div class="codeblock"><code><span class="dollar">$</span> lotus plugin installer</code><button class="copy" data-copy="lotus plugin installer" aria-label="Copy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>

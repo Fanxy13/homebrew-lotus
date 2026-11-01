@@ -28,12 +28,14 @@ A plugin can bring any of them, and as many commands and tools as it likes.
 
 Every plugin says how much it may do. Lotus shows it before you install a plugin and asks you.
 
-**`access = limited`** – the default, and the right choice for most plugins. The plugin runs in a macOS sandbox:
+**`access = limited`** – the default, and the right choice for most plugins. The plugin runs in a sandbox (on a Mac the system's own,
+on Linux bubblewrap). Where there is no working sandbox – bubblewrap missing, or a system that does not let you use it – a limited
+plugin is **refused, never run without one**:
 
 - it reads only its own folder, and writes only its data folder (`~/.local/share/lotus/plugins/<name>`) and the
   temporary folder – nothing of your home folder or other disks
 - no internet, unless it says `network = yes`
-- no keychain, no `osascript` or Apple Events (it cannot control other apps), no `sudo`
+- no keychain or keyring, no `osascript` or Apple Events (it cannot control other apps), no `sudo`
 - nothing of Lotus' settings, and never the API keys of the AI – it starts with a clean environment
 
 **`access = full`** – for plugins that work with Lotus itself or with your files. The plugin runs with your rights
@@ -55,6 +57,8 @@ description = A small to-do list in the terminal
 homepage    = https://github.com/you/lotus-todo     # optional
 access      = limited              # limited (default) or full
 network     = no                   # limited plugins: may it use the internet? yes or no (default no)
+os          = macos linux          # the systems it is for: macos, linux, windows or all (a plugin without this line is for macOS)
+requires    = python3, ffmpeg      # programs it needs: Lotus says what is missing and how to install it
 
 command todo = todo.zsh            # lotus todo … runs todo.zsh with the arguments
 command      = todo.zsh            # the same, for a command with the plugin's own name
@@ -68,6 +72,9 @@ tool add.param text    = text, required, What there is to do
 startup       = todo.zsh count     # one line under the start screen
 startup.every = 60                 # make it again at most every 60 seconds (default 300)
 ```
+
+A command can differ per system: `command todo.linux = todo-linux.zsh` is used on Linux, `command todo = todo.zsh` everywhere else
+(the same for `startup.linux`). Lotus never runs a plugin on a system it does not say it is for: it names the systems the plugin is for instead.
 
 Programs are files in the plugin's folder. Lotus starts them by their ending: `.zsh` (zsh), `.sh` (sh),
 `.py` (python3), `.js` (node), `.rb` (ruby) – anything else must be executable. Words after the program
