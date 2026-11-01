@@ -231,7 +231,8 @@ tty() { tpty zsh -fc "$LOTUS_ROOT/bin/lotus version" 2>&1 | plain }
 mkold Somebody
 out=$(tty)
 check "a plugin of someone else with that name stays" test -e $P/liveserver/plugin.conf
-check_eq "  – and Lotus says nothing" "${${(f)out}[-1]//[[:space:]]/}" "$LOTUS_VERSION"
+lines=("${(@f)out}")      # an array – one line of output is still a list, not a word to take a letter from
+check_eq "  – and Lotus says nothing" "${lines[-1]//[[:space:]]/}" "$LOTUS_VERSION"
 check "  – (not a word about a plugin)" eval '[[ $out != *plugin* ]]'
 rm -rf $P/liveserver $LOTUS_DATA/plugins
 mkold Lotus
