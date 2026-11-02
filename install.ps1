@@ -57,8 +57,9 @@ function Install-Lotus {
         }
         New-Item -ItemType Directory -Force -Path (Join-Path $dest 'lib') | Out-Null
         Copy-Item -LiteralPath (Join-Path $src 'lib/core.zsh') -Destination (Join-Path $dest 'lib/core.zsh') -Force
-        # the tests and the sample settings are not for users
+        # the tests and the sample settings are not for users, nor the sources of meshchat.exe (a release carries the program)
         Remove-Item -LiteralPath (Join-Path $dest 'win/tests') -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Join-Path $dest 'win/meshchat') -Recurse -Force -ErrorAction SilentlyContinue
     } finally {
         Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     }

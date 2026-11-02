@@ -298,7 +298,8 @@ and pictures. Text keeps the code byte for byte, for uploads that refuse `.html`
 
 ## MeshChat
 
-Part of Lotus on the Mac – nothing to install. Turn it off with `lotus features meshchat off`.
+Part of Lotus on the Mac – nothing to install. Turn it off with `lotus features meshchat off`. On Windows 10 and 11 it
+is a program of its own, `meshchat.exe`, in the same chat as the Macs: [win/meshchat](win/meshchat/README.md).
 
 `/meshchat` is one chat with everyone around you over Bluetooth, without internet, Wi-Fi, rooms or a server. Every
 Mac in the chat passes each message on, so Macs out of each other's range still chat through the ones in between – as
@@ -306,7 +307,7 @@ far as there are Macs to pass it on. Public – anyone nearby can read it – an
 name. It runs in a sandbox without internet: it reads only its own folder and keeps this Mac's identity, your name and
 the history in `~/.local/share/lotus/meshchat`, readable by you only. macOS asks once whether your terminal may use
 Bluetooth. Nothing runs in the background: MeshChat is on while its window is open. Built once on your Mac from Swift
-(Command Line Tools). macOS only – CoreBluetooth and CryptoKit are Apple's.
+(Command Line Tools). On Linux it does not run; on Windows it is `meshchat.exe` – the same protocol, byte for byte.
 Not yet tried between real Macs – the Bluetooth part is built and checked on every change; the test with three Macs,
 the protocol and its limits: [lib/meshchat](lib/meshchat/README.md).
 
@@ -466,6 +467,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/ai/download.py` | Downloads a model for `lotus ai local` and reports the bytes received, for Lotus' progress line |
 | `lib/ai/Page.swift` | `view_page`: renders a web page in WebKit without a window and reports what a person would notice |
 | `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
+| `win/meshchat/` | MeshChat for Windows: `meshchat.exe` in C# – the same protocol as `lib/meshchat`, with Windows' own Bluetooth; the test vectors in `lib/meshchat/Tests/vectors.txt` keep both alike |
 | `lib/meshchat/` | MeshChat: the Swift program (Bluetooth, the mesh, signatures, the chat's screen) with its protocol tests, built once on first use in its sandbox by `meshchat.zsh`; `lib/cmd/meshchat.zsh` starts it |
 | `lib/cmd/plugin.zsh`, `plugins/`, `packs/`, `PLUGINS.md` | Plugins: the sandbox, the commands, AI tools and start screen lines of plugins, the installer and packs – the examples and the guide |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |

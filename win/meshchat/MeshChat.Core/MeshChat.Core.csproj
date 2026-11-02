@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MeshChat for Windows – everything that is not the radio: the protocol (the same as lib/meshchat on the Mac,
+       byte for byte), the mesh, the signatures, what it keeps, the simulated radio, the demo, the chat's screen and
+       the commands. Plain .NET: it builds and its tests run on Windows, Linux and macOS. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MeshChat</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Ed25519 (RFC 8032): .NET has none of its own. MIT licence (THIRD_PARTY.md). -->
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- the test vectors both implementations check: made here, read by the Mac's tests too -->
+    <EmbeddedResource Include="..\..\..\lib\meshchat\Tests\vectors.txt" LogicalName="vectors.txt" Condition="Exists('..\..\..\lib\meshchat\Tests\vectors.txt')" />
+  </ItemGroup>
+</Project>

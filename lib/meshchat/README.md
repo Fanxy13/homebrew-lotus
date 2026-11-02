@@ -28,8 +28,8 @@ relay away (nothing goes over Bluetooth there, and the screen says so).
 **It is public.** There are no rooms and nothing is encrypted: whoever is nearby with MeshChat – or with a Bluetooth
 scanner – can read what you write. Messages are signed, so no one can write in your name or change what you wrote.
 
-**What it is not:** MeshChat talks to other Macs running MeshChat 2 – not to iPhones, Android phones, Bluetooth
-devices or other messengers.
+**What it is not:** MeshChat talks to other Macs and Windows computers running MeshChat 2 – not to iPhones, Android
+phones, Bluetooth devices or other messengers. On Windows 10 and 11 it is `meshchat.exe`: [win/meshchat](../../win/meshchat/README.md).
 
 ## Contents
 
@@ -66,7 +66,7 @@ devices or other messengers.
 | macOS | 11 (Big Sur) or newer – as Lotus |
 | Bluetooth | Bluetooth Low Energy: every Mac that runs macOS 11 has it |
 | To build it once | Apple's Command Line Tools: `xcode-select --install` (Lotus' `/ai` needs them too) |
-| The others | Macs with Lotus and MeshChat 2 (protocol 2) – MeshChat 1, with rooms, does not mix with it |
+| The others | Macs with Lotus and Windows computers with `meshchat.exe` (win/meshchat) – MeshChat 2, protocol 2. MeshChat 1, with rooms, does not mix with it |
 | A terminal app | that can ask for Bluetooth – Terminal, iTerm2, Ghostty, kitty, Visual Studio Code; [why](#permissions) |
 
 Nothing else: no Homebrew packages, no Swift packages. MeshChat uses what macOS brings – CoreBluetooth for the

@@ -10,3 +10,7 @@ promo/
 
 # Python bytecode (Remove BG worker)
 __pycache__/
+
+# MeshChat for Windows: what dotnet builds (meshchat.exe comes from the CI, see win/meshchat/README.md)
+win/meshchat/**/bin/
+win/meshchat/**/obj/

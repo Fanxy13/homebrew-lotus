@@ -1,0 +1,70 @@
+# Builds and tests MeshChat for Windows (win/meshchat): the protocol tests on Linux and on Windows – the same scenarios the
+# Mac's tests run, and the test vectors the Mac checks too (the MeshChat workflow checks both directions on a Mac) – and
+# meshchat.exe for Windows x64 and arm64, kept as an artifact of the run. A CI computer has no Bluetooth: the chat between
+# real computers is tested by hand (win/meshchat/README.md, "Testing with real computers").
+name: MeshChat for Windows
+
+on:
+  push:
+    paths: [win/meshchat/**, lib/meshchat/Tests/vectors.txt, .github/workflows/meshchat-windows.yml]
+  pull_request:
+    paths: [win/meshchat/**, lib/meshchat/Tests/vectors.txt, .github/workflows/meshchat-windows.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Protocol tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: The protocol, the mesh on a simulated radio, the screen, the test vectors
+        run: dotnet run --project win/meshchat/MeshChat.Tests -c Release
+      - name: The vectors in the repository are the ones this code makes
+        run: |
+          dotnet run --project win/meshchat/MeshChat.Tests -c Release -- --write-vectors "$RUNNER_TEMP/vectors.txt"
+          diff -u lib/meshchat/Tests/vectors.txt "$RUNNER_TEMP/vectors.txt"
+
+  windows:
+    name: meshchat.exe (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build meshchat.exe for x64 and arm64 – one file each, .NET inside
+        shell: pwsh
+        run: |
+          dotnet publish win/meshchat/MeshChat -c Release -r win-x64 -o out/x64
+          dotnet publish win/meshchat/MeshChat -c Release -r win-arm64 -o out/arm64
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item out/x64/meshchat.exe dist/meshchat-windows-x64.exe
+          Copy-Item out/arm64/meshchat.exe dist/meshchat-windows-arm64.exe
+          Get-ChildItem dist | Format-Table Name, Length
+      - name: It runs on Windows – version, help and the protocol tests
+        shell: pwsh
+        run: |
+          ./dist/meshchat-windows-x64.exe version
+          ./dist/meshchat-windows-x64.exe help
+          ./dist/meshchat-windows-x64.exe selftest
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: What Windows says about Bluetooth on this runner (for information – a CI computer has none)
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./dist/meshchat-windows-x64.exe doctor
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meshchat-windows
+          path: dist/*.exe
+          if-no-files-found: error
