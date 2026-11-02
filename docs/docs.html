@@ -23,7 +23,7 @@
 
     <nav class="toc card">
       <a href="#install">Install</a><a href="#setup">First start</a><a href="#use">Using Lotus</a><a href="#settings">Settings</a>
-      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#img">Image converter</a><a href="#live">Live Server</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
+      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#img">Image converter</a><a href="#live">Live Server</a><a href="#meshchat">MeshChat</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
       <a href="#privacy">Privacy and security</a><a href="#trouble">Troubleshooting</a><a href="#changelog">Changelog</a>
     </nav>
 
@@ -287,6 +287,24 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Which</h3><p class="muted small"><code>/html</code> the page open in the browser – or choose<br><code>/html all</code> the whole folder<br><code>/html about.html pdf</code> one file<br><code>/html css</code> a folder, <code>/html *.css</code> a pattern<br><code>--page</code> a page as a visitor reads it</p></div>
       <div class="card"><h3>Formats</h3><p class="muted small">Word (.docx), PDF, Text, Markdown, OpenDocument (.odt) and RTF – asked when you do not say. Text keeps the code byte for byte, for uploads that refuse <code>.html</code>.</p></div>
       <div class="card"><h3>Never over yours</h3><p class="muted small">The originals stay as they are. A document you changed is never written over – the new one gets "(2)"; the ones <code>/html</code> made itself are made again. Nothing leaves this Mac.</p></div>
+    </div>
+
+    <h2 class="section" id="meshchat">MeshChat – a chat over Bluetooth</h2>
+    <p>Type <code>/meshchat</code> on every Mac around you: one chat with everyone nearby, without internet, Wi-Fi, rooms or a server. Every Mac in the chat passes each message on – Macs out of each other's range still chat through the ones in between, as far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your name. Try it first with <code>/meshchat demo</code>: two simulated people, one of them a relay away. Not yet tried between real Macs: the Bluetooth part is built and checked on every change, the test with three Macs is in <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/lib/meshchat/README.md#testing-with-real-macs">its README</a>.</p>
+    <div class="term" style="margin-top:14px"><div class="term-bar"><i></i><i></i><i></i><span>/meshchat</span></div><pre>
+ <span class="t-acc">lotus</span><span class="t-dim"> / </span><span class="t-b">MeshChat</span>  <span class="t-b">everyone nearby</span><span class="t-dim">  public               you: Ada·k3f9</span>
+<span class="t-dim"> ───────────────────────────────────────────────────────────────</span>
+ <span class="t-dim">14:02  · Carol is here – 1 relay away.</span>
+ <span class="t-dim">14:02</span>  <span class="t-key">Bob</span>    Hi everyone
+ <span class="t-dim">14:03</span>  <span class="t-key">Carol</span>  Hello from the other end of the field <span class="t-dim">⇢1</span>
+ <span class="t-dim">14:03</span>  <span class="t-acc">Ada</span>    Meet at the bridge?
+<span class="t-dim"> ── here: </span><span class="t-key">Bob</span> ● <span class="t-dim">·</span> <span class="t-key">Carol</span><span class="t-dim"> ⇢1 ──────────────────────────────────────────</span>
+ ● Bluetooth on<span class="t-dim"> · 1 link · 4 relayed            /help · ctrl-c quits</span>
+ <span class="t-acc">›</span></pre></div>
+    <div class="grid" style="margin-top:16px">
+      <div class="card"><h3>One chat</h3><p class="muted small"><code>/meshchat</code> on every Mac – no rooms, nothing to set up<br><code>/who</code> who is here, and how<br><code>/meshchat doctor</code> when Bluetooth does not work<br><code>/meshchat relay</code> a Mac in between, for range</p></div>
+      <div class="card"><h3>A mesh, as far as it goes</h3><p class="muted small">Every Mac passes on what it gets – up to 16 relays far. Duplicates are dropped; a Mac back in range catches up – up to 32 messages from the last 14 minutes. Only Macs with the chat open.</p></div>
+      <div class="card"><h3>Part of Lotus, in a sandbox</h3><p class="muted small">Nothing to install on a Mac – built once with the Command Line Tools. It runs without internet and sees only its own folder; this Mac's identity, your name and the history stay in <code>~/.local/share/lotus/meshchat</code>. macOS asks once whether your terminal may use Bluetooth. Turn it off with <code>lotus features meshchat off</code>.</p></div>
     </div>
 
     <h2 class="section" id="pets">Pets</h2>

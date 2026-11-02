@@ -93,6 +93,12 @@ Developer tools	-	liveserver	/liveserver --port 8080 --local	A port of your choi
 Developer tools	-	liveserver stop	/liveserver stop	Stop the live servers that run in other windows	/liveserver stop	0
 Developer tools	/html	html	/html [all] [docx|pdf|txt|md|odt|rtf]	The page open in Live Server – or a file, or all of the folder – as Word, PDF, Text, Markdown, OpenDocument or RTF: the code, colored, with line numbers	/html all docx	0
 Developer tools	-	html	/html about.html pdf --page	One file, saved next to it · --page: an HTML page as a visitor reads it, not its code	/html about.html pdf --page	0
+Chat	/meshchat	meshchat	/meshchat	Chat with everyone nearby – Bluetooth, no internet	/meshchat	0
+Chat	-	meshchat demo	/meshchat demo	Try it without a second Mac: two simulated people	/meshchat demo	0
+Chat	-	meshchat doctor	/meshchat doctor	Why Bluetooth, its permission or the build fail	/meshchat doctor	0
+Chat	-	meshchat history	/meshchat history [-n 50]	What was said while your chat was open	/meshchat history -n 20	0
+Chat	-	meshchat nick	/meshchat nick <name>	Your name in the chat	/meshchat nick Ada	0
+Chat	-	meshchat relay	/meshchat relay	Only pass messages on – a Mac in between, for range	/meshchat relay	0
 Pets	/pets	pets	/pets	Your pets: adopt up to 3, talk, feed, rename, personality, settings	/pets	0
 Pets	-	pet	<name> [message]	Type a pet's name to talk to it – alone for a chat, or with a message	mochi how was your day?	0
 Pets	/feed	feed	/feed <name>	Feed a pet – pets get hungry after half a day	/feed mochi	0

@@ -136,6 +136,7 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | | `/convert <link>` | Save MP3 or MP4 (resolution, frame rate) to `~/Downloads/Lotus` – the lotus blooms while it downloads |
 | Device tools | `/ios`, `/ios devices` | AirCard, Nugget, Sideloadly, Dopamine with compatibility checks |
 | Minecraft | `/minecraft`, `/mc <server>` | Create a server, its control center (players, ping, plugins, log), delete a server, port forwarding guide |
+| Chat | `/meshchat`, `/meshchat demo` | One chat with everyone nearby over Bluetooth – no internet, no server; every Mac in the chat passes messages on (macOS) · `doctor`, `history`, `nick`, `relay` |
 | Images | `/img convert <image|folder>` | Convert images and folders: JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, PDF, ICO – the lotus blooms while it works |
 | | `/img convert … --to webp --max 1920` | Without questions: `--to`, `--quality`, `--max` · `/img formats` |
 | | `/bg remove <image>` | Remove the background on this Mac, save a transparent PNG |
@@ -295,6 +296,25 @@ and pictures. Text keeps the code byte for byte, for uploads that refuse `.html`
 /html all docx                    # every file as a Word document · /html about.html pdf · /html all txt · --page
 ```
 
+## MeshChat
+
+Part of Lotus on the Mac – nothing to install. Turn it off with `lotus features meshchat off`.
+
+`/meshchat` is one chat with everyone around you over Bluetooth, without internet, Wi-Fi, rooms or a server. Every
+Mac in the chat passes each message on, so Macs out of each other's range still chat through the ones in between – as
+far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your
+name. It runs in a sandbox without internet: it reads only its own folder and keeps this Mac's identity, your name and
+the history in `~/.local/share/lotus/meshchat`, readable by you only. macOS asks once whether your terminal may use
+Bluetooth. Nothing runs in the background: MeshChat is on while its window is open. Built once on your Mac from Swift
+(Command Line Tools). macOS only – CoreBluetooth and CryptoKit are Apple's.
+Not yet tried between real Macs – the Bluetooth part is built and checked on every change; the test with three Macs,
+the protocol and its limits: [lib/meshchat](lib/meshchat/README.md).
+
+```bash
+/meshchat                         # the chat – the same on every Mac nearby, nothing to set up
+/meshchat demo                    # try it first: two simulated people, no Bluetooth · /meshchat doctor
+```
+
 ## Plugins
 
 Add your own things to Lotus – and share them. A plugin is a folder with a `plugin.conf` and programs in
@@ -318,21 +338,8 @@ Every plugin says how much it may do. **Limited** (the default) runs in a macOS 
 folder and data folder, no internet unless it says `network = yes`, no keychain, no other apps, nothing of
 your files, Lotus' settings or the AI's keys. **Full** runs with your rights and Lotus' own functions –
 Lotus asks you before it installs one, and again whenever its files change. Everything about building one:
-[PLUGINS.md](PLUGINS.md); examples (todo, github, hello, meshchat): [plugins/](plugins/), the first three at once as
+[PLUGINS.md](PLUGINS.md); examples (todo, github, hello): [plugins/](plugins/), all three at once as
 a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
-
-**MeshChat** – one chat with everyone around you over Bluetooth, without internet, Wi-Fi, rooms or a server. Every
-Mac with MeshChat passes each message on, so Macs out of each other's range still chat through the ones in between –
-as far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your
-name. A limited plugin without internet; macOS asks once whether your terminal may use Bluetooth. Built once on your
-Mac from Swift (Command Line Tools). Not yet tried between real Macs – the Bluetooth part is built and checked on
-every change; the test with three Macs, the protocol and its limits: [plugins/meshchat](plugins/meshchat/README.md).
-
-```bash
-lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat
-/meshchat                         # the chat – the same on every Mac nearby, nothing to set up
-/meshchat demo                    # try it first: two simulated people, no Bluetooth · /meshchat doctor
-```
 
 ## Remove BG
 
@@ -459,6 +466,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/ai/download.py` | Downloads a model for `lotus ai local` and reports the bytes received, for Lotus' progress line |
 | `lib/ai/Page.swift` | `view_page`: renders a web page in WebKit without a window and reports what a person would notice |
 | `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
+| `lib/meshchat/` | MeshChat: the Swift program (Bluetooth, the mesh, signatures, the chat's screen) with its protocol tests, built once on first use in its sandbox by `meshchat.zsh`; `lib/cmd/meshchat.zsh` starts it |
 | `lib/cmd/plugin.zsh`, `plugins/`, `packs/`, `PLUGINS.md` | Plugins: the sandbox, the commands, AI tools and start screen lines of plugins, the installer and packs – the examples and the guide |
 | `lib/settings.zsh`, `lib/lang/` | Settings menu and translations (`<group>.<lang>.zsh` load with their screen) |
 | `data/` | Commands, features, Remove BG models, themes, app catalog, iOS tools, project links |
