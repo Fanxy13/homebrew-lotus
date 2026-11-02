@@ -2,16 +2,25 @@
 # Mac's tests run, and the test vectors the Mac checks too (the MeshChat workflow checks both directions on a Mac) – and
 # meshchat.exe for Windows x64 and arm64, kept as an artifact of the run. A CI computer has no Bluetooth: the chat between
 # real computers is tested by hand (win/meshchat/README.md, "Tests").
+# Run by hand with "publish", it also puts the two programs, their SHA-256 and the installer into a pre-release of their
+# own, meshchat-windows-v<version> – never Lotus' latest release – and then installs from it as a person would, with
+# Windows PowerShell 5.1: irm https://raw.githubusercontent.com/<repo>/<tag>/win/meshchat/install.ps1 | iex. Browsers warn
+# about unsigned programs; the installer needs none.
 name: MeshChat for Windows
 
 on:
   push:
     branches: ['**']
-    tags: ['v*']          # a release: the two files go with it (the maintainer attaches them, as the AI program for Linux)
+    tags: ['v*']          # a release of Lotus: the two files go with it too
     paths: [win/meshchat/**, lib/meshchat/Tests/vectors.txt, .github/workflows/meshchat-windows.yml]
   pull_request:
     paths: [win/meshchat/**, lib/meshchat/Tests/vectors.txt, .github/workflows/meshchat-windows.yml]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the programs as the pre-release meshchat-windows-v<version> (and test the installer from it)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -58,6 +67,13 @@ jobs:
           ./dist/meshchat-windows-x64.exe help
           ./dist/meshchat-windows-x64.exe selftest
           if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: The installer reads in Windows PowerShell 5.1 (the PowerShell every Windows has)
+        shell: powershell
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD\win\meshchat\install.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { Write-Host $_ }; exit 1 }
+          Write-Host 'install.ps1 parses in PowerShell' $PSVersionTable.PSVersion
       - name: What Windows says about Bluetooth on this runner (for information – a CI computer has none)
         if: always()
         continue-on-error: true
@@ -70,3 +86,67 @@ jobs:
           name: meshchat-windows
           path: dist/*.exe
           if-no-files-found: error
+
+  publish:
+    name: Pre-release, and the installer from it
+    needs: [tests, windows]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: meshchat-windows
+          path: dist
+      - name: meshchat-windows-v<version> – the programs, their SHA-256 and the installer
+        id: release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          $version = (Select-String -Path win/meshchat/MeshChat/MeshChat.csproj -Pattern '<Version>([^<]+)</Version>').Matches[0].Groups[1].Value
+          $tag = "meshchat-windows-v$version"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          Get-ChildItem dist/*.exe | ForEach-Object { '{0}  {1}' -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name } |
+            Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          Copy-Item win/meshchat/install.ps1 dist/install.ps1
+          Get-Content dist/SHA256SUMS.txt
+          $fence = '```'
+          $lines = @(
+            "MeshChat for Windows $($version): one chat with everyone nearby over Bluetooth, in the same chat as the Macs (lotus meshchat). Windows 10 (version 2004) and 11, x64 and ARM64. **Not yet tried between real computers** - please tell how it goes.",
+            '',
+            '**Install without a browser** - browsers warn about programs they have not seen often, and this one is not signed. In PowerShell (Win+X > Terminal):',
+            '',
+            $fence,
+            "irm https://raw.githubusercontent.com/$env:REPO/$tag/win/meshchat/install.ps1 | iex",
+            $fence,
+            '',
+            'It checks the SHA-256 against SHA256SUMS.txt and puts meshchat.exe into %LOCALAPPDATA%\Programs\MeshChat, your PATH and the Start menu. Then: meshchat, meshchat demo, meshchat doctor.',
+            '',
+            "Or download meshchat-windows-x64.exe (most computers) or meshchat-windows-arm64.exe (Snapdragon and other ARM) below. More: https://github.com/$env:REPO/blob/$env:GITHUB_SHA/win/meshchat/README.md"
+          )
+          Set-Content -Encoding utf8 notes.md -Value $lines
+          gh release view $tag --repo $env:REPO *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag (Get-ChildItem dist/*).FullName --clobber --repo $env:REPO
+          } else {
+            gh release create $tag (Get-ChildItem dist/*).FullName --repo $env:REPO --target $env:GITHUB_SHA --title "MeshChat for Windows $version" --notes-file notes.md --prerelease --latest=false
+          }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Installed from the release, as a person would – Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $env:MESHCHAT_DIR = "$env:RUNNER_TEMP\meshchat"
+          $env:MESHCHAT_TAG = '${{ steps.release.outputs.tag }}'
+          $url = 'https://raw.githubusercontent.com/${{ github.repository }}/${{ steps.release.outputs.tag }}/win/meshchat/install.ps1'
+          irm $url | iex
+          & "$env:MESHCHAT_DIR\meshchat.exe" version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $env:MESHCHAT_UNINSTALL = '1'
+          irm $url | iex
+          if (Test-Path "$env:MESHCHAT_DIR\meshchat.exe") { Write-Host 'still there after uninstalling'; exit 1 }
+          Write-Host 'installed, ran and uninstalled again'

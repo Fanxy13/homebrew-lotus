@@ -18,11 +18,28 @@ wrote. All about the protocol, its limits and privacy: [lib/meshchat/README.md](
 
 ## Get it
 
-Every change builds `meshchat-windows-x64.exe` and `meshchat-windows-arm64.exe` (Snapdragon and other ARM computers):
-the workflow *MeshChat for Windows* keeps them with each run (Actions › the run › Artifacts). It runs for a release's
-tag too, and the two files are attached to the release, as the AI program for Linux is. Put the file anywhere, rename
-it to `meshchat.exe` if you like, and run it. Windows SmartScreen may ask
-about a program it does not know yet: *More info › Run anyway*.
+**In PowerShell** – Windows Terminal, or Win+X › Terminal – one line, no browser:
+
+```
+irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/win/meshchat/install.ps1 | iex
+```
+
+It takes the newest MeshChat for Windows from the [releases](https://github.com/Fanxy13/homebrew-lotus/releases)
+(the ones named `meshchat-windows-v…`), checks its SHA-256 against the release's `SHA256SUMS.txt` – a file that does not
+match is deleted, never run – and puts `meshchat.exe` into `%LOCALAPPDATA%\Programs\MeshChat`, your PATH (yours only, no
+administrator) and the Start menu. Then `meshchat` in a new terminal window, or Start › MeshChat. The same line again
+gets the newest version; `$env:MESHCHAT_UNINSTALL = 1` before it takes MeshChat away again (your history stays). It
+runs in the Windows PowerShell 5.1 every Windows has. [install.ps1](install.ps1) says what it does, line by line.
+
+**Why not the browser:** Chrome, Edge and Windows SmartScreen warn about a program they have not seen often, and
+`meshchat.exe` is not signed – a code signing certificate costs money every year. So a download in Chrome may be
+blocked: *⋮ › Downloads › Keep* (or *Download suspicious file*) lets it through, and SmartScreen then asks once:
+*More info › Run anyway*. The PowerShell line needs neither, and checks the file itself.
+
+**The files:** each release `meshchat-windows-v…` has `meshchat-windows-x64.exe` (most computers),
+`meshchat-windows-arm64.exe` (Snapdragon and other ARM computers), `SHA256SUMS.txt` and `install.ps1`. The workflow
+*MeshChat for Windows* builds both programs on every change (Actions › the run › Artifacts) and makes the release when
+it is run by hand with *publish* – a pre-release of its own, never Lotus' latest release.
 
 Build it yourself with the .NET 8 SDK – on Windows, or anywhere else:
 

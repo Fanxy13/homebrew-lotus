@@ -299,7 +299,9 @@ and pictures. Text keeps the code byte for byte, for uploads that refuse `.html`
 ## MeshChat
 
 Part of Lotus on the Mac – nothing to install. Turn it off with `lotus features meshchat off`. On Windows 10 and 11 it
-is a program of its own, `meshchat.exe`, in the same chat as the Macs: [win/meshchat](win/meshchat/README.md).
+is a program of its own, `meshchat.exe`, in the same chat as the Macs – one line in PowerShell installs it, no browser
+needed: `irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/win/meshchat/install.ps1 | iex`
+([win/meshchat](win/meshchat/README.md)).
 
 `/meshchat` is one chat with everyone around you over Bluetooth, without internet, Wi-Fi, rooms or a server. Every
 Mac in the chat passes each message on, so Macs out of each other's range still chat through the ones in between – as
