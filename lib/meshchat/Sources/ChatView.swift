@@ -149,8 +149,12 @@ enum Days {
         return words[two] == nil ? nil : two
     }
 
+    // A time between the years 1900 and 3000: one from a damaged history is far away, not a crash
+    static func sane(_ t: TimeInterval) -> TimeInterval { t.isFinite ? min(max(t, -2_208_988_800), 32_503_680_000) : 0 }
+
     // The day t is on in this Mac's time zone: the days since 1 January 1970 there
     static func index(_ t: TimeInterval, _ zone: TimeZone = .current) -> Int {
+        let t = sane(t)
         let local = t + Double(zone.secondsFromGMT(for: Date(timeIntervalSince1970: t)))
         return Int((local / 86400).rounded(.down))
     }

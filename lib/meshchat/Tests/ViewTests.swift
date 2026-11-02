@@ -180,5 +180,11 @@ func viewTests() {
         checkEqual(rules(noon), [], "nothing said: no line")
         s.add(.notice(Notice(level: .info, text: "This is a demo")), order: noon)
         checkEqual(rules(noon), ["Today"], "a chat of today: one line on top")
+        // a damaged history: a time far in the future or none at all is shown somewhere, never a crash
+        for (i, t) in [1e30, -1e30, .nan, .infinity].enumerated() {
+            s.add(.message(ChatMessage(id: UInt64(20 + i), nickname: "Bob", fingerprint: "ab1c", text: "odd", sent: t, received: t, hops: 0, mine: false)),
+                  order: t)
+        }
+        check(plain(noon).filter { $0.contains("odd") }.count == 4, "times from a damaged history: shown, not a crash")
     }
 }

@@ -177,9 +177,13 @@ public static class Days
         return Words.ContainsKey(two) ? two : null;
     }
 
+    // A time between the years 1900 and 3000: one from a damaged history is far away, not a crash
+    public static double Sane(double t) => double.IsFinite(t) ? Math.Clamp(t, -2_208_988_800, 32_503_680_000) : 0;
+
     // The day t is on in this computer's time zone: the days since 1 January 1970 there
     public static long Index(double t)
     {
+        t = Sane(t);
         var offset = TimeZoneInfo.Local.GetUtcOffset(DateTimeOffset.FromUnixTimeMilliseconds((long)Math.Floor(t * 1000)));
         return (long)Math.Floor((t + offset.TotalSeconds) / 86400);
     }
@@ -228,7 +232,7 @@ public sealed class ChatViewState
 
 public static class ChatRender
 {
-    public static string Time(double t) => DateTimeOffset.FromUnixTimeMilliseconds((long)(t * 1000)).ToLocalTime().ToString("HH:mm");
+    public static string Time(double t) => DateTimeOffset.FromUnixTimeMilliseconds((long)(Days.Sane(t) * 1000)).ToLocalTime().ToString("HH:mm");
 
     // ──── a few words in the middle of a line across the window ────
     public static string Rule(string text, int width, Func<string, string>? paint = null)

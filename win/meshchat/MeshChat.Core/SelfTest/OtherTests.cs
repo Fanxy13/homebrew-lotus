@@ -261,6 +261,11 @@ public static class ViewTests
             CheckList(Rules(noon), Array.Empty<string>(), "nothing said: no line");
             s.Add(new ViewItem.NoticeItem(new Notice(NoticeLevel.Info, "This is a demo")), noon);
             CheckList(Rules(noon), new[] { "Today" }, "a chat of today: one line on top");
+            // a damaged history: a time far in the future or none at all is shown somewhere, never a crash
+            var odd = new[] { 1e30, -1e30, double.NaN, double.PositiveInfinity };
+            for (var i = 0; i < odd.Length; i++)
+                s.Add(new ViewItem.Message(new ChatMessage((ulong)(20 + i), "Bob", "ab1c", "odd", odd[i], odd[i], 0, false)), odd[i]);
+            Check(Plain(noon).Count(r => r.Contains("odd")) == 4, "times from a damaged history: shown, not a crash");
         });
     }
 }
