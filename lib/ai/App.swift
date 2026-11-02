@@ -336,6 +336,7 @@ final class Agent {
             Spinner.shared.start("Thinking")
             let runner = tools && usesTools ? self.runner : nil
             let provider = self.provider
+            provider.continuing = message != text       // going on with the task, not a new request
             let work = Task { try await provider.send(message, tools: runner) }
             currentWork = work
             let watcher = keys.map { k in Task { await self.watch(k, work) } }
@@ -1231,6 +1232,10 @@ struct LotusAI {
         case "--port-check":
             guard let port = args.first.flatMap({ Int($0) }), (1...65535).contains(port) else { exit(2) }
             print(Net.isFree(port, lan: args.dropFirst().first == "1") ? "free" : "used")
+
+        case "--small-check":
+            // for the tests: the rules for a model with little room (Small.swift, used by Apple Intelligence)
+            exit(SmallModel.check(args))
 
         case "--once":
             let prompt = readPrompt(args)
