@@ -1,6 +1,8 @@
-# MeshChat – a plugin for Lotus (plugin.conf). The chat is a Swift program (Sources/*.swift: CoreBluetooth for the
-# radio, CryptoKit for the signatures) that is built once on this Mac, like Lotus' own AI terminal, and kept in the
-# plugin's data folder: $LOTUS_PLUGIN_DATA/bin/meshchat-<checksum> – built again when the sources change.
+# MeshChat – part of Lotus. lib/cmd/meshchat.zsh starts this file in MeshChat's sandbox: it reads only this folder,
+# writes only its data folder ($LOTUS_MESHCHAT_DATA, ~/.local/share/lotus/meshchat) and has no network. The chat is a
+# Swift program (Sources/*.swift: CoreBluetooth for the radio, CryptoKit for the signatures) that is built once on
+# this Mac, like Lotus' own AI terminal, and kept in the data folder: $LOTUS_MESHCHAT_DATA/bin/meshchat-<checksum> –
+# built again when the sources change.
 #   lotus meshchat …            the chat – one, with everyone nearby – and its commands (lotus meshchat help)
 #   lotus meshchat doctor       macOS, the Command Line Tools and the build – then Bluetooth and its permission
 #   lotus meshchat selftest     the protocol tests (Tests/*.swift) on a simulated radio – no Bluetooth needed
@@ -9,7 +11,7 @@
 # a signal, the terminal is put back as it was.
 setopt extendedglob
 here=${0:A:h}
-data=${LOTUS_PLUGIN_DATA:?Lotus starts this: lotus meshchat}
+data=${LOTUS_MESHCHAT_DATA:?Lotus starts this: lotus meshchat}
 bin=$data/bin
 k=$'\e['${LOTUS_COLOR_KEY:-38;5;150}m a=$'\e['${LOTUS_COLOR_ACCENT:-38;5;218}m d=$'\e['${LOTUS_COLOR_DIM:-38;5;245}m
 r=$'\e[38;5;203m' b=$'\e[1m' x=$'\e[0m'

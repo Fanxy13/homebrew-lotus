@@ -8,7 +8,7 @@ import Darwin
 import Glibc
 #endif
 
-// The theme's colors as Lotus gives them to plugins (LOTUS_COLOR_KEY=38;5;150 …); only digits and ;
+// The theme's colors as Lotus gives them to its programs (LOTUS_COLOR_KEY=38;5;150 …); only digits and ;
 enum Theme {
     private static let env = ProcessInfo.processInfo.environment
     static var enabled = isatty(STDOUT_FILENO) == 1 && env["NO_COLOR"] == nil
@@ -117,7 +117,7 @@ enum Screen {
 
     static func leave() { restoreNow() }
 
-    // Ctrl-Z: the terminal back to the shell and the whole job stopped (lotus and its plugin wait for the chat,
+    // Ctrl-Z: the terminal back to the shell and the whole job stopped (lotus and meshchat.zsh wait for the chat,
     // so stopping only the chat would leave the shell without its prompt) – raw again after fg
     static func suspend(redraw: () -> Void) {
         restoreNow()

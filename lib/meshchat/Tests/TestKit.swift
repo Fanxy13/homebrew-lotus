@@ -1,5 +1,5 @@
 // MeshChat tests – a small runner without XCTest (the Command Line Tools do not always have it). Built with the
-// plugin's sources by `lotus meshchat selftest`; prints ✓/✗ per check like Lotus' own tests, exit 1 on a failure.
+// sources in Sources/ by `lotus meshchat selftest`; prints ✓/✗ per check like Lotus' own tests, exit 1 on a failure.
 // The mesh tests run on a simulated radio (SimTransport.swift): they test the protocol, not Bluetooth.
 
 import Foundation

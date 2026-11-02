@@ -11,6 +11,7 @@ Image converter (/img convert)	yes	yes	soon	macOS: Apple ImageIO · Linux: Image
 Remove BG	yes	soon	soon	
 MP3 and MP4 converter	yes	yes	soon	yt-dlp and ffmpeg
 Live Server and /html	yes	yes	soon	
+MeshChat (/meshchat)	partial	no	no	Over Apple's CoreBluetooth, Macs only. Built and tested on a simulated radio on every change; not yet tried between real Macs.
 Minecraft server setup	yes	yes	soon	Java 17 or newer; Lotus can fetch one with a checksum.
 Plugins	yes	yes	soon	Limited plugins run in a sandbox (macOS: sandbox-exec · Linux: bubblewrap). Without one they are refused, never run unprotected.
 Now playing line and album cover	yes	partial	soon	Linux: over MPRIS (playerctl), tested with a stand-in player.

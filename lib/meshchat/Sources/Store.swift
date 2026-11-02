@@ -1,7 +1,7 @@
-// MeshChat – what it keeps on this Mac, all of it in its data folder ($LOTUS_PLUGIN_DATA, by default
-// ~/.local/share/lotus/plugins/meshchat). Folders 0700 and files 0600: only your user can read them here – what
+// MeshChat – what it keeps on this Mac, all of it in its data folder ($LOTUS_MESHCHAT_DATA, by default
+// ~/.local/share/lotus/meshchat). Folders 0700 and files 0600: only your user can read them here – what
 // was said is public anyway, but what you keep of it is yours.
-//   settings          NICKNAME=…, LINKS=8  (Lotus' plugin settings file – other lines in it are left alone)
+//   settings          NICKNAME=…, LINKS=8  (one KEY=value per line – other lines in it are left alone)
 //   identity          this Mac's secret its signing key comes from: 32 random bytes, hex
 //   history.jsonl     what was said while the chat was open, one message per line (the last 2000)
 //   events.log        links and errors, for lotus meshchat doctor – never keys, names or messages
@@ -47,8 +47,8 @@ final class Store {
         try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
     }
 
-    // Only the folders that are missing, the innermost last. Lotus' sandbox refuses mkdir anywhere in the home
-    // folder outside the plugin's data folder – even for folders that exist, which is what mkdir -p would try.
+    // Only the folders that are missing, the innermost last. MeshChat's sandbox refuses mkdir anywhere in the home
+    // folder outside its data folder – even for folders that exist, which is what mkdir -p would try.
     private func makeFolder(_ url: URL) throws {
         var missing: [URL] = []
         var u = url.standardizedFileURL
@@ -61,12 +61,12 @@ final class Store {
         }
     }
 
-    // Lotus says where: LOTUS_PLUGIN_DATA. Started by hand, the same place.
+    // Lotus says where: LOTUS_MESHCHAT_DATA (lib/cmd/meshchat.zsh). Started by hand, the same place.
     static func standard() -> Store {
         let env = ProcessInfo.processInfo.environment
-        if let d = env["LOTUS_PLUGIN_DATA"], !d.isEmpty { return Store(dir: URL(fileURLWithPath: d)) }
+        if let d = env["LOTUS_MESHCHAT_DATA"], !d.isEmpty { return Store(dir: URL(fileURLWithPath: d)) }
         let base = env["XDG_DATA_HOME"].flatMap { $0.isEmpty ? nil : $0 } ?? (NSHomeDirectory() + "/.local/share")
-        return Store(dir: URL(fileURLWithPath: base + "/lotus/plugins/meshchat"))
+        return Store(dir: URL(fileURLWithPath: base + "/lotus/meshchat"))
     }
 
     var path: String { dir.path }
@@ -81,7 +81,7 @@ final class Store {
     }
 
     // ── Settings ──────────────────────────────────────────────
-    // One KEY=value per line, as Lotus keeps plugin settings (a pack can set them). Read line by line, never run.
+    // One KEY=value per line, as Lotus keeps the settings of its programs. Read line by line, never run.
 
     func settings() -> [String: String] {
         guard let text = try? String(contentsOf: file("settings"), encoding: .utf8) else { return [:] }

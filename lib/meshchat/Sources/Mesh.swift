@@ -394,7 +394,7 @@ final class MeshNode: LinkTransportDelegate {
             decoded = try LinkFrame.decode(frame)
         } catch WireError.unsupportedVersion(let v) {
             stats.incompatible += 1
-            noticeOnce("link-version-\(v)", "A Mac nearby speaks a newer MeshChat (link protocol \(v)) – update this one: lotus plugin update meshchat", .warning)
+            noticeOnce("link-version-\(v)", "A Mac nearby speaks a newer MeshChat (link protocol \(v)) – update this one: lotus update", .warning)
             return
         } catch {
             stats.malformed += 1
@@ -481,9 +481,9 @@ final class MeshNode: LinkTransportDelegate {
         guard h.minVersion <= Proto.version && h.maxVersion >= Proto.version else {
             stats.incompatible += 1
             if h.minVersion > Proto.version {
-                noticeOnce("newer-\(h.minVersion)", "A Mac nearby runs a newer MeshChat (protocol \(h.minVersion)) – update this one to chat with it: lotus plugin update meshchat", .warning)
+                noticeOnce("newer-\(h.minVersion)", "A Mac nearby runs a newer MeshChat (protocol \(h.minVersion)) – update this one to chat with it: lotus update", .warning)
             } else {
-                noticeOnce("older-\(h.maxVersion)", "A Mac nearby runs an older MeshChat (protocol \(h.maxVersion)) – it needs an update to chat with this one: lotus plugin update meshchat", .warning)
+                noticeOnce("older-\(h.maxVersion)", "A Mac nearby runs an older MeshChat (protocol \(h.maxVersion)) – it needs an update to chat with this one: lotus update", .warning)
             }
             sendFrame(.bye(ByeReason.incompatible.rawValue), on: link)
             closeLink(link, reason: "no protocol version in common")
@@ -633,7 +633,7 @@ final class MeshNode: LinkTransportDelegate {
         } catch WireError.unsupportedVersion(let v) {
             stats.incompatible += 1
             noticeOnce("packet-version-\(v)", v > Int(Proto.version)
-                       ? "A Mac nearby sends messages of a newer MeshChat (protocol \(v)) – update this one: lotus plugin update meshchat"
+                       ? "A Mac nearby sends messages of a newer MeshChat (protocol \(v)) – update this one: lotus update"
                        : "A Mac nearby sends messages of an older MeshChat (protocol \(v)) – it needs an update.", .warning)
             return
         } catch {

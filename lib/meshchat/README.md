@@ -2,11 +2,10 @@
 
 One chat in the terminal with everyone around you – over **Bluetooth Low Energy**, without internet, Wi-Fi, accounts,
 rooms or a server. Every Mac with MeshChat shows every message and passes it on: two Macs that are too far apart for
-each other still chat through the ones in between, as far as there are Macs to pass it on. A plugin for
-[Lotus](../../README.md).
+each other still chat through the ones in between, as far as there are Macs to pass it on. Part of
+[Lotus](../../README.md) on the Mac – nothing to install.
 
 ```
-lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat
 lotus meshchat                         # or /meshchat in a Lotus shell: the chat – on every Mac, nothing else to do
 ```
 
@@ -34,7 +33,7 @@ devices or other messengers.
 
 ## Contents
 
-[What it does](#what-it-does) · [What it needs](#what-it-needs) · [Install and remove](#install-and-remove) ·
+[What it does](#what-it-does) · [What it needs](#what-it-needs) · [Part of Lotus](#part-of-lotus) ·
 [Permissions](#permissions) · [Using it](#using-it) · [How it works](#how-it-works) ·
 [Privacy and security](#privacy-and-security) · [Tests](#tests) · [Testing with real Macs](#testing-with-real-macs) ·
 [Troubleshooting](#troubleshooting) · [Known limitations](#known-limitations) · [Files](#files)
@@ -57,7 +56,7 @@ devices or other messengers.
   the last 14 minutes (up to 32 messages) – each once.
 - **One person cannot flood everyone:** each sender's share is 40 messages at once, then one a second; the rest is
   dropped and not passed on.
-- **History** on your Mac, in the plugin's data folder only.
+- **History** on your Mac, in MeshChat's data folder only.
 - **Doctor** for what can go wrong: the terminal's Bluetooth permission, Bluetooth off, the build, failed links.
 
 ## What it needs
@@ -67,31 +66,36 @@ devices or other messengers.
 | macOS | 11 (Big Sur) or newer – as Lotus |
 | Bluetooth | Bluetooth Low Energy: every Mac that runs macOS 11 has it |
 | To build it once | Apple's Command Line Tools: `xcode-select --install` (Lotus' `/ai` needs them too) |
-| The others | Macs with Lotus and this plugin, MeshChat 2 (protocol 2) – MeshChat 1, with rooms, does not mix with it |
+| The others | Macs with Lotus and MeshChat 2 (protocol 2) – MeshChat 1, with rooms, does not mix with it |
 | A terminal app | that can ask for Bluetooth – Terminal, iTerm2, Ghostty, kitty, Visual Studio Code; [why](#permissions) |
 
 Nothing else: no Homebrew packages, no Swift packages. MeshChat uses what macOS brings – CoreBluetooth for the
 radio and CryptoKit for the signatures.
 
-## Install and remove
+## Part of Lotus
+
+MeshChat comes with Lotus – nothing to install. The first `lotus meshchat` builds the chat from its Swift sources –
+about a minute, once; again only after an update. The program is kept in MeshChat's data folder, like Lotus keeps its
+own AI terminal.
 
 ```
-lotus plugin install https://github.com/Fanxy13/homebrew-lotus#plugins/meshchat
+lotus features meshchat off           # turn it off (and on again) – its data stays
+lotus update                          # MeshChat's newest version comes with Lotus' newest
 ```
 
-Lotus shows what the plugin may do (**limited – only its own folder**, no internet) and asks. The first
-`lotus meshchat` builds the chat from its Swift sources – about a minute, once; again only after an update. The
-program is kept in the plugin's data folder, like Lotus keeps its own AI terminal.
+`lotus uninstall` removes MeshChat's data too: the history, this Mac's identity and the build.
 
-```
-lotus plugin update meshchat          # the newest version (installed from git)
-lotus plugin uninstall meshchat       # the plugin with its data: history, this Mac's identity and the build
-```
+**It was a plugin before** (Lotus 3.0 and older). The first time Lotus starts after the update, the old `meshchat`
+plugin goes – only Lotus' own one, by its `plugin.conf`; a plugin of someone else with that name stays – and what it
+kept comes along into `~/.local/share/lotus/meshchat`: this Mac's identity, so the Macs nearby still know you by the
+same fingerprint, your name, the history and the rooms of MeshChat 1. Nothing is deleted before it has moved. Lotus
+says so once.
 
 ## Permissions
 
-**Lotus: limited access, no internet.** MeshChat runs in Lotus' plugin sandbox: it reads only its own folder,
-writes only its data folder (`~/.local/share/lotus/plugins/meshchat`) and may not use the network (`network = no`).
+**Lotus: a sandbox, no internet.** MeshChat reads what any Mac nearby sends, so it runs in the sandbox Lotus gives its
+limited plugins: it reads only its own folder (`lib/meshchat`), writes only its data folder
+(`~/.local/share/lotus/meshchat`) and may not use the network. Where there is no sandbox, it does not run.
 Bluetooth is not the network: CoreBluetooth talks to macOS' Bluetooth service (bluetoothd) over XPC, which the
 sandbox does not block. The automated tests on a Mac run the build and a Bluetooth check inside this sandbox, and
 CoreBluetooth answers there exactly as outside it (on that CI Mac: "no Bluetooth LE" – it has none). Full access is
@@ -160,7 +164,7 @@ Ctrl-Z suspends the chat (`fg` brings it back). One chat at a time on a Mac.
 
 ```
  ┌── your Mac ─────────────────────────────────────────────┐
- │ meshchat.zsh   builds Sources/*.swift once, runs it     │  Lotus plugin sandbox:
+ │ meshchat.zsh   builds Sources/*.swift once, runs it     │  MeshChat's sandbox in Lotus:
  │ ChatApp        screen, keys, commands, history          │  its own folder, its data folder, no network
  │ MeshNode       links · handshake · flooding · who's here│──── one queue; the radio calls it there
  │ Signing        Ed25519 signatures (CryptoKit)           │
@@ -303,7 +307,7 @@ them – that is what `/where` is made from, and anyone listening can put the sa
 limits bound what one sender – and one link – can push through, but someone with many keys and Macs can still
 crowd the chat.
 
-**On your Mac.** The history and this Mac's identity are kept in plain files in the plugin's data folder,
+**On your Mac.** The history and this Mac's identity are kept in plain files in MeshChat's data folder,
 readable only by your user (folders 0700, files 0600) – FileVault protects them when the Mac is off. Keys and
 messages are never written to the log (`events.log` has links and errors only). No internet – Lotus' sandbox
 enforces it – no analytics, no accounts, no server. The AI of Lotus has no tools for MeshChat, so it never reads
@@ -311,8 +315,8 @@ your chats.
 
 ## Tests
 
-**Automated – the protocol on a simulated radio.** `lotus meshchat selftest` builds `Tests/*.swift` with the
-plugin's sources and runs them (no XCTest needed). They cover:
+**Automated – the protocol on a simulated radio.** `lotus meshchat selftest` builds `Tests/*.swift` with
+MeshChat's sources and runs them (no XCTest needed). They cover:
 
 - frames, packets and what is inside: round trips, and refusal of cut, oversized, other-version, wrong-hop and
   random packets (2000 random ones without a crash)
@@ -335,10 +339,11 @@ plugin's sources and runs them (no XCTest needed). They cover:
 - the chat's screen: the line editor (words, history, pastes with control characters, the 1000-byte limit),
   wrapping with wide characters, and whole frames that fit the window at eight sizes from 20 × 6 to 200 × 50
 
-**Automated – the plugin in Lotus.** `zsh tests/run.zsh meshchat` (Lotus' own tests, on a Mac): installs it as
-limited, builds it **inside the plugin sandbox**, runs the selftest with CryptoKit, checks the commands, the files
-and their permissions, drives the chat in a terminal (the demo: types a message, `/who`, ctrl-c) and checks the
-terminal is given back, the history, the doctor, uninstalling. The workflow
+**Automated – MeshChat in Lotus.** `zsh tests/run.zsh meshchat` (Lotus' own tests): on every system, the command,
+its feature and the old plugin going away with this Mac's identity, the name and the history; on a Mac it builds
+MeshChat **inside its sandbox**, runs the selftest with CryptoKit, checks the commands, the files and their
+permissions, drives the chat in a terminal (the demo: types a message, `/who`, ctrl-c) and checks the terminal is
+given back, the history and the doctor. The workflow
 [`.github/workflows/meshchat.yml`](../../.github/workflows/meshchat.yml) runs all of it on a Mac on every change,
 builds with every warning shown – a CoreBluetooth delegate method with a wrong signature would compile and
 silently never be called, so the build fails on "nearly matches" warnings – and runs the doctor in a window of
@@ -350,7 +355,7 @@ The real radio (`BLETransport.swift`) is compiled on every change, not exercised
 
 ## Testing with real Macs
 
-Three Macs (A, B, C) with Lotus, the plugin and Bluetooth on; MeshChat in Terminal on each. Run
+Three Macs (A, B, C) with Lotus and Bluetooth on; MeshChat in Terminal on each. Run
 `lotus meshchat doctor` on each first – it should end with **✓ Ready**.
 
 1. **A and B:** `lotus meshchat` on both (allow Bluetooth when macOS asks). Within ~15 seconds both show
@@ -387,7 +392,7 @@ and the same in iTerm2.
 | "Bluetooth not allowed" | System Settings › Privacy & Security › Bluetooth → turn on your terminal app, restart the terminal. |
 | "Bluetooth is off" | Control Center or System Settings › Bluetooth. MeshChat goes on by itself when it is on. |
 | "No one else is here yet" | The others need MeshChat 2 open, Bluetooth on, within reach. `lotus meshchat doctor` on each Mac; the "Links" line shows failed connections. |
-| "A Mac nearby runs a newer/older MeshChat" | `lotus plugin update meshchat` on the older one – MeshChat 1 (rooms) and 2 do not mix. |
+| "A Mac nearby runs a newer/older MeshChat" | `lotus update` on the older one – MeshChat 1 (rooms) and 2 do not mix. |
 | "MeshChat has no rooms any more" | MeshChat 2 is one chat with everyone nearby: just `lotus meshchat`. |
 | "Ignored a message … the clocks differ" | Set the date and time automatically on both Macs. |
 | "… sends very many messages" | Someone is flooding; MeshChat shows their share only. Nothing to do. |
@@ -420,7 +425,7 @@ and the same in iTerm2.
 
 | | |
 |---|---|
-| `plugin.conf` | the plugin: `lotus meshchat`, limited access, no network |
+| `../cmd/meshchat.zsh` | `lotus meshchat`: starts `meshchat.zsh` in MeshChat's sandbox (this folder to read, the data folder to write, no network); the old plugin's move |
 | `meshchat.zsh` | builds the Swift program once (in the data folder), runs it, `doctor` and `selftest` |
 | `Info.plist` | linked into the program: its Bluetooth usage description |
 | `Sources/Wire.swift` · `Bytes.swift` | the protocol on the wire, strict decoding, texts made safe for the terminal |
@@ -432,5 +437,5 @@ and the same in iTerm2.
 | `Sources/Store.swift` · `Doctor.swift` · `Demo.swift` · `App.swift` | data folder · doctor · demo · the command |
 | `Tests/*.swift` | the protocol tests (`lotus meshchat selftest`) |
 
-In the data folder (`~/.local/share/lotus/plugins/meshchat`): `settings`, `identity`, `history.jsonl`,
+In the data folder (`~/.local/share/lotus/meshchat`): `settings`, `identity`, `history.jsonl`,
 `events.log`, and `bin/` with the built program.

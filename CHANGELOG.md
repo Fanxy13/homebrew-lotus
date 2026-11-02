@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased – MeshChat, built in
+
+Not released: Lotus still says 3.0.0 – the version changes with the release, together with the AI program for Linux and the cask.
+
+- **MeshChat is part of Lotus now** – no plugin to install: `/meshchat` is there on every Mac after an update, in `lotus cheatsheet` (a category of its own, Chat), in the pets' knowledge, in the website's commands and in its documentation. It is one feature, "MeshChat" (`lotus features meshchat off` turns it off). Its files are in `lib/meshchat` (the Swift program, its tests, the program that builds it) and `lib/cmd/meshchat.zsh`, what it keeps in `~/.local/share/lotus/meshchat`
+- Still in a sandbox: MeshChat reads what any Mac nearby sends, so it runs where it ran as a limited plugin – in Lotus' sandbox (sandbox-exec), with a clean environment: it reads only `lib/meshchat`, writes only its data folder and has no network – nothing of Lotus' settings, never the AI's keys. Without a sandbox it does not start
+- The old `meshchat` plugin is removed the first time Lotus starts after the update – only Lotus' own one, by its `plugin.conf`; a plugin of someone else with that name stays – and what it kept comes along: this Mac's identity (the Macs nearby know you by the same fingerprint), your name, the settings, the history and the rooms of MeshChat 1. Nothing is deleted before it has moved; when MeshChat has a data folder already, what is in it stays. Lotus says so once
+- macOS only, as before: elsewhere `/meshchat` says that it runs on macOS only (CoreBluetooth and CryptoKit are Apple's). "What works where" has a line for it: partly on macOS – it has not yet run between real Macs
+- A Mac nearby with another version of MeshChat now says `lotus update` instead of `lotus plugin update meshchat`; `lotus uninstall` removes MeshChat's data too (this Mac's identity, the history, the build)
+- Tests: `zsh tests/run.zsh meshchat` – the command, the feature and the old plugin going away (with its identity, name and history, and what stays when both are there) run on every system now; on a Mac, as before, the build inside the sandbox, the selftest, the chat in a terminal and the doctor. The MeshChat workflow follows the new folders. `tests/test-plugin-install.zsh` counts three plugins in `plugins/`
+
 ## 3.0.0 – Linux, and the way to Windows
 
 What is tested on which system is the table on the website ("What works where") and `dev/3.0/PROGRESS.md`; nothing is claimed for a system it was not tested on.

@@ -109,7 +109,7 @@ lotus_unhook() {
 lotus_uninstall() {
   if [[ $1 != --yes ]]; then
     ui_header Uninstall
-    ui_text "Removes Lotus, its settings, pets, shortcuts, AI memory and keys, the log, the Remove BG models, cache and the lines in your shell's startup file (~/.zshrc, ~/.bashrc)."
+    ui_text "Removes Lotus, its settings, pets, shortcuts, AI memory and keys, the log, the Remove BG models, MeshChat's identity and history, cache and the lines in your shell's startup file (~/.zshrc, ~/.bashrc)."
     ui_blank
     ui_confirm "Uninstall Lotus completely?" n || { ui_info $LOTUS_L[cancelled]; return 1 }
   fi
@@ -120,8 +120,8 @@ lotus_uninstall() {
   source $LOTUS_ROOT/lib/cmd/aiserver.zsh && lotus_ai_server_stop quiet
   [[ -e $LOTUS_CONF/hushlogin-by-lotus ]] && rm -f $HOME/.hushlogin
   rm -rf $LOTUS_CONF $LOTUS_CACHE $LOTUS_STATE
-  # Remove BG: its Python environment and the downloaded models
-  rm -rf $LOTUS_DATA/runtime $LOTUS_DATA/models $LOTUS_DATA/llm
+  # Remove BG: its Python environment and the downloaded models · MeshChat: this Mac's identity, the history, its build
+  rm -rf $LOTUS_DATA/runtime $LOTUS_DATA/models $LOTUS_DATA/llm $LOTUS_DATA/meshchat
   [[ $LOTUS_DATA != $LOTUS_ROOT ]] && rmdir $LOTUS_DATA 2>/dev/null
   local item
   for item in lotus-ai lotus-ai-claude lotus-hf; do lotus_os_secret_del $item; done
