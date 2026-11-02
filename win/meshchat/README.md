@@ -19,8 +19,9 @@ wrote. All about the protocol, its limits and privacy: [lib/meshchat/README.md](
 ## Get it
 
 Every change builds `meshchat-windows-x64.exe` and `meshchat-windows-arm64.exe` (Snapdragon and other ARM computers):
-the workflow *MeshChat for Windows* keeps them with each run (Actions › the run › Artifacts), and a release of Lotus
-carries them. Put the file anywhere, rename it to `meshchat.exe` if you like, and run it. Windows SmartScreen may ask
+the workflow *MeshChat for Windows* keeps them with each run (Actions › the run › Artifacts). It runs for a release's
+tag too, and the two files are attached to the release, as the AI program for Linux is. Put the file anywhere, rename
+it to `meshchat.exe` if you like, and run it. Windows SmartScreen may ask
 about a program it does not know yet: *More info › Run anyway*.
 
 Build it yourself with the .NET 8 SDK – on Windows, or anywhere else:

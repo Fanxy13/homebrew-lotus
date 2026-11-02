@@ -1,11 +1,13 @@
 # Builds and tests MeshChat for Windows (win/meshchat): the protocol tests on Linux and on Windows – the same scenarios the
 # Mac's tests run, and the test vectors the Mac checks too (the MeshChat workflow checks both directions on a Mac) – and
 # meshchat.exe for Windows x64 and arm64, kept as an artifact of the run. A CI computer has no Bluetooth: the chat between
-# real computers is tested by hand (win/meshchat/README.md, "Testing with real computers").
+# real computers is tested by hand (win/meshchat/README.md, "Tests").
 name: MeshChat for Windows
 
 on:
   push:
+    branches: ['**']
+    tags: ['v*']          # a release: the two files go with it (the maintainer attaches them, as the AI program for Linux)
     paths: [win/meshchat/**, lib/meshchat/Tests/vectors.txt, .github/workflows/meshchat-windows.yml]
   pull_request:
     paths: [win/meshchat/**, lib/meshchat/Tests/vectors.txt, .github/workflows/meshchat-windows.yml]
