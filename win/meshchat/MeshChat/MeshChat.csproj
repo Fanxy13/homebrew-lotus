@@ -21,7 +21,7 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>none</DebugType>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <Product>MeshChat</Product>
     <Company>Lotus</Company>
     <Description>One chat with everyone nearby over Bluetooth – no internet, no server</Description>

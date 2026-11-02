@@ -31,7 +31,7 @@ public static class Proto
 {
     public const byte Version = 2;                  // mesh packets
     public const byte LinkVersion = 1;              // link frames
-    public const string Release = "2.0.0";
+    public const string Release = "2.1.0";
     public const string Software = "meshchat-windows/" + Release;
     public const int MaxFrame = 512;                // the most a GATT attribute value holds
     public const int MinFrame = 20;                 // the least BLE gives (ATT MTU 23 minus 3)

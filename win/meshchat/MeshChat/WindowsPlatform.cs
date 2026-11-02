@@ -13,6 +13,18 @@ public sealed partial class WindowsPlatform : IPlatform
     {
         MeshTexts.Update = "get the newest meshchat.exe (github.com/Fanxy13/homebrew-lotus/releases)";
         MeshTexts.CheckClock = "Settings › Time & language › Date & time, \"Set time automatically\"";
+        // the words of the lines between the days: Lotus' language when it is set, else the one Windows is shown in
+        Days.Language = Days.Pick(Environment.GetEnvironmentVariable("LOTUS_LANG")) ?? WindowsLanguage();
+    }
+
+    // The language Windows is shown in, of those MeshChat has words for: the low 10 bits of a LANGID name the language
+    private static string WindowsLanguage()
+    {
+        try
+        {
+            return (GetUserDefaultUILanguage() & 0x3FF) switch { 0x07 => "de", 0x0C => "fr", 0x0A => "es", _ => "en" };
+        }
+        catch (Exception) { return "en"; }
     }
 
     public string Name => "Windows";
@@ -58,6 +70,9 @@ public sealed partial class WindowsPlatform : IPlatform
 
     [LibraryImport("kernel32.dll")]
     private static partial IntPtr GetStdHandle(int handle);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial ushort GetUserDefaultUILanguage();
 
     [LibraryImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

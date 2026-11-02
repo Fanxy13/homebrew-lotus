@@ -4,6 +4,7 @@
 //
 //   lotus / MeshChat  everyone nearby  public                                you: Ada·k3f9
 //   ─────────────────────────────────────────────────────────────────────────────────────
+//   ─────────────────────────────────────── Today ───────────────────────────────────────
 //   14:02  Bob    Hi everyone
 //   14:03  Carol  Hello from the other end of the field ⇢1
 //   14:03  Ada    Meet at the bridge?
@@ -125,6 +126,50 @@ struct ViewLine: Equatable {
     var order: TimeInterval         // where it goes: a message by when it was written (never after it arrived)
 }
 
+// The days the chat's lines were written on, said in the language of Lotus (lotus settings): a line across the window
+// before each one – ── Today ──, ── Yesterday ──, ── 3 days ago ──, ── 1 week ago ── – drawn anew every time, so that at
+// midnight Today becomes Yesterday. Within a week each day has its own line; further back the days go together by weeks,
+// months and years, as their names do. As Days in win/meshchat/MeshChat.Core/ChatView.cs.
+enum Days {
+    //             today, yesterday, days, 1 week, weeks, 1 month, months, 1 year, years – % is the number
+    private static let words: [String: [String]] = [
+        "en": ["Today", "Yesterday", "% days ago", "1 week ago", "% weeks ago", "1 month ago", "% months ago", "1 year ago", "% years ago"],
+        "de": ["Heute", "Gestern", "vor % Tagen", "vor 1 Woche", "vor % Wochen", "vor 1 Monat", "vor % Monaten", "vor 1 Jahr", "vor % Jahren"],
+        "fr": ["Aujourd’hui", "Hier", "il y a % jours", "il y a 1 semaine", "il y a % semaines", "il y a 1 mois", "il y a % mois", "il y a 1 an", "il y a % ans"],
+        "es": ["Hoy", "Ayer", "hace % días", "hace 1 semana", "hace % semanas", "hace 1 mes", "hace % meses", "hace 1 año", "hace % años"],
+    ]
+
+    // en, de, fr or es: the language Lotus speaks (LOTUS_LANG) – English for any other
+    static let language = pick(ProcessInfo.processInfo.environment["LOTUS_LANG"]) ?? "en"
+
+    // "de", "de_CH", "de-DE" → "de"; a language without words here → nil
+    static func pick(_ code: String?) -> String? {
+        guard let code = code, code.count >= 2 else { return nil }
+        let two = code.prefix(2).lowercased()
+        return words[two] == nil ? nil : two
+    }
+
+    // The day t is on in this Mac's time zone: the days since 1 January 1970 there
+    static func index(_ t: TimeInterval, _ zone: TimeZone = .current) -> Int {
+        let local = t + Double(zone.secondsFromGMT(for: Date(timeIntervalSince1970: t)))
+        return Int((local / 86400).rounded(.down))
+    }
+
+    // What the line before a day says, d days before today – a clock that went back counts as today
+    static func label(daysAgo d: Int, language: String) -> String {
+        let w = words[language] ?? words["en"]!
+        func count(_ i: Int, _ n: Int) -> String { w[i].replacingOccurrences(of: "%", with: String(n)) }
+        switch d {
+        case ...0: return w[0]
+        case 1: return w[1]
+        case 2..<7: return count(2, d)
+        case 7..<30: return d < 14 ? w[3] : count(4, d / 7)
+        case 30..<365: return d < 60 ? w[5] : count(6, min(11, d / 30))
+        default: return d < 730 ? w[7] : count(8, d / 365)
+        }
+    }
+}
+
 // Everything the screen shows, as plain values – ChatApp fills it, render() draws it
 struct ChatViewState {
     var lines: [ViewLine] = []
@@ -136,6 +181,7 @@ struct ChatViewState {
     var pending: Set<UInt64> = []   // messages of ours that no other Mac has yet
     var editor = LineEditor()
     var scroll = 0                  // rows scrolled up from the newest
+    var language = Days.language    // the words of the lines between the days
 
     // A line in its place, by time; the oldest go when there are too many
     mutating func add(_ item: ViewItem, order: TimeInterval) {
@@ -157,8 +203,15 @@ enum ChatRender {
 
     static func time(_ t: TimeInterval) -> String { clock.string(from: Date(timeIntervalSince1970: t)) }
 
-    // All rows of the message area, oldest first
-    static func messageRows(_ s: ChatViewState, width: Int) -> [String] {
+    // ──── a few words in the middle of a line across the window ────
+    static func rule(_ text: String, width: Int, paint: (String) -> String = Theme.dim) -> String {
+        let words = " \(text) "
+        let side = String(repeating: "─", count: max(2, (width - 2 - cellWidth(words)) / 2))
+        return " " + Theme.dim(side) + paint(words) + Theme.dim(side)
+    }
+
+    // All rows of the message area, oldest first, and before each day a line that says which: ── Yesterday ──
+    static func messageRows(_ s: ChatViewState, width: Int, now: TimeInterval = Date().timeIntervalSince1970) -> [String] {
         let names = s.lines.compactMap { line -> String? in
             if case .message(let m) = line.item { return m.nickname }
             return nil
@@ -168,7 +221,26 @@ enum ChatRender {
         let indent = 8 + nameWidth + 2
         let textWidth = max(4, width - indent - 1)
         var rows: [String] = []
+        let zone = TimeZone.current
+        let today = Days.index(now, zone)
+        var lastDay: Int?               // the day of the line before, and what the line above it says
+        var lastLabel: String?
         for line in s.lines {
+            // a line of another day: the line that says which, unless it says the same (8 and 9 days ago: 1 week ago);
+            // the line between the history and now is on no day
+            var dated = true
+            if case .divider = line.item { dated = false }
+            if dated {
+                let day = Days.index(line.order, zone)
+                if day != lastDay {
+                    lastDay = day
+                    let label = Days.label(daysAgo: today - day, language: s.language)
+                    if label != lastLabel {
+                        rows.append(rule(label, width: width, paint: { $0 }))
+                        lastLabel = label
+                    }
+                }
+            }
             switch line.item {
             case .message(let m):
                 // after the text, dim: the relays it took, a late arrival, or that nobody has it yet
@@ -203,9 +275,7 @@ enum ChatRender {
                     rows.append(i == 0 ? " " + Theme.dim(time(line.order)) + "  " + paint("· " + chunk) : String(repeating: " ", count: 10) + paint(chunk))
                 }
             case .divider(let text):
-                let label = " \(text) "
-                let side = max(2, (width - 2 - cellWidth(label)) / 2)
-                rows.append(" " + Theme.dim(String(repeating: "─", count: side) + label + String(repeating: "─", count: side)))
+                rows.append(rule(text, width: width))
             }
         }
         return rows
@@ -333,8 +403,8 @@ enum ChatRender {
         return (line, column)
     }
 
-    // The whole screen: rows × cols
-    static func frame(_ s: ChatViewState, rows: Int, cols: Int) -> String {
+    // The whole screen: rows × cols – at the time now, for the lines between the days
+    static func frame(_ s: ChatViewState, rows: Int, cols: Int, now: TimeInterval = Date().timeIntervalSince1970) -> String {
         var out = "\u{1B}[?2026h\u{1B}[?25l"
         // every row cut to the window: a row too wide would wrap and push the screen out of place
         func put(_ r: Int, _ text: String) { out += "\u{1B}[\(r);1H" + fit(text, cols) + "\u{1B}[0m\u{1B}[K" }
@@ -346,7 +416,7 @@ enum ChatRender {
             put(2, Theme.dim(" " + String(repeating: "─", count: max(0, cols - 2))))
         }
         let height = max(1, bottom - top + 1)
-        var content = messageRows(s, width: cols)
+        var content = messageRows(s, width: cols, now: now)
         if s.othersHere.isEmpty { content += lonelyRows(s) }
         let scroll = min(s.scroll, max(0, content.count - height))
         let end = content.count - scroll

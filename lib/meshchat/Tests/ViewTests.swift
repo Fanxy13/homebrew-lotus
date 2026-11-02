@@ -1,5 +1,5 @@
-// MeshChat tests – the chat's screen: the line you write in, text wrapped to the window (wide characters too), and
-// whole frames that fit the terminal at every size, from 20 × 6 to 200 × 50.
+// MeshChat tests – the chat's screen: the line you write in, text wrapped to the window (wide characters too), whole
+// frames that fit the terminal at every size, from 20 × 6 to 200 × 50, and the lines between the days.
 
 import Foundation
 
@@ -120,5 +120,65 @@ func viewTests() {
         check(lonely.contains("Bluetooth not allowed"), "and the status says it")
         s.snapshot.radio = .on
         check(ChatRender.frame(s, rows: 30, cols: 140).contains("there are no rooms"), "and that the others only need to open MeshChat")
+    }
+
+    test("the days: a line before each – Today, Yesterday, 3 days ago, 1 week ago – in the language of Lotus") {
+        let de: [(Int, String)] = [(-1, "Heute"), (0, "Heute"), (1, "Gestern"), (2, "vor 2 Tagen"), (6, "vor 6 Tagen"),
+                                   (7, "vor 1 Woche"), (13, "vor 1 Woche"), (14, "vor 2 Wochen"), (29, "vor 4 Wochen"),
+                                   (30, "vor 1 Monat"), (60, "vor 2 Monaten"), (364, "vor 11 Monaten"), (365, "vor 1 Jahr"),
+                                   (800, "vor 2 Jahren")]
+        checkEqual(de.map { Days.label(daysAgo: $0.0, language: "de") }, de.map { $0.1 }, "in German, from today to years ago")
+        let en: [(Int, String)] = [(0, "Today"), (1, "Yesterday"), (3, "3 days ago"), (7, "1 week ago"), (21, "3 weeks ago"),
+                                   (45, "1 month ago"), (100, "3 months ago"), (400, "1 year ago"), (1000, "2 years ago")]
+        checkEqual(en.map { Days.label(daysAgo: $0.0, language: "en") }, en.map { $0.1 }, "in English")
+        checkEqual([Days.label(daysAgo: 1, language: "fr"), Days.label(daysAgo: 8, language: "fr"), Days.label(daysAgo: 3, language: "es")],
+                   ["Hier", "il y a 1 semaine", "hace 3 días"], "in French and Spanish")
+        checkEqual(Days.label(daysAgo: 1, language: "it"), "Yesterday", "a language without words of its own: English")
+        checkEqual([Days.pick("de"), Days.pick("de_CH"), Days.pick("FR-ch"), Days.pick("it"), Days.pick("d"), Days.pick(nil)],
+                   ["de", "de", "fr", nil, nil, nil], "the language as LOTUS_LANG says it")
+
+        // midnight in this Mac's time zone divides the days
+        let midnight = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970
+        let noon = midnight + 12 * 3600
+        checkEqual(Days.index(noon) - Days.index(midnight + 60), 0, "a minute after midnight is today")
+        checkEqual(Days.index(noon) - Days.index(midnight - 60), 1, "a minute before it is yesterday")
+
+        // the rows: a line before each day – 8 and 9 days ago are both 1 week ago – and the history's own line kept
+        var s = ChatViewState()
+        s.language = "de"
+        for (i, ago) in [9, 8, 2, 1, 1].enumerated() {
+            let t = noon - Double(ago) * 86400 + Double(i)
+            s.add(.message(ChatMessage(id: UInt64(i), nickname: "Bob", fingerprint: "ab1c", text: "message \(i)", sent: t, received: t,
+                                       hops: 0, mine: false)), order: t)
+        }
+        s.add(.divider("earlier messages above"), order: noon - 86400 + 10)
+        s.add(.message(ChatMessage(id: 9, nickname: "Ada", fingerprint: "k3f9", text: "and now", sent: noon, received: noon, hops: 0, mine: true)),
+              order: noon)
+        s.add(.notice(Notice(level: .info, text: "Bob is here")), order: noon + 1)
+        func plain(_ now: TimeInterval) -> [String] {
+            ChatRender.messageRows(s, width: 60, now: now).map {
+                $0.replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+            }
+        }
+        func rules(_ now: TimeInterval) -> [String] {
+            plain(now).filter { $0.contains("───") }.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " ─")) }
+        }
+        checkEqual(rules(noon + 60), ["vor 1 Woche", "vor 2 Tagen", "Gestern", "earlier messages above", "Heute"], "a line before each day, in German")
+        let shown = plain(noon + 60)
+        check(shown.first?.contains(" vor 1 Woche ") ?? false, "the first row says the day of the oldest message")
+        if let i = shown.firstIndex(where: { $0.contains(" Heute ") }), i + 1 < shown.count {
+            check(shown[i + 1].contains("and now"), "today's message right under it (\(shown[i + 1]))")
+        } else {
+            check(false, "a line that says Heute")
+        }
+        check(shown.allSatisfy { visibleWidth($0) <= 60 }, "every line fits the window")
+        checkEqual(rules(noon + 86400), ["vor 1 Woche", "vor 3 Tagen", "vor 2 Tagen", "earlier messages above", "Gestern"],
+                   "the next day: what was today is yesterday")
+        s.language = "en"
+        checkEqual(rules(noon + 60), ["1 week ago", "2 days ago", "Yesterday", "earlier messages above", "Today"], "in English")
+        s.lines.removeAll()
+        checkEqual(rules(noon), [], "nothing said: no line")
+        s.add(.notice(Notice(level: .info, text: "This is a demo")), order: noon)
+        checkEqual(rules(noon), ["Today"], "a chat of today: one line on top")
     }
 }

@@ -75,6 +75,9 @@ The same service as on a Mac – the same UUIDs, the same frames, the same packe
   link is closed, as between two Macs.
 - **Signal strength:** Windows cannot read the signal of a device it is connected to; it comes from the advertisements
   it keeps hearing – `/where` works the same.
+- **The days:** before each day a line says which – `── Today ──`, `── Yesterday ──`, `── 1 week ago ──` – in the
+  language Windows is shown in: `── Heute ──`, `── Gestern ──`, `── vor 1 Woche ──` on a German Windows, French and
+  Spanish too, English for any other (`$env:LOTUS_LANG = 'de'` before `meshchat` chooses). The Mac takes Lotus' language.
 - **What it keeps:** `%LOCALAPPDATA%\lotus\data\meshchat` – `identity` (this computer's key comes from it), `settings`,
   `history.jsonl` and `events.log` (links and errors, never keys or messages); the same files as on a Mac.
 
@@ -82,8 +85,8 @@ The same service as on a Mac – the same UUIDs, the same frames, the same packe
 
 - **The protocol:** `meshchat selftest` – the same scenarios as the Mac's tests, on a simulated radio: packets and their
   limits, published test vectors (SHA-256, HKDF, Ed25519), multi-hop, a chain of 19 computers for the hop limit,
-  duplicates, fragments, forged and broken packets, floods, out of range and back, the screen at eight sizes. They run
-  anywhere .NET runs: `dotnet run --project win/meshchat/MeshChat.Tests`.
+  duplicates, fragments, forged and broken packets, floods, out of range and back, the screen at eight sizes, the lines
+  between the days. They run anywhere .NET runs: `dotnet run --project win/meshchat/MeshChat.Tests`.
 - **The same bytes as the Mac:** [`lib/meshchat/Tests/vectors.txt`](../../lib/meshchat/Tests/vectors.txt) holds what fixed
   inputs must give – a key, a HELLO, the three kinds of messages signed, their frames. This program made it and checks it;
   the Mac's tests check it with CryptoKit; and in the CI the Mac writes packets it signed for this program to check

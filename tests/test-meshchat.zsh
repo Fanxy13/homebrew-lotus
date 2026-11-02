@@ -81,7 +81,7 @@ rm -rf $D      # from here on, this Mac's own MeshChat – not the identity of t
 
 # ── built once, inside MeshChat's sandbox ──
 out=$(lotus meshchat version 2>&1 | plain)
-check_has "built in its sandbox, it runs" "$out" "MeshChat 2.0.0 – protocol 2, crypto CryptoKit"
+check_has "built in its sandbox, it runs" "$out" "MeshChat 2.1.0 – protocol 2, crypto CryptoKit"
 check "the program is in its data folder" eval '[[ -n $(print -l $D/bin/meshchat-<->(N)) ]]'
 check "nothing is built into Lotus' own folder" eval '[[ ! -e $LOTUS_ROOT/lib/meshchat/bin && -z $(print -l $LOTUS_ROOT/lib/meshchat/meshchat-*(N)) ]]'
 built=$(print -r -- $D/bin/meshchat-<->(N:t))

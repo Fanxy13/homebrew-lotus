@@ -4,12 +4,14 @@
 //
 //   lotus / MeshChat  everyone nearby  public                                you: Ada·k3f9
 //   ─────────────────────────────────────────────────────────────────────────────────────
+//   ─────────────────────────────────────── Today ───────────────────────────────────────
 //   14:02  Bob    Hi everyone
 //   14:03  Carol  Hello from the other end of the field ⇢1
 //   ── here: Bob ● · Carol ⇢1 ───────────────────────────────────────────────────────────
 //   ● Bluetooth on · 1 link · 4 relayed                                /help · ctrl-c quits
 //   › _
 
+using System.Globalization;
 using System.Text;
 
 namespace MeshChat;
@@ -148,6 +150,57 @@ public abstract record ViewItem
 
 public sealed record ViewLine(ViewItem Item, double Order);      // where it goes: a message by when it was written
 
+// The days the chat's lines were written on, said in the language of Lotus or of Windows: a line across the window before
+// each one – ── Today ──, ── Yesterday ──, ── 3 days ago ──, ── 1 week ago ── – drawn anew every time, so that at midnight
+// Today becomes Yesterday. Within a week each day has its own line; further back the days go together by weeks, months and
+// years, as their names do. As Days in lib/meshchat/Sources/ChatView.swift.
+public static class Days
+{
+    //                  today, yesterday, days, 1 week, weeks, 1 month, months, 1 year, years – % is the number
+    private static readonly Dictionary<string, string[]> Words = new()
+    {
+        ["en"] = new[] { "Today", "Yesterday", "% days ago", "1 week ago", "% weeks ago", "1 month ago", "% months ago", "1 year ago", "% years ago" },
+        ["de"] = new[] { "Heute", "Gestern", "vor % Tagen", "vor 1 Woche", "vor % Wochen", "vor 1 Monat", "vor % Monaten", "vor 1 Jahr", "vor % Jahren" },
+        ["fr"] = new[] { "Aujourd’hui", "Hier", "il y a % jours", "il y a 1 semaine", "il y a % semaines", "il y a 1 mois", "il y a % mois", "il y a 1 an", "il y a % ans" },
+        ["es"] = new[] { "Hoy", "Ayer", "hace % días", "hace 1 semana", "hace % semanas", "hace 1 mes", "hace % meses", "hace 1 año", "hace % años" },
+    };
+
+    // en, de, fr or es: the language Lotus speaks (LOTUS_LANG), else the one the platform names (WindowsPlatform: the
+    // language Windows is shown in), else English
+    public static string Language { get; set; } = Pick(Environment.GetEnvironmentVariable("LOTUS_LANG")) ?? "en";
+
+    // "de", "de_CH", "de-DE" → "de"; a language without words here → null
+    public static string? Pick(string? code)
+    {
+        if (code == null || code.Length < 2) return null;
+        var two = code[..2].ToLowerInvariant();
+        return Words.ContainsKey(two) ? two : null;
+    }
+
+    // The day t is on in this computer's time zone: the days since 1 January 1970 there
+    public static long Index(double t)
+    {
+        var offset = TimeZoneInfo.Local.GetUtcOffset(DateTimeOffset.FromUnixTimeMilliseconds((long)Math.Floor(t * 1000)));
+        return (long)Math.Floor((t + offset.TotalSeconds) / 86400);
+    }
+
+    // What the line before a day says, d days before today – a clock that went back counts as today
+    public static string Label(long d, string language)
+    {
+        var w = Words.TryGetValue(language, out var found) ? found : Words["en"];
+        string Count(int i, long n) => w[i].Replace("%", n.ToString(CultureInfo.InvariantCulture));
+        return d switch
+        {
+            <= 0 => w[0],
+            1 => w[1],
+            < 7 => Count(2, d),
+            < 30 => d < 14 ? w[3] : Count(4, d / 7),
+            < 365 => d < 60 ? w[5] : Count(6, Math.Min(11, d / 30)),
+            _ => d < 730 ? w[7] : Count(8, d / 365),
+        };
+    }
+}
+
 // Everything the screen shows, as plain values – ChatApp fills it, ChatRender draws it
 public sealed class ChatViewState
 {
@@ -159,6 +212,7 @@ public sealed class ChatViewState
     public HashSet<ulong> Pending = new();      // messages of ours that no other computer has yet
     public LineEditor Editor = new();
     public int Scroll;                          // rows scrolled up from the newest
+    public string Language = Days.Language;     // the words of the lines between the days
 
     // A line in its place, by time; the oldest go when there are too many
     public void Add(ViewItem item, double order)
@@ -176,8 +230,17 @@ public static class ChatRender
 {
     public static string Time(double t) => DateTimeOffset.FromUnixTimeMilliseconds((long)(t * 1000)).ToLocalTime().ToString("HH:mm");
 
-    // All rows of the message area, oldest first
-    public static List<string> MessageRows(ChatViewState s, int width)
+    // ──── a few words in the middle of a line across the window ────
+    public static string Rule(string text, int width, Func<string, string>? paint = null)
+    {
+        var words = $" {text} ";
+        var side = new string('─', Math.Max(2, (width - 2 - Cells.Width(words)) / 2));
+        return " " + Theme.Dim(side) + (paint ?? Theme.Dim)(words) + Theme.Dim(side);
+    }
+
+    // All rows of the message area, oldest first, and before each day a line that says which: ── Yesterday ── – at the
+    // time now (null: the clock's)
+    public static List<string> MessageRows(ChatViewState s, int width, double? now = null)
     {
         var names = s.Lines.Select(l => l.Item).OfType<ViewItem.Message>().Select(m => m.M.Nickname).ToList();
         // " 14:02  " + the name + "  " + the text; narrow windows give the name less room
@@ -185,8 +248,27 @@ public static class ChatRender
         var indent = 8 + nameWidth + 2;
         var textWidth = Math.Max(4, width - indent - 1);
         var rows = new List<string>();
+        var today = Days.Index(now ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0);
+        long? lastDay = null;           // the day of the line before, and what the line above it says
+        string? lastLabel = null;
         foreach (var line in s.Lines)
         {
+            // a line of another day: the line that says which, unless it says the same (8 and 9 days ago: 1 week ago);
+            // the line between the history and now is on no day
+            if (line.Item is not ViewItem.Divider)
+            {
+                var day = Days.Index(line.Order);
+                if (day != lastDay)
+                {
+                    lastDay = day;
+                    var label = Days.Label(today - day, s.Language);
+                    if (label != lastLabel)
+                    {
+                        rows.Add(Rule(label, width, text => text));
+                        lastLabel = label;
+                    }
+                }
+            }
             switch (line.Item)
             {
                 case ViewItem.Message { M: var m }:
@@ -227,12 +309,8 @@ public static class ChatRender
                     break;
                 }
                 case ViewItem.Divider { Text: var text }:
-                {
-                    var label = $" {text} ";
-                    var side = Math.Max(2, (width - 2 - Cells.Width(label)) / 2);
-                    rows.Add(" " + Theme.Dim(new string('─', side) + label + new string('─', side)));
+                    rows.Add(Rule(text, width));
                     break;
-                }
             }
         }
         return rows;
@@ -378,8 +456,8 @@ public static class ChatRender
         return (line, column);
     }
 
-    // The whole screen: rows × cols
-    public static string Frame(ChatViewState s, int rows, int cols)
+    // The whole screen: rows × cols – at the time now (null: the clock's), for the lines between the days
+    public static string Frame(ChatViewState s, int rows, int cols, double? now = null)
     {
         var out_ = new StringBuilder("\u001b[?2026h\u001b[?25l");
         // every row cut to the window: a row too wide would wrap and push the screen out of place
@@ -393,7 +471,7 @@ public static class ChatRender
             Put(2, Theme.Dim(" " + new string('─', Math.Max(0, cols - 2))));
         }
         var height = Math.Max(1, bottom - top + 1);
-        var content = MessageRows(s, cols);
+        var content = MessageRows(s, cols, now);
         if (s.OthersHere.Count == 0) content.AddRange(LonelyRows(s));
         var scroll = Math.Min(s.Scroll, Math.Max(0, content.Count - height));
         var end = content.Count - scroll;

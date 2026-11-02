@@ -12,6 +12,7 @@ lotus meshchat                         # or /meshchat in a Lotus shell: the chat
 ```
  lotus / MeshChat  everyone nearby  public                                        you: Ada·k3f9
  ─────────────────────────────────────────────────────────────────────────────────────────────
+ ─────────────────────────────────────────── Today ───────────────────────────────────────────
  14:02  · Bob is here – a neighbour.
  14:02  · Carol is here – 1 relay away.
  14:02  Bob    Hi everyone
@@ -159,6 +160,11 @@ In the chat:
 | ↑ ↓ · PgUp PgDn · Tab · `//text` | your last lines · scroll · complete a command · send a line starting with / |
 
 Ctrl-Z suspends the chat (`fg` brings it back). One chat at a time on a Mac.
+
+Before each day a line says which: `── Today ──`, `── Yesterday ──`, `── 3 days ago ──`, `── 1 week ago ──` – within a
+week every day has its own line, further back they go together by weeks, months and years. At midnight Today becomes
+Yesterday. The words are in Lotus' language (`lotus settings`): `── Heute ──`, `── Gestern ──`, `── vor 1 Woche ──` in
+German, in French and Spanish too.
 
 ## How it works
 
@@ -337,7 +343,8 @@ MeshChat's sources and runs them (no XCTest needed). They cover:
 - storage: settings next to a pack's, the identity, history with damaged lines, trimming, permissions, MeshChat 1's
   rooms left alone, one chat at a time
 - the chat's screen: the line editor (words, history, pastes with control characters, the 1000-byte limit),
-  wrapping with wide characters, and whole frames that fit the window at eight sizes from 20 × 6 to 200 × 50
+  wrapping with wide characters, whole frames that fit the window at eight sizes from 20 × 6 to 200 × 50, and the
+  lines between the days – in four languages, at midnight in this Mac's time zone, and the next day
 
 **Automated – MeshChat in Lotus.** `zsh tests/run.zsh meshchat` (Lotus' own tests): on every system, the command,
 its feature and the old plugin going away with this Mac's identity, the name and the history; on a Mac it builds

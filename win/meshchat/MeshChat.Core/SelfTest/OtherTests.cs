@@ -1,6 +1,7 @@
 // MeshChat tests – what it keeps, how far someone is, and the screen. As lib/meshchat/Tests/StoreTests.swift,
 // DistanceTests.swift and ViewTests.swift.
 
+using System.Text.RegularExpressions;
 using static MeshChat.TestRun;
 
 namespace MeshChat;
@@ -204,6 +205,62 @@ public static class ViewTests
                 Check(widest <= cols, $"{rows} × {cols}: no row wider than the window ({widest})");
                 Check(frame.Contains($"\u001b[{rows};"), $"{rows} × {cols}: the input line is on the last row");
             }
+        });
+
+        Test("the days: a line before each – Today, Yesterday, 3 days ago, 1 week ago – in the language of Lotus or Windows", () =>
+        {
+            var de = new (long Ago, string Says)[]
+            {
+                (-1, "Heute"), (0, "Heute"), (1, "Gestern"), (2, "vor 2 Tagen"), (6, "vor 6 Tagen"), (7, "vor 1 Woche"), (13, "vor 1 Woche"),
+                (14, "vor 2 Wochen"), (29, "vor 4 Wochen"), (30, "vor 1 Monat"), (60, "vor 2 Monaten"), (364, "vor 11 Monaten"),
+                (365, "vor 1 Jahr"), (800, "vor 2 Jahren"),
+            };
+            CheckList(de.Select(x => Days.Label(x.Ago, "de")), de.Select(x => x.Says), "in German, from today to years ago");
+            var en = new (long Ago, string Says)[]
+            {
+                (0, "Today"), (1, "Yesterday"), (3, "3 days ago"), (7, "1 week ago"), (21, "3 weeks ago"), (45, "1 month ago"),
+                (100, "3 months ago"), (400, "1 year ago"), (1000, "2 years ago"),
+            };
+            CheckList(en.Select(x => Days.Label(x.Ago, "en")), en.Select(x => x.Says), "in English");
+            CheckList(new[] { Days.Label(1, "fr"), Days.Label(8, "fr"), Days.Label(3, "es") }, new[] { "Hier", "il y a 1 semaine", "hace 3 días" },
+                "in French and Spanish");
+            CheckEqual(Days.Label(1, "it"), "Yesterday", "a language without words of its own: English");
+            CheckList(new[] { Days.Pick("de"), Days.Pick("de_CH"), Days.Pick("FR-ch"), Days.Pick("it"), Days.Pick("d"), Days.Pick(null) },
+                new string?[] { "de", "de", "fr", null, null, null }, "the language as LOTUS_LANG says it");
+
+            // midnight in this computer's time zone divides the days
+            var midnight = new DateTimeOffset(DateTime.Today).ToUnixTimeMilliseconds() / 1000.0;
+            var noon = midnight + 12 * 3600;
+            CheckEqual(Days.Index(noon) - Days.Index(midnight + 60), 0L, "a minute after midnight is today");
+            CheckEqual(Days.Index(noon) - Days.Index(midnight - 60), 1L, "a minute before it is yesterday");
+
+            // the rows: a line before each day – 8 and 9 days ago are both 1 week ago – and the history's own line kept
+            var s = new ChatViewState { Language = "de" };
+            var ago = new[] { 9, 8, 2, 1, 1 };
+            for (var i = 0; i < ago.Length; i++)
+            {
+                var t = noon - ago[i] * 86400.0 + i;
+                s.Add(new ViewItem.Message(new ChatMessage((ulong)i, "Bob", "ab1c", $"message {i}", t, t, 0, false)), t);
+            }
+            s.Add(new ViewItem.Divider("earlier messages above"), noon - 86400 + 10);
+            s.Add(new ViewItem.Message(new ChatMessage(9, "Ada", "k3f9", "and now", noon, noon, 0, true)), noon);
+            s.Add(new ViewItem.NoticeItem(new Notice(NoticeLevel.Info, "Bob is here")), noon + 1);
+            List<string> Plain(double now) => ChatRender.MessageRows(s, 60, now).Select(r => Regex.Replace(r, "\u001b\\[[0-9;]*m", "")).ToList();
+            List<string> Rules(double now) => Plain(now).Where(r => r.Contains("───")).Select(r => r.Trim(' ', '─')).ToList();
+            CheckList(Rules(noon + 60), new[] { "vor 1 Woche", "vor 2 Tagen", "Gestern", "earlier messages above", "Heute" }, "a line before each day, in German");
+            var shown = Plain(noon + 60);
+            Check(shown.Count > 0 && shown[0].Contains(" vor 1 Woche "), "the first row says the day of the oldest message");
+            var at = shown.FindIndex(r => r.Contains(" Heute "));
+            Check(at >= 0 && at + 1 < shown.Count && shown[at + 1].Contains("and now"), "today's message right under it");
+            Check(shown.All(r => Cells.Visible(r) <= 60), "every line fits the window");
+            CheckList(Rules(noon + 86400), new[] { "vor 1 Woche", "vor 3 Tagen", "vor 2 Tagen", "earlier messages above", "Gestern" },
+                "the next day: what was today is yesterday");
+            s.Language = "en";
+            CheckList(Rules(noon + 60), new[] { "1 week ago", "2 days ago", "Yesterday", "earlier messages above", "Today" }, "in English");
+            s.Lines.Clear();
+            CheckList(Rules(noon), Array.Empty<string>(), "nothing said: no line");
+            s.Add(new ViewItem.NoticeItem(new Notice(NoticeLevel.Info, "This is a demo")), noon);
+            CheckList(Rules(noon), new[] { "Today" }, "a chat of today: one line on top");
         });
     }
 }

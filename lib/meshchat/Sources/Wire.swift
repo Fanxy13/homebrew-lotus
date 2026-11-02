@@ -31,7 +31,7 @@ import Foundation
 enum Proto {
     static let version: UInt8 = 2               // mesh packets
     static let linkVersion: UInt8 = 1           // link frames
-    static let software = "meshchat/2.0.0"
+    static let software = "meshchat/2.1.0"
     static let maxFrame = 512                   // the most a GATT attribute value holds
     static let minFrame = 20                    // the least BLE gives (ATT MTU 23 minus 3)
     static let maxPacket = 2048
