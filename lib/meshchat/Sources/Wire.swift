@@ -14,14 +14,19 @@
 //   ttl: relays it may still take · hops: relays it took. Only these two change on the way, so the signature
 //   covers the header with both set to 0.
 //
-// The message – in the clear: the chat is public, everyone nearby reads it:
+// The message – in the clear: the chat is public, everyone nearby reads it (all but the text of a tell):
 //   [1 kind][1 flags][32 sender's public key][8 sender's session][str8 nickname] then
 //   chat 1      [str16 text]
-//   presence 2  [1 links][1 n][n × (4 token, 1 signal)]   flags bit 0: "who is here?" – answer with yours
+//   presence 2  [1 links][1 n][n × (4 token, 1 signal)][32 box key]   flags bit 0: "who is here?" – answer with yours
 //               the Macs it has a link to – the first 4 bytes of their session – and how strong it hears them
 //               (dBm, signed; 127: not measured). A first MeshChat 2 sent only [1 links]; both are read.
+//               The box key (X25519, since MeshChat 2.2): what a private message to it is sealed for.
 //   bye 3       nothing more
+//   tell 4      [32 recipient's public key][32 one-time key][12 nonce][2 n][n sealed text]   since MeshChat 2.2
+//               a private message (/tell): every Mac passes it on, only the recipient can read it. Who writes to whom
+//               is in the clear; the text is sealed for the recipient's box key (Signing.swift, Sealing).
 //   [64 Ed25519 signature over "MeshChat v2", the header (ttl and hops 0) and everything before it]
+// A MeshChat before 2.2 skips the box key, and does not know a tell: it neither shows nor passes it on.
 //
 // Version 1 had rooms with codes and encrypted everything for its room; version 2 has one chat for everyone
 // nearby. The two do not mix: their HELLOs have no version in common, and each says the other needs an update.
@@ -31,7 +36,7 @@ import Foundation
 enum Proto {
     static let version: UInt8 = 2               // mesh packets
     static let linkVersion: UInt8 = 1           // link frames
-    static let software = "meshchat/2.1.0"
+    static let software = "meshchat/2.2.0"
     static let maxFrame = 512                   // the most a GATT attribute value holds
     static let minFrame = 20                    // the least BLE gives (ATT MTU 23 minus 3)
     static let maxPacket = 2048
@@ -46,6 +51,8 @@ enum Proto {
     static let maxTextBytes = 1000
     static let maxSoftwareBytes = 32
     static let maxNeighbours = 16
+    static let nonceLength = 12                 // a private message: ChaCha20-Poly1305's nonce …
+    static let tagLength = 16                   // … and its tag
 
     // A version byte that is not ours: a plausible other version (1–15) is named as such, anything else is noise
     static func versionError(_ v: UInt8, ours: UInt8) -> WireError {
@@ -211,7 +218,7 @@ struct MeshPacket: Equatable {
 // ── The message in a packet ───────────────────────────────────
 
 enum InnerKind: UInt8 {
-    case chat = 1, presence = 2, bye = 3
+    case chat = 1, presence = 2, bye = 3, tell = 4
 }
 
 // A Mac someone has a link to, and how strong they hear it
@@ -228,9 +235,14 @@ struct InnerMessage: Equatable {
     var senderKey: Data
     var session: Data
     var nickname: String
-    var text = ""                           // chat
+    var text = ""                           // chat – and a tell once it is opened
     var links: UInt8 = 0                    // presence: how many Macs it is connected to
     var neighbours: [Neighbour] = []        // presence: which, and how strong it hears them
+    var boxKey: Data? = nil                 // presence: what a private message to it is sealed for (since 2.2)
+    var recipient = Data()                  // tell: who it is for – their public key
+    var oneTimeKey = Data()                 // tell: the X25519 key it was sealed with, used once
+    var nonce = Data()                      // tell
+    var sealed = Data()                     // tell: the text, sealed for the recipient, and its tag
 
     // Everything but the signature
     func body() throws -> Data {
@@ -254,8 +266,20 @@ struct InnerMessage: Equatable {
                 w.bytes(Data([UInt8(n.token >> 24 & 0xFF), UInt8(n.token >> 16 & 0xFF), UInt8(n.token >> 8 & 0xFF), UInt8(n.token & 0xFF)]))
                 w.u8(UInt8(bitPattern: Int8(clamping: n.rssi)))
             }
+            if let box = boxKey {
+                guard box.count == Proto.keyLength else { throw WireError.invalid("box key") }
+                w.bytes(box)
+            }
         case .bye:
             break
+        case .tell:
+            guard recipient.count == Proto.keyLength, oneTimeKey.count == Proto.keyLength, nonce.count == Proto.nonceLength,
+                  sealed.count > Proto.tagLength, sealed.count <= Proto.maxTextBytes + Proto.tagLength else { throw WireError.invalid("private message") }
+            w.bytes(recipient)
+            w.bytes(oneTimeKey)
+            w.bytes(nonce)
+            w.u16(UInt16(sealed.count))
+            w.bytes(sealed)
         }
         return w.data
     }
@@ -286,9 +310,17 @@ struct InnerMessage: Equatable {
                     let token = try r.bytes(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
                     m.neighbours.append(Neighbour(token: token, rssi: Int(Int8(bitPattern: try r.u8()))))
                 }
+                if r.remaining >= Proto.keyLength { m.boxKey = try r.bytes(Proto.keyLength) }
             }
         case .bye:
             break
+        case .tell:
+            m.recipient = try r.bytes(Proto.keyLength)
+            m.oneTimeKey = try r.bytes(Proto.keyLength)
+            m.nonce = try r.bytes(Proto.nonceLength)
+            let n = Int(try r.u16())
+            guard n > Proto.tagLength, n <= Proto.maxTextBytes + Proto.tagLength else { throw WireError.invalid("private message of \(n) bytes") }
+            m.sealed = try r.bytes(n)
         }
         // a newer version may add fields here – they are signed, and skipped
         return (m, body, signature)

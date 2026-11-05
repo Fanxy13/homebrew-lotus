@@ -19,8 +19,10 @@ public sealed class StoredMessage
     public string Nickname = "", Fingerprint = "", Text = "";
     public int Hops;
     public bool Mine;
+    public bool Privately;          // a private message (/tell) – to this computer, or from it to To
+    public string To = "";
 
-    public ChatMessage Message => new(Id, Nickname, Fingerprint, Text, Sent, Received, Hops, Mine);
+    public ChatMessage Message => new(Id, Nickname, Fingerprint, Text, Sent, Received, Hops, Mine, Privately, To);
 }
 
 public sealed class Store
@@ -199,9 +201,12 @@ public sealed class Store
             w.WriteString("id", Hex.U64(m.Id));
             w.WriteBoolean("me", m.Mine);
             w.WriteString("nick", m.Nickname);
+            // a private message: kept here as it was read – in the clear, in your data folder only
+            if (m.Privately) w.WriteBoolean("pv", true);
             w.WriteNumber("rx", (long)(m.Received * 1000));
             w.WriteNumber("t", (long)(m.Sent * 1000));
             w.WriteString("text", m.Text);
+            if (m.Privately && m.To.Length > 0) w.WriteString("to", m.To);
             w.WriteNumber("v", 1);
             w.WriteEndObject();
         }
@@ -234,6 +239,8 @@ public sealed class Store
                 Received = rx / 1000,
                 Hops = o.TryGetProperty("hops", out var h) && h.ValueKind == JsonValueKind.Number ? (int)h.GetDouble() : 0,
                 Mine = o.TryGetProperty("me", out var me) && me.ValueKind == JsonValueKind.True,
+                Privately = o.TryGetProperty("pv", out var pv) && pv.ValueKind == JsonValueKind.True,
+                To = Sanitize.Nickname(Str("to", "")),
             };
         }
         catch (Exception) { return null; }

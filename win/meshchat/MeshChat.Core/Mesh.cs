@@ -46,7 +46,10 @@ public sealed class MeshConfig
     public double SignalFresh = 60;             // a signal older than this says nothing about now
 }
 
-public sealed record ChatMessage(ulong Id, string Nickname, string Fingerprint, string Text, double Sent, double Received, int Hops, bool Mine);
+// Privately: a private message (/tell) – to this computer, or, when it is mine, to To (their nickname). SenderKey:
+// someone else's – who wrote it, to answer them privately.
+public sealed record ChatMessage(ulong Id, string Nickname, string Fingerprint, string Text, double Sent, double Received, int Hops, bool Mine,
+                                 bool Privately = false, string To = "", byte[]? SenderKey = null);
 
 public sealed class Participant
 {
@@ -63,6 +66,7 @@ public sealed class Participant
     public int? Signal;                 // how strong this computer hears theirs (dBm), measured in the last minute
     public string Via = "";             // the neighbour their last message came through ("" when straight from them)
     public Dictionary<uint, int> Neighbours = new();    // the computers they have a link to, and how strong they hear them
+    public byte[]? BoxKey;              // what a private message to them is sealed for – from their presence (MeshChat 2.2)
 
     public uint Token => B.Token(Session);
     public Participant Copy()
@@ -217,6 +221,7 @@ public sealed class MeshNode : ILinkTransportDelegate
     private readonly Dictionary<uint, (double Rssi, double At)> signals = new();     // by token, smoothed
     private double lastMeasure = double.NegativeInfinity;
     private readonly HashSet<ulong> undelivered = new();
+    private readonly List<(byte[] To, string Text, double Since)> waiting = new();      // private messages, until the key comes
     private double presenceDue = double.PositiveInfinity;
     private double lastPresence = double.NegativeInfinity;
     private readonly Dictionary<string, double> noticed = new();
@@ -300,6 +305,7 @@ public sealed class MeshNode : ILinkTransportDelegate
         public SendError(string message) : base(message) { }
         public static SendError Empty() => new("There is nothing to send.");
         public static SendError TooLong() => new($"A message can be up to {Proto.MaxTextBytes} bytes long – that is about {Proto.MaxTextBytes} letters, fewer with emoji or accents.");
+        public static SendError Nobody() => new("That person is not in the chat (any more) – /who lists who is.");
     }
 
     public ChatMessage Send(string text)
@@ -314,6 +320,55 @@ public sealed class MeshNode : ILinkTransportDelegate
         emit(new MeshEvent.Sent(packet.MessageId, n));
         Flush();
         return msg;
+    }
+
+    // A private message (/tell): sealed for one person, passed on by every computer, shown only to them. It is sealed for
+    // the box key their presence carries; until that is known, it waits – a minute at most – and they are asked for it.
+    public void SendPrivately(string text, byte[] to)
+    {
+        var clean = Sanitize.Line(text, int.MaxValue, int.MaxValue);
+        if (clean.Length == 0) throw SendError.Empty();
+        if (System.Text.Encoding.UTF8.GetByteCount(clean) > Proto.MaxTextBytes) throw SendError.TooLong();
+        if (!people.TryGetValue(to, out var p) || p.Left) throw SendError.Nobody();
+        if (p.BoxKey is byte[] box)
+        {
+            SealAndSend(clean, p, box);
+        }
+        else
+        {
+            waiting.Add((to, clean, clock()));
+            Tell($"The key for private messages to {p.Nickname} has not come yet – your message waits for it, a minute at most.");
+            SendPresence(true);         // "who is here?" – they answer with their presence, and the key in it
+        }
+        Flush();
+    }
+
+    private void SealAndSend(string text, Participant p, byte[] box)
+    {
+        var s = Sealing.Seal(text, Signer.PublicKey, p.Key, box);
+        var inner = new InnerMessage
+        {
+            Kind = InnerKind.Tell, SenderKey = Signer.PublicKey, Session = Session, Nickname = Nickname,
+            Recipient = p.Key, OneTimeKey = s.OneTimeKey, Nonce = s.Nonce, Sealed = s.Sealed,
+        };
+        var (packet, n) = Flood(inner);
+        Stats.Delivered++;
+        emit(new MeshEvent.Message(new ChatMessage(packet.MessageId, Nickname, Signer.Fingerprint, text, packet.Timestamp / 1000.0, clock(), 0, true,
+                                                   Privately: true, To: p.Nickname)));
+        emit(new MeshEvent.Sent(packet.MessageId, n));
+    }
+
+    // Their key came: what waited for it goes out now
+    private void SendWaiting(byte[] key)
+    {
+        if (!waiting.Any(w => B.Eq(w.To, key)) || !people.TryGetValue(key, out var p) || p.BoxKey is not byte[] box) return;
+        var due = waiting.Where(w => B.Eq(w.To, key)).ToList();
+        waiting.RemoveAll(w => B.Eq(w.To, key));
+        foreach (var w in due)
+        {
+            try { SealAndSend(w.Text, p, box); }
+            catch (Exception e) { Tell($"Your private message to {p.Nickname} could not be sent: {e.Message}", NoticeLevel.Warning); }
+        }
     }
 
     // ── The radio ─────────────────────────────────────────────
@@ -513,6 +568,14 @@ public sealed class MeshNode : ILinkTransportDelegate
             foreach (var link in links.Values.Where(l => l.State == LinkState.Ready && l.Outbound).ToList()) Transport.MeasureSignal(link.Id);
         }
         if (!Config.Silent && t >= presenceDue) SendPresence(double.IsNegativeInfinity(lastPresence));
+        // private messages whose recipient's key never came: given up after a minute
+        var late = waiting.Where(w => t - w.Since > 60).ToList();
+        if (late.Count > 0)
+        {
+            waiting.RemoveAll(w => t - w.Since > 60);
+            foreach (var w in late)
+                Tell($"Your private message to {(people.TryGetValue(w.To, out var who) ? who.Nickname : "them")} was not sent: the key for it did not come. They may have a MeshChat without /tell – before 2.2.", NoticeLevel.Warning);
+        }
         Age(t);
         dirty = true;
         Flush();
@@ -787,14 +850,20 @@ public sealed class MeshNode : ILinkTransportDelegate
                 .Select(l => B.Token(l.Session!)).Distinct()
                 .Select(tk => new Neighbour(tk, Signal(tk, now) ?? Distance.Unknown))
                 .OrderBy(n => n.Token).ToList();
+            inner.BoxKey = Signer.BoxKey;
         }
+        return Flood(inner);
+    }
+
+    private (MeshPacket Packet, int Links) Flood(InnerMessage inner)
+    {
         ulong id;
         do { id = BitConverter.ToUInt64(CryptoBackend.RandomBytes(8)); } while (id == 0);
         var packet = Signing.Make(inner, Signer, (byte)Math.Max(1, Math.Min((int)Proto.HopLimit, Config.Hops)), id, (ulong)Math.Max(0, clock() * 1000));
         dedup.Insert(id, clock());
         Remember(packet, true);
         var n = Forward(packet, null);
-        if (n == 0 && kind == InnerKind.Chat) undelivered.Add(id);
+        if (n == 0 && (inner.Kind == InnerKind.Chat || inner.Kind == InnerKind.Tell)) undelivered.Add(id);
         return (packet, n);
     }
 
@@ -871,19 +940,39 @@ public sealed class MeshNode : ILinkTransportDelegate
             p.Via = packet.Hops == 0 ? "" : (link.Session is byte[] ls ? people.Values.FirstOrDefault(x => B.Eq(x.Session, ls))?.Nickname : null) ?? "a relay";
             p.Left = inner.Kind == InnerKind.Bye;
         }
+        // the box key never changes for an identity: taken from any presence that has one, however late
+        if (inner.Kind == InnerKind.Presence && inner.BoxKey is byte[] box) p.BoxKey = box;
         people[inner.SenderKey] = p;
         Stats.Delivered++;
         switch (inner.Kind)
         {
             case InnerKind.Chat:
-                emit(new MeshEvent.Message(new ChatMessage(packet.MessageId, inner.Nickname, fingerprint, inner.Text, sent, t, packet.Hops, false)));
+                emit(new MeshEvent.Message(new ChatMessage(packet.MessageId, inner.Nickname, fingerprint, inner.Text, sent, t, packet.Hops, false,
+                                                           SenderKey: inner.SenderKey)));
                 break;
             case InnerKind.Presence:
                 if (!Config.Silent && (inner.Flags & InnerMessage.RequestFlag) != 0 && clock() - lastPresence > 5)
                     presenceDue = Math.Min(presenceDue, t + 0.3 + Random.Shared.NextDouble() * 1.7);
+                SendWaiting(inner.SenderKey);
                 break;
             case InnerKind.Bye:
                 if (fresh) Tell($"{inner.Nickname} left the chat.");
+                break;
+            case InnerKind.Tell:
+                // for someone else: it was only passed on (Received) – no one but the recipient can read it
+                if (!B.Eq(inner.Recipient, Signer.PublicKey)) break;
+                if (Sealing.Open(inner, Signer) is string text)
+                {
+                    emit(new MeshEvent.Message(new ChatMessage(packet.MessageId, inner.Nickname, fingerprint, text, sent, t, packet.Hops, false,
+                                                               Privately: true, SenderKey: inner.SenderKey)));
+                }
+                else
+                {
+                    Stats.Forged++;
+                    NoticeOnce($"unsealed-{Hex.Encode(inner.SenderKey)}",
+                             $"A private message from {inner.Nickname} could not be opened – it was changed on the way, or sealed for another key.",
+                             NoticeLevel.Warning, 300);
+                }
                 break;
         }
         if (isNew && fresh && !p.Left && !p.Away)

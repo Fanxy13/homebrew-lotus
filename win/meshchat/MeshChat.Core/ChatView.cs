@@ -282,7 +282,9 @@ public static class ChatRender
                     if (m.Hops > 0) extra += $" ⇢{m.Hops}";
                     if (m.Received - m.Sent > 90 && !m.Mine) extra += $" (arrived {Time(m.Received)})";
                     if (m.Mine && s.Pending.Contains(m.Id)) extra += " · waiting for someone nearby";
-                    var chunks = Cells.Wrap(m.Text, textWidth);
+                    // a private message: who it is for comes first – only the two of them can read it
+                    var marker = m.Privately ? $"→ {(m.Mine ? m.To : "you")}: " : "";
+                    var chunks = Cells.Wrap(marker + m.Text, textWidth);
                     if (extra.Length > 0)
                     {
                         var last = chunks[^1];
@@ -301,7 +303,11 @@ public static class ChatRender
                     var pad = new string(' ', Math.Max(0, nameWidth - Cells.Width(name)));
                     var who = m.Mine ? Theme.Bold(Theme.Accent(name)) : Theme.Person(m.Fingerprint, name);
                     for (var i = 0; i < chunks.Count; i++)
-                        rows.Add(i == 0 ? " " + Theme.Dim(Time(m.Sent)) + "  " + who + pad + "  " + chunks[i] : new string(' ', indent) + chunks[i]);
+                    {
+                        var shown = i == 0 && marker.Length > 0 && chunks[0].StartsWith(marker, StringComparison.Ordinal)
+                            ? Theme.Accent(marker) + chunks[0][marker.Length..] : chunks[i];
+                        rows.Add(i == 0 ? " " + Theme.Dim(Time(m.Sent)) + "  " + who + pad + "  " + shown : new string(' ', indent) + chunks[i]);
+                    }
                     break;
                 }
                 case ViewItem.NoticeItem { N: var n }:

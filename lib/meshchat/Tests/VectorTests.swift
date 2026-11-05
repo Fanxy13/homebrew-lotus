@@ -10,6 +10,11 @@ private let vIdentity = Data((0..<32).map { UInt8($0) })
 private let vSession = Data([0xA1, 0xB2, 0xC3, 0xD4, 0x05, 0x06, 0x07, 0x08])
 private let vSoftware = "meshchat/2.0.0"
 private let vSeq: UInt16 = 7
+// a private message: to the recipient, sealed with these instead of random ones
+private let vRecipientIdentity = Data((0x20..<0x40).map { UInt8($0) })
+private let vOneTime = Data((0x40..<0x60).map { UInt8($0) })
+private let vTellNonce = Data((0x60..<0x6C).map { UInt8($0) })
+private let vTellText = "Only you can read this – Grüezi 🌸"
 
 private struct VectorCase {
     let name: String
@@ -20,8 +25,10 @@ private struct VectorCase {
 }
 
 // The same inputs as win/meshchat/MeshChat.Core/SelfTest/VectorTests.cs
-private func vectorCases(_ s: Signer) -> [VectorCase] {
-    [
+private func vectorCases(_ s: Signer) throws -> [VectorCase] {
+    let r = try Signer(identity: vRecipientIdentity)
+    let sealed = try Sealing.seal(vTellText, from: s.publicKey, to: r.publicKey, box: r.boxKey, oneTime: vOneTime, nonce: vTellNonce)
+    return [
         VectorCase(name: "chat", inner: InnerMessage(kind: .chat, senderKey: s.publicKey, session: vSession, nickname: "Ada",
                                                      text: "Grüezi – the same chat on Windows and on a Mac 🌸"),
                    id: 0x0123456789ABCDEF, time: 1_761_570_000_000, ttl: 16),
@@ -31,6 +38,13 @@ private func vectorCases(_ s: Signer) -> [VectorCase] {
                    id: 0x1111111111111111, time: 1_761_570_001_000, ttl: 16),
         VectorCase(name: "bye", inner: InnerMessage(kind: .bye, senderKey: s.publicKey, session: vSession, nickname: "Ada"),
                    id: 0xFEDCBA9876543210, time: 1_761_570_002_000, ttl: 16),
+        // since MeshChat 2.2: a presence with its box key, and a private message
+        VectorCase(name: "presence-box", inner: InnerMessage(kind: .presence, senderKey: s.publicKey, session: vSession, nickname: "Ada", links: 1,
+                                                             neighbours: [Neighbour(token: 0xA1B2C3D4, rssi: -67)], boxKey: s.boxKey),
+                   id: 0x2222222222222222, time: 1_761_570_003_000, ttl: 16),
+        VectorCase(name: "tell", inner: InnerMessage(kind: .tell, senderKey: s.publicKey, session: vSession, nickname: "Ada", recipient: r.publicKey,
+                                                     oneTimeKey: sealed.oneTimeKey, nonce: sealed.nonce, sealed: sealed.sealed),
+                   id: 0x3333333333333333, time: 1_761_570_004_000, ttl: 16),
     ]
 }
 
@@ -55,8 +69,11 @@ func vectorTests() {
         checkEqual(Hex.encode(LinkFrame.hello(Hello(session: vSession, software: vSoftware)).encode()), v["hello"] ?? "", "a HELLO")
         checkEqual(Hex.encode(LinkFrame.ping.encode()), v["ping"] ?? "", "a PING")
         checkEqual(Hex.encode(LinkFrame.bye(ByeReason.leaving.rawValue).encode()), v["bye-frame"] ?? "", "a BYE")
+        checkEqual(Hex.encode(s.boxKey), v["box-key"] ?? "", "the identity gives the same box key (HKDF, X25519)")
+        let recipient = try Signer(identity: vRecipientIdentity)
+        checkEqual(Hex.encode(recipient.boxKey), v["recipient.box-key"] ?? "", "and so does the recipient's")
         var out = ""
-        for c in vectorCases(s) {
+        for c in try vectorCases(s) {
             if c.inner.kind == .chat { checkEqual(c.inner.text, v["\(c.name).text"] ?? "", "the text of the chat message") }
             checkEqual(Hex.encode(try c.inner.body()), v["\(c.name).body"] ?? "", "\(c.name): the message")
             let mine = try Signing.make(c.inner, signer: s, ttl: c.ttl, messageID: c.id, timestamp: c.time)
@@ -69,6 +86,10 @@ func vectorTests() {
             }
             let theirs = try MeshPacket.decode(bytes)
             checkEqual(try Signing.open(theirs), c.inner, "\(c.name): the Windows app's signature verifies with CryptoKit, and the message is the same")
+            if c.inner.kind == .tell {
+                checkEqual(Sealing.open(try Signing.open(theirs), signer: recipient), v["tell.text"], "tell: sealed on Windows, the recipient reads it with CryptoKit")
+                checkEqual(Sealing.open(try Signing.open(theirs), signer: s), nil, "and no one else – not even its sender")
+            }
             checkEqual(theirs.signedHeader, mine.signedHeader, "\(c.name): so is the header")
             checkEqual(Data(theirs.payload.dropLast(Proto.signatureLength)), Data(mine.payload.dropLast(Proto.signatureLength)),
                        "\(c.name): all but the signature is what this Mac makes")

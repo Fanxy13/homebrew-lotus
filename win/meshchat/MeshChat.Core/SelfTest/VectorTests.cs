@@ -1,5 +1,6 @@
 // MeshChat tests – the same bytes on Windows and on a Mac. lib/meshchat/Tests/vectors.txt holds what fixed inputs must
-// give: the key of an identity, a HELLO, the three kinds of messages as signed packets, and the frames they are cut into.
+// give: the keys of an identity, a HELLO, the kinds of messages as signed packets – a private one sealed with a fixed
+// one-time key and nonce, so it is the same bytes too – and the frames they are cut into.
 // This program made the file (meshchat selftest --write-vectors); here it is checked byte for byte, and the Mac's tests
 // (lib/meshchat/Tests/VectorTests.swift) check the same file with CryptoKit – they verify these signatures and make the
 // same bytes. A Mac's own signatures differ every time (CryptoKit's Ed25519 is randomized), so the Mac writes its
@@ -20,8 +21,24 @@ public static class VectorTests
     public static readonly byte[] Session = { 0xA1, 0xB2, 0xC3, 0xD4, 0x05, 0x06, 0x07, 0x08 };
     public const string Software = "meshchat/2.0.0";
     public const ushort Seq = 7;
+    // a private message: to the recipient, sealed with these instead of random ones
+    public static readonly byte[] RecipientIdentity = Enumerable.Range(0x20, 32).Select(i => (byte)i).ToArray();
+    public static readonly byte[] OneTime = Enumerable.Range(0x40, 32).Select(i => (byte)i).ToArray();
+    public static readonly byte[] TellNonce = Enumerable.Range(0x60, 12).Select(i => (byte)i).ToArray();
+    public const string TellText = "Only you can read this – Grüezi 🌸";
 
     private sealed record Case(string Name, InnerMessage Inner, ulong Id, ulong Time, byte Ttl);
+
+    private static InnerMessage Tell(Signer s)
+    {
+        var r = Signer.FromIdentity(RecipientIdentity);
+        var sealedText = Sealing.Seal(TellText, s.PublicKey, r.PublicKey, r.BoxKey, OneTime, TellNonce);
+        return new InnerMessage
+        {
+            Kind = InnerKind.Tell, SenderKey = s.PublicKey, Session = Session, Nickname = "Ada",
+            Recipient = r.PublicKey, OneTimeKey = sealedText.OneTimeKey, Nonce = sealedText.Nonce, Sealed = sealedText.Sealed,
+        };
+    }
 
     private static List<Case> Cases(Signer s) => new()
     {
@@ -37,6 +54,13 @@ public static class VectorTests
         }, 0x1111111111111111, 1_761_570_001_000, 16),
         new("bye", new InnerMessage { Kind = InnerKind.Bye, SenderKey = s.PublicKey, Session = Session, Nickname = "Ada" },
             0xFEDCBA9876543210, 1_761_570_002_000, 16),
+        // since MeshChat 2.2: a presence with its box key, and a private message
+        new("presence-box", new InnerMessage
+        {
+            Kind = InnerKind.Presence, SenderKey = s.PublicKey, Session = Session, Nickname = "Ada", Links = 1,
+            Neighbours = new() { new Neighbour(0xA1B2C3D4, -67) }, BoxKey = s.BoxKey,
+        }, 0x2222222222222222, 1_761_570_003_000, 16),
+        new("tell", Tell(s), 0x3333333333333333, 1_761_570_004_000, 16),
     };
 
     // ── The file ──────────────────────────────────────────────
@@ -82,6 +106,14 @@ public static class VectorTests
         Put("ping", Hex.Encode(LinkFrame.Ping.Encode()));
         Put("pong", Hex.Encode(LinkFrame.Pong.Encode()));
         Put("bye-frame", Hex.Encode(LinkFrame.Bye(ByeReason.Leaving).Encode()));
+        Put("box-key", Hex.Encode(s.BoxKey));
+        var r = Signer.FromIdentity(RecipientIdentity);
+        Put("recipient.identity", Hex.Encode(RecipientIdentity));
+        Put("recipient.public-key", Hex.Encode(r.PublicKey));
+        Put("recipient.box-key", Hex.Encode(r.BoxKey));
+        Put("tell.one-time", Hex.Encode(OneTime));
+        Put("tell.nonce", Hex.Encode(TellNonce));
+        Put("tell.text", TellText);
         foreach (var c in Cases(s))
         {
             sb.Append('\n');
@@ -118,6 +150,9 @@ public static class VectorTests
             CheckEqual(Hex.Encode(LinkFrame.HelloFrame(new Hello(Session, Software: Software)).Encode()), v["hello"], "a HELLO");
             CheckEqual(Hex.Encode(LinkFrame.Ping.Encode()), v["ping"], "a PING");
             CheckEqual(Hex.Encode(LinkFrame.Bye(ByeReason.Leaving).Encode()), v["bye-frame"], "a BYE");
+            CheckEqual(Hex.Encode(s.BoxKey), v["box-key"], "the identity gives the same box key (HKDF, X25519)");
+            var recipient = Signer.FromIdentity(RecipientIdentity);
+            CheckEqual(Hex.Encode(recipient.BoxKey), v["recipient.box-key"], "and so does the recipient's");
             foreach (var c in Cases(s))
             {
                 if (c.Inner.Kind == InnerKind.Chat) CheckEqual(c.Inner.Text, v[$"{c.Name}.text"], "the text of the chat message");
@@ -129,6 +164,11 @@ public static class VectorTests
                 CheckEqual(string.Join(" ", Fragmenter.Frames(p.Encode(), Seq, 182).Select(Hex.Encode)), v[$"{c.Name}.frames.182"], $"{c.Name}: and on a usual one");
                 var opened = Signing.Open(MeshPacket.Decode(Hex.Decode(v[$"{c.Name}.packet"])!));
                 Check(opened.Same(c.Inner), $"{c.Name}: the packet of the file opens, signature and all");
+                if (c.Inner.Kind == InnerKind.Tell)
+                {
+                    CheckEqual(Sealing.Open(opened, recipient), v["tell.text"], "tell: the recipient reads it");
+                    CheckEqual(Sealing.Open(opened, s), null, "and no one else – not even its sender");
+                }
             }
         });
     }
@@ -158,6 +198,8 @@ public static class VectorTests
                 Check(p.MessageId == c.Id && p.Timestamp == c.Time && p.Ttl == c.Ttl && p.Hops == 0, $"{c.Name}: and the header");
                 var mine = Signing.Make(c.Inner, s, c.Ttl, c.Id, c.Time);
                 CheckEqual(Hex.Encode(p.Payload[..^Proto.SignatureLength]), Hex.Encode(mine.Payload[..^Proto.SignatureLength]), $"{c.Name}: all but the signature is the same as here");
+                if (c.Inner.Kind == InnerKind.Tell)
+                    CheckEqual(Sealing.Open(inner, Signer.FromIdentity(RecipientIdentity)), TellText, "tell: the Mac sealed it with CryptoKit, it opens here");
             }
         });
         Term.Line($"  {TestRun.Passed} passed, {TestRun.Failed} failed");

@@ -15,12 +15,17 @@
 //   ttl: relays it may still take · hops: relays it took. Only these two change on the way, so the signature
 //   covers the header with both set to 0.
 //
-// The message – in the clear: the chat is public, everyone nearby reads it:
+// The message – in the clear: the chat is public, everyone nearby reads it (all but the text of a tell):
 //   [1 kind][1 flags][32 sender's public key][8 sender's session][str8 nickname] then
 //   chat 1      [str16 text]
-//   presence 2  [1 links][1 n][n × (4 token, 1 signal)]   flags bit 0: "who is here?" – answer with yours
+//   presence 2  [1 links][1 n][n × (4 token, 1 signal)][32 box key]   flags bit 0: "who is here?" – answer with yours
+//               the box key (X25519, since MeshChat 2.2): what a private message to it is sealed for
 //   bye 3       nothing more
+//   tell 4      [32 recipient's public key][32 one-time key][12 nonce][2 n][n sealed text]   since MeshChat 2.2
+//               a private message (/tell): every computer passes it on, only the recipient can read it. Who writes to
+//               whom is in the clear; the text is sealed for the recipient's box key (Crypto.cs, Sealing).
 //   [64 Ed25519 signature over "MeshChat v2", the header (ttl and hops 0) and everything before it]
+// A MeshChat before 2.2 skips the box key, and does not know a tell: it neither shows nor passes it on.
 
 using System.Globalization;
 using System.Text;
@@ -31,7 +36,7 @@ public static class Proto
 {
     public const byte Version = 2;                  // mesh packets
     public const byte LinkVersion = 1;              // link frames
-    public const string Release = "2.1.0";
+    public const string Release = "2.2.0";
     public const string Software = "meshchat-windows/" + Release;
     public const int MaxFrame = 512;                // the most a GATT attribute value holds
     public const int MinFrame = 20;                 // the least BLE gives (ATT MTU 23 minus 3)
@@ -47,6 +52,8 @@ public static class Proto
     public const int MaxTextBytes = 1000;
     public const int MaxSoftwareBytes = 32;
     public const int MaxNeighbours = 16;
+    public const int NonceLength = 12;              // a private message: ChaCha20-Poly1305's nonce …
+    public const int TagLength = 16;                // … and its tag
 
     // A version byte that is not ours: a plausible other version (1–15) is named as such, anything else is noise
     public static WireError VersionError(byte v, byte ours) =>
@@ -239,7 +246,7 @@ public sealed class MeshPacket
 
 // ── The message in a packet ───────────────────────────────────
 
-public enum InnerKind : byte { Chat = 1, Presence = 2, Bye = 3 }
+public enum InnerKind : byte { Chat = 1, Presence = 2, Bye = 3, Tell = 4 }
 
 // A computer someone has a link to, and how strong they hear it
 public readonly record struct Neighbour(uint Token, int Rssi);      // the first 4 bytes of its session · dBm, or Distance.Unknown
@@ -253,13 +260,19 @@ public sealed class InnerMessage
     public byte[] SenderKey = Array.Empty<byte>();
     public byte[] Session = Array.Empty<byte>();
     public string Nickname = "";
-    public string Text = "";                        // chat
+    public string Text = "";                        // chat – and a tell once it is opened
     public byte Links;                              // presence: how many computers it is connected to
     public List<Neighbour> Neighbours = new();      // presence: which, and how strong it hears them
+    public byte[]? BoxKey;                          // presence: what a private message to it is sealed for (since 2.2)
+    public byte[] Recipient = Array.Empty<byte>();  // tell: who it is for – their public key
+    public byte[] OneTimeKey = Array.Empty<byte>(); // tell: the X25519 key it was sealed with, used once
+    public byte[] Nonce = Array.Empty<byte>();      // tell
+    public byte[] Sealed = Array.Empty<byte>();     // tell: the text, sealed for the recipient, and its tag
 
     public bool Same(InnerMessage o) =>
         Kind == o.Kind && Flags == o.Flags && B.Eq(SenderKey, o.SenderKey) && B.Eq(Session, o.Session) && Nickname == o.Nickname
-        && Text == o.Text && Links == o.Links && Neighbours.SequenceEqual(o.Neighbours);
+        && Text == o.Text && Links == o.Links && Neighbours.SequenceEqual(o.Neighbours) && B.Eq(BoxKey, o.BoxKey)
+        && B.Eq(Recipient, o.Recipient) && B.Eq(OneTimeKey, o.OneTimeKey) && B.Eq(Nonce, o.Nonce) && B.Eq(Sealed, o.Sealed);
 
     // Everything but the signature
     public byte[] Body()
@@ -287,6 +300,20 @@ public sealed class InnerMessage
                     w.Bytes(new[] { (byte)(n.Token >> 24 & 0xFF), (byte)(n.Token >> 16 & 0xFF), (byte)(n.Token >> 8 & 0xFF), (byte)(n.Token & 0xFF) });
                     w.U8(unchecked((byte)(sbyte)Math.Clamp(n.Rssi, sbyte.MinValue, sbyte.MaxValue)));
                 }
+                if (BoxKey != null)
+                {
+                    if (BoxKey.Length != Proto.KeyLength) throw WireError.Invalid("box key");
+                    w.Bytes(BoxKey);
+                }
+                break;
+            case InnerKind.Tell:
+                if (Recipient.Length != Proto.KeyLength || OneTimeKey.Length != Proto.KeyLength || Nonce.Length != Proto.NonceLength
+                    || Sealed.Length <= Proto.TagLength || Sealed.Length > Proto.MaxTextBytes + Proto.TagLength) throw WireError.Invalid("private message");
+                w.Bytes(Recipient);
+                w.Bytes(OneTimeKey);
+                w.Bytes(Nonce);
+                w.U16((ushort)Sealed.Length);
+                w.Bytes(Sealed);
                 break;
         }
         return w.Data;
@@ -300,7 +327,7 @@ public sealed class InnerMessage
         var signature = payload.AsSpan(payload.Length - Proto.SignatureLength).ToArray();
         var r = new ByteReader(body);
         var kind = r.U8();
-        if (kind < 1 || kind > 3) throw WireError.Invalid("message kind");
+        if (kind < 1 || kind > 4) throw WireError.Invalid("message kind");
         var flags = r.U8();
         var key = r.Bytes(Proto.KeyLength);
         var session = r.Bytes(Proto.SessionLength);
@@ -324,7 +351,16 @@ public sealed class InnerMessage
                         var token = B.Token(r.Bytes(4));
                         m.Neighbours.Add(new Neighbour(token, unchecked((sbyte)r.U8())));
                     }
+                    if (r.Remaining >= Proto.KeyLength) m.BoxKey = r.Bytes(Proto.KeyLength);
                 }
+                break;
+            case InnerKind.Tell:
+                m.Recipient = r.Bytes(Proto.KeyLength);
+                m.OneTimeKey = r.Bytes(Proto.KeyLength);
+                m.Nonce = r.Bytes(Proto.NonceLength);
+                int sealedLength = r.U16();
+                if (sealedLength <= Proto.TagLength || sealedLength > Proto.MaxTextBytes + Proto.TagLength) throw WireError.Invalid($"private message of {sealedLength} bytes");
+                m.Sealed = r.Bytes(sealedLength);
                 break;
         }
         // a newer version may add fields here – they are signed, and skipped

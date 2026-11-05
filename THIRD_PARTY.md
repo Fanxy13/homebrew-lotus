@@ -59,5 +59,5 @@ sources; NuGet supplies the rest when it is built.
 | Software | What it is for | License |
 |---|---|---|
 | [.NET 8 runtime](https://github.com/dotnet/runtime) | the program runs on it – nothing to install | MIT |
-| [BouncyCastle.Cryptography](https://github.com/bcgit/bc-csharp) 2.4.0 | Ed25519 signatures (RFC 8032) – the Mac uses Apple's CryptoKit for the same | MIT |
+| [BouncyCastle.Cryptography](https://github.com/bcgit/bc-csharp) 2.4.0 | Ed25519 signatures (RFC 8032), X25519 (RFC 7748) and ChaCha20-Poly1305 (RFC 8439) for private messages – the Mac uses Apple's CryptoKit for the same | MIT |
 | Windows SDK projection (Microsoft.Windows.SDK.NET.Ref) | the calls into Windows' Bluetooth (WinRT) | [Windows SDK license terms](https://aka.ms/WinSDKLicenseURL) |

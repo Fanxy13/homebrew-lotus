@@ -122,6 +122,7 @@ public static class SelfTest
         DistanceTests.Run();
         ViewTests.Run();
         MeshTests.Run();
+        TellTests.Run();
         Term.Line();
         Term.Line($"  {TestRun.Passed} passed, {TestRun.Failed} failed");
         Term.Line();

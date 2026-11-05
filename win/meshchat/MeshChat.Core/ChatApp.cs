@@ -112,8 +112,10 @@ public sealed class ChatApp
         new KeyReader(ui, Key).Start();
         timer = meshQueue.Every(1, () =>
         {
-            if (demo != null) demo.Tick();
-            else node.Tick();
+            // the demo's world (its radio and its people) once a second – and this computer's own node, as in the real
+            // chat: without its ticks it never said "I am here", and the others never had its key for private messages
+            demo?.Tick();
+            node.Tick();
             ui.Post(CheckSize);
         });
         lastSize = Term.Size();
@@ -249,7 +251,7 @@ public sealed class ChatApp
         Draw();
     }
 
-    public static readonly string[] Commands = { "/help", "/who", "/where", "/nick", "/status", "/clear", "/quit" };
+    public static readonly string[] Commands = { "/help", "/who", "/where", "/tell", "/nick", "/status", "/clear", "/quit" };
 
     private void Complete()
     {
@@ -297,6 +299,7 @@ public sealed class ChatApp
             case "/help": case "/h": case "/?": Help(); break;
             case "/who": case "/people": case "/here": Who(); break;
             case "/where": case "/far": case "/distance": WhereIs(arg); break;
+            case "/tell": case "/msg": case "/whisper": case "/w": case "/pm": TellCommand(arg); break;
             case "/status": case "/mesh": case "/info": Status(); break;
             case "/nick": case "/name": Rename(arg); break;
             case "/clear": view.Lines.Clear(); break;
@@ -314,12 +317,83 @@ public sealed class ChatApp
     {
         foreach (var line in new[]
         {
-            "Everything you write goes to every computer nearby with MeshChat – Macs and Windows alike – and each one passes it on, as far as the mesh reaches. It is public.",
+            "Everything you write goes to every computer nearby with MeshChat – Macs and Windows alike – and each one passes it on, as far as the mesh reaches. It is public – but for /tell.",
             "/who – who is here, and how: ● a direct Bluetooth link, ⇢2 two relays away, ○ not heard for a while",
+            "/tell <name> <text> – to one person only: sealed for them, every computer on the way passes it on without being able to read it",
             "/where <name> – how far someone is: from the signal strength, and the way through the mesh (/where alone: everyone)",
             "/nick <name> – your name · /status – Bluetooth and the mesh · /clear – an empty screen",
             "/quit (ctrl-c, ctrl-d) – close the chat · PgUp/PgDn scroll · ↑ your last lines · //text sends a line that starts with /",
         }) Notice(line);
+    }
+
+    // ── A private message ─────────────────────────────────────
+
+    public abstract record Addressee
+    {
+        public sealed record Found(Participant P, string Text) : Addressee;     // who it is for, and the text
+        public sealed record Nothing(Participant P) : Addressee;                 // a name, but no text
+        public sealed record Several(List<Participant> People) : Addressee;      // more than one is called that
+        public sealed record Nobody(string Name) : Addressee;                    // no one by that name
+    }
+
+    // Who a /tell is for: the longest beginning of its words that names someone – a nickname (in any case), the four
+    // letters of their key, or both (Bob·k3f9, Bob.k3f9, Bob#k3f9) – else the one whose name begins with the first word.
+    // As ChatApp.addressee on the Mac.
+    public static Addressee AddresseeOf(string arg, List<Participant> people)
+    {
+        var words = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return new Addressee.Nobody("");
+        List<Participant> Named(string name)
+        {
+            var n = name.ToLowerInvariant();
+            return people.Where(p =>
+            {
+                var nick = p.Nickname.ToLowerInvariant();
+                return nick == n || p.Fingerprint == n || new[] { "·", ".", "#", ":" }.Any(sep => nick + sep + p.Fingerprint == n);
+            }).ToList();
+        }
+        Addressee With(Participant p, int k)
+        {
+            var text = string.Join(' ', words.Skip(k));
+            return text.Length == 0 ? new Addressee.Nothing(p) : new Addressee.Found(p, text);
+        }
+        for (var k = Math.Min(words.Length, 6); k >= 1; k--)
+        {
+            var fits = Named(string.Join(' ', words.Take(k)));
+            if (fits.Count == 1) return With(fits[0], k);
+            if (fits.Count > 1) return new Addressee.Several(fits);
+        }
+        var first = words[0].ToLowerInvariant();
+        var begins = people.Where(p => p.Nickname.ToLowerInvariant().StartsWith(first, StringComparison.Ordinal)).ToList();
+        if (begins.Count == 1) return With(begins[0], 1);
+        return begins.Count == 0 ? new Addressee.Nobody(words[0]) : new Addressee.Several(begins);
+    }
+
+    private void TellCommand(string arg)
+    {
+        switch (AddresseeOf(arg, view.Snapshot.Participants.Where(p => !p.Left).ToList()))
+        {
+            case Addressee.Found f:
+                var key = f.P.Key;
+                var text = f.Text;
+                meshQueue.Post(() =>
+                {
+                    try { node.SendPrivately(text, key); }
+                    catch (Exception e) { ui.Post(() => Notice(e.Message, NoticeLevel.Warning)); }
+                });
+                break;
+            case Addressee.Nothing n:
+                Notice($"What should {n.P.Nickname} read? /tell {n.P.Nickname} <message>");
+                break;
+            case Addressee.Several s:
+                Notice($"More than one is called that: {string.Join(", ", s.People.Select(p => $"{p.Nickname}·{p.Fingerprint}"))} – "
+                       + $"the four letters tell them apart: /tell {s.People[0].Fingerprint} <message>", NoticeLevel.Warning);
+                break;
+            case Addressee.Nobody nb:
+                Notice(nb.Name.Length == 0 ? "/tell <name> <message> – only they can read it; every computer on the way passes it on without being able to read it."
+                                           : $"No one called {nb.Name} is here – /who lists who is.", NoticeLevel.Warning);
+                break;
+        }
     }
 
     private static string Ago(double t)

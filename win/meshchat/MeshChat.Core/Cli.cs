@@ -92,8 +92,9 @@ public static class Cli
             Term.Line("    " + Theme.Key(c.PadRight(26)) + Theme.Dim(d));
         }
         Term.Line();
-        Term.Line("  " + Theme.Dim("In the chat: /who /where /nick /status /clear /quit /help"));
+        Term.Line("  " + Theme.Dim("In the chat: /who /where /tell /nick /status /clear /quit /help"));
         Term.Line("  " + Theme.Dim($"Every computer passes each message on, up to {Proto.HopLimit} relays far. It is public: anyone nearby can read it."));
+        Term.Line("  " + Theme.Dim("Except /tell <name> <message>: sealed for that one person – the others pass it on without being able to read it."));
         Term.Line("  " + Theme.Dim("Signed, so no one can write in your name. Windows and Macs chat together – MeshChat on each (lotus meshchat on a Mac)."));
         Term.Line();
     }
@@ -151,7 +152,8 @@ public static class Cli
         {
             var when = DateTimeOffset.FromUnixTimeMilliseconds((long)(m.Sent * 1000)).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
             var who = m.Mine ? Theme.Accent(m.Nickname) : Theme.Person(m.Fingerprint, m.Nickname);
-            Term.Line("  " + Theme.Dim(when) + "  " + who + Theme.Dim($"·{m.Fingerprint}") + "  " + m.Text + (m.Hops > 0 ? Theme.Dim($" ⇢{m.Hops}") : ""));
+            var privately = m.Privately ? Theme.Accent($"→ {(m.Mine ? m.To : "you")}: ") : "";
+            Term.Line("  " + Theme.Dim(when) + "  " + who + Theme.Dim($"·{m.Fingerprint}") + "  " + privately + m.Text + (m.Hops > 0 ? Theme.Dim($" ⇢{m.Hops}") : ""));
         }
         if (messages.Count == 0) Term.Line("  " + Theme.Dim("Nothing said yet."));
         if (skipped > 0) Term.Line("  " + Theme.Yellow("! ") + $"{skipped} damaged line{(skipped == 1 ? "" : "s")} skipped");

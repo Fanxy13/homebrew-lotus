@@ -26,8 +26,9 @@ lotus meshchat                         # or /meshchat in a Lotus shell: the chat
 Try it first without a second Mac: `lotus meshchat demo` – the same chat with two simulated people, one of them a
 relay away (nothing goes over Bluetooth there, and the screen says so).
 
-**It is public.** There are no rooms and nothing is encrypted: whoever is nearby with MeshChat – or with a Bluetooth
-scanner – can read what you write. Messages are signed, so no one can write in your name or change what you wrote.
+**It is public.** There are no rooms: whoever is nearby with MeshChat – or with a Bluetooth scanner – can read what
+you write. Messages are signed, so no one can write in your name or change what you wrote. **One exception:**
+`/tell <name> <message>` is sealed for that one person – every Mac on the way passes it on, only they can read it.
 
 **What it is not:** MeshChat talks to other Macs and Windows computers running MeshChat 2 – not to iPhones, Android
 phones, Bluetooth devices or other messengers. On Windows 10 and 11 it is `meshchat.exe`: [win/meshchat](../../win/meshchat/README.md).
@@ -154,12 +155,19 @@ In the chat:
 |---|---|
 | `/who` | who is here: ● neighbour, ⇢2 two relays away, ○ not heard for a while – with their fingerprint |
 | `/where <name>` · `/where` | how far someone is (or everyone): the distance, and the way through the mesh |
+| `/tell <name> <message>` | to one person only: encrypted for them, passed on by every Mac, readable by them only – shown as `→ Bob:` and `→ you:` |
 | `/nick <name>` · `/status` | your name · Bluetooth, the mesh, what was refused, where the history is |
 | `/clear` | an empty screen (the history stays) |
 | `/quit`, ctrl-c, ctrl-d | close the chat; the others see that you left |
 | ↑ ↓ · PgUp PgDn · Tab · `//text` | your last lines · scroll · complete a command · send a line starting with / |
 
 Ctrl-Z suspends the chat (`fg` brings it back). One chat at a time on a Mac.
+
+`/tell` finds the person by name (in any case, also a name with spaces), by the first letters of a name, by the four
+letters of their key (`/tell k3f9 …`) or by both (`/tell Bob.k3f9 …`) – when two have the same name, it says so. A
+private message needs the other's box key, which comes with their "I am here": right after someone joins it may wait
+a moment for it (a minute at most) and is then sent by itself; a Mac with a MeshChat before 2.2 has no box key, and
+the message is not sent – MeshChat says so. The aliases `/msg`, `/w`, `/whisper` and `/pm` do the same.
 
 Before each day a line says which: `── Today ──`, `── Yesterday ──`, `── 3 days ago ──`, `── 1 week ago ──` – within a
 week every day has its own line, further back they go together by weeks, months and years. At midnight Today becomes
@@ -256,14 +264,23 @@ fresh.
 ### Inside a packet
 
 ```
-[kind: chat 1 · presence 2 · bye 3][flags][32 sender's public key][8 session][nickname] …kind… [64 signature]
+[kind: chat 1 · presence 2 · bye 3 · tell 4][flags][32 sender's public key][8 session][nickname] …kind… [64 signature]
 ```
 
 The signature (Ed25519) covers `"MeshChat v2"`, the header with `ttl` and `hops` set to 0 – the only two fields
 relays change – and the whole message. Presence ("I am here", every 30 seconds and when a Mac joins: "who is
 here?") carries how many links the sender has, and which Macs they are – the first 4 bytes of each one's session –
 with how strong it hears each (`[1 n][n × (4 token, 1 dBm)]`, up to 16; a presence without that list, from the
-first MeshChat 2, is still read).
+first MeshChat 2, is still read). Since MeshChat 2.2 it ends with the sender's **box key** (32 bytes, X25519) – older
+ones skip it.
+
+A **private message** (`tell 4`, since 2.2) is `[32 recipient's public key][32 one-time key][12 nonce][2 n][n sealed
+text]`. The text is sealed for the recipient's box key: a one-time X25519 key and the box key give a secret,
+HKDF-SHA256 (salt `"MeshChat v2"`, info `"tell"` + both keys) makes the key, and ChaCha20-Poly1305 seals the text with
+the sender's and the recipient's public keys as associated data – so it cannot be passed off as someone else's, or as
+one to someone else. The packet around it is signed like every other one, and passed on like every other one; only
+the recipient opens it (with its box seed, `HKDF(identity, "box key")`). A MeshChat before 2.2 does not know the kind
+and neither shows nor passes it on.
 
 ### How far someone is
 
@@ -288,10 +305,17 @@ other needs an update. MeshChat 1's rooms in the data folder are left as they ar
 
 ## Privacy and security
 
-**Public by design.** There are no rooms and nothing is encrypted: everything you write – your name and your
-messages – goes to every Mac with MeshChat nearby, and each one passes it on, up to 16 relays far. Anyone nearby
-with MeshChat can read it; so can anyone with a Bluetooth scanner who connects, and anyone who records the radio.
-Write only what you would say aloud in the room.
+**Public by design.** There are no rooms: everything you write – your name and your messages – goes to every Mac
+with MeshChat nearby, and each one passes it on, up to 16 relays far. Anyone nearby with MeshChat can read it; so can
+anyone with a Bluetooth scanner who connects, and anyone who records the radio. Write only what you would say aloud
+in the room – or use `/tell`.
+
+**Private messages (`/tell`): what is protected, and what is not.** The text is end-to-end encrypted for its
+recipient (X25519, HKDF-SHA256, ChaCha20-Poly1305 – CryptoKit on a Mac, BouncyCastle on Windows); the Macs on the way
+pass it on without being able to read it, and a changed byte makes it fail. Still visible to anyone nearby: **who**
+writes to **whom**, when, and how long the message is. There is no forward secrecy for the recipient: whoever later
+gets their `identity` file can open what was sent to them (each message has a one-time key of its own on the
+sender's side). What you write privately is kept in your own history, in the clear, readable by your user only.
 
 **What is protected: who wrote what.** Every message is signed (Ed25519) with its sender's key; a changed letter, a
 changed time or ID, or someone else's key put in, and it is refused – not shown, not passed on. So no one can write
@@ -309,9 +333,9 @@ to Bluetooth devices that connect, as for any Bluetooth use. Links are not encry
 have to pair). **And who is near whom:** every "I am here" lists the Macs it is linked to and how strong it hears
 them – that is what `/where` is made from, and anyone listening can put the same rough map together.
 
-**What this is not.** Not private, not end-to-end encrypted, no private messages. Bluetooth can be jammed. Rate
-limits bound what one sender – and one link – can push through, but someone with many keys and Macs can still
-crowd the chat.
+**What this is not.** Not a private messenger: the chat is public, and even a `/tell` shows who writes to whom.
+Bluetooth can be jammed. Rate limits bound what one sender – and one link – can push through, but someone with many
+keys and Macs can still crowd the chat.
 
 **On your Mac.** The history and this Mac's identity are kept in plain files in MeshChat's data folder,
 readable only by your user (folders 0700, files 0600) – FileVault protects them when the Mac is off. Keys and
@@ -340,6 +364,11 @@ MeshChat's sources and runs them (no XCTest needed). They cover:
   range and back with catch-up and no duplicates**, two Macs connecting at once, other protocol versions
   (MeshChat 1 among them), who is here/away/gone, Bluetooth off and on, long messages over 20-byte frames, doubled
   and lost frames, link limits, a restarted Mac
+- private messages: the message and the box key on the wire (and a presence of 2.1 without one), X25519 (RFC 7748)
+  and ChaCha20-Poly1305 (RFC 8439) with their published results, **sealed for one** – the recipient opens it, a relay
+  cannot, nor can it be made one to someone else or passed off as another's, a changed byte fails –, **A to C
+  through B: B passes it on and shows nothing, C reads it**, a message that **waits for the key** and goes out when
+  it comes, one given up after a minute, who `/tell` finds by name, and how it is kept and shown
 - storage: settings next to a pack's, the identity, history with damaged lines, trimming, permissions, MeshChat 1's
   rooms left alone, one chat at a time
 - the chat's screen: the line editor (words, history, pastes with control characters, the 1000-byte limit),
@@ -409,7 +438,8 @@ and the same in iTerm2.
 
 ## Known limitations
 
-- **Public.** Everything said can be read by anyone nearby – there are no private messages and no encryption.
+- **Public.** Everything said in the chat can be read by anyone nearby. Only a `/tell` is encrypted – and even then
+  who writes to whom is visible. A `/tell` goes only through Macs with MeshChat 2.2 or newer: an older one drops it.
 - **Macs only**, and only with MeshChat 2 – no iPhone, Android or other Bluetooth chat apps.
 - **Not tested on Bluetooth hardware by its author.** The protocol, the mesh, the signatures, the chat and the
   build in Lotus' sandbox are tested automatically (above), and how macOS treats Terminal's Bluetooth requests was

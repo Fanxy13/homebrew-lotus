@@ -252,7 +252,9 @@ enum ChatRender {
                 if m.hops > 0 { extra += " ⇢\(m.hops)" }
                 if m.received - m.sent > 90 && !m.mine { extra += " (arrived \(time(m.received)))" }
                 if m.mine && s.pending.contains(m.id) { extra += " · waiting for someone nearby" }
-                var chunks = wrap(m.text, textWidth)
+                // a private message: who it is for comes first – only the two of them can read it
+                let marker = m.privately ? "→ \(m.mine ? m.to : "you"): " : ""
+                var chunks = wrap(marker + m.text, textWidth)
                 if !extra.isEmpty {
                     let last = chunks.removeLast()
                     if cellWidth(last) + cellWidth(extra) <= textWidth {
@@ -267,7 +269,8 @@ enum ChatRender {
                 let who = m.mine ? Theme.bold(Theme.accent(name)) : Theme.person(m.fingerprint, name)
                 for (i, text) in chunks.enumerated() {
                     if i == 0 {
-                        rows.append(" " + Theme.dim(time(m.sent)) + "  " + who + pad + "  " + text)
+                        let shown = !marker.isEmpty && text.hasPrefix(marker) ? Theme.accent(marker) + String(text.dropFirst(marker.count)) : text
+                        rows.append(" " + Theme.dim(time(m.sent)) + "  " + who + pad + "  " + shown)
                     } else {
                         rows.append(String(repeating: " ", count: indent) + text)
                     }

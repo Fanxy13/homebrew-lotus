@@ -12,9 +12,11 @@ meshchat doctor          what Windows says about Bluetooth, and who is heard nea
 meshchat help            everything else: history, nick, set links, relay, selftest
 ```
 
-**It is public.** There are no rooms and nothing is encrypted: whoever is nearby with MeshChat – or with a Bluetooth
-scanner – can read what you write. Messages are signed (Ed25519), so no one can write in your name or change what you
-wrote. All about the protocol, its limits and privacy: [lib/meshchat/README.md](../../lib/meshchat/README.md).
+**It is public.** There are no rooms: whoever is nearby with MeshChat – or with a Bluetooth scanner – can read what
+you write. Messages are signed (Ed25519), so no one can write in your name or change what you wrote. **One
+exception:** `/tell <name> <message>` is encrypted for that one person – every computer on the way passes it on, only
+they can read it (who writes to whom is still visible). All about the protocol, its limits and privacy:
+[lib/meshchat/README.md](../../lib/meshchat/README.md).
 
 ## Get it
 

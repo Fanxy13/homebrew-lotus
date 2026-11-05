@@ -1,6 +1,7 @@
 // MeshChat – `meshchat demo`: the chat with two simulated people, to try it without a second computer. Nothing goes over
 // Bluetooth and nothing is saved; the screen says DEMO. Ada is your neighbour; Grace is out of your range and reaches
-// you through Ada, so her messages arrive relayed (⇢1). The mesh, the signatures and the screen are the real ones –
+// you through Ada, so her messages arrive relayed (⇢1). A private message (/tell Grace …) goes through Ada too, who
+// cannot read it; each answers one privately. The mesh, the signatures, the sealing and the screen are the real ones –
 // only the radio is simulated (Sim.cs). As lib/meshchat/Sources/Demo.swift.
 
 namespace MeshChat;
@@ -24,16 +25,19 @@ public sealed class DemoWorld
     {
         bots.Add(new DemoBot("Ada", this, queue,
             "Hi! I'm right next to you – a direct Bluetooth link (● in the list below).",
+            "Psst – only you can read this. A private message goes to everyone and is sealed for one.",
             new[]
             {
                 "Got it 👍",
                 "Grace is out of your range – what she writes reaches you through my computer.",
                 "Try /where Grace – how far she is, and the way your messages take to her.",
+                "Try /tell Grace … – my computer passes it on, but cannot read it.",
                 "There are no rooms: every computer with MeshChat nearby reads this – Macs and Windows alike – and passes it on.",
                 "Ctrl-C closes the chat; in a real chat your history stays on this computer.",
             }, 1));
         bots.Add(new DemoBot("Grace", this, queue,
             "Hello from further away! I can't reach you directly – Ada passes this on, hence the mark after it.",
+            "Only you can read this – Ada passed it on to me sealed, and my answer back the same way.",
             new[]
             {
                 "I read you through Ada 👋",
@@ -56,6 +60,7 @@ public sealed class DemoBot
     private readonly MeshNode node;
     private readonly string name;
     private readonly string greeting;
+    private readonly string secret;             // the answer to a private message, privately
     private readonly string[] replies;
     private readonly int replyEvery;
     private readonly SerialQueue queue;
@@ -63,11 +68,12 @@ public sealed class DemoBot
     private int heard;
     private int next;
 
-    public DemoBot(string name, DemoWorld world, SerialQueue queue, string greeting, string[] replies, int replyEvery)
+    public DemoBot(string name, DemoWorld world, SerialQueue queue, string greeting, string secret, string[] replies, int replyEvery)
     {
         this.name = name;
         this.queue = queue;
         this.greeting = greeting;
+        this.secret = secret;
         this.replies = replies;
         this.replyEvery = replyEvery;
         var net = world.Net;
@@ -92,6 +98,13 @@ public sealed class DemoBot
                     greeted = true;
                     Say(greeting, name == "Ada" ? 1.0 : 2.5);
                 }
+                break;
+            case MeshEvent.Message m when !m.M.Mine && m.M.Privately && m.M.SenderKey is byte[] from:
+                // a private message: answered privately
+                queue.PostAfter(1.2 + Random.Shared.NextDouble() * 0.8, () =>
+                {
+                    try { node.SendPrivately(secret, from); } catch (Exception) { }
+                });
                 break;
             case MeshEvent.Message m when !m.M.Mine && !DemoWorld.BotNames.Contains(m.M.Nickname):
                 heard++;

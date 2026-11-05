@@ -82,6 +82,7 @@ struct TestMain {
         fragmentTests()
         dedupTests()
         vectorTests()
+        tellTests()
         meshTests()
         distanceTests()
         storeTests()
