@@ -9,3 +9,5 @@ fastfetch	2.70.0	windows-aarch64	https://github.com/fastfetch-cli/fastfetch/rele
 fastfetch	2.70.0	windows-amd64	https://github.com/fastfetch-cli/fastfetch/releases/download/2.70.0/fastfetch-windows-amd64.zip	89e5a20f46ac04b154c7d0ea13dbac97e43f799a98d7ae4c598863ba357a8c7f
 lotus-ai	3.0.0	linux-x86_64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.0.0/lotus-ai-linux-x86_64.gz	7b6e40b8ac8507b629140a7d9ad0911d64c9a2f369d3c2a9a75974bfa2102137
 lotus-ai	3.0.0	linux-arm64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.0.0/lotus-ai-linux-arm64.gz	84c22455b0bc4cea9bb1294d0e405b2ae4234f8948102046d970929dd417d704
+lotus-ai	3.1.0	linux-x86_64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.1.0/lotus-ai-linux-x86_64.gz	a7004b0bf624ce67bdde575dffa2db4e08fb1ced3f1045c83d251af4d53a1179
+lotus-ai	3.1.0	linux-arm64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.1.0/lotus-ai-linux-arm64.gz	034315b598a09ec5a0ee233e315f91ca8e3ed8cdb8b0b549b176494a286c63c3
