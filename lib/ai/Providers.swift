@@ -80,6 +80,9 @@ protocol Provider: AnyObject {
     var lastThoughts: String { get }
     // The next sends think briefly: going on after the AI ran out of room
     var briefThinking: Bool { get set }
+    // The next send lets the AI go on with the task of the last one (App.swift, goOn) – Apple Intelligence keeps the
+    // task's tools and plan then instead of sorting the message as a new request
+    var continuing: Bool { get set }
 }
 
 extension Provider {
@@ -94,6 +97,7 @@ extension Provider {
     var stopped: Stop { .done }
     var lastThoughts: String { "" }
     var briefThinking: Bool { get { false } set {} }
+    var continuing: Bool { get { false } set {} }
 }
 
 func isCancellation(_ error: Error) -> Bool {

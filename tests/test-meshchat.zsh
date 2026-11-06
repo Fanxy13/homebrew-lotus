@@ -81,7 +81,7 @@ rm -rf $D      # from here on, this Mac's own MeshChat – not the identity of t
 
 # ── built once, inside MeshChat's sandbox ──
 out=$(lotus meshchat version 2>&1 | plain)
-check_has "built in its sandbox, it runs" "$out" "MeshChat 2.0.0 – protocol 2, crypto CryptoKit"
+check_has "built in its sandbox, it runs" "$out" "MeshChat 2.2.0 – protocol 2, crypto CryptoKit"
 check "the program is in its data folder" eval '[[ -n $(print -l $D/bin/meshchat-<->(N)) ]]'
 check "nothing is built into Lotus' own folder" eval '[[ ! -e $LOTUS_ROOT/lib/meshchat/bin && -z $(print -l $LOTUS_ROOT/lib/meshchat/meshchat-*(N)) ]]'
 built=$(print -r -- $D/bin/meshchat-<->(N:t))
@@ -107,6 +107,7 @@ print -r -- "    (the selftest on this Mac: $sum[1])"
 
 # ── one chat with everyone nearby: no rooms, no codes ──
 check_has "help: it is public" "$(lotus meshchat help 2>&1 | plain)" "It is public: anyone nearby can read it"
+check_has "help: but for /tell, sealed for one person" "$(lotus meshchat help 2>&1 | plain)" "Except /tell <name> <message>: sealed for that one person"
 check_has "the room commands of MeshChat 1 say what changed" "$(lotus meshchat join MC1-AAAAA-BBBBB 2>&1 | plain)" "MeshChat has no rooms any more"
 check_has "create too" "$(lotus meshchat create "Bike trip" 2>&1 | plain)" "Everyone nearby with MeshChat is in one chat"
 check_has "nick" "$(lotus meshchat nick Tester 2>&1 | plain)" "You are Tester in the chat"

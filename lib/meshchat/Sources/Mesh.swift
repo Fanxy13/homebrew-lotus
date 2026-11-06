@@ -54,6 +54,9 @@ struct ChatMessage: Equatable {
     let received: TimeInterval      // this Mac's
     let hops: Int                   // relays it took – 0: from a neighbour (or this Mac)
     let mine: Bool
+    var privately = false           // a private message (/tell): to this Mac – or, when it is mine, to `to`
+    var to = ""                     // mine and private: the nickname of the one it is for
+    var senderKey = Data()          // someone else's: who wrote it, to answer them privately
 }
 
 struct Participant: Equatable {
@@ -70,6 +73,7 @@ struct Participant: Equatable {
     var signal: Int? = nil          // how strong this Mac hears theirs (dBm), measured in the last minute
     var via = ""                    // the neighbour their last message came through ("" when straight from them)
     var neighbours: [UInt32: Int] = [:]     // the Macs they have a link to, and how strong they hear them
+    var boxKey: Data? = nil         // what a private message to them is sealed for – from their presence (MeshChat 2.2)
 
     var token: UInt32 { session.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
 }
@@ -208,6 +212,7 @@ final class MeshNode: LinkTransportDelegate {
     private var signals: [UInt32: (rssi: Double, at: TimeInterval)] = [:]     // by token, smoothed
     private var lastMeasure = -TimeInterval.infinity
     private var undelivered: Set<UInt64> = []
+    private var waiting: [(to: Data, text: String, since: TimeInterval)] = []     // private messages, until the key comes
     private var presenceDue = TimeInterval.infinity
     private var lastPresence = -TimeInterval.infinity
     private var noticed: [String: TimeInterval] = [:]
@@ -279,11 +284,12 @@ final class MeshNode: LinkTransportDelegate {
     }
 
     enum SendError: Error, CustomStringConvertible {
-        case empty, tooLong
+        case empty, tooLong, nobody
         var description: String {
             switch self {
             case .empty: return "There is nothing to send."
             case .tooLong: return "A message can be up to \(Proto.maxTextBytes) bytes long – that is about \(Proto.maxTextBytes) letters, fewer with emoji or accents."
+            case .nobody: return "That person is not in the chat (any more) – /who lists who is."
             }
         }
     }
@@ -301,6 +307,44 @@ final class MeshNode: LinkTransportDelegate {
         emit(.sent(id: packet.messageID, links: links))
         flush()
         return msg
+    }
+
+    // A private message (/tell): sealed for one person, passed on by every Mac, shown only to them. It is sealed for the
+    // box key their presence carries; until that is known, it waits – a minute at most – and they are asked for it.
+    func sendPrivately(_ text: String, to key: Data) throws {
+        let clean = Sanitize.line(text, characters: Int.max, bytes: Int.max)
+        guard !clean.isEmpty else { throw SendError.empty }
+        guard clean.utf8.count <= Proto.maxTextBytes else { throw SendError.tooLong }
+        guard let p = people[key], !p.left else { throw SendError.nobody }
+        if let box = p.boxKey {
+            try sealAndSend(clean, to: p, box: box)
+        } else {
+            waiting.append((key, clean, clock()))
+            notice("The key for private messages to \(p.nickname) has not come yet – your message waits for it, a minute at most.")
+            sendPresence(request: true)         // "who is here?" – they answer with their presence, and the key in it
+        }
+        flush()
+    }
+
+    private func sealAndSend(_ text: String, to p: Participant, box: Data) throws {
+        let sealed = try Sealing.seal(text, from: signer.publicKey, to: p.key, box: box)
+        let inner = InnerMessage(kind: .tell, senderKey: signer.publicKey, session: session, nickname: nickname,
+                                 recipient: p.key, oneTimeKey: sealed.oneTimeKey, nonce: sealed.nonce, sealed: sealed.sealed)
+        let (packet, links) = try flood(inner)
+        stats.delivered += 1
+        emit(.message(ChatMessage(id: packet.messageID, nickname: nickname, fingerprint: signer.fingerprint, text: text,
+                                  sent: Double(packet.timestamp) / 1000, received: clock(), hops: 0, mine: true, privately: true, to: p.nickname)))
+        emit(.sent(id: packet.messageID, links: links))
+    }
+
+    // Their key came: what waited for it goes out now
+    private func sendWaiting(for key: Data) {
+        guard waiting.contains(where: { $0.to == key }), let p = people[key], let box = p.boxKey else { return }
+        let due = waiting.filter { $0.to == key }
+        waiting.removeAll { $0.to == key }
+        for w in due {
+            do { try sealAndSend(w.text, to: p, box: box) } catch { notice("Your private message to \(p.nickname) could not be sent: \(error)", .warning) }
+        }
     }
 
     // ── The radio ─────────────────────────────────────────────
@@ -469,6 +513,14 @@ final class MeshNode: LinkTransportDelegate {
             for link in links.values where link.state == .ready && link.outbound { transport.measureSignal(on: link.id) }
         }
         if !config.silent && t >= presenceDue { sendPresence(request: lastPresence == -.infinity) }
+        // private messages whose recipient's key never came: given up after a minute
+        let late = waiting.filter { t - $0.since > 60 }
+        if !late.isEmpty {
+            waiting.removeAll { t - $0.since > 60 }
+            for w in late {
+                notice("Your private message to \(people[w.to]?.nickname ?? "them") was not sent: the key for it did not come. They may have a MeshChat without /tell – before 2.2.", .warning)
+            }
+        }
         age(t)
         dirty = true
         flush()
@@ -701,7 +753,13 @@ final class MeshNode: LinkTransportDelegate {
                 let t = MeshNode.token(of: s)
                 return Neighbour(token: t, rssi: signal(of: t, now: now) ?? Distance.unknown)
             }.sorted { $0.token < $1.token }
+            inner.boxKey = signer.boxKey
         }
+        return try flood(inner)
+    }
+
+    @discardableResult
+    private func flood(_ inner: InnerMessage) throws -> (MeshPacket, Int) {
         var id: UInt64 = 0
         repeat { id = CryptoBackend.randomBytes(8).reduce(UInt64(0)) { $0 << 8 | UInt64($1) } } while id == 0
         let packet = try Signing.make(inner, signer: signer, ttl: UInt8(max(1, min(Int(Proto.hopLimit), config.hops))), messageID: id,
@@ -709,7 +767,7 @@ final class MeshNode: LinkTransportDelegate {
         dedup.insert(id, now: clock())
         remember(packet, mine: true)
         let n = forward(packet, except: nil)
-        if n == 0 && kind == .chat { undelivered.insert(id) }
+        if n == 0 && (inner.kind == .chat || inner.kind == .tell) { undelivered.insert(id) }
         return (packet, n)
     }
 
@@ -774,18 +832,33 @@ final class MeshNode: LinkTransportDelegate {
             p.via = packet.hops == 0 ? "" : link.session.flatMap { s in people.values.first { $0.session == s }?.nickname } ?? "a relay"
             p.left = inner.kind == .bye
         }
+        // the box key never changes for an identity: taken from any presence that has one, however late
+        if inner.kind == .presence, let box = inner.boxKey { p.boxKey = box }
         people[inner.senderKey] = p
         stats.delivered += 1
         switch inner.kind {
         case .chat:
             emit(.message(ChatMessage(id: packet.messageID, nickname: inner.nickname, fingerprint: fingerprint, text: inner.text,
-                                      sent: sent, received: t, hops: Int(packet.hops), mine: false)))
+                                      sent: sent, received: t, hops: Int(packet.hops), mine: false, senderKey: inner.senderKey)))
         case .presence:
             if !config.silent && inner.flags & InnerMessage.requestFlag != 0 && clock() - lastPresence > 5 {
                 presenceDue = min(presenceDue, t + Double.random(in: 0.3...2))
             }
+            sendWaiting(for: inner.senderKey)
         case .bye:
             if fresh { notice("\(inner.nickname) left the chat.") }
+        case .tell:
+            // for someone else: it was only passed on (received(_:from:)) – no one but the recipient can read it
+            guard inner.recipient == signer.publicKey else { break }
+            if let text = Sealing.open(inner, signer: signer) {
+                emit(.message(ChatMessage(id: packet.messageID, nickname: inner.nickname, fingerprint: fingerprint, text: text, sent: sent,
+                                          received: t, hops: Int(packet.hops), mine: false, privately: true, senderKey: inner.senderKey)))
+            } else {
+                stats.forged += 1
+                noticeOnce("unsealed-\(Hex.encode(inner.senderKey))",
+                           "A private message from \(inner.nickname) could not be opened – it was changed on the way, or sealed for another key.",
+                           .warning, every: 300)
+            }
         }
         if isNew && fresh && !p.left && !p.away {
             let how = p.hops == 0 ? "a neighbour" : "\(p.hops) relay\(p.hops == 1 ? "" : "s") away"

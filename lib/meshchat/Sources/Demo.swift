@@ -1,7 +1,8 @@
 // MeshChat – `lotus meshchat demo`: the chat with two simulated people, to try it without a second Mac. Nothing
 // goes over Bluetooth and nothing is saved; the screen says DEMO. Ada is your neighbour; Grace is out of your
-// range and reaches you through Ada, so her messages arrive relayed (⇢1). The mesh, the signatures and the screen
-// are the real ones – only the radio is simulated (SimTransport.swift).
+// range and reaches you through Ada, so her messages arrive relayed (⇢1). A private message (/tell Grace …) goes through
+// Ada too, who cannot read it; each answers one privately. The mesh, the signatures, the sealing and the screen are the
+// real ones – only the radio is simulated (SimTransport.swift).
 
 import Foundation
 
@@ -22,14 +23,17 @@ final class DemoWorld {
         bots = [
             DemoBot(name: "Ada", world: self, queue: queue,
                     greeting: "Hi! I'm right next to you – a direct Bluetooth link (● in the list below).",
+                    secret: "Psst – only you can read this. A private message goes to everyone and is sealed for one.",
                     replies: ["Got it 👍",
                               "Grace is out of your range – what she writes reaches you through my Mac.",
                               "Try /where Grace – how far she is, and the way your messages take to her.",
+                              "Try /tell Grace … – my Mac passes it on, but cannot read it.",
                               "There are no rooms: every Mac with MeshChat nearby reads this, and passes it on.",
                               "Ctrl-C closes the chat; on real Macs your history stays on yours."],
                     replyEvery: 1),
             DemoBot(name: "Grace", world: self, queue: queue,
                     greeting: "Hello from further away! I can't reach you directly – Ada passes this on, hence the mark after it.",
+                    secret: "Only you can read this – Ada passed it on to me sealed, and my answer back the same way.",
                     replies: ["I read you through Ada 👋",
                               "If Ada left, we could not hear each other any more – a mesh needs someone in between.",
                               "Each Mac passes a message on once; the copies that come back are dropped."],
@@ -50,6 +54,7 @@ final class DemoBot {
     private(set) var node: MeshNode!
     private let name: String
     private let greeting: String
+    private let secret: String              // the answer to a private message, privately
     private let replies: [String]
     private let replyEvery: Int
     private let queue: DispatchQueue
@@ -58,11 +63,12 @@ final class DemoBot {
     private var heard = 0
     private var next = 0
 
-    init(name: String, world: DemoWorld, queue: DispatchQueue, greeting: String, replies: [String], replyEvery: Int) {
+    init(name: String, world: DemoWorld, queue: DispatchQueue, greeting: String, secret: String, replies: [String], replyEvery: Int) {
         self.name = name
         self.world = world
         self.queue = queue
         self.greeting = greeting
+        self.secret = secret
         self.replies = replies
         self.replyEvery = replyEvery
         let net = world.net
@@ -87,6 +93,13 @@ final class DemoBot {
             if !greeted && !others.isEmpty {
                 greeted = true
                 say(greeting, after: name == "Ada" ? 1.0 : 2.5)
+            }
+        case .message(let m) where !m.mine && m.privately:
+            // a private message: answered privately
+            let key = m.senderKey
+            queue.asyncAfter(deadline: .now() + Double.random(in: 1.2...2.0)) { [weak self] in
+                guard let self = self else { return }
+                try? self.node.sendPrivately(self.secret, to: key)
             }
         case .message(let m) where !m.mine && !(world?.botNames.contains(m.nickname) ?? true):
             heard += 1

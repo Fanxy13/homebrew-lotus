@@ -1,6 +1,6 @@
 // MeshChat – the chat itself: the mesh on a queue of its own, the screen and the keys on the main one, and the
-// commands (/who, /nick, /status, /quit …). There is one chat – everyone nearby – and what is said in it goes into
-// this Mac's history. Closing the chat says goodbye, stops Bluetooth and gives the terminal back – nothing keeps
+// commands (/who, /tell, /nick, /status, /quit …). There is one chat – everyone nearby – and what is said in it goes
+// into this Mac's history; /tell says something to one person only. Closing the chat says goodbye, stops Bluetooth and gives the terminal back – nothing keeps
 // running.
 
 import Foundation
@@ -106,7 +106,10 @@ final class ChatApp {
         t.schedule(deadline: .now() + 1, repeating: 1)
         t.setEventHandler { [weak self] in
             guard let self = self else { return }
-            if let d = self.demo { d.tick() } else { self.node.tick() }
+            // the demo's world (its radio and its people) once a second – and this Mac's own node, as in the real chat:
+            // without its ticks it never said "I am here", and the others never had its key for private messages
+            self.demo?.tick()
+            self.node.tick()
         }
         t.resume()
         timer = t
@@ -212,7 +215,7 @@ final class ChatApp {
         draw()
     }
 
-    static let commands = ["/help", "/who", "/where", "/nick", "/status", "/clear", "/quit"]
+    static let commands = ["/help", "/who", "/where", "/tell", "/nick", "/status", "/clear", "/quit"]
 
     private func complete() {
         let t = view.editor.text
@@ -251,6 +254,7 @@ final class ChatApp {
         case "/help", "/h", "/?": help()
         case "/who", "/people", "/here": who()
         case "/where", "/far", "/distance": whereIs(arg)
+        case "/tell", "/msg", "/whisper", "/w", "/pm": tell(arg)
         case "/status", "/mesh", "/info": status()
         case "/nick", "/name": rename(arg)
         case "/clear": view.lines.removeAll()
@@ -263,12 +267,70 @@ final class ChatApp {
 
     private func help() {
         for line in [
-            "Everything you write goes to every Mac nearby with MeshChat, and each one passes it on – as far as the mesh reaches. It is public.",
+            "Everything you write goes to every Mac nearby with MeshChat, and each one passes it on – as far as the mesh reaches. It is public – but for /tell.",
             "/who – who is here, and how: ● a direct Bluetooth link, ⇢2 two relays away, ○ not heard for a while",
+            "/tell <name> <text> – to one person only: sealed for them, every Mac on the way passes it on without being able to read it",
             "/where <name> – how far someone is: from the signal strength, and the way through the mesh (/where alone: everyone)",
             "/nick <name> – your name · /status – Bluetooth and the mesh · /clear – an empty screen",
             "/quit (ctrl-c, ctrl-d) – close the chat · PgUp/PgDn scroll · ↑ your last lines · //text sends a line that starts with /",
         ] { notice(line) }
+    }
+
+    // ── A private message ─────────────────────────────────────
+
+    enum Addressee: Equatable {
+        case found(Participant, String)     // who it is for, and the text
+        case nothing(Participant)           // a name, but no text
+        case several([Participant])         // more than one is called that – the four letters tell them apart
+        case nobody(String)                 // no one by that name
+    }
+
+    // Who a /tell is for: the longest beginning of its words that names someone – a nickname (in any case), the four
+    // letters of their key, or both (Bob·k3f9, Bob.k3f9, Bob#k3f9) – else the one whose name begins with the first word
+    static func addressee(_ arg: String, among people: [Participant]) -> Addressee {
+        let words = arg.split(separator: " ").map(String.init)
+        guard let first = words.first else { return .nobody("") }
+        func named(_ name: String) -> [Participant] {
+            let n = name.lowercased()
+            return people.filter { p in
+                let nick = p.nickname.lowercased()
+                return nick == n || p.fingerprint == n || ["·", ".", "#", ":"].contains { nick + $0 + p.fingerprint == n }
+            }
+        }
+        func with(_ p: Participant, after k: Int) -> Addressee {
+            let text = words.dropFirst(k).joined(separator: " ")
+            return text.isEmpty ? .nothing(p) : .found(p, text)
+        }
+        for k in stride(from: min(words.count, 6), through: 1, by: -1) {
+            let fits = named(words.prefix(k).joined(separator: " "))
+            if fits.count == 1 { return with(fits[0], after: k) }
+            if fits.count > 1 { return .several(fits) }
+        }
+        let begins = people.filter { $0.nickname.lowercased().hasPrefix(first.lowercased()) }
+        if begins.count == 1 { return with(begins[0], after: 1) }
+        return begins.isEmpty ? .nobody(first) : .several(begins)
+    }
+
+    private func tell(_ arg: String) {
+        switch ChatApp.addressee(arg, among: view.snapshot.participants.filter { !$0.left }) {
+        case .found(let p, let text):
+            let key = p.key
+            meshQueue.async { [weak self] in
+                do {
+                    try self?.node.sendPrivately(text, to: key)
+                } catch {
+                    DispatchQueue.main.async { self?.notice("\(error)", .warning) }
+                }
+            }
+        case .nothing(let p):
+            notice("What should \(p.nickname) read? /tell \(p.nickname) <message>")
+        case .several(let ps):
+            notice("More than one is called that: \(ps.map { "\($0.nickname)·\($0.fingerprint)" }.joined(separator: ", ")) – "
+                   + "the four letters tell them apart: /tell \(ps[0].fingerprint) <message>", .warning)
+        case .nobody(let name):
+            notice(name.isEmpty ? "/tell <name> <message> – only they can read it; every Mac on the way passes it on without being able to read it."
+                                : "No one called \(name) is here – /who lists who is.", .warning)
+        }
     }
 
     private func ago(_ t: TimeInterval) -> String {

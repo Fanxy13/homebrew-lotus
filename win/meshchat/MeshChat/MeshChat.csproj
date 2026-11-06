@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- meshchat.exe – MeshChat for Windows 10 (2004) and 11: the chat of MeshChat.Core with Windows' own Bluetooth
+       (WinRT). One file with .NET in it – nothing to install. Built on Windows, or anywhere with:
+         dotnet publish win/meshchat/MeshChat -c Release -r win-x64      (or win-arm64)
+       → win/meshchat/MeshChat/bin/Release/net8.0-windows10.0.19041.0/win-x64/publish/meshchat.exe -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MeshChat.Windows</RootNamespace>
+    <AssemblyName>meshchat</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+    <Version>2.2.0</Version>
+    <Product>MeshChat</Product>
+    <Company>Lotus</Company>
+    <Description>One chat with everyone nearby over Bluetooth – no internet, no server</Description>
+    <Copyright>MIT licence – github.com/Fanxy13/homebrew-lotus</Copyright>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MeshChat.Core\MeshChat.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MeshChat's tests anywhere .NET runs (Linux, macOS, Windows – the CI): the protocol, the mesh on a simulated radio,
+       the screen, and the test vectors shared with the Mac. Also the chat's commands without a radio (the demo). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>meshchat-tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MeshChat.Core\MeshChat.Core.csproj" />
+  </ItemGroup>
+</Project>

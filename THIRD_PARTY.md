@@ -50,3 +50,14 @@ Nothing here is bundled in the repository. Each is fetched from the project that
 - Guided filter: K. He, J. Sun, X. Tang, *Guided Image Filtering* (ECCV 2010); fast variant: K. He, J. Sun, *Fast Guided Filter* (2015)
 - Foreground estimation: M. Forte, F. Pitié, *Approximate Fast Foreground Colour Estimation* (ICIP 2021), as also used in BiRefNet's examples
 - GrabCut via OpenCV: C. Rother, V. Kolmogorov, A. Blake (SIGGRAPH 2004)
+
+## MeshChat for Windows
+
+`meshchat.exe` (built from `win/meshchat` by the CI) is one file with these inside. The repository holds only the
+sources; NuGet supplies the rest when it is built.
+
+| Software | What it is for | License |
+|---|---|---|
+| [.NET 8 runtime](https://github.com/dotnet/runtime) | the program runs on it – nothing to install | MIT |
+| [BouncyCastle.Cryptography](https://github.com/bcgit/bc-csharp) 2.4.0 | Ed25519 signatures (RFC 8032), X25519 (RFC 7748) and ChaCha20-Poly1305 (RFC 8439) for private messages – the Mac uses Apple's CryptoKit for the same | MIT |
+| Windows SDK projection (Microsoft.Windows.SDK.NET.Ref) | the calls into Windows' Bluetooth (WinRT) | [Windows SDK license terms](https://aka.ms/WinSDKLicenseURL) |

@@ -1,6 +1,6 @@
 // MeshChat – what it keeps on this Mac, all of it in its data folder ($LOTUS_MESHCHAT_DATA, by default
 // ~/.local/share/lotus/meshchat). Folders 0700 and files 0600: only your user can read them here – what
-// was said is public anyway, but what you keep of it is yours.
+// was said is public anyway, but what you keep of it is yours; a private message (/tell) is kept as you read it.
 //   settings          NICKNAME=…, LINKS=8  (one KEY=value per line – other lines in it are left alone)
 //   identity          this Mac's secret its signing key comes from: 32 random bytes, hex
 //   history.jsonl     what was said while the chat was open, one message per line (the last 2000)
@@ -18,6 +18,8 @@ struct StoredMessage: Equatable {
     var text: String
     var hops: Int
     var mine: Bool
+    var privately: Bool             // a private message (/tell) – to this Mac, or from it to `to`
+    var to: String
 
     init(_ m: ChatMessage) {
         id = m.id
@@ -28,10 +30,13 @@ struct StoredMessage: Equatable {
         text = m.text
         hops = m.hops
         mine = m.mine
+        privately = m.privately
+        to = m.to
     }
 
     var message: ChatMessage {
-        ChatMessage(id: id, nickname: nickname, fingerprint: fingerprint, text: text, sent: sent, received: received, hops: hops, mine: mine)
+        ChatMessage(id: id, nickname: nickname, fingerprint: fingerprint, text: text, sent: sent, received: received, hops: hops, mine: mine,
+                    privately: privately, to: to)
     }
 }
 
@@ -176,8 +181,13 @@ final class Store {
     }
 
     static func encode(_ m: ChatMessage) -> Data? {
-        let obj: [String: Any] = ["v": 1, "id": Hex.u64(m.id), "t": Int64(m.sent * 1000), "rx": Int64(m.received * 1000),
+        var obj: [String: Any] = ["v": 1, "id": Hex.u64(m.id), "t": Int64(m.sent * 1000), "rx": Int64(m.received * 1000),
                                   "nick": m.nickname, "fp": m.fingerprint, "text": m.text, "hops": m.hops, "me": m.mine]
+        // a private message: kept here as it was read – in the clear, in your data folder only
+        if m.privately {
+            obj["pv"] = true
+            if !m.to.isEmpty { obj["to"] = m.to }
+        }
         return try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys])
     }
 
@@ -191,7 +201,8 @@ final class Store {
         let rx = number(o["rx"]) ?? t
         let m = ChatMessage(id: id, nickname: Sanitize.nickname(o["nick"] as? String ?? "?"), fingerprint: Sanitize.nickname(o["fp"] as? String ?? ""),
                             text: clean, sent: t / 1000, received: rx / 1000, hops: number(o["hops"]).map { Int($0) } ?? 0,
-                            mine: (o["me"] as? Bool) ?? false)
+                            mine: (o["me"] as? Bool) ?? false, privately: (o["pv"] as? Bool) ?? false,
+                            to: Sanitize.nickname(o["to"] as? String ?? ""))
         return StoredMessage(m)
     }
 

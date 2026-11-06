@@ -1,15 +1,16 @@
 # Builds and tests MeshChat – part of Lotus (lib/meshchat, lib/cmd/meshchat.zsh) – on a Mac: the Swift program with
 # every warning, then through Lotus – built inside MeshChat's sandbox like on your Mac – its protocol tests with
-# CryptoKit, the chat in a terminal (the demo) and the old plugin going away with its identity and history. A CI Mac
-# has no Bluetooth to speak of: what needs several Macs is tested by hand (lib/meshchat/README.md, "Testing with real
-# Macs").
+# CryptoKit, the chat in a terminal (the demo) and the old plugin going away with its identity and history. And the same
+# bytes as MeshChat for Windows (win/meshchat), both ways: the Mac checks the test vectors the Windows app made, and the
+# Windows code checks packets this Mac signed. A CI Mac has no Bluetooth to speak of: what needs several computers is
+# tested by hand (lib/meshchat/README.md, "Testing with real Macs").
 name: MeshChat
 
 on:
   push:
-    paths: [lib/meshchat/**, lib/cmd/meshchat.zsh, lib/platform/macos.zsh, bin/lotus, tests/test-meshchat.zsh, lib/cmd/plugin.zsh, .github/workflows/meshchat.yml]
+    paths: [lib/meshchat/**, lib/cmd/meshchat.zsh, lib/platform/macos.zsh, bin/lotus, tests/test-meshchat.zsh, lib/cmd/plugin.zsh, win/meshchat/**, .github/workflows/meshchat.yml]
   pull_request:
-    paths: [lib/meshchat/**, lib/cmd/meshchat.zsh, lib/platform/macos.zsh, bin/lotus, tests/test-meshchat.zsh, lib/cmd/plugin.zsh, .github/workflows/meshchat.yml]
+    paths: [lib/meshchat/**, lib/cmd/meshchat.zsh, lib/platform/macos.zsh, bin/lotus, tests/test-meshchat.zsh, lib/cmd/plugin.zsh, win/meshchat/**, .github/workflows/meshchat.yml]
   workflow_dispatch:
 
 permissions:
@@ -50,6 +51,21 @@ jobs:
           grep -q "Terminal – /System/Applications/Utilities/Terminal.app" "$out"
           grep -q "macOS asks Terminal for the Bluetooth permission" "$out"
           ! grep -q "macOS ended\|does not let programs" "$out"
+      - name: The same bytes as Windows – the protocol tests, and this Mac's packets written out for the Windows code
+        run: |
+          src=$(ls lib/meshchat/Sources/*.swift | grep -v '/App.swift$')
+          xcrun swiftc -Onone -parse-as-library -swift-version 5 -target "$(uname -m)-apple-macos11.0" \
+            -o "$RUNNER_TEMP/mc/tests" $src lib/meshchat/Tests/*.swift
+          MESHCHAT_VECTORS_OUT="$RUNNER_TEMP/mc/swift-vectors.txt" "$RUNNER_TEMP/mc/tests" | tee "$RUNNER_TEMP/mc/tests.log"
+          grep -q "the same bytes as Windows" "$RUNNER_TEMP/mc/tests.log"
+          grep -q " passed, 0 failed" "$RUNNER_TEMP/mc/tests.log"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Packets this Mac signed with CryptoKit open in the Windows code (and its tests pass on a Mac)
+        run: |
+          dotnet run --project win/meshchat/MeshChat.Tests -c Release -- --verify-foreign "$RUNNER_TEMP/mc/swift-vectors.txt"
+          dotnet run --project win/meshchat/MeshChat.Tests -c Release
       - name: MeshChat through Lotus (sandbox build, protocol tests, the chat in a terminal, the old plugin going away)
         run: zsh tests/run.zsh meshchat
       - name: Bluetooth on this runner (for information – a CI Mac usually has none)

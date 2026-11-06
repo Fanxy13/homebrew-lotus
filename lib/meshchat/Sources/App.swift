@@ -97,8 +97,9 @@ struct CLI {
             print("    " + Theme.key(c.padding(toLength: 30, withPad: " ", startingAt: 0)) + Theme.dim(d))
         }
         print("")
-        print("  " + Theme.dim("In the chat: /who /nick /status /clear /quit /help"))
+        print("  " + Theme.dim("In the chat: /who /where /tell /nick /status /clear /quit /help"))
         print("  " + Theme.dim("Every Mac passes each message on, up to \(Proto.hopLimit) relays far. It is public: anyone nearby can read it."))
+        print("  " + Theme.dim("Except /tell <name> <message>: sealed for that one person – the others pass it on without being able to read it."))
         print("  " + Theme.dim("Signed, so no one can write in your name. Macs only – MeshChat on each."))
         print("")
     }
@@ -166,7 +167,8 @@ struct CLI {
         f.dateFormat = "yyyy-MM-dd HH:mm"
         for m in messages {
             let who = m.mine ? Theme.accent(m.nickname) : Theme.person(m.fingerprint, m.nickname)
-            print("  " + Theme.dim(f.string(from: Date(timeIntervalSince1970: m.sent))) + "  " + who + Theme.dim("·\(m.fingerprint)") + "  " + m.text
+            let privately = m.privately ? Theme.accent("→ \(m.mine ? m.to : "you"): ") : ""
+            print("  " + Theme.dim(f.string(from: Date(timeIntervalSince1970: m.sent))) + "  " + who + Theme.dim("·\(m.fingerprint)") + "  " + privately + m.text
                   + (m.hops > 0 ? Theme.dim(" ⇢\(m.hops)") : ""))
         }
         if messages.isEmpty { print("  " + Theme.dim("Nothing said yet.")) }

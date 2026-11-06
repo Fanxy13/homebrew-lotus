@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/lotus.css?v=3.0.0">
-  <link rel="stylesheet" href="css/pages.css?v=3.0.0">
-  <script src="js/lotus.js?v=3.0.0"></script>
+  <link rel="stylesheet" href="css/lotus.css?v=3.1.0">
+  <link rel="stylesheet" href="css/pages.css?v=3.1.0">
+  <script src="js/lotus.js?v=3.1.0"></script>
 </head>
 <body>
   <lotus-nav></lotus-nav>
@@ -131,7 +131,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Knows what is new</h3><p class="muted">It searches the web and reads pages – documentation, release notes, error messages, Wikipedia, Apple's developer docs – instead of guessing, and names its sources. Only the public internet: nothing on your Mac or in your network. What a page says is information for the AI, never an order.</p></div>
       <div class="card"><h3>Remembers</h3><p class="muted">The conversation stays for an hour after your last message, also for single questions with <code>/ai &lt;question&gt;</code>. What matters for later – how you like answers, your projects – it keeps with <code>remember</code>; <code>/memory</code> shows it, <code>/memory clear</code> forgets it. A <code>LOTUS.md</code>, <code>AGENTS.md</code> or <code>CLAUDE.md</code> in the folder tells it how to work there. <code>/ai new</code> or <code>/clear</code> starts fresh.</p></div>
       <div class="card"><h3>Better prompts</h3><p class="muted">Turn on <code>/enhance</code> and the AI first rewrites your message into a clear prompt – goal, details, expected result – in your language, with every name, path and command kept. Shown before it is sent, or offered so you choose. Short messages, commands and long texts go as typed.</p></div>
-      <div class="card"><h3>Thinks first</h3><p class="muted">Claude thinks before it answers, Ollama models with a thinking mode too. Apple Intelligence decides whether a message needs files, plans the steps and checks that it really did them. Set the depth with <code>/effort</code>, in <code>/settings</code> or with the slider in the web chat – quick, balanced, thorough, maximum or ultra, where it also checks its work.</p></div>
+      <div class="card"><h3>Thinks first</h3><p class="muted">Claude thinks before it answers, Ollama models with a thinking mode too. Apple Intelligence decides whether a message needs files, plans the steps, does them one at a time and checks that it really did them – when it stops, fills its small window or repeats itself, Lotus lets it go on by itself. Set the depth with <code>/effort</code>, in <code>/settings</code> or with the slider in the web chat – quick, balanced, thorough, maximum or ultra, where it also checks its work.</p></div>
     </div>
     <div class="table-wrap" style="margin-top:18px">
       <table class="docs">
@@ -290,7 +290,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
     </div>
 
     <h2 class="section" id="meshchat">MeshChat – a chat over Bluetooth</h2>
-    <p>Type <code>/meshchat</code> on every Mac around you: one chat with everyone nearby, without internet, Wi-Fi, rooms or a server. Every Mac in the chat passes each message on – Macs out of each other's range still chat through the ones in between, as far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your name. Try it first with <code>/meshchat demo</code>: two simulated people, one of them a relay away. Not yet tried between real Macs: the Bluetooth part is built and checked on every change, the test with three Macs is in <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/lib/meshchat/README.md#testing-with-real-macs">its README</a>.</p>
+    <p>Type <code>/meshchat</code> on every Mac around you: one chat with everyone nearby, without internet, Wi-Fi, rooms or a server. Every Mac in the chat passes each message on – Macs out of each other's range still chat through the ones in between, as far as there are Macs to pass it on. Public – anyone nearby can read it – and signed, so no one can write in your name. <code>/tell &lt;name&gt; &lt;message&gt;</code> is the exception: sealed for that one person, passed on by everyone, readable by them only. Try it first with <code>/meshchat demo</code>: two simulated people, one of them a relay away. Not yet tried between real Macs: the Bluetooth part is built and checked on every change, the test with three Macs is in <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/lib/meshchat/README.md#testing-with-real-macs">its README</a>.</p>
     <div class="term" style="margin-top:14px"><div class="term-bar"><i></i><i></i><i></i><span>/meshchat</span></div><pre>
  <span class="t-acc">lotus</span><span class="t-dim"> / </span><span class="t-b">MeshChat</span>  <span class="t-b">everyone nearby</span><span class="t-dim">  public               you: Ada·k3f9</span>
 <span class="t-dim"> ───────────────────────────────────────────────────────────────</span>
@@ -305,6 +305,7 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>One chat</h3><p class="muted small"><code>/meshchat</code> on every Mac – no rooms, nothing to set up<br><code>/who</code> who is here, and how<br><code>/meshchat doctor</code> when Bluetooth does not work<br><code>/meshchat relay</code> a Mac in between, for range</p></div>
       <div class="card"><h3>A mesh, as far as it goes</h3><p class="muted small">Every Mac passes on what it gets – up to 16 relays far. Duplicates are dropped; a Mac back in range catches up – up to 32 messages from the last 14 minutes. Only Macs with the chat open.</p></div>
       <div class="card"><h3>Part of Lotus, in a sandbox</h3><p class="muted small">Nothing to install on a Mac – built once with the Command Line Tools. It runs without internet and sees only its own folder; this Mac's identity, your name and the history stay in <code>~/.local/share/lotus/meshchat</code>. macOS asks once whether your terminal may use Bluetooth. Turn it off with <code>lotus features meshchat off</code>.</p></div>
+      <div class="card"><h3>Windows too</h3><p class="muted small">On Windows 10 and 11 it is <code>meshchat.exe</code>, one file with everything inside – in the same chat as the Macs, the same protocol byte for byte. One line in PowerShell installs it – no browser, the file checked by its SHA-256. <a href="https://github.com/Fanxy13/homebrew-lotus/blob/main/win/meshchat/README.md">How to get it</a>.</p></div>
     </div>
 
     <h2 class="section" id="pets">Pets</h2>

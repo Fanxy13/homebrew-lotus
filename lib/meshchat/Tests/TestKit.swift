@@ -81,6 +81,8 @@ struct TestMain {
         cryptoTests()
         fragmentTests()
         dedupTests()
+        vectorTests()
+        tellTests()
         meshTests()
         distanceTests()
         storeTests()
