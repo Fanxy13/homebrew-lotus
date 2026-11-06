@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased – a QR code for the phone
+## 3.2.0 – a QR code for the phone
 
 - **`/liveserver` shows a QR code** for the address a phone opens: point the iPhone's camera at the screen and Safari opens the page – no typing of `192.168.178.23:5500`. It is drawn in the terminal in black and white, two rows of modules to a row of text so they come out square, whatever the theme (a QR code needs a light ground)
 - **Tab shows the code of the next network** – your Wi-Fi, the iPhone whose hotspot the Mac uses, the devices it shares its internet with – and **Shift-Tab** the one before; the line under the code says which one it is ("next network (2/2)"). The code is drawn in place while nothing else was written; after a line of the log (a save, a page that is not there) the next one comes below it, so nothing is drawn over what was written. Ctrl-C stops the server as before and gives the terminal back as it was (no echo of keys while it runs)
