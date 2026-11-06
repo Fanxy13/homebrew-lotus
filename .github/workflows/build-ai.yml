@@ -2,10 +2,18 @@
 # one static file per system, gzipped, with the sha256 of the program itself – the digest that data/vendor.tsv pins and
 # that `lotus` checks before it runs a download. Run it for a tag (or by hand); the files are workflow artifacts, the
 # release itself is made by the maintainer, who also commits the digests (the second commit of a release).
+# Run by hand with "release" (on main), it makes the release too, as the maintainer would: the tag v<version of
+# lib/core.zsh> at that commit, the GitHub release named and written as its section of CHANGELOG.md, with the two programs.
+# Its summary has what the second commit pins: the cask's checksum of the tag's archive, and the lines for vendor.tsv.
 name: Build the AI program
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: Also make the release v<version of lib/core.zsh> at this commit, with the two programs and the changelog's text
+        type: boolean
+        default: false
   push:
     tags: ['v*']
 
@@ -48,3 +56,42 @@ jobs:
           path: |
             tests/docker/.build/lotus-ai-linux-${{ matrix.arch }}.gz
             tests/docker/.build/lotus-ai-linux-${{ matrix.arch }}.vendor-line
+
+  release:
+    name: The release
+    needs: linux
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: lotus-ai-linux-*
+          path: dist
+          merge-multiple: true
+      - name: v<version> – the tag at this commit, the release with the two programs, and what the second commit pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          version=$(sed -n 's/^typeset -g LOTUS_VERSION=//p' lib/core.zsh)
+          tag="v$version"
+          # the changelog's section for this version: its heading names the release, its text is the notes
+          title=$(sed -n "s/^## $version – //p" CHANGELOG.md | head -1)
+          [ -n "$title" ] || { echo "CHANGELOG.md has no section '## $version – …' – not released"; exit 1; }
+          awk -v head="## $version – " 'index($0, head) == 1 { on = 1; next } on && /^## / { exit } on' CHANGELOG.md > notes.md
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then echo "$tag is released already"; exit 1; fi
+          ls -l dist
+          [ -f dist/lotus-ai-linux-x86_64.gz ] && [ -f dist/lotus-ai-linux-arm64.gz ] || { echo "a program is missing"; exit 1; }
+          gh release create "$tag" dist/lotus-ai-linux-x86_64.gz dist/lotus-ai-linux-arm64.gz --repo "$REPO" --target "$GITHUB_SHA" \
+            --title "Lotus $version – $title" --notes-file notes.md
+          # the second commit of the release: the cask with the checksum of the tag's archive, the programs' digests
+          sum=$(curl -fsSL "https://github.com/$REPO/archive/refs/tags/$tag.tar.gz" | sha256sum | cut -d' ' -f1)
+          { echo "### The second commit"; echo "Casks/lotus.rb:"; echo '```'; echo "  version \"$version\""; echo "  sha256 \"$sum\""; echo '```'
+            echo "data/vendor.tsv:"; echo '```'; cat dist/lotus-ai-linux-x86_64.vendor-line dist/lotus-ai-linux-arm64.vendor-line; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "cask: version $version, sha256 $sum"
+          cat dist/lotus-ai-linux-x86_64.vendor-line dist/lotus-ai-linux-arm64.vendor-line
