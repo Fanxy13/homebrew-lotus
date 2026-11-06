@@ -293,7 +293,7 @@ printf 'en0: flags=8863<UP> mtu 1500\n\tinet 192.168.178.23 netmask 0xffffff00 b
 EOF
 chmod +x $fake
 qrsession() {   # <what the keyboard does, in the order of a subshell> [options of lotus liveserver] – on $qrport
-  ( eval "$1" ) | LOTUS_LIVE_IFCONFIG=$fake script -q /dev/null zsh -fc "cd $S && $LOTUS_ROOT/bin/lotus liveserver --no-open --port $qrport $2" 2>&1 | tr -d '\r'
+  ( eval "$1" ) | ( export LOTUS_LIVE_IFCONFIG=$fake; tpty zsh -fc "cd $S && $LOTUS_ROOT/bin/lotus liveserver --no-open --port $qrport $2" ) 2>&1 | tr -d '\r'
 }
 free_port; qrport=$REPLY
 tab=$'\t' shifttab=$'\e[Z' ctrlc=$'\x03'
@@ -321,7 +321,7 @@ check_has "QR: --no-qr: still live" "$txt" "✓ Live – the page reloads when y
 # a second one for the same folder: the address and the code, without keys
 (cd $S && LOTUS_LIVE_IFCONFIG=$fake lotus liveserver --no-open --port $port >| $HOME/live.log 2>&1 &)
 up $port
-out=$(cd $S && LOTUS_LIVE_IFCONFIG=$fake script -q /dev/null zsh -fc "$LOTUS_ROOT/bin/lotus liveserver --no-open" 2>&1 | plain)
+out=$(cd $S && export LOTUS_LIVE_IFCONFIG=$fake && tpty zsh -fc "$LOTUS_ROOT/bin/lotus liveserver --no-open" 2>&1 | plain)
 check_has "QR: the second one for a folder shows the code too" "$out" "QR code  http://192.168.178.23:$port"
 check "QR: and no Tab it would not hear" eval '[[ $out != *"Tab:"* ]]'
 lotus liveserver stop >/dev/null 2>&1
