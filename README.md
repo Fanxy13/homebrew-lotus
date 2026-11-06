@@ -282,6 +282,10 @@ save a file (only the styles when you change CSS). Phones and computers in the s
 shows the right address for each network (Wi-Fi, iPhone hotspot, internet sharing), and a new one when the Mac
 switches networks. Nobody from another network gets in; `--local` keeps it on this Mac. Ctrl-C stops it.
 
+A **QR code** on the screen opens the page on the iPhone: point the camera at it. **Tab** shows the code of the next
+network (your Wi-Fi, the iPhone's hotspot, the devices your Mac shares its internet with), Shift-Tab the one before;
+`--no-qr` leaves it out.
+
 ```bash
 /liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · --local · stop
 ```
