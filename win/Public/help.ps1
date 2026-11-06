@@ -34,13 +34,39 @@ function script:Test-LotusCommandOn {
     Test-LotusFeature (Get-LotusFeatureOf (($Command -split ' ')[0]))
 }
 
+# Commands of the AI that are the AI program's – the terminal app, models on this computer, the web chat: not on Windows yet
+$script:AiNotHere = @('ai local', 'ai local restart', 'ai server', 'ai server port', 'ai stats')
+
+# Words of data/commands.tsv (written for macOS and Linux) in the words of Windows, in this order
+$script:CommandWordsHere = @(
+    @('Search Homebrew formulae and casks', 'Search winget for apps and tools'), @('Search Homebrew, explicitly', 'Search winget, explicitly'),
+    @('Homebrew', 'winget'), @("macOS' caffeinate", "Windows' SetThreadExecutionState"), @('from the Finder', 'from File Explorer'))
+
+# The rows of data/commands.tsv this system has, in its words: on Windows the commands of what is not here yet are left
+# out, and "Homebrew" is winget
+function script:Get-LotusCommandsHere {
+    foreach ($c in Get-LotusCommands) {
+        if ($IsWindows -or $env:LOTUS_AS_WINDOWS -eq '1') {
+            $first = ($c.Command -split ' ')[0]
+            $module = $null
+            if ($script:Modules.TryGetValue($first, [ref]$module) -and -not (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot "Public/$module.ps1"))) { continue }
+            if ($script:AiNotHere -ccontains $c.Command) { continue }
+            foreach ($p in $script:CommandWordsHere) {
+                $c.Category = $c.Category.Replace($p[0], $p[1]); $c.Description = $c.Description.Replace($p[0], $p[1])
+            }
+        }
+        $c.Description = Convert-LotusHere $c.Description
+        $c
+    }
+}
+
 function script:Show-LotusCheatsheet {
     $d = E dim; $r = $script:R; $k = E key
     $wide = (Get-LotusColumns) -ge 118
     $off = @(foreach ($id in $script:FeatureIds) { if (-not (Test-LotusFeature $id)) { Get-LotusFeatureLabel $id } })
     Write-LotusHeader 'Cheatsheet' 'every command, with an example'
     $last = $null
-    foreach ($c in Get-LotusCommands) {
+    foreach ($c in Get-LotusCommandsHere) {
         if ($c.Hidden -or -not (Test-LotusCommandOn $c.Command)) { continue }
         if ($c.Category -cne $last) {
             if ($null -ne $last) { Write-LotusLine '' }
@@ -74,7 +100,7 @@ function script:Invoke-LotusSuggest {
     $word = $Typed.TrimStart('/')
     $targetOf = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
     $names = [System.Collections.Generic.List[string]]::new()
-    foreach ($c in Get-LotusCommands) {
+    foreach ($c in Get-LotusCommandsHere) {
         if ($c.Hidden -or -not (Test-LotusCommandOn $c.Command)) { continue }
         if ($c.Trigger -cne '-') { $name = $c.Trigger }
         else {

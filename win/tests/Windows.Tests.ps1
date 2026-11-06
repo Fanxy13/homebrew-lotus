@@ -79,9 +79,12 @@ Describe 'Windows' -Skip:(-not $script:OnWindows) {
     }
     It 'quotes a command line the way a Windows program splits it again' {
         InModuleScope Lotus -Parameters @{ Tmp = $script:Ctx.Tmp } {
+            # a script that prints the arguments it got, one per line ($args reaches a script run with -File unchanged)
             $out = Join-Path $Tmp 'argv.txt'
+            $echo = Join-Path $Tmp 'argv.ps1'
+            Set-Content -LiteralPath $echo -Value '$args | ForEach-Object { "[$_]" }'
             $words = @('plain', 'two words', 'say "hi"', 'C:\a b\', '')
-            $line = ConvertTo-LotusCommandLine (@('-NoProfile', '-Command', '$args | ForEach-Object { "[$_]" }') + $words)
+            $line = ConvertTo-LotusCommandLine (@('-NoProfile', '-File', $echo) + $words)
             Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList $line -NoNewWindow -Wait -RedirectStandardOutput $out
             (Get-Content $out) -join '|' | Should -Be '[plain]|[two words]|[say "hi"]|[C:\a b\]|[]'
         }

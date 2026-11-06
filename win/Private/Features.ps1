@@ -33,6 +33,8 @@ function Get-LotusFeatureLabel {
     param([Parameter(Mandatory)][string]$Id)
     Import-LotusFeatures
     $row = $script:FeatureRow[$Id]
+    # the feature of /install and /brew installs with winget on Windows
+    if ($IsWindows -and $Id -ceq 'homebrew') { return 'winget' }
     T "feat_$Id" $(if ($row) { $row[1] } else { $Id })
 }
 

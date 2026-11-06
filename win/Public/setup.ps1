@@ -24,6 +24,7 @@ $script:FeatureNotHere = @{ ios = 'macOS only'; minecraft = 'not on Windows yet'
 function script:Get-LotusFeatureAbout {
     param([string]$Id)
     $about = T "featd_$Id" $script:FeatureRow[$Id][3]
+    if ($IsWindows -and $Id -ceq 'homebrew') { $about = 'Search winget and install apps from the catalog' }
     if ($IsWindows -and $script:FeatureNotHere.ContainsKey($Id)) { $about += " ($($script:FeatureNotHere[$Id]))" }
     $about
 }
