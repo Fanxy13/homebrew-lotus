@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – a QR code for the phone
+
+- **`/liveserver` shows a QR code** for the address a phone opens: point the iPhone's camera at the screen and Safari opens the page – no typing of `192.168.178.23:5500`. It is drawn in the terminal in black and white, two rows of modules to a row of text so they come out square, whatever the theme (a QR code needs a light ground)
+- **Tab shows the code of the next network** – your Wi-Fi, the iPhone whose hotspot the Mac uses, the devices it shares its internet with – and **Shift-Tab** the one before; the line under the code says which one it is ("next network (2/2)"). The code is drawn in place while nothing else was written; after a line of the log (a save, a page that is not there) the next one comes below it, so nothing is drawn over what was written. Ctrl-C stops the server as before and gives the terminal back as it was (no echo of keys while it runs)
+- When the Mac joins another network while the server runs – the iPhone's hotspot, say – the terminal says the new address and shows its code
+- A second `/liveserver` for a folder that is already served shows the address and the code too. `--no-qr` leaves it out; with `--local`, or without a terminal (a pipe, a script, a server in the background), there is none
+- The code is made by `lib/live/qrart.py`, written out in Python's standard library (3.9 and newer): QR codes of version 1 to 10 in byte mode, error correction M (L when an address only fits that way), the best of the 8 masks. OpenCV's QR reader decoded what it makes – every version 1–10, both levels, addresses with umlauts – and `zsh tests/run.zsh liveserver` checks the codes of a few addresses against fixed values, the patterns every reader looks for, and – where OpenCV is installed – that it reads them back
+- Tests: Tab, Shift-Tab and Ctrl-C on a keyboard (a pseudo-terminal, two networks from a stand-in for `ifconfig` – `LOTUS_LIVE_IFCONFIG`), in place or below a line of the log, `--no-qr`, the second server for a folder, no code without a terminal
+
 ## 3.1.0 – MeshChat, built in and on Windows, with /tell; Apple Intelligence with more room
 
 What is tested on which system is the table on the website ("What works where"). MeshChat between real computers – Bluetooth from one to the other – is not yet tried: the

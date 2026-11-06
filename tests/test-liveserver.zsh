@@ -216,6 +216,118 @@ check_has "the menu is still there" "$menu" "About – Grüezi"
 check_has "seven pages: a filter" "$menu" 'class="filter"'
 lotus liveserver stop >/dev/null 2>&1
 
+# ── the QR code for the phone's camera ──
+cat >| $HOME/qr.py <<'EOF'
+import hashlib, sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, sys.argv[1])
+import qrart
+def h(text, level="M"):
+    rows = qrart.encode(text, level)
+    flat = "\n".join("".join("1" if c else "0" for c in r) for r in rows)
+    return f"{len(rows)} " + hashlib.sha256(flat.encode()).hexdigest()[:16]
+print(h("http://192.168.178.23:5500"))
+print(h("http://192.168.178.23:5500", "L"))
+print(h("http://172.20.10.2:5500/docs/über uns.html"))
+print(h("a"))
+print(h("http://192.168.2.1:5577/" + "x" * 150))
+try:
+    qrart.encode("x" * 400)
+except ValueError:
+    print("too long")
+rows = qrart.encode("http://192.168.178.23:5500")
+n = len(rows)
+ring = lambda x0, y0: all(rows[y0 + y][x0 + x] == (max(abs(x - 3), abs(y - 3)) != 2) for x in range(7) for y in range(7))
+print("finders" if ring(0, 0) and ring(n - 7, 0) and ring(0, n - 7) else "no finders",
+      "timing" if all(rows[6][i] == (i % 2 == 0) and rows[i][6] == (i % 2 == 0) for i in range(8, n - 8)) else "no timing")
+print(len(qrart.render(rows)), n + 4)
+EOF
+out=(${(f)"$(python3 -B $HOME/qr.py $LOTUS_ROOT/lib/live 2>&1)"})
+# these hashes are of codes that OpenCV's QR reader decoded back to the text (all versions 1–10, levels L and M)
+check_eq "QR: the address of a phone is a version 2 code" "$out[1]" "25 ebf63ab2d26af171"
+check_eq "QR: level L is another code of the same size" "$out[2]" "25 9ac19ddc17342597"
+check_eq "QR: a longer address with an umlaut" "$out[3]" "29 337891f3acdf29b5"
+check_eq "QR: the smallest" "$out[4]" "21 e8ab680854e4019c"
+check_eq "QR: a long one steps up a version (version 9)" "$out[5]" "53 2fd165d1c0c25ef4"
+check_eq "QR: what is too long for one is said" "$out[6]" "too long"
+check_eq "QR: finder and timing patterns are where they belong" "$out[7]" "finders timing"
+check_eq "QR: two rows of modules to a row of the terminal, a quiet zone around" "$out[8]" "15 29"
+if python3 -c 'import cv2, numpy' 2>/dev/null; then
+  cat >| $HOME/qrdecode.py <<'EOF'
+import random, sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, sys.argv[1])
+import cv2, numpy as np, qrart
+random.seed(3)
+readers = [cv2.QRCodeDetector(), cv2.QRCodeDetectorAruco()]
+def reads(rows, text):
+    n = len(rows) + 8
+    img = np.full((n * 8, n * 8), 255, np.uint8)
+    for y, row in enumerate(rows):
+        for x, d in enumerate(row):
+            if d:
+                img[(y + 4) * 8:(y + 5) * 8, (x + 4) * 8:(x + 5) * 8] = 0
+    return any(r.detectAndDecode(img)[0] == text for r in readers)
+bad = 0
+for level in "LM":
+    for length in range(1, 130, 4):
+        text = "http://" + "".join(random.choice("abcdefghijklmnopqrstuvwxyz0123456789/:.-_") for _ in range(length))
+        try:
+            rows = qrart.encode(text, level)
+        except ValueError:
+            continue
+        bad += not reads(rows, text)
+print("all read" if not bad else f"{bad} not read")
+EOF
+  check_eq "QR: OpenCV reads what it makes back to the text" "$(python3 -B $HOME/qrdecode.py $LOTUS_ROOT/lib/live 2>&1)" "all read"
+else
+  print -r -- "  – no OpenCV: its reading of the QR codes is skipped"
+fi
+
+# on a keyboard: the code of the first network when it starts, Tab for the next, Shift-Tab back; in place while
+# nothing else was written, below what came otherwise. Two networks, as a Mac sharing its internet has.
+fake=$HOME/ifconfig.sh
+cat >| $fake <<'EOF'
+#!/bin/sh
+printf 'en0: flags=8863<UP> mtu 1500\n\tinet 192.168.178.23 netmask 0xffffff00 broadcast x\nbridge100: flags=8863<UP> mtu 1500\n\tinet 192.168.2.1 netmask 0xffffff00 broadcast x\n'
+EOF
+chmod +x $fake
+qrsession() {   # <what the keyboard does, in the order of a subshell> [options of lotus liveserver] – on $qrport
+  ( eval "$1" ) | LOTUS_LIVE_IFCONFIG=$fake script -q /dev/null zsh -fc "cd $S && $LOTUS_ROOT/bin/lotus liveserver --no-open --port $qrport $2" 2>&1 | tr -d '\r'
+}
+free_port; qrport=$REPLY
+tab=$'\t' shifttab=$'\e[Z' ctrlc=$'\x03'
+raw=$(qrsession "sleep 2.5; print -rn -- '$tab'; sleep 0.8; print -rn -- '$tab'; sleep 0.8; print -rn -- '$shifttab'; sleep 0.8; print -rn -- '$ctrlc'; sleep 1.5")
+txt=$(print -r -- $raw | plain)
+check_has "QR: the code of the first network when it starts" "$txt" "QR code  http://192.168.178.23:$qrport  for phones and computers in this Wi-Fi"
+check_has "QR: how to switch" "$txt" "Scan it with the iPhone's camera · Tab: next network (1/2) · Shift-Tab: back"
+check_has "QR: Tab shows the code of the next network" "$txt" "QR code  http://192.168.2.1:$qrport  for devices the Mac shares its internet with"
+check_has "QR: and says which one it is" "$txt" "next network (2/2)"
+check_eq "QR: start, Tab, Tab, Shift-Tab: four codes drawn" "$(print -r -- $txt | grep -c '^  QR code  ')" 4
+up=$'\e[19A\e[J'
+check "QR: drawn in place – up over the one that was there, and away with it" eval '[[ $raw == *"$up"* ]]'
+check_has "QR: Ctrl-C still stops it" "$txt" "✓ Stopped http://127.0.0.1:$qrport"
+free_port; qrport=$REPLY
+raw=$(qrsession "sleep 2.5; curl -s -o /dev/null http://127.0.0.1:\$qrport/nope.html; sleep 0.6; print -rn -- '$tab'; sleep 0.8; print -rn -- '$ctrlc'; sleep 1.5")
+txt=$(print -r -- $raw | plain)
+check_has "QR: a line written in between (a page that is not there)" "$txt" "404 /nope.html"
+check_eq "QR: the code of the next network goes below it – two codes" "$(print -r -- $txt | grep -c '^  QR code  ')" 2
+check "QR: nothing is drawn over what was written" eval '[[ $raw != *"$up"* ]]'
+free_port; qrport=$REPLY
+raw=$(qrsession "sleep 2.5; print -rn -- '$ctrlc'; sleep 1.5" --no-qr)
+txt=$(print -r -- $raw | plain)
+check "QR: --no-qr: none" eval '[[ $txt != *"QR code"* ]]'
+check_has "QR: --no-qr: still live" "$txt" "✓ Live – the page reloads when you save."
+# a second one for the same folder: the address and the code, without keys
+(cd $S && LOTUS_LIVE_IFCONFIG=$fake lotus liveserver --no-open --port $port >| $HOME/live.log 2>&1 &)
+up $port
+out=$(cd $S && LOTUS_LIVE_IFCONFIG=$fake script -q /dev/null zsh -fc "$LOTUS_ROOT/bin/lotus liveserver --no-open" 2>&1 | plain)
+check_has "QR: the second one for a folder shows the code too" "$out" "QR code  http://192.168.178.23:$port"
+check "QR: and no Tab it would not hear" eval '[[ $out != *"Tab:"* ]]'
+lotus liveserver stop >/dev/null 2>&1
+for i in {1..30}; do curl -s -m 1 -o /dev/null $B/ || break; sleep 0.1; done
+check "QR: without a terminal there is none (the log of the first run)" eval '[[ $(plain < $HOME/live.log) != *"QR code"* ]]'
+
 # ── it was a plugin before: the old one goes, with its running servers and the list of documents /html made ──
 P=$LOTUS_CONF/plugins
 mkold() {   # <author>

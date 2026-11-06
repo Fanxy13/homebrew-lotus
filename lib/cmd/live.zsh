@@ -3,6 +3,7 @@
 #   /liveserver <folder|page>    another folder, or that page
 #   /liveserver --port <n>       a port of your choice (otherwise 5500 or the next free one)
 #   /liveserver --no-open        without opening the browser · --local: only this Mac, not the Wi-Fi
+#   /liveserver --no-qr          without the QR code (for the phone's camera; Tab shows the next network's)
 #   /liveserver stop             stops the ones that run in other windows
 # The server is lib/live/liveserver.py – Python's standard library, nothing to install. It reloads the page when you
 # save, answers this Mac and the devices in its Wi-Fi (nobody else), and serves nothing outside the folder.

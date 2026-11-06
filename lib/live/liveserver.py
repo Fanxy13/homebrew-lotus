@@ -23,6 +23,7 @@ import mimetypes
 import os
 import re
 import select
+import shutil
 import signal
 import socket
 import struct
@@ -32,6 +33,8 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import quote, unquote, urlsplit
+
+import qrart
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORTS = range(5500, 5600)                      # VS Code's Live Server starts at 5500 too
@@ -74,8 +77,14 @@ def bold(text):
     return f"\033[1m{text}\033[0m" if TTY else text
 
 
+OUT = threading.RLock()     # who writes to the terminal – the QR code is drawn in place only while nothing else was written
+OUT_N = [0]                 # how many lines were written
+
+
 def say(text=""):
-    print(text, flush=True)
+    with OUT:
+        OUT_N[0] += 1
+        print(text, flush=True)
 
 
 def kv(key, value):
@@ -407,7 +416,7 @@ class Lan:
         with self.lock:
             if self.on and time.monotonic() - self.at > 5:
                 self.at = time.monotonic()
-                self.nets = networks(run(["/sbin/ifconfig"]))
+                self.nets = networks(run([os.environ.get("LOTUS_LIVE_IFCONFIG") or "/sbin/ifconfig"]))   # (the tests bring their own)
                 if self.local is None:
                     self.local = local_names()
                 new = {iface for iface, _ in self.nets} - self.asked
@@ -443,12 +452,91 @@ def show_wifi(lan, port, page):
     return bool(rows)
 
 
-class NetWatcher(threading.Thread):
-    """The Mac joins another Wi-Fi or hotspot while it runs: the terminal says the new address."""
+class QrPanel:
+    """The QR code of an address of the Mac, for the camera of a phone. Tab shows the one of the next network, Shift-Tab
+    the one before. It is drawn in place while nothing else was written since – else below what came."""
 
-    def __init__(self, lan, hub, port, page):
+    def __init__(self, lan, port, page, keys=False):
+        self.lan, self.port, self.page, self.keys = lan, port, page, keys
+        self.index, self.height, self.stamp = 0, 0, -1
+
+    def urls(self):
+        return [(f"http://{ip}:{self.port}{self.page}", what) for ip, what in self.lan.entries()]
+
+    def show(self, step=0, url=None):
+        """The code of the address now chosen, moved on by step networks – or of url, when it is one of them."""
+        with OUT:
+            urls = self.urls()
+            if not urls:
+                return False
+            if url in [u for u, _ in urls]:
+                self.index = [u for u, _ in urls].index(url)
+            else:
+                self.index = (self.index + step) % len(urls)
+            link, what = urls[self.index]
+            try:
+                rows = qrart.encode(link)
+            except ValueError:
+                return False
+            count = f" ({self.index + 1}/{len(urls)})" if len(urls) > 1 else ""
+            hint = "Scan it with the iPhone's camera" + (f" · Tab: next network{count} · Shift-Tab: back" if self.keys and len(urls) > 1 else "")
+            lines = ["", f"  {paint(ACCENT, 'QR code', True)}  {paint(KEY, link)}  {paint(DIM, 'for ' + what)}",
+                     *qrart.render(rows), f"  {paint(DIM, hint)}", ""]
+            rows = shutil.get_terminal_size((80, 24)).lines or 24        # a terminal that does not say: the usual 24
+            if self.height and self.stamp == OUT_N[0] and self.height + 2 < rows:
+                sys.stdout.write(f"\033[{self.height}A\033[J")      # up over the one that is there, and away with it
+            sys.stdout.write("\n".join(lines) + "\n")
+            sys.stdout.flush()
+            self.height, self.stamp = len(lines), OUT_N[0]
+            return True
+
+
+def key_reading():
+    """Keys one at a time, without Enter or echo (Ctrl-C still stops the server) → the function that puts the terminal back,
+    or None – when there is no keyboard, or the server runs in the background (it would be stopped by the terminal)."""
+    try:
+        import termios
+        import tty
+        fd = sys.stdin.fileno()
+        if not sys.stdin.isatty() or os.getpgrp() != os.tcgetpgrp(fd):
+            return None
+        old = termios.tcgetattr(fd)
+        tty.setcbreak(fd)
+        return lambda: termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    except Exception:
+        return None
+
+
+class Keys(threading.Thread):
+    """Tab and Shift-Tab: the QR code of the next network, and of the one before."""
+
+    def __init__(self, panel, hub):
         super().__init__(daemon=True)
-        self.lan, self.hub, self.port, self.page = lan, hub, port, page
+        self.panel, self.hub = panel, hub
+
+    def run(self):
+        fd = sys.stdin.fileno()
+        while not self.hub.closing:
+            try:
+                if not select.select([fd], [], [], 0.25)[0]:
+                    continue
+                data = os.read(fd, 16)
+            except (OSError, ValueError):
+                return
+            if not data:
+                return
+            if b"\x1b[Z" in data:
+                self.panel.show(-1)
+            elif b"\t" in data:
+                self.panel.show(1)
+
+
+class NetWatcher(threading.Thread):
+    """The Mac joins another Wi-Fi or hotspot while it runs: the terminal says the new address – and shows its QR code."""
+
+    def __init__(self, lan, hub, port, page, panel=None):
+        super().__init__(daemon=True)
+        self.lan, self.hub, self.port, self.page, self.panel = lan, hub, port, page, panel
 
     def run(self):
         old = self.lan.entries()
@@ -459,10 +547,14 @@ class NetWatcher(threading.Thread):
                 continue
             if not new:
                 log("⇄", "No Wi-Fi now – only this Mac opens it", DIM)
+            added = None
             for ip, what in new:
                 if (ip, what) not in old:
-                    log("⇄", f"For {what}: {paint(KEY, f'http://{ip}:{self.port}{self.page}')}")
+                    added = f"http://{ip}:{self.port}{self.page}"
+                    log("⇄", f"For {what}: {paint(KEY, added)}")
             old = new
+            if added and self.panel:
+                self.panel.show(url=added)
 
 
 def local_names():
@@ -760,11 +852,13 @@ def usage():
                       ("lotus liveserver --port 8080", "a port of your choice (otherwise 5500 or the next free one)"),
                       ("lotus liveserver --no-open", "without opening the browser"),
                       ("lotus liveserver --local", "only this Mac, not the devices in your Wi-Fi"),
+                      ("lotus liveserver --no-qr", "without the QR code for the phone's camera"),
                       ("lotus liveserver stop", "stops the ones running in other windows")):
         say(f"    {paint(KEY, cmd.ljust(30))}{what}")
     say()
     say(f"  {paint(DIM, 'The page reloads when you save a file – only the styles when you change CSS. Ctrl-C stops it.')}")
     say(f"  {paint(DIM, 'This Mac and the phones and computers in the same Wi-Fi can open it – nobody else.')}")
+    say(f"  {paint(DIM, 'A QR code on the screen opens it on the iPhone; Tab shows the one of the next network.')}")
     say(f"  {paint(DIM, 'Hidden files (.git, .env) and files outside the folder stay out.')}")
     say()
 
@@ -794,7 +888,7 @@ def main(args):
         return 0
     if args[:1] == ["stop"]:
         return stop()
-    target, port, show, wifi = "", None, True, True
+    target, port, show, wifi, qr = "", None, True, True, True
     i = 0
     while i < len(args):
         a = args[i]
@@ -806,6 +900,8 @@ def main(args):
             show = False
         elif a in ("--local", "--no-wifi"):
             wifi = False
+        elif a == "--no-qr":
+            qr = False
         elif a.startswith("-"):
             usage()
             return 2
@@ -842,7 +938,10 @@ def main(args):
             url = f"http://127.0.0.1:{p}{start}"
             header(tilde(site.root))
             say(f"  {paint(KEY, '✓', True)} Already running in another window: {paint(KEY, url)}")
-            show_wifi(Lan(shared), p, "" if start == "/" else start)
+            lan, shown = Lan(shared), "" if start == "/" else start
+            show_wifi(lan, p, shown)
+            if TTY and qr and shared:
+                QrPanel(lan, p, shown).show()
             if show:
                 open_browser(url)
             say(f"    {paint(DIM, 'lotus liveserver stop  stops it')}")
@@ -890,11 +989,16 @@ def main(args):
         kv("Wi-Fi", paint(DIM, "not in a Wi-Fi now – the address shows here as soon as the Mac joins one"))
     say()
     say(f"  {paint(KEY, '✓', True)} Live – the page reloads when you save. {paint(DIM, 'Ctrl-C stops it.')}")
-    say()
+    restore = key_reading() if TTY and wifi and qr else None
+    panel = QrPanel(server.lan, port, page, keys=bool(restore)) if TTY and wifi and qr else None
+    if not (panel and panel.show()):
+        say()
 
     Watcher(site, server.hub).start()
     if wifi:
-        NetWatcher(server.lan, server.hub, port, page).start()
+        NetWatcher(server.lan, server.hub, port, page, panel).start()
+    if restore:
+        Keys(panel, server.hub).start()
     if show:
         open_browser(base + start)
     try:
@@ -903,6 +1007,8 @@ def main(args):
         pass
     finally:
         server.hub.closing = True
+        if restore:
+            restore()
         server.server_close()
         for path in (mark, mark + ".page"):
             try:
