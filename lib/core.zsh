@@ -564,9 +564,11 @@ lotus_salute() {
 
 # Asks the player and writes both lines to the (shared) cache
 lotus_np_query() {
+  setopt localoptions extendedglob
   local f=$LOTUS_CACHE/np-$LOTUS_MODE-$LOTUS_LANG
   local out=$($LOTUS_FF -c $LOTUS_CACHE/np-$LOTUS_MODE.jsonc --pipe false 2>/dev/null)
-  if [[ -z $out ]]; then
+  # with no player fastfetch prints only a color reset: that is nothing playing too
+  if [[ -z ${${out//$'\e['[0-9;]#m/}//[[:space:]]/} ]]; then
     out=$'\e[1;'"$LOTUS_C[music]m♫ "$'\e[0;'"$LOTUS_C[dim]m$LOTUS_L[nothing]"$'\e[0m\n  \e['"$LOTUS_C[dim]m[··········]"$'\e[0m'
   else
     out=${${${out//Playing/$LOTUS_L[playing]}//Paused/$LOTUS_L[paused]}//Stopped/$LOTUS_L[stopped]}

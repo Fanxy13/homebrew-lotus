@@ -1,0 +1,5 @@
+# query<TAB>minimum<TAB>candidates separated by |  (lotus_rank: the order and the scores)
+weathr	50	weather|whatsapp|web|caffeine|clock|feed
+fire	0	Mozilla Firefox|Firefox Developer Edition|Fire|firewall|Brave
+code	55	Visual Studio Code|Code|Xcode|VSCodium|Codex 2|Codex 10
+app	0	app10|app9|app09|App|apple

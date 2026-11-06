@@ -1,46 +1,291 @@
-# The start screen: the logo in the theme's color, with fastfetch's system information next to it (as on the other systems).
+# The start screen – a port of lotus_render, lotus_build, lotus_art_pick, the greetings and now playing (lib/core.zsh,
+# lib/art.zsh). fastfetch draws it with the same generated config as on macOS and Linux (the contract tests compare it).
 
-function ConvertTo-LotusEscape {
-    param([string]$Rgb)       # "248;184;208" -> ESC[38;2;248;184;208m
-    "$([char]27)[38;2;$Rgb" + 'm'
-}
-
-function Get-LotusTheme {
-    param([System.Collections.IDictionary]$Settings)
-    $name = if ($Settings.Contains('LOTUS_THEME')) { $Settings['LOTUS_THEME'] } else { 'matcha' }
-    $themes = @(Get-LotusThemes)
-    $theme = $themes | Where-Object Name -eq $name | Select-Object -First 1
-    if (-not $theme) { $theme = $themes | Where-Object Name -eq 'matcha' | Select-Object -First 1 }
-    $theme
-}
-
-function Show-LotusStart {
-    $paths = Get-LotusPaths
-    $settings = Read-LotusSettings $paths.Settings
-    $theme = Get-LotusTheme $settings
-    $logoName = if ($settings.Contains('LOTUS_LOGO')) { $settings['LOTUS_LOGO'] } else { 'lotus' }
-    $logoFile = Join-Path $paths.Root "logos/$logoName.txt"
-    if (-not (Test-Path -LiteralPath $logoFile)) { $logoFile = Join-Path $paths.Root 'logos/lotus.txt' }
-    $name = if ($settings.Contains('LOTUS_NAME') -and $settings['LOTUS_NAME']) { $settings['LOTUS_NAME'] } else { $env:USERNAME }
-    $reset = "$([char]27)[0m"
-    $color = ConvertTo-LotusEscape $theme.Colors['logo']
-    $lines = @(Get-Content -LiteralPath $logoFile -Encoding utf8)
-    $width = ($lines | Measure-Object -Property Length -Maximum).Maximum
-    $fastfetch = Get-Command fastfetch -ErrorAction SilentlyContinue
-    if ($fastfetch) {
-        # fastfetch draws the logo from a file that already holds the colors (the same way as on the other systems)
-        $artDir = Join-Path $paths.Cache 'art'
-        New-Item -ItemType Directory -Force -Path $artDir | Out-Null
-        $art = Join-Path $artDir "$logoName.txt"
-        $painted = $lines | ForEach-Object { $color + $_.PadRight($width) + $reset }
-        [System.IO.File]::WriteAllText($art, (($painted -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
-        Write-Host ''
-        & $fastfetch.Source --logo $art --logo-type file-raw --logo-width $width --logo-height $lines.Count --logo-padding-left 2 --logo-padding-right 4
-    } else {
-        Write-Host ''
-        foreach ($line in $lines) { Write-Host ("  " + $color + $line + $reset) }
+# fastfetch: the one on the PATH, else the copy the installer put next to Lotus (data/vendor.tsv pins it)
+function Get-LotusFastfetch {
+    $c = Get-Command fastfetch -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($c) { return $c.Source }
+    $exe = if ($IsWindows) { 'fastfetch.exe' } else { 'fastfetch' }
+    foreach ($p in @((Join-Path (Get-LotusRoot) "vendor/fastfetch/$exe"), (Join-Path (Get-LotusRoot) "vendor/$exe"), (Join-Path $script:Paths.Data "vendor/fastfetch/$exe"))) {
+        if (Test-Path -LiteralPath $p -PathType Leaf) { return $p }
     }
-    Write-Host ''
-    Write-Host ("  Hello, $name") -NoNewline
-    Write-Host ("   lotus help") -ForegroundColor DarkGray
+    $null
+}
+
+# A native program's output as text, read as UTF-8 whatever the console's code page is
+function Invoke-LotusNativeText {
+    param([Parameter(Mandatory)][string]$Program, [string[]]$Arguments)
+    $enc = [Console]::OutputEncoding
+    try {
+        try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
+        $out = & $Program @Arguments 2>$null
+        if ($null -eq $out) { return '' }
+        (@($out) -join "`n").TrimEnd("`n")
+    } finally {
+        try { [Console]::OutputEncoding = $enc } catch { }
+    }
+}
+
+# The top border of a box with its title (lotus_box), in fastfetch's color markup
+function Get-LotusFfBox {
+    param([string]$Title, [string]$TitleColor)
+    $p = Get-LotusBoxParts $Title
+    "{#$($script:C['border'])}$($p[0]){#$TitleColor} $Title {#$($script:C['border'])}$($p[1])"
+}
+
+# The text of the fastfetch configs → @{ Main; Np; Lines } (lotus_build, without the writing)
+function Get-LotusFastfetchConfig {
+    $C = $script:C
+    $s = $script:S
+    $bottom = "{ `"type`": `"custom`", `"format`": `"{#$($C['border'])}└$(Get-LotusLine 42)┘`" }"
+    $m = [System.Collections.Generic.List[string]]::new()
+    $n = 0
+    if ($s['LOTUS_GREETING'] -cne 'off') { $m.Add('{ "type": "custom", "format": "@@LOTUS_HELLO@@" }'); $m.Add('"break"'); $n += 2 }
+    if (Test-LotusOn $s['LOTUS_SHOW_HARDWARE']) {
+        $m.Add("{ `"type`": `"custom`", `"format`": `"$(Get-LotusFfBox 'Hardware' $C['accent'])`" }")
+        $m.Add('{ "type": "cpu", "key": "├─ CPU", "format": "{name} ({cores-physical}C / {cores-logical}T) @ {freq-max}" }')
+        $m.Add('{ "type": "gpu", "key": "├─ GPU", "format": "{name} [{type}] // {core-count} Cores" }')
+        $m.Add('{ "type": "memory", "key": "├─ RAM", "format": "{used} / {total} {percentage-bar} {percentage}" }')
+        $m.Add('{ "type": "swap", "key": "├─ SWAP", "format": "{used} / {total} {percentage-bar} {percentage}" }')
+        $m.Add('{ "type": "disk", "key": "├─ DRIVE", "format": "{mountpoint} {size-used} / {size-total} {size-percentage-bar} {size-percentage}" }')
+        $m.Add($bottom); $m.Add('"break"'); $n += 9
+    }
+    if (Test-LotusOn $s['LOTUS_SHOW_SESSION']) {
+        $m.Add("{ `"type`": `"custom`", `"format`": `"$(Get-LotusFfBox 'Session' $C['accent'])`" }")
+        $m.Add('{ "type": "users", "key": "├─ LOGIN", "myselfOnly": true, "format": "{name} // {login-time}" }')
+        $m.Add($bottom); $m.Add('"break"'); $n += 4
+    }
+    if (Test-LotusOn $s['LOTUS_SHOW_TIME']) {
+        $m.Add("{ `"type`": `"custom`", `"format`": `"$(Get-LotusFfBox 'Uptime / Date' $C['key2'])`" }")
+        $m.Add("{ `"type`": `"uptime`", `"key`": `"├─ UPTIME`", `"keyColor`": `"1;$($C['key2'])`" }")
+        $m.Add("{ `"type`": `"datetime`", `"key`": `"├─ DATE`", `"keyColor`": `"1;$($C['key2'])`", `"format`": `"{year}-{month-pretty}-{day-pretty} {hour-pretty}:{minute-pretty}:{second-pretty}`" }")
+        $m.Add($bottom); $m.Add('"break"'); $n += 5
+    }
+    if ($s['LOTUS_SALUTE'] -cne 'off') { $m.Add('{ "type": "custom", "format": "@@LOTUS_SALUTE@@" }'); $m.Add('"break"'); $n += 2 }
+    if ($script:NpOn) { $m.Add('{ "type": "custom", "format": "@@LOTUS_NP1@@" }'); $m.Add('{ "type": "custom", "format": "@@LOTUS_NP2@@" }'); $n += 2 }
+    if ($m.Count -and $m[$m.Count - 1] -eq '"break"') { $m.RemoveAt($m.Count - 1); $n-- }
+    $bar = "`"bar`": { `"char`": { `"elapsed`": `"■`", `"total`": `"·`" }, `"border`": { `"left`": `"[`", `"right`": `"]`" }, `"color`": { `"elapsed`": `"$($C['key'])`", `"total`": `"$($C['dim'])`", `"border`": `"97`" }, `"width`": 10 }"
+    $main = @"
+// Generated by lotus – do not edit, use: lotus settings
+{
+  "logo": { "type": "none" },
+  "display": {
+    "separator": "",
+    "key": { "width": 14 },
+    "color": { "keys": "$($C['key'])", "output": "97" },
+    "percent": { "type": ["num", "bar"], "color": { "green": "97", "yellow": "97", "red": "97" } },
+    $bar,
+    "size": { "binaryPrefix": "iec", "ndigits": 2 }
+  },
+  "modules": [
+    $($m -join ",`n    ")
+  ]
+}
+
+"@
+    $np = @"
+// Generated by lotus – the now playing lines only
+{
+  "logo": { "type": "none" },
+  "display": { "separator": "", "key": { "width": 0 }, "color": { "output": "97" }, "percent": { "type": ["num", "bar"] }, $bar },
+  "modules": [
+    { "type": "media", "key": "♫ ", "keyColor": "1;$($C['music'])", "format": "{title}{?artist} {#$($C['border'])}—{#0}{#97} {artist}{?}" },
+    { "type": "media", "key": "  ", "format": "{progress-bar} {#$($C['dim'])}{progress}  {status}" }
+  ]
+}
+
+"@
+    [pscustomobject]@{ Main = $main.Replace("`r`n", "`n"); Np = $np.Replace("`r`n", "`n"); Lines = $n }
+}
+
+# Writes the configs, only when something changed (lotus_build; -Force: always)
+function Update-LotusFastfetchConfig {
+    param([switch]$Force)
+    $cache = $script:Paths.Cache
+    $cfg = Join-Path $cache "fastfetch-$($script:Mode).jsonc"
+    $np = Join-Path $cache "np-$($script:Mode).jsonc"
+    $stamp = Join-Path $cache "build-$($script:Mode)"
+    $want = "$(Get-LotusVersion) $(Get-LotusRoot)"
+    if (-not $Force -and (Test-Path -LiteralPath $cfg) -and (Test-Path -LiteralPath $np) -and ([string](Read-LotusFile $stamp)).TrimEnd("`n") -ceq $want) {
+        $t = (Get-Item -LiteralPath $cfg).LastWriteTimeUtc
+        $core = (Get-Item -LiteralPath (Join-Path (Get-LotusRoot) 'lib/core.zsh')).LastWriteTimeUtc
+        $set = Get-Item -LiteralPath $script:Paths.Settings -ErrorAction SilentlyContinue
+        if ($t -gt $core -and (-not $set -or $t -gt $set.LastWriteTimeUtc)) { return }
+    }
+    $c = Get-LotusFastfetchConfig
+    Write-LotusFile "$cfg.lines" "$($c.Lines)`n"
+    Write-LotusFile $cfg $c.Main
+    Write-LotusFile $np $c.Np
+    Write-LotusFile $stamp "$want`n"
+}
+
+# ── Texts ─────────────────────────────────────────────────────
+
+function Get-LotusHellos {
+    if (-not $script:Hellos) { $script:Hellos = Get-LotusZshArray -Text (Read-LotusFile (Join-Path (Get-LotusRoot) 'lib/core.zsh')) -Name 'LOTUS_HELLOS' }
+    $script:Hellos
+}
+
+# The greeting at the top: 15 languages in turn or at random (lotus_hello)
+function Get-LotusHello {
+    $hellos = Get-LotusHellos
+    $f = Join-Path $script:Paths.Cache 'greeting'
+    switch ($script:S['LOTUS_GREETING']) {
+        'rotate' {
+            $i = Get-LotusInt ([string](Read-LotusFile $f)).Trim() -1
+            $i = ($i + 1) % $hellos.Count
+            if ($i -lt 0) { $i = 0 }
+            try { Write-LotusFile $f "$i`n" } catch { }
+        }
+        'random' { $i = Get-Random -Maximum $hellos.Count }
+        default { return '' }
+    }
+    $name = [string]$script:S['LOTUS_NAME']
+    "$([char]27)[1;97m$($hellos[$i])$(if ($name) { ', ' })$([char]27)[0;$($script:C['accent'])m$name$([char]27)[0m"
+}
+
+# The line at the bottom, by the time of day (lotus_salute)
+function Get-LotusSalute {
+    param([int]$Hour = [datetime]::Now.Hour)
+    $h = $Hour
+    $s = switch ($script:S['LOTUS_SALUTE']) {
+        'fr' { if ($h -lt 5) { 'Bonne nuit!' } elseif ($h -lt 18) { 'Bonjour!' } else { 'Bonsoir!' } }
+        'de' { if ($h -lt 5) { 'Gute Nacht!' } elseif ($h -lt 11) { 'Guten Morgen!' } elseif ($h -lt 18) { 'Guten Tag!' } else { 'Guten Abend!' } }
+        'en' { if ($h -lt 5) { 'Good night!' } elseif ($h -lt 12) { 'Good morning!' } elseif ($h -lt 18) { 'Good afternoon!' } else { 'Good evening!' } }
+        'es' { if ($h -lt 5 -or $h -ge 20) { '¡Buenas noches!' } elseif ($h -lt 12) { '¡Buenos días!' } else { '¡Buenas tardes!' } }
+        default { return '' }
+    }
+    $name = [string]$script:S['LOTUS_NAME']
+    "$([char]27)[1;$($script:C['salute'])m$s$(if ($name) { " $name." })$([char]27)[0m"
+}
+
+# ── Now playing ───────────────────────────────────────────────
+
+# Asks the player and keeps both lines in the cache (lotus_np_query)
+function Update-LotusNowPlaying {
+    $f = Join-Path $script:Paths.Cache "np-$($script:Mode)-$($script:S['LOTUS_LANG'])"
+    $ff = Get-LotusFastfetch
+    $out = if ($ff) { Invoke-LotusNativeText $ff @('-c', (Join-Path $script:Paths.Cache "np-$($script:Mode).jsonc"), '--pipe', 'false') } else { '' }
+    $esc = [char]27
+    # with no player fastfetch prints only a color reset: that is nothing playing too
+    if (-not ($out -replace "$esc\[[0-9;]*m", '').Trim()) {
+        $out = "$esc[1;$($script:C['music'])m♫ $esc[0;$($script:C['dim'])m$(T nothing 'Nothing playing')$esc[0m`n  $esc[$($script:C['dim'])m[··········]$esc[0m"
+    } else {
+        $out = $out.Replace('Playing', (T playing '▶ playing')).Replace('Paused', (T paused '‖ paused')).Replace('Stopped', (T stopped '■ stopped'))
+    }
+    try { Write-LotusFile $f "$out`n" } catch { }
+    $out
+}
+
+# Both lines; a fresh answer from the cache is used again (lotus_np_get)
+function Get-LotusNowPlaying {
+    $f = Join-Path $script:Paths.Cache "np-$($script:Mode)-$($script:S['LOTUS_LANG'])"
+    $m = Get-LotusMtime $f
+    $text = if ($null -ne $m -and (Get-LotusEpoch) - $m -lt (Get-LotusInt $script:S['LOTUS_INTERVAL'] 2)) { ([string](Read-LotusFile $f)).TrimEnd("`n") } else { Update-LotusNowPlaying }
+    $l = $text -split "`n"
+    @($l[0], $(if ($l.Count -gt 1) { $l[1] } else { '' }))
+}
+
+# ── The art ───────────────────────────────────────────────────
+
+# fastfetch's arguments for the art next to <info lines> of information (lotus_art_pick): the logo, the minimal lotus
+# when the window is too narrow for it, or none
+function Get-LotusArtArgs {
+    param([int]$Info, [int]$Columns = (Get-LotusColumns))
+    $logo = $null
+    $p = Get-LotusLogoPainted ([string]$script:S['LOTUS_LOGO'])
+    if ($p) {
+        $logo = $p
+        if ($Columns -lt $p.Width + 60) {
+            $logo = $null
+            if ($script:S['LOTUS_LOGO'] -cne 'minimal') {
+                $mm = Get-LotusLogoPainted 'minimal'
+                if ($mm -and $Columns -ge $mm.Width + 60) { $logo = $mm }
+            }
+        }
+    }
+    if (-not $logo) { return @('--logo', 'none') }
+    $top = if ($logo.Height -ge $Info - 2) { 2 } else { [Math]::Truncate(($Info - $logo.Height) / 2) }
+    @('--logo', $logo.File, '--logo-type', 'file-raw', '--logo-width', "$($logo.Width)", '--logo-height', "$($logo.Height)",
+        '--logo-padding-top', "$top", '--logo-padding-left', '2', '--logo-padding-right', '6')
+}
+
+# ── The start screen ──────────────────────────────────────────
+
+# The start screen as text (lotus_render without the printing) → the lines, or $null without fastfetch
+function Get-LotusStartText {
+    param([int]$Columns = (Get-LotusColumns))
+    $ff = Get-LotusFastfetch
+    if (-not $ff) { return $null }
+    Update-LotusFastfetchConfig
+    $cache = $script:Paths.Cache
+    $info = Get-LotusInt ([string](Read-LotusFile (Join-Path $cache "fastfetch-$($script:Mode).jsonc.lines"))).Trim() 22
+    $args_ = @('-c', (Join-Path $cache "fastfetch-$($script:Mode).jsonc"), '--pipe', 'false') + (Get-LotusArtArgs $info $Columns)
+    $out = Invoke-LotusNativeText $ff $args_
+    $out = $out.Replace('@@LOTUS_HELLO@@', (Get-LotusHello)).Replace('@@LOTUS_SALUTE@@', (Get-LotusSalute))
+    if ($script:NpOn) {
+        $np = Get-LotusNowPlaying
+        $out = $out.Replace('@@LOTUS_NP1@@', $np[0]).Replace('@@LOTUS_NP2@@', $np[1])
+    }
+    $out
+}
+
+# Without fastfetch: the logo and the greeting alone, and how to get the rest
+function Show-LotusStartPlain {
+    $p = Get-LotusLogoPainted ([string]$script:S['LOTUS_LOGO'])
+    Write-LotusLine ''
+    if ($p -and (Get-LotusColumns) -ge $p.Width + 4) {
+        foreach ($line in ([string](Read-LotusFile $p.File)).TrimEnd("`n") -split "`n") { Write-LotusLine "  $line" }
+        Write-LotusLine ''
+    }
+    $hello = Get-LotusHello
+    if ($hello) { Write-LotusLine "  $hello" }
+    Write-LotusLine "  $(E dim)fastfetch is missing – the system information comes with it: lotus doctor$($script:R)"
+}
+
+# lotus show: the screen, then the lines under it
+function Show-LotusStart {
+    $out = Get-LotusStartText
+    if ($null -eq $out) { Show-LotusStartPlain }
+    else {
+        # without line wrapping: every line stays exactly one screen row
+        Write-LotusRaw "$([char]27)[?7l"
+        Write-LotusLine $out
+        Write-LotusRaw "$([char]27)[?7h"
+    }
+    Show-LotusStartupDetails
+    Show-LotusCaffeineNote
+    Show-LotusPetStart
+}
+
+# The optional dim line under the start screen (/settings → Diagnostics → Show startup details)
+function Show-LotusStartupDetails {
+    if (-not (Test-LotusOn $script:S['LOTUS_LOG_STARTUP'])) { return }
+    $on = @($script:FeatureIds | Where-Object { Test-LotusFeature $_ }).Count
+    $ms = if ($script:T0) { [int]([datetime]::UtcNow - $script:T0).TotalMilliseconds } else { 0 }
+    Write-LotusLine "  $(E dim)lotus $(Get-LotusVersion) · $ms ms · $on/$($script:FeatureIds.Count) $(T features_word 'features') · log: $($script:S['LOTUS_LOG_LEVEL']) · /lotus log$($script:R)"
+    Write-LotusLog DEBUG startup "Start screen in $ms ms, $on of $($script:FeatureIds.Count) features on"
+}
+
+# Under the start screen while Lotus keeps the computer awake
+function Show-LotusCaffeineNote {
+    if (-not (Test-LotusFeature 'caffeine') -or -not (Test-LotusOutTty)) { return }
+    $f = Join-Path $script:Paths.State 'caffeine'
+    $v = @(([string](Read-LotusFile $f)).Trim() -split '\s+')
+    if ($v.Count -lt 3 -or $v[0] -notmatch '^\d+$' -or -not (Test-LotusAwake ([int]$v[0]) ([long]$v[1]))) { return }
+    $text = T caf_status_on 'Keep awake: on'
+    $end = Get-LotusInt $v[2]
+    $now = Get-LotusEpoch
+    if ($end -gt $now) { $text += " · $([Math]::Truncate(($end - $now + 59) / 60)) min" }
+    Write-LotusLine "  $(E dim)$text · lotus caffeine off$($script:R)"
+}
+
+# A pet greets you below the start screen (Public/pets.ps1 is loaded only when there is a pet)
+function Show-LotusPetStart {
+    if (-not (Test-LotusOn $script:S['LOTUS_PET_START']) -or -not (Test-LotusFeature 'pets') -or -not (Test-LotusOutTty)) { return }
+    $f = Join-Path $script:Paths.Conf 'pets.tsv'
+    if (-not (Test-Path -LiteralPath $f) -or (Get-Item -LiteralPath $f).Length -eq 0) { return }
+    if (-not (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot 'Public/pets.ps1'))) { return }
+    Import-LotusCommand pets
+    Show-LotusPetGreeting
 }

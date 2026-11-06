@@ -1,0 +1,4 @@
+# Text files stay LF in every checkout, a Windows one too: zsh reads these files, and the contract tests between the
+# zsh engine and Lotus for Windows compare their bytes. Batch files are the exception – cmd.exe wants CRLF.
+* text=auto eol=lf
+*.cmd text eol=crlf

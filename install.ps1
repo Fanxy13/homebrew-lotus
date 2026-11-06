@@ -55,8 +55,12 @@ function Install-Lotus {
             if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
             Copy-Item -LiteralPath (Join-Path $src $item) -Destination $target -Recurse
         }
+        # from lib/: the file with the version, the settings' keys and defaults, and the texts in four languages
         New-Item -ItemType Directory -Force -Path (Join-Path $dest 'lib') | Out-Null
         Copy-Item -LiteralPath (Join-Path $src 'lib/core.zsh') -Destination (Join-Path $dest 'lib/core.zsh') -Force
+        $lang = Join-Path $dest 'lib/lang'
+        if (Test-Path -LiteralPath $lang) { Remove-Item -LiteralPath $lang -Recurse -Force }
+        Copy-Item -LiteralPath (Join-Path $src 'lib/lang') -Destination $lang -Recurse
         # the tests and the sample settings are not for users, nor the sources of meshchat.exe (a release carries the program)
         Remove-Item -LiteralPath (Join-Path $dest 'win/tests') -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath (Join-Path $dest 'win/meshchat') -Recurse -Force -ErrorAction SilentlyContinue

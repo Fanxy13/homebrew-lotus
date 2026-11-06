@@ -1,118 +1,110 @@
-# The lotus command. Everything it can do on Windows is listed in `lotus help`; the rest says so instead of failing quietly.
-# (A simple function with $args, not an advanced one: "lotus -v" must reach us as the text "-v", not as a parameter.)
+# The lotus command – what bin/lotus is for zsh: each subcommand goes to its module (Public/<module>.ps1, loaded when
+# first used). A feature that is turned off explains itself; an unknown command gets a suggestion; what Windows does
+# not have says so instead of failing quietly.
+# (A simple function with $args, not an advanced one: "lotus -v" must reach it as the text "-v", not as a parameter.)
 
 $script:WebsiteStatus = 'https://fanxy13.github.io/homebrew-lotus/#platforms'
 
+$script:Modules = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
+foreach ($pair in @(
+        'setup system', 'update system', 'upgrade system', 'doctor system', 'uninstall system', 'unhook system',
+        'help help', '-h help', '--help help', 'cheatsheet help', 'themes help', 'suggest help',
+        'web web', 'github web', 'goat web', 'who web', 'browse web', 'google web', 'search web', 'open web',
+        'app app', 'brew brew', 'install install', 'audio audio', 'weather weather', 'ai ai',
+        'ios ios', 'minecraft minecraft', 'mc minecraft', 'convert convert', 'visual visual',
+        'shortcuts shortcuts', 'shortcut shortcuts', 'run shortcuts', 'logo logo',
+        'bg bg', 'log log', 'features setup', 'pets pets', 'pet pets', 'feed pets', 'zetamac pets', 'clock clock',
+        'caffeine caffeine', 'awake caffeine', 'ai-tool aitools',
+        'plugin plugin', 'plugins plugin', 'plugin-tool plugin', 'plugin-startup plugin', 'bash-init shell',
+        'img img', 'liveserver live', 'html html', 'meshchat meshchat')) {
+    $kv = $pair -split ' '
+    $script:Modules[$kv[0]] = $kv[1]
+}
+
+# What Windows cannot do (yet), in words: module → the reason, and whether the table of what works where helps
+$script:NotOnWindows = @{
+    ios       = @("iPhone and iPad tools need Apple’s tools: they are for macOS only.", $false)
+    minecraft = @('The Minecraft server setup is not on Windows yet.', $true)
+    bg        = @('Remove BG is not on Windows yet.', $true)
+    plugin    = @('Plugins are not on Windows yet: Windows has no sandbox that PowerShell can use, so every plugin will need the approval a full-access one needs.', $true)
+    aitools   = @('The AI program is not on Windows yet.', $true)
+    shell     = @('bash-init is for bash on macOS and Linux. PowerShell has its own: lotus setup --hook', $false)
+}
+
 function lotus {
-    $command = if ($args.Count -gt 0) { [string]$args[0] } else { 'show' }
-    $rest = if ($args.Count -gt 1) { @($args[1..($args.Count - 1)]) } else { @() }
-    switch -Regex ($command) {
-        '^(show|)$'                  { Show-LotusStart; return }
-        '^(version|-v|--version)$'   { Get-LotusVersion; return }
-        '^doctor$'                   { Invoke-LotusDoctor; return }
-        '^themes$'                   { Show-LotusThemes; return }
-        '^(settings|config)$'        { Invoke-LotusSettings $rest; return }
-        '^setup$'                    { Invoke-LotusSetup $rest; return }
-        '^unhook$'                   { if (Remove-LotusHook) { Write-Host '  Removed the Lotus lines from your PowerShell profile.' } else { Write-Host '  There were no Lotus lines in your profile.' }; return }
-        '^uninstall$'                { Invoke-LotusUninstall $rest; return }
-        '^(help|-h|--help)$'         { Show-LotusHelp; return }
-        default {
-            Write-Host "  lotus $command is not available on Windows yet." -ForegroundColor Yellow
-            Write-Host "  What works where: $script:WebsiteStatus"
-            $global:LASTEXITCODE = 2
+    $script:T0 = [datetime]::UtcNow
+    $argv = @($args | ForEach-Object { [string]$_ })
+    $verboseWas = $env:LOTUS_VERBOSE
+    if ($argv.Count -and $argv[0] -cin '-V', '--verbose') { $env:LOTUS_VERBOSE = '1'; $argv = @($argv | Select-Object -Skip 1) }
+    $cmd = if ($argv.Count) { $argv[0] } else { 'show' }
+    $rest = [string[]]@($argv | Select-Object -Skip 1)
+    $rc = 0
+    try {
+        Initialize-Lotus
+        foreach ($o in (Invoke-LotusDispatch $cmd $rest)) {
+            if (Test-LotusStatus $o) { $rc = $o.Code } else { $o }
         }
+    } finally {
+        if ($null -eq $verboseWas) { Remove-Item Env:LOTUS_VERBOSE -ErrorAction SilentlyContinue } else { $env:LOTUS_VERBOSE = $verboseWas }
+        try { Exit-LotusKeys } catch { }
+        $global:LASTEXITCODE = [int]$rc
     }
+    if ($script:ShellOn) { Update-LotusShellAfter $cmd }
 }
 
-function Show-LotusHelp {
-    Write-Host ''
-    Write-Host '  Lotus for Windows (preview)' -ForegroundColor Green
-    Write-Host ''
-    @(
-        @('lotus', 'the start screen'),
-        @('lotus version', 'the installed version'),
-        @('lotus doctor', 'what is there and what is missing'),
-        @('lotus themes', 'the themes'),
-        @('lotus settings [get|set NAME VALUE]', 'the settings file, the same format as on macOS and Linux'),
-        @('lotus setup --hook', 'load Lotus in every PowerShell window (a block in your profile)'),
-        @('lotus unhook', 'take that block out again'),
-        @('lotus uninstall', 'remove your settings and the block (asks first)')
-    ) | ForEach-Object { Write-Host ('  {0,-38}{1}' -f $_[0], $_[1]) }
-    Write-Host ''
-    Write-Host "  Everything else is being built. What works where: $script:WebsiteStatus"
-    Write-Host ''
-}
-
-function Show-LotusThemes {
-    $esc = [char]27
-    foreach ($theme in Get-LotusThemes) {
-        $swatch = ($theme.Colors.Values | Select-Object -First 4 | ForEach-Object { "$esc[48;2;$($_)m  $esc[0m" }) -join ''
-        Write-Host ('  {0,-10}{1}' -f $theme.Name, $swatch)
-    }
-}
-
-function Invoke-LotusSettings {
-    param($Rest)
-    $Rest = @($Rest | Where-Object { $null -ne $_ })      # an empty array arrives as $null
-    $paths = Get-LotusPaths
-    switch ("$($Rest[0])") {
-        'get' {
-            $settings = Read-LotusSettings $paths.Settings
-            if ($settings.Contains("$($Rest[1])")) { $settings["$($Rest[1])"] } else { $global:LASTEXITCODE = 1 }
+# Runs one command: its output, and its status as the last St
+function Invoke-LotusDispatch {
+    param([string]$Cmd, [string[]]$Rest)
+    switch -CaseSensitive ($Cmd) {
+        { $_ -cin 'show', '' } {
+            if (-not (Test-LotusOn $script:S['LOTUS_CONFIGURED']) -and (Test-LotusTty) -and (Test-LotusOutTty)) {
+                Import-LotusCommand setup
+                Invoke-LotusSetupWizard | Where-Object { -not (Test-LotusStatus $_) }
+                Initialize-Lotus
+            }
+            Show-LotusStart
+            return (St 0)
         }
-        'set' {
-            if ($Rest.Count -lt 3) { Write-Host '  lotus settings set NAME VALUE'; $global:LASTEXITCODE = 2; return }
-            Set-LotusSetting -Path $paths.Settings -Name $Rest[1] -Value ($Rest[2..($Rest.Count - 1)] -join ' ')
-            Write-Host "  $($Rest[1]) saved in $($paths.Settings)"
+        { $_ -cin 'settings', 'config' } {
+            Write-LotusLog DEBUG cli 'Settings opened'
+            Import-LotusCommand settings
+            Invoke-LotusSettings $Rest
+            return
         }
-        default {
-            $settings = Read-LotusSettings $paths.Settings
-            if ($settings.Count -eq 0) { Write-Host "  No settings yet ($($paths.Settings))." }
-            foreach ($key in $settings.Keys) { Write-Host ('  {0,-28}{1}' -f $key, $settings[$key]) }
+        { $_ -cin 'version', '-v', '--version' } { Get-LotusVersion; return (St 0) }
+        'shell-init' { Enable-LotusShell; return (St 0) }
+    }
+    $module = $null
+    if (-not $script:Modules.TryGetValue($Cmd, [ref]$module)) {
+        Write-LotusLog INFO cli "Unknown command: $Cmd"
+        Import-LotusCommand help
+        Invoke-LotusSuggest $Cmd $Rest     # its status: 1, or the one of the command you chose to run instead
+        return
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot "Public/$module.ps1"))) {
+        $why = if ($script:NotOnWindows.ContainsKey($module)) { $script:NotOnWindows[$module] } else { @("lotus $Cmd is not available on Windows yet.", $true) }
+        Write-LotusLine ''
+        Write-LotusLine "  $(E '1')$(E key2)!$($script:R) $($why[0])"
+        if ($why[1]) { Write-LotusLine "  $(E dim)What works where: $($script:WebsiteStatus)$($script:R)" }
+        Write-LotusLine ''
+        Write-LotusLog INFO cli "$Cmd is not available on Windows"
+        return (St 2)
+    }
+    # a feature that is turned off explains itself instead of running
+    $feature = Get-LotusFeatureOf $Cmd
+    if (-not (Test-LotusFeature $feature)) {
+        Write-LotusLog DEBUG cli "${Cmd}: the feature `"$feature`" is turned off"
+        if (Show-LotusFeatureOff $feature) { Initialize-Lotus } else { return (St 3) }
+    }
+    Write-LotusLog DEBUG cli "Command: $Cmd$(if ($env:LOTUS_VERBOSE -eq '1' -and $Rest.Count) { ' ' + ($Rest -join ' ') })"
+    Import-LotusCommand $module
+    $script:LogComp = $module
+    $rc = 0
+    try {
+        foreach ($o in (& "Invoke-Lotus$module" $Cmd $Rest)) {
+            if (Test-LotusStatus $o) { $rc = $o.Code } else { $o }
         }
-    }
-}
-
-function Invoke-LotusSetup {
-    param($Rest)
-    $Rest = @($Rest | Where-Object { $null -ne $_ })      # an empty array arrives as $null
-    $path = Add-LotusHook
-    Write-Host "  Lotus is loaded from $path"
-    Write-Host '  Open a new PowerShell window. The setup wizard is not on Windows yet; set your name with: lotus settings set LOTUS_NAME Ada'
-}
-
-function Invoke-LotusUninstall {
-    param($Rest)
-    $Rest = @($Rest | Where-Object { $null -ne $_ })      # an empty array arrives as $null
-    $paths = Get-LotusPaths
-    Write-Host '  This removes your Lotus settings and cache and the Lotus lines in your PowerShell profile:'
-    Write-Host "    $($paths.Conf)"
-    Write-Host "    $($paths.Cache)"
-    if ($Rest -notcontains '--yes') {
-        $answer = Read-Host '  Remove them? [y/N]'
-        if ($answer -notmatch '^(y|yes|j|ja)$') { Write-Host '  Nothing was removed.'; return }
-    }
-    Remove-LotusHook | Out-Null
-    foreach ($dir in @($paths.Conf, $paths.Cache)) {
-        if ((Test-Path -LiteralPath $dir) -and $dir.Length -gt 12) { Remove-Item -LiteralPath $dir -Recurse -Force }
-    }
-    Write-Host '  Removed. The program itself goes with the tool you installed it with: winget uninstall or scoop uninstall.'
-}
-
-function Invoke-LotusDoctor {
-    $paths = Get-LotusPaths
-    $rows = @(
-        @('PowerShell 7.2 or newer', (($PSVersionTable.PSVersion.Major -gt 7) -or ($PSVersionTable.PSVersion.Major -eq 7 -and $PSVersionTable.PSVersion.Minor -ge 2)), "$($PSVersionTable.PSVersion)"),
-        @('Windows Terminal', [bool]$env:WT_SESSION, $(if ($env:WT_SESSION) { 'yes' } else { 'not detected: colors may be fewer' })),
-        @('fastfetch (system information)', [bool](Get-Command fastfetch -ErrorAction SilentlyContinue), $(if (Get-Command fastfetch -ErrorAction SilentlyContinue) { (Get-Command fastfetch).Source } else { 'winget install Fastfetch-cli.Fastfetch' })),
-        @('Lotus data and logos', (Test-Path -LiteralPath (Join-Path $paths.Root 'logos')), $paths.Root),
-        @('Settings file', (Test-Path -LiteralPath $paths.Settings), $paths.Settings),
-        @('Loaded by your profile', (Test-LotusHook), 'lotus setup --hook')
-    )
-    Write-Host ''
-    foreach ($row in $rows) {
-        $mark = if ($row[1]) { 'ok     ' } else { 'missing' }
-        Write-Host ("  {0}  {1,-34}{2}" -f $mark, $row[0], $row[2])
-    }
-    Write-Host ''
+    } finally { $script:LogComp = $null }
+    if ($rc -and $rc -ne 130) { Write-LotusLog DEBUG cli "$Cmd ended with status $rc" }
+    St $rc
 }

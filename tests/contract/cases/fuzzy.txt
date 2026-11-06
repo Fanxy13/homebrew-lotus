@@ -1,0 +1,17 @@
+# query<TAB>candidate – one score each (lotus_score)
+spotify	Spotify
+spotfy	Spotify
+spot	Spotify
+tify	Spotify
+firefx	Mozilla Firefox
+vscode	Microsoft Visual Studio Code
+visul	Visual Studio Code
+weatr	weather
+liveserver	liveserver
+mc	minecraft
+gh	GitHub Desktop
+ditch	Discord
+obs	OBS
+	Spotify
+x	
+été	Été Musique

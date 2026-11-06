@@ -8,7 +8,7 @@ function Get-LotusHookBlock {
     @(
         $script:HookStart
         "Import-Module '$($module.Replace("'", "''"))'"
-        "if (`$Host.Name -eq 'ConsoleHost' -and [Environment]::UserInteractive -and -not [Console]::IsOutputRedirected) { lotus show }"
+        'lotus shell-init'
         $script:HookEnd
     ) -join "`n"
 }
@@ -19,7 +19,7 @@ function Get-LotusProfilePath {
 
 function Add-LotusHook {
     param([string]$ProfilePath = (Get-LotusProfilePath))
-    $text = if (Test-Path -LiteralPath $ProfilePath) { Get-Content -LiteralPath $ProfilePath -Raw -Encoding utf8 } else { '' }
+    $text = Read-LotusFile $ProfilePath
     if ($null -eq $text) { $text = '' }
     $block = Get-LotusHookBlock
     $pattern = '(?s)' + [regex]::Escape($script:HookStart) + '.*?' + [regex]::Escape($script:HookEnd)
@@ -28,24 +28,23 @@ function Add-LotusHook {
     } else {
         $text = $text.TrimEnd() + $(if ($text.Trim()) { "`n`n" } else { '' }) + $block + "`n"
     }
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ProfilePath) | Out-Null
-    [System.IO.File]::WriteAllText($ProfilePath, $text, [System.Text.UTF8Encoding]::new($false))
+    Write-LotusFile $ProfilePath $text
     $ProfilePath
 }
 
 function Remove-LotusHook {
     param([string]$ProfilePath = (Get-LotusProfilePath))
-    if (-not (Test-Path -LiteralPath $ProfilePath)) { return $false }
-    $text = Get-Content -LiteralPath $ProfilePath -Raw -Encoding utf8
+    $text = Read-LotusFile $ProfilePath
     if ($null -eq $text) { return $false }
-    $pattern = '(?s)\r?\n*' + [regex]::Escape($script:HookStart) + '.*?' + [regex]::Escape($script:HookEnd) + '\r?\n?'
+    $pattern = '(?s)\n*' + [regex]::Escape($script:HookStart) + '.*?' + [regex]::Escape($script:HookEnd) + '\n?'
     if ($text -notmatch $pattern) { return $false }
     $text = [regex]::Replace($text, $pattern, "`n")
-    [System.IO.File]::WriteAllText($ProfilePath, $text.TrimStart(), [System.Text.UTF8Encoding]::new($false))
+    Write-LotusFile $ProfilePath $text.TrimStart()
     $true
 }
 
 function Test-LotusHook {
     param([string]$ProfilePath = (Get-LotusProfilePath))
-    (Test-Path -LiteralPath $ProfilePath) -and ((Get-Content -LiteralPath $ProfilePath -Raw -Encoding utf8) -like "*$($script:HookStart)*")
+    $text = Read-LotusFile $ProfilePath
+    $null -ne $text -and $text.Contains($script:HookStart)
 }

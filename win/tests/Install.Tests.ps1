@@ -33,7 +33,7 @@ Describe 'install.ps1' {
         }
         $out | Should -Match 'Lotus is in'
         $out | Should -Match 'Done'
-        foreach ($file in 'win/Lotus.psd1', 'win/Public/lotus.ps1', 'data/commands.tsv', 'logos/lotus.txt', 'lib/core.zsh') {
+        foreach ($file in 'win/Lotus.psd1', 'win/Public/lotus.ps1', 'data/commands.tsv', 'logos/lotus.txt', 'lib/core.zsh', 'lib/lang/en.zsh', 'lib/lang/setup.de.zsh') {
             Test-Path (Join-Path $dest $file) | Should -BeTrue -Because "$file is copied"
         }
         Test-Path (Join-Path $dest 'win/tests') | Should -BeFalse
@@ -45,6 +45,9 @@ Describe 'install.ps1' {
         $want = ($core -split '=')[1].Trim()
         $got = & $script:Pwsh -NoProfile -Command "`$env:LOTUS_CONF = '$($env:LOTUS_CONF)'; Import-Module '$(Join-Path $dest 'win/Lotus.psd1')'; lotus version"
         $got | Should -Be $want
+        # the texts are there: German, from the copied language files
+        $text = & $script:Pwsh -NoProfile -Command "`$env:LOTUS_CONF = '$($env:LOTUS_CONF)'; `$env:LOTUS_NO_TTY = '1'; Import-Module '$(Join-Path $dest 'win/Lotus.psd1')'; lotus settings set LOTUS_LANG de | Out-Null; & (Get-Module Lotus) { Initialize-Lotus; T settings }"
+        ($text | Select-Object -Last 1) | Should -Be 'Einstellungen'
     }
     It 'is run a second time without a second block' {
         $dest = Join-Path $script:Tmp 'app'
