@@ -483,7 +483,8 @@ function script:Get-LotusPetBrain {
 # The answer starts on its way ($script:PetReq); Wait-LotusPetThought waits for it
 function script:Start-LotusPetThought {
     param([string]$System, [string]$Prompt)
-    $script:PetReq = Start-LotusAiRequest -System $System -Prompt $Prompt -MaxTokens 400
+    # (a pet says 35 words: little thinking, so it answers while you watch)
+    $script:PetReq = Start-LotusAiRequest -System $System -Prompt $Prompt -MaxTokens 2000 -Effort low
 }
 
 # Waits for the answer while the pet thinks ("· · ·") → the clean text; '' when it was stopped (Esc) or is empty
@@ -759,7 +760,8 @@ function script:Get-LotusPetCommands {
 
 # A random command of a feature that is on ("/weather Paris – shows the weather …"), or $null
 function script:Get-LotusPetTip {
-    $all = @(foreach ($c in Get-LotusPetCommands) {
+    $cmds = Get-LotusPetCommands
+    $all = @(foreach ($c in $cmds) {
             if ($c.Usage.StartsWith('lotus') -or $c.Command -ceq 'pet' -or -not $c.Description) { continue }
             "$($c.Example) – $($c.Description.Substring(0, 1).ToLower())$($c.Description.Substring(1))"
         })
@@ -903,7 +905,8 @@ function script:Invoke-LotusPetHelp {
                 $c = $cmds[$i]
                 $n++
                 Write-LotusLine "    $k$n  $($c.Usage)$r"
-                foreach ($l in (Split-LotusPetWords $c.Description $dw)) { Write-LotusLine "       $l" }
+                $wrapped = Split-LotusPetWords $c.Description $dw
+                foreach ($l in $wrapped) { Write-LotusLine "       $l" }
                 if ($c.Example -cne $c.Usage) { Write-LotusLine "       $d$($c.Example)$r" }
             }
             Write-LotusLine ''
@@ -963,7 +966,7 @@ function script:Show-LotusPetsScreen {
     while ($true) {
         Clear-LotusPetsScreen
         Write-LotusHero (T pt_title) (T pt_sub)
-        if ($script:PetN.Count) { foreach ($l in (Get-LotusPetLineup)) { Write-LotusLine $l }; Write-LotusBlank }
+        if ($script:PetN.Count) { $lineup = Get-LotusPetLineup; foreach ($l in $lineup) { Write-LotusLine $l }; Write-LotusBlank }
         $opts = [System.Collections.Generic.List[string]]::new()
         for ($i = 0; $i -lt $script:PetN.Count; $i++) { $opts.Add("$($script:PetN[$i])|$(Get-LotusPetKindLabel $script:PetK[$i]) · $(Get-LotusPetStatus $i)") }
         $count = $script:PetN.Count

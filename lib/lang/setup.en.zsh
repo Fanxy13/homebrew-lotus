@@ -55,6 +55,12 @@ LOTUS_L+=(
   sw_hello        'Hello'
   sw_pet_q        'Adopt a pet?'
   sw_pet_sub      'A little friend that lives in your terminal: it greets you, talks with Apple Intelligence, helps with /help and gets hungry. More in /pets.'
+  sw_pet_sub_ai   'A little friend that lives in your terminal: it greets you, talks with the AI of /ai, helps with /help and gets hungry. More in /pets.'
+  # what a feature does on Windows, where it differs (win/Public/setup.ps1)
+  featw_homebrew  'Search winget and install apps from the catalog'
+  featw_ai        'Chat and answers with Claude, Ollama or an OpenAI-compatible API – on Windows without tools'
+  featw_caffeine  'Keep your PC awake for a while – for downloads, renders or a server'
+  featw_meshchat  'One chat with everyone nearby over Bluetooth – no internet, no server; Macs and PCs in the chat pass messages on'
   sw_pet_none     'Not now'
   sw_pet_none_d   'later with /pets'
   sw_petname_q    'What is your %s called?'

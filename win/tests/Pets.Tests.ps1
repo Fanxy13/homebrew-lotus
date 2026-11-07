@@ -214,6 +214,27 @@ Describe 'drawings' {
         $night | Should -Match 'Psst – Mochi is asleep'
         $night | Should -Not -Match '╭'
     }
+    It 'a tip names one command of a feature that is on' {
+        InModuleScope Lotus {
+            Initialize-LotusPets
+            $tip = Get-LotusPetTip
+            $tip | Should -Match '^\S.* – \p{Ll}'
+            $tip | Should -Not -Match 'System\.'
+        }
+    }
+    It '/pets shows the pets side by side, with their names' {
+        Set-TestPets @('Mochi cat 1', 'Bello dog 1')
+        $out = Invoke-LotusWithKeys @() {
+            $script:SelectHook = { param($Default, $Options) $global:PetsOptions = $Options; $null }
+            try { Show-LotusPetsScreen } finally { $script:SelectHook = $null }
+        }
+        # the row of the names has the names only: the drawings stand above them, one row each
+        (Get-Plain $out) -split "`n" | Where-Object { $_ -match '^\s+Mochi\s+Bello\s*$' } | Should -Not -BeNullOrEmpty
+        @((Get-Plain $out) -split "`n" | Where-Object { $_ -match '[\u2580-\u259F].*\s{4,}.*[\u2580-\u259F]' }).Count | Should -BeGreaterThan 2
+        $global:PetsOptions[0] | Should -Match '^Mochi\|Cat · full for 11 h$'
+        $global:PetsOptions[2] | Should -Match '^Math game\|'
+        Remove-Variable -Name PetsOptions -Scope Global
+    }
     It 'the setup wizard adopts and introduces' {
         Set-TestPets @()
         $out = Invoke-LotusWithKeys @() {

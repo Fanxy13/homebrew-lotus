@@ -295,3 +295,33 @@ Describe 'the screens, with keys' {
         }
     }
 }
+
+Describe 'a table, a file or a text of one item stays one item' {
+    # (a list handed over whole and a list handed over item by item behave differently in foreach and @() – the wizard's
+    # lines were joined into one before; a single row of a table must stay a row)
+    It 'your own themes.tsv with one theme' {
+        $f = Join-Path $env:LOTUS_CONF 'themes.tsv'
+        New-Item -ItemType Directory -Force -Path $env:LOTUS_CONF | Out-Null
+        Set-Content -LiteralPath $f -Value "mine`tMine`t1;2;3`t4;5;6`t7;8;9`t10;11;12`t13;14;15`t16;17;18`t19;20;21`t22;23;24"
+        try {
+            $t = InModuleScope Lotus { Initialize-Lotus; Get-LotusThemes | Where-Object Own }
+            @($t).Count | Should -Be 1
+            $t.Name | Should -Be 'mine'
+            $t.Colors['accent'] | Should -Be '7;8;9'
+        } finally { Remove-Item -LiteralPath $f -Force }
+    }
+    It 'a settings.zsh of one line' {
+        $f = Join-Path $env:LOTUS_CONF 'settings.zsh'
+        $before = Get-Content -LiteralPath $f -Raw -ErrorAction SilentlyContinue
+        Set-Content -LiteralPath $f -Value 'typeset -g LOTUS_NAME=Grace'
+        try { InModuleScope Lotus { Initialize-Lotus; $script:S['LOTUS_NAME'] } | Should -Be 'Grace' }
+        finally { if ($null -ne $before) { Set-Content -LiteralPath $f -Value $before -NoNewline } else { Remove-Item -LiteralPath $f -Force } }
+    }
+    It 'the words of a page of the setup wizard wrap into lines' {
+        InModuleScope Lotus {
+            Import-LotusCommand setup
+            @(Split-LotusWrap 'one two three four' 9) | Should -Be @('one two', 'three', 'four')
+            @(Split-LotusWrap 'short' 20) | Should -Be @('short')
+        }
+    }
+}

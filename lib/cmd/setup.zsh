@@ -529,6 +529,8 @@ _sw_pet_draw() {
 
 _sw_pet() {
   SW_STEP=4 SW_STAGE=4 SW_Q=$LOTUS_L[sw_pet_q] SW_SUB=$LOTUS_L[sw_pet_sub]
+  # Apple Intelligence is named only where the pets think with it
+  [[ ${LOTUS_PET_BRAIN:-apple} == apple ]] || SW_SUB=${LOTUS_L[sw_pet_sub_ai]:-$SW_SUB}
   local -a kinds=(${PET_KINDS[1,4]}) opts=()
   local k
   for k in $kinds; do

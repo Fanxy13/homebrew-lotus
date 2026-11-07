@@ -24,7 +24,8 @@ $script:FeatureNotHere = @{ ios = 'macOS only'; minecraft = 'not on Windows yet'
 function script:Get-LotusFeatureAbout {
     param([string]$Id)
     $about = T "featd_$Id" $script:FeatureRow[$Id][3]
-    if ($IsWindows -and $Id -ceq 'homebrew') { $about = 'Search winget and install apps from the catalog' }
+    # where a feature does something else on Windows, it says so (featw_ in lib/lang/setup.*.zsh)
+    if ($IsWindows -or $env:LOTUS_AS_WINDOWS -eq '1') { $here = T "featw_$Id"; if ($here) { $about = $here } }
     if ($IsWindows -and $script:FeatureNotHere.ContainsKey($Id)) { $about += " ($($script:FeatureNotHere[$Id]))" }
     $about
 }
@@ -93,7 +94,8 @@ function script:Split-LotusWrap {
         else { $line += $(if ($line) { ' ' }) + $word }
     }
     if ($line) { $lines.Add($line) }
-    , $lines.ToArray()
+    # one line after the other: @(Split-LotusWrap …) is the list, foreach walks the lines
+    $lines.ToArray()
 }
 
 # ── The flower ────────────────────────────────────────────────
@@ -512,7 +514,8 @@ function script:Show-LotusWizardPetArt {
 
 function script:Show-LotusWizardPet {
     $sw = $script:Sw
-    $sw.Step = 4; $sw.Stage = 4; $sw.Q = T sw_pet_q; $sw.Sub = T sw_pet_sub
+    # (here the pets think with the AI of /ai, never with Apple Intelligence)
+    $sw.Step = 4; $sw.Stage = 4; $sw.Q = T sw_pet_q; $sw.Sub = T sw_pet_sub_ai (T sw_pet_sub)
     $kinds = @($script:PetKinds | Select-Object -First 4)
     $opts = @(foreach ($k in $kinds) { "$(Get-LotusPetKindLabel $k)|$(Get-LotusPetKindAbout $k)" }) + @("$(T sw_pet_none)|$(T sw_pet_none_d)")
     $def = [Array]::IndexOf($kinds, [string]$script:SwPetKind) + 1
