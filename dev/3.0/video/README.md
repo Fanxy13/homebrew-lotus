@@ -23,7 +23,7 @@ spacious; no flashing, no fast zooms, no emoji, no stock footage of "hackers".
 
 - Show only what exists and what was tested on that system (`dev/3.0/PROGRESS.md`, the table on the website). If the table says
   "Soon" for a system, that scene is not in the video.
-- **Windows**: the port is in development. The video says so in one sentence and shows a text card – no Windows recording – until
-  a release has it. If a release does, add the scenes in `storyboard.md` marked "when Windows ships".
+- **Windows**: its own video, recorded for real on GitHub's Windows machine and cut from that one take – `windows/README.md`.
+  In this video Windows stays one sentence and a text card.
 - Record real runs. If something fails on camera, it stays in or the take is repeated – it is never staged.
 - No name, mail address, token or API key on screen (see `recording.md`).
