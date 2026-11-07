@@ -183,7 +183,7 @@ function script:Invoke-LotusUninstall {
     if ((Test-Path -LiteralPath $paths.Data) -and -not (Get-ChildItem -LiteralPath $paths.Data -Force)) { Remove-Item -LiteralPath $paths.Data -Force }
     $root = Get-LotusRoot
     if (Test-LotusOwnInstall) {
-        Remove-LotusUserPath (Join-Path $root 'bin')
+        [void](Remove-LotusUserPath (Join-Path $root 'bin'))
         Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
         $parent = Split-Path -Parent $root
         if ((Test-Path -LiteralPath $parent) -and -not (Get-ChildItem -LiteralPath $parent -Force -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $parent -Force -ErrorAction SilentlyContinue }
@@ -194,13 +194,3 @@ function script:Invoke-LotusUninstall {
     St 0
 }
 
-# The folder taken out of your PATH again (the user PATH only – Lotus never touches the system's)
-function script:Remove-LotusUserPath {
-    param([string]$Dir)
-    if (-not $IsWindows) { return }
-    $cur = [Environment]::GetEnvironmentVariable('Path', 'User')
-    if (-not $cur) { return }
-    $parts = @($cur -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $Dir.TrimEnd('\') })
-    $new = $parts -join ';'
-    if ($new -ne $cur) { [Environment]::SetEnvironmentVariable('Path', $new, 'User') }
-}

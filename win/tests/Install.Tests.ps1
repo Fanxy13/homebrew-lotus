@@ -1,60 +1,114 @@
-# install.ps1 from start to end, into a temporary folder and a temporary profile (nothing of yours is touched).
+# install.ps1 from start to end, into a temporary folder and a temporary profile (nothing of yours is touched). On
+# Windows also: lotus.cmd in the user PATH (the PATH is put back as it was), cmd.exe running it, and Lotus' own pinned
+# fastfetch – downloaded from GitHub and checked against data/vendor.tsv.
 
 BeforeAll {
-    $script:Repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-    $script:Tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('lotus-install-test-' + [guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Force -Path $script:Tmp | Out-Null
+    . (Join-Path $PSScriptRoot 'TestKit.ps1')
+    $script:Ctx = Initialize-LotusTestEnv 'lotus-install'
+    # the installed copy has to find its files in its own folder, not in this checkout (the test kit points LOTUS_ROOT here)
+    Remove-Item Env:LOTUS_ROOT -ErrorAction SilentlyContinue
+    $script:Repo = $script:Ctx.Repo
+    $script:Tmp = $script:Ctx.Tmp
     $script:Pwsh = (Get-Process -Id $PID).Path
+    $script:Want = ((Get-Content (Join-Path $script:Repo 'lib/core.zsh') | Where-Object { $_ -match '^typeset -g LOTUS_VERSION=' } | Select-Object -First 1) -split '=')[1].Trim()
+    # the installer in a PowerShell of its own, with these settings → what it said
+    function Invoke-TestInstall {
+        param([string]$Dest, [hashtable]$Env = @{})
+        $vars = @{ LOTUS_SRC = $script:Repo; LOTUS_DEST = $Dest; LOTUS_PROFILE = (Join-Path $script:Tmp 'profile.ps1'); LOTUS_NO_PATH = '1'; LOTUS_NO_SETUP = '1'; LOTUS_FASTFETCH = 'no' }
+        foreach ($k in $Env.Keys) { $vars[$k] = $Env[$k] }
+        $saved = @{}
+        foreach ($k in $vars.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $vars[$k]) }
+        try { & $script:Pwsh -NoProfile -NonInteractive -File (Join-Path $script:Repo 'install.ps1') 2>&1 | Out-String }
+        finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
+    }
 }
 
-AfterAll {
-    Remove-Item -LiteralPath $script:Tmp -Recurse -Force -ErrorAction SilentlyContinue
-}
+AfterAll { Restore-LotusTestEnv $script:Ctx }
 
 Describe 'install.ps1' {
     It 'parses' {
-        $errors = $null
-        [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:Repo 'install.ps1'), [ref]$null, [ref]$errors) | Out-Null
-        $errors.Count | Should -Be 0
+        foreach ($f in 'install.ps1', 'bin/lotus.ps1') {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:Repo $f), [ref]$null, [ref]$errors) | Out-Null
+            $errors.Count | Should -Be 0 -Because $f
+        }
     }
     It 'installs from a checkout, loads in the profile, and runs' {
         $dest = Join-Path $script:Tmp 'app'
-        $profileFile = Join-Path $script:Tmp 'profile.ps1'
-        $env:LOTUS_SRC = $script:Repo
-        $env:LOTUS_DEST = $dest
-        $env:LOTUS_PROFILE = $profileFile
-        $env:LOTUS_CONF = Join-Path $script:Tmp 'conf'
-        $env:LOTUS_CACHE = Join-Path $script:Tmp 'cache'
-        Remove-Item Env:LOTUS_ROOT -ErrorAction SilentlyContinue
-        try {
-            $out = & $script:Pwsh -NoProfile -NonInteractive -File (Join-Path $script:Repo 'install.ps1') 2>&1 | Out-String
-        } finally {
-            Remove-Item Env:LOTUS_SRC, Env:LOTUS_DEST, Env:LOTUS_PROFILE -ErrorAction SilentlyContinue
-        }
+        $out = Invoke-TestInstall $dest
         $out | Should -Match 'Lotus is in'
         $out | Should -Match 'Done'
-        foreach ($file in 'win/Lotus.psd1', 'win/Public/lotus.ps1', 'data/commands.tsv', 'logos/lotus.txt', 'lib/core.zsh', 'lib/lang/en.zsh', 'lib/lang/setup.de.zsh') {
-            Test-Path (Join-Path $dest $file) | Should -BeTrue -Because "$file is copied"
+        foreach ($file in 'win/Lotus.psd1', 'win/Public/lotus.ps1', 'win/Public/pets.ps1', 'win/Public/ai.ps1', 'data/commands.tsv', 'data/pets/lotus.windows.tsv', 'data/ai/system.md',
+            'logos/lotus.txt', 'lib/core.zsh', 'lib/lang/en.zsh', 'lib/lang/setup.de.zsh', 'lib/live/liveserver.py', 'lib/html/convert.py', 'bin/lotus.cmd', 'bin/lotus.ps1', '.lotus-install') {
+            Test-Path (Join-Path $dest $file) | Should -BeTrue -Because "$file is there"
         }
         Test-Path (Join-Path $dest 'win/tests') | Should -BeFalse
         Test-Path (Join-Path $dest 'lib/cmd') | Should -BeFalse
-        $profileText = Get-Content $profileFile -Raw
+        Test-Path (Join-Path $dest 'vendor') | Should -BeFalse
+        $profileText = Get-Content (Join-Path $script:Tmp 'profile.ps1') -Raw
         $profileText | Should -Match '# >>> lotus >>>'
         $profileText | Should -Match 'Import-Module'
-        $core = Get-Content (Join-Path $script:Repo 'lib/core.zsh') | Where-Object { $_ -match '^typeset -g LOTUS_VERSION=' } | Select-Object -First 1
-        $want = ($core -split '=')[1].Trim()
-        $got = & $script:Pwsh -NoProfile -Command "`$env:LOTUS_CONF = '$($env:LOTUS_CONF)'; Import-Module '$(Join-Path $dest 'win/Lotus.psd1')'; lotus version"
-        $got | Should -Be $want
+        $got = & $script:Pwsh -NoProfile -Command "Import-Module '$(Join-Path $dest 'win/Lotus.psd1')'; lotus version"
+        $got | Should -Be $script:Want
         # the texts are there: German, from the copied language files
-        $text = & $script:Pwsh -NoProfile -Command "`$env:LOTUS_CONF = '$($env:LOTUS_CONF)'; `$env:LOTUS_NO_TTY = '1'; Import-Module '$(Join-Path $dest 'win/Lotus.psd1')'; lotus settings set LOTUS_LANG de | Out-Null; & (Get-Module Lotus) { Initialize-Lotus; T settings }"
+        $text = & $script:Pwsh -NoProfile -Command "`$env:LOTUS_NO_TTY = '1'; Import-Module '$(Join-Path $dest 'win/Lotus.psd1')'; lotus settings set LOTUS_LANG de | Out-Null; & (Get-Module Lotus) { Initialize-Lotus; T settings }"
         ($text | Select-Object -Last 1) | Should -Be 'Einstellungen'
+        & $script:Pwsh -NoProfile -Command "`$env:LOTUS_NO_TTY = '1'; Import-Module '$(Join-Path $dest 'win/Lotus.psd1')'; lotus settings set LOTUS_LANG en | Out-Null"
+    }
+    It 'gives lotus to other shells: bin/lotus.ps1 runs a command' {
+        $dest = Join-Path $script:Tmp 'app'
+        & $script:Pwsh -NoProfile -File (Join-Path $dest 'bin/lotus.ps1') version | Should -Be $script:Want
+        & $script:Pwsh -NoProfile -File (Join-Path $dest 'bin/lotus.ps1') nosuchcommand *> $null
+        $LASTEXITCODE | Should -Not -Be 0
     }
     It 'is run a second time without a second block' {
         $dest = Join-Path $script:Tmp 'app'
-        $profileFile = Join-Path $script:Tmp 'profile.ps1'
-        $env:LOTUS_SRC = $script:Repo; $env:LOTUS_DEST = $dest; $env:LOTUS_PROFILE = $profileFile
-        try { & $script:Pwsh -NoProfile -NonInteractive -File (Join-Path $script:Repo 'install.ps1') 2>&1 | Out-Null }
-        finally { Remove-Item Env:LOTUS_SRC, Env:LOTUS_DEST, Env:LOTUS_PROFILE -ErrorAction SilentlyContinue }
-        ([regex]::Matches((Get-Content $profileFile -Raw), '# >>> lotus >>>')).Count | Should -Be 1
+        Invoke-TestInstall $dest | Out-Null
+        ([regex]::Matches((Get-Content (Join-Path $script:Tmp 'profile.ps1') -Raw), '# >>> lotus >>>')).Count | Should -Be 1
+    }
+}
+
+Describe 'install.ps1 on Windows' -Skip:(-not $IsWindows) {
+    It 'cmd.exe runs lotus.cmd' {
+        $dest = Join-Path $script:Tmp 'app'
+        # (PowerShell hands a .cmd file to cmd.exe)
+        $out = & (Join-Path $dest 'bin\lotus.cmd') version
+        ($out | Select-Object -Last 1) | Should -Be $script:Want
+        $LASTEXITCODE | Should -Be 0
+    }
+    It 'puts lotus.cmd into the user PATH once, keeps the kind of the value, and lotus uninstall would take it out' {
+        $key = Get-Item -LiteralPath 'HKCU:\Environment'
+        $had = $key.GetValueNames() -contains 'Path'
+        $before = if ($had) { $key.GetValue('Path', '', 'DoNotExpandEnvironmentNames') } else { $null }
+        $kind = if ($had) { $key.GetValueKind('Path') } else { $null }
+        $dest = Join-Path $script:Tmp 'app'
+        $bin = Join-Path $dest 'bin'
+        try {
+            (Invoke-TestInstall $dest @{ LOTUS_NO_PATH = '' }) | Should -Match 'lotus.cmd is in your PATH'
+            (Invoke-TestInstall $dest @{ LOTUS_NO_PATH = '' }) | Should -Not -Match 'lotus.cmd is in your PATH'
+            $now = (Get-Item -LiteralPath 'HKCU:\Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+            @($now -split ';' | Where-Object { $_.TrimEnd('\') -eq $bin.TrimEnd('\') }).Count | Should -Be 1
+            if ($had) { (Get-Item -LiteralPath 'HKCU:\Environment').GetValueKind('Path') | Should -Be $kind }
+            Import-Module (Join-Path $dest 'win/Lotus.psd1') -Force
+            & (Get-Module Lotus) { param($d) Remove-LotusUserPath $d } $bin | Should -BeTrue
+            $after = (Get-Item -LiteralPath 'HKCU:\Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+            $after | Should -Not -Match ([regex]::Escape($bin))
+        } finally {
+            Remove-Module Lotus -Force -ErrorAction SilentlyContinue
+            if ($had) { Set-ItemProperty -LiteralPath 'HKCU:\Environment' -Name Path -Value $before -Type $kind }
+            else { Remove-ItemProperty -LiteralPath 'HKCU:\Environment' -Name Path -ErrorAction SilentlyContinue }
+        }
+    }
+    It "downloads Lotus' own fastfetch, checked against data/vendor.tsv" {
+        $dest = Join-Path $script:Tmp 'app-ff'
+        $out = Invoke-TestInstall $dest @{ LOTUS_FASTFETCH = 'pinned'; LOTUS_YES = '1' }
+        $out | Should -Match 'checked against SHA-256'
+        $exe = Join-Path $dest 'vendor/fastfetch/fastfetch.exe'
+        Test-Path $exe | Should -BeTrue
+        $pin = (Get-Content (Join-Path $script:Repo 'data/vendor.tsv') | Where-Object { $_ -match '^fastfetch\t' } | Select-Object -First 1) -split "`t"
+        (& $exe --version) | Should -Match ([regex]::Escape($pin[1]))
+        # the start screen finds it there
+        $found = & $script:Pwsh -NoProfile -Command "`$env:PATH = 'C:\Windows\System32'; Import-Module '$(Join-Path $dest 'win/Lotus.psd1')'; & (Get-Module Lotus) { Initialize-Lotus; Get-LotusFastfetch }"
+        [System.IO.Path]::GetFullPath(($found | Select-Object -Last 1)) | Should -Be ([System.IO.Path]::GetFullPath($exe))
     }
 }

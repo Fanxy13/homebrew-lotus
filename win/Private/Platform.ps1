@@ -369,6 +369,49 @@ function Get-LotusSecretStoreName {
     if ($IsWindows) { 'a file only your Windows account can read (DPAPI)' } else { "a file only you can read ($(Format-LotusHomePath (Join-Path $script:Paths.Conf 'secrets')))" }
 }
 
+# ── Your PATH ─────────────────────────────────────────────────
+# The folder of lotus.cmd (bin\ of Lotus) in your user PATH – never the system's. The value is read and written as it is
+# in the registry (an entry like %USERPROFILE%\bin stays one, the kind of value stays), then the change is announced,
+# so that windows opened from now on have it. → $true when the PATH was changed
+
+function Get-LotusUserPathValue {
+    $key = Get-Item -LiteralPath 'HKCU:\Environment' -ErrorAction SilentlyContinue
+    if (-not $key) { return @{ Value = ''; Kind = 'ExpandString' } }
+    $kind = if ($key.GetValueNames() -contains 'Path') { [string]$key.GetValueKind('Path') } else { 'ExpandString' }
+    @{ Value = [string]$key.GetValue('Path', '', 'DoNotExpandEnvironmentNames'); Kind = $kind }
+}
+function Test-LotusSamePath {
+    param([string]$A, [string]$B)
+    [Environment]::ExpandEnvironmentVariables($A).TrimEnd('\') -eq [Environment]::ExpandEnvironmentVariables($B).TrimEnd('\')
+}
+function Set-LotusUserPathValue {
+    param([string]$Value, [string]$Kind)
+    if (-not (Test-Path -LiteralPath 'HKCU:\Environment')) { New-Item -Path 'HKCU:\Environment' -Force | Out-Null }
+    Set-ItemProperty -LiteralPath 'HKCU:\Environment' -Name Path -Value $Value -Type $(if ($Kind -eq 'String') { 'String' } else { 'ExpandString' })
+    # (setting a variable through .NET tells the open windows that the environment changed – Explorer, Windows Terminal)
+    [Environment]::SetEnvironmentVariable('LOTUS_PATH_CHANGED', $null, 'User')
+}
+function Add-LotusUserPath {
+    param([Parameter(Mandatory)][string]$Dir)
+    if (-not $IsWindows) { return $false }
+    $cur = Get-LotusUserPathValue
+    $parts = @($cur.Value -split ';' | Where-Object { $_ })
+    if ($parts | Where-Object { Test-LotusSamePath $_ $Dir }) { return $false }
+    Set-LotusUserPathValue (@($parts) + $Dir -join ';') $cur.Kind
+    if (-not (@($env:Path -split ';') | Where-Object { $_ -and (Test-LotusSamePath $_ $Dir) })) { $env:Path = "$env:Path;$Dir" }
+    $true
+}
+function Remove-LotusUserPath {
+    param([Parameter(Mandatory)][string]$Dir)
+    if (-not $IsWindows) { return $false }
+    $cur = Get-LotusUserPathValue
+    $parts = @($cur.Value -split ';' | Where-Object { $_ })
+    $keep = @($parts | Where-Object { -not (Test-LotusSamePath $_ $Dir) })
+    if ($keep.Count -eq $parts.Count) { return $false }
+    Set-LotusUserPathValue ($keep -join ';') $cur.Kind
+    $true
+}
+
 # ── This computer ─────────────────────────────────────────────
 
 function Get-LotusCpuCount { [Environment]::ProcessorCount }
