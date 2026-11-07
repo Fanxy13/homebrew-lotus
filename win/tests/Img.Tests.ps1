@@ -2,9 +2,17 @@
 # Windows, for these tests) ImageMagick 6. The originals stay, nothing is written over, photos get smaller but never larger.
 
 BeforeDiscovery {
-    $script:HasMagick = [bool](Get-Command magick -CommandType Application -ErrorAction SilentlyContinue) -or
-        ($IsWindows -and (Test-Path (Join-Path $env:ProgramFiles 'ImageMagick-*\magick.exe'))) -or
-        (-not $IsWindows -and [bool](Get-Command convert -CommandType Application -ErrorAction SilentlyContinue))
+    # an ImageMagick that works: it makes a picture of one pixel. (A magick.exe that came with another program may lack
+    # the parts that read and write images – the CI's Arm64 machine has one, and no winget to install a real one.)
+    $script:HasMagick = $false
+    $tries = @(@(Get-Command magick -CommandType Application -All -ErrorAction SilentlyContinue) | ForEach-Object Source)
+    if ($IsWindows -and $env:ProgramFiles) { $tries += @(Get-ChildItem -Path (Join-Path $env:ProgramFiles 'ImageMagick-*\magick.exe') -ErrorAction SilentlyContinue | ForEach-Object FullName) }
+    if (-not $IsWindows) { $tries += @(@(Get-Command convert -CommandType Application -ErrorAction SilentlyContinue) | ForEach-Object Source) }
+    $probe = Join-Path ([IO.Path]::GetTempPath()) "lotus-magick-probe-$PID.png"
+    foreach ($t in $tries) {
+        & $t -size 1x1 'xc:white' $probe *> $null
+        if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $probe)) { $script:HasMagick = $true; Remove-Item -LiteralPath $probe -Force; break }
+    }
 }
 
 BeforeAll {
@@ -90,6 +98,17 @@ Describe 'converting' -Skip:(-not $script:HasMagick) {
         lotus img convert $png --to jpeg --quality 101 6>&1 | Out-String | Should -Match 'from 1 to 100'
         lotus img convert $png 6>&1 | Out-String | Should -Match 'Into which format'
         lotus img convert (Join-Path $script:Dir 'missing.png') --to png 6>&1 | Out-String | Should -Match 'Not found'
+    }
+    It 'passes over a magick that cannot write images, when one that can is there' {
+        $dir = Join-Path $script:Ctx.Tmp 'broken-magick'
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        if ($IsWindows) { Set-Content -LiteralPath (Join-Path $dir 'magick.cmd') -Value '@exit /b 1' }
+        else { Set-Content -LiteralPath (Join-Path $dir 'magick') -Value "#!/bin/sh`nexit 1"; & chmod +x (Join-Path $dir 'magick') }
+        $old = $env:PATH
+        $env:PATH = "$dir$([IO.Path]::PathSeparator)$env:PATH"
+        try { $m = InModuleScope Lotus { Find-LotusMagick } } finally { $env:PATH = $old }
+        $m.Convert[0] | Should -Not -BeLike "$dir*"
+        InModuleScope Lotus -Parameters @{ M = $m } { @(Get-LotusImgWritable $M) } | Should -Contain 'png'
     }
     It 'lists what it writes' {
         $out = lotus img formats 6>&1 | Out-String

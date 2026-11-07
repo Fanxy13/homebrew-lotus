@@ -33,18 +33,24 @@ function script:Invoke-Lotusimg {
     St 1
 }
 
-# ImageMagick → @{ Convert = <program and the words before the image>; Identify = … }, or $null. On Windows magick.exe
-# only – its convert.exe would be Windows' own tool for disks; elsewhere also ImageMagick 6 (convert and identify).
+# ImageMagick → @{ Convert = <program and the words before the image>; Identify = …; List = … }, or $null. On Windows
+# magick.exe only – its convert.exe would be Windows' own tool for disks; elsewhere also ImageMagick 6 (convert and
+# identify). The first one that can write a PNG: other programs bring a magick.exe without the parts that read and
+# write images, and it may come first in the PATH. When none can, the first one found – /img then says what it lacks.
 function script:Find-LotusMagick {
-    $m = Find-LotusProgram @('magick')
-    if (-not $m -and $IsWindows) {
-        $m = Get-ChildItem -Path (Join-Path $env:ProgramFiles 'ImageMagick-*\magick.exe') -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    $found = [System.Collections.Generic.List[object]]::new()
+    foreach ($c in @(Get-Command magick -CommandType Application -All -ErrorAction SilentlyContinue)) { $found.Add([pscustomobject]@{ Convert = @($c.Source); Identify = @($c.Source, 'identify'); List = @($c.Source, '-list', 'format') }) }
+    if ($IsWindows -and $env:ProgramFiles) {
+        foreach ($f in @(Get-ChildItem -Path (Join-Path $env:ProgramFiles 'ImageMagick-*\magick.exe') -ErrorAction SilentlyContinue | Sort-Object FullName -Descending)) {
+            if (-not ($found | Where-Object { $_.Convert[0] -eq $f.FullName })) { $found.Add([pscustomobject]@{ Convert = @($f.FullName); Identify = @($f.FullName, 'identify'); List = @($f.FullName, '-list', 'format') }) }
+        }
     }
-    if ($m) { return [pscustomobject]@{ Convert = @($m); Identify = @($m, 'identify'); List = @($m, '-list', 'format') } }
-    if ($IsWindows) { return $null }
-    $c = Find-LotusProgram @('convert'); $i = Find-LotusProgram @('identify')
-    if ($c -and $i) { return [pscustomobject]@{ Convert = @($c); Identify = @($i); List = @($c, '-list', 'format') } }
-    $null
+    if (-not $IsWindows) {
+        $c = Find-LotusProgram @('convert'); $i = Find-LotusProgram @('identify')
+        if ($c -and $i) { $found.Add([pscustomobject]@{ Convert = @($c); Identify = @($i); List = @($c, '-list', 'format') }) }
+    }
+    foreach ($m in $found) { if (@(Get-LotusImgWritable $m) -ccontains 'png') { return $m } }
+    if ($found.Count) { $found[0] } else { $null }
 }
 
 # A format by its key or extension → its row, or $null
