@@ -5,9 +5,10 @@ no administrator rights. It is a port of the zsh engine (`lib/`) and reads the s
 `logos/`, `lib/lang/` and the version, keys and defaults in `lib/core.zsh`.
 
 **Status:** tested on every change on GitHub's Windows machines – Windows x64 and Windows 11 Arm64, PowerShell 7
-(`.github/workflows/windows.yml`), about 350 Pester tests, none skipped on x64 but the downloads of `/convert`. It has not
-yet been used by people in a real Windows Terminal window: what the tests cannot see (how a screen looks, PowerShell's
-Enter key in a real window, a real install with winget) is the next thing to try. What works where:
+(`.github/workflows/windows.yml`), about 350 Pester tests, none skipped on x64 but the downloads of `/convert` (on Arm64
+also the conversions of `/img`: that machine has no winget and no ImageMagick that works). It has not yet been used by
+people in a real Windows Terminal window: what the tests cannot see (how a screen looks, PowerShell's Enter key in a
+real window, a real install with winget) is the next thing to try. What works where:
 [data/platform-matrix.tsv](../data/platform-matrix.tsv) – *yes* only where a test ran on Windows.
 
 ## Install

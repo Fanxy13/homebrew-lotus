@@ -37,11 +37,13 @@ Documents of this folder
 The module grew from its foundation into a port of the whole zsh engine that Windows can have, in commits on the
 branch (not merged, no release): the start screen and shell (57bc059), winget for `/install` and `/brew` (e4f7866), the
 pets and `/zetamac` (877e614), `/ai` without the AI program (7e151cf), the installer with `lotus.cmd`, the user PATH and
-the pinned fastfetch (ed16f5d), `/convert`, `/img`, `/liveserver` and `/html` (1c5624b), and the docs.
+the pinned fastfetch (ed16f5d), `/convert`, `/img`, `/liveserver` and `/html` (1c5624b), the docs (24ccc99), and an
+ImageMagick that works before one that comes first in the PATH (936ef17).
 
-- **Tested**: `.github/workflows/windows.yml` on every push – Pester on Windows x64 and Windows 11 Arm64 (348 passed,
-  0 failed, 3 skipped on x64: the downloads of `/convert`, whose stand-ins cannot run on Windows), the files Windows
-  PowerShell 5.1 must read, and every winget id of the catalog against the real winget. Locally (Linux, PowerShell
+- **Tested**: `.github/workflows/windows.yml` on every push – Pester on Windows x64 (349 passed, 0 failed, 3 skipped:
+  the downloads of `/convert`, whose stand-ins cannot run on Windows) and Windows 11 Arm64 (342 passed, 0 failed,
+  10 skipped: also the seven conversions of `/img` – that machine has no winget, and its `magick.exe` cannot write
+  images), the files Windows PowerShell 5.1 must read, and every winget id of the catalog against the real winget. Locally (Linux, PowerShell
   7.6.9, Pester 5.9.1 from nuget.org): the same suite, and `zsh tests/run.zsh contract pets zetamac wording liveserver html`.
 - **Built, not tested on Windows**: the download of `/convert` (tested with stand-ins on Linux), `lotus update`, the media
   keys and the visualizer, opening an app (finding it is tested), anything that needs a real Windows Terminal window

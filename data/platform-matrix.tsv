@@ -7,7 +7,7 @@ Clock and keep awake	yes	yes	yes	macOS: caffeinate · Linux: systemd-inhibit. Wi
 AI terminal and web chat (Claude, Ollama, any OpenAI-compatible API)	yes	yes	partial	On Linux the AI program is one downloaded file checked against a pinned digest, or built when the Swift toolchain is installed. Apple Intelligence is macOS only. Windows: /ai chats and answers (also explain, write, summarize, command), without tools – the AI terminal and the web chat are not on Windows yet.
 A local model that Lotus runs (MLX)	yes	no	no	Apple silicon only. Elsewhere use Ollama or llama.cpp: /ai talks to both.
 The AI looks at the web pages it builds	yes	partial	soon	Linux needs Chromium, Chrome or Edge.
-Image converter (/img convert)	yes	yes	yes	macOS: Apple ImageIO · Linux: ImageMagick. Windows: ImageMagick from winget
+Image converter (/img convert)	yes	yes	yes	macOS: Apple ImageIO · Linux: ImageMagick. Windows: ImageMagick from winget – tested on x64; the Arm64 test machine has no ImageMagick that works.
 Remove BG	yes	soon	soon
 MP3 and MP4 converter	yes	yes	built	yt-dlp and ffmpeg. Windows: yt-dlp and ffmpeg from winget – the download is tested with stand-ins on Linux, not yet on Windows.
 Live Server and /html	yes	yes	partial	Windows: this PC only – the phones in the Wi-Fi and the QR code not yet. Python 3.9 or newer.
