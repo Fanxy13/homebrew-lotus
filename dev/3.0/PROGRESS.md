@@ -34,8 +34,9 @@ Documents of this folder
 
 ## Lotus for Windows (branch `claude/vigilant-turing-cngtn7`, 2026-11-06 – 11-07)
 
-The module grew from its foundation into a port of the whole zsh engine that Windows can have, in commits on the
-branch (not merged, no release): the start screen and shell (57bc059), winget for `/install` and `/brew` (e4f7866), the
+The module grew from its foundation into a port of the whole zsh engine that Windows can have. It is in `main` as
+bffcfa4 (pull request #13, squashed; no release – the cask stays at 3.2.0, and Windows installs from `main`). The
+commits of the pull request: the start screen and shell (57bc059), winget for `/install` and `/brew` (e4f7866), the
 pets and `/zetamac` (877e614), `/ai` without the AI program (7e151cf), the installer with `lotus.cmd`, the user PATH and
 the pinned fastfetch (ed16f5d), `/convert`, `/img`, `/liveserver` and `/html` (1c5624b), the docs (24ccc99), and an
 ImageMagick that works before one that comes first in the PATH (936ef17).
@@ -66,6 +67,8 @@ ImageMagick that works before one that comes first in the PATH (936ef17).
 5. The installer of the released line (`install.sh` on `main`) downloads fastfetch from URLs that now answer 404 (the release
    ships `fastfetch-macos-universal.tar.gz`). The new `install.sh` here fixes it (pinned digests in `data/vendor.tsv`);
    a hotfix of the old line is possible if wanted.
+6. Lotus for Windows into `main`: **yes** ("push it", 2026-11-07) – merged as #13 (squashed), without a release. A release
+   (version, tag, cask) is still the owner's.
 
 ## Phases
 
