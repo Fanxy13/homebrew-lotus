@@ -32,6 +32,25 @@ Documents of this folder
 | Windows | none here | the PowerShell tests run here on macOS (the code paths for `$IsWindows = $false`); the Windows paths (`%APPDATA%`, winget, Windows Terminal) are tested only by GitHub Actions (`windows-latest`) |
 | Logs of local runs | `~/.local/share/lotus-dev/logs/` | |
 
+## Lotus for Windows (branch `claude/vigilant-turing-cngtn7`, 2026-11-06 – 11-07)
+
+The module grew from its foundation into a port of the whole zsh engine that Windows can have, in commits on the
+branch (not merged, no release): the start screen and shell (57bc059), winget for `/install` and `/brew` (e4f7866), the
+pets and `/zetamac` (877e614), `/ai` without the AI program (7e151cf), the installer with `lotus.cmd`, the user PATH and
+the pinned fastfetch (ed16f5d), `/convert`, `/img`, `/liveserver` and `/html` (1c5624b), and the docs.
+
+- **Tested**: `.github/workflows/windows.yml` on every push – Pester on Windows x64 and Windows 11 Arm64 (348 passed,
+  0 failed, 3 skipped on x64: the downloads of `/convert`, whose stand-ins cannot run on Windows), the files Windows
+  PowerShell 5.1 must read, and every winget id of the catalog against the real winget. Locally (Linux, PowerShell
+  7.6.9, Pester 5.9.1 from nuget.org): the same suite, and `zsh tests/run.zsh contract pets zetamac wording liveserver html`.
+- **Built, not tested on Windows**: the download of `/convert` (tested with stand-ins on Linux), `lotus update`, the media
+  keys and the visualizer, opening an app (finding it is tested), anything that needs a real Windows Terminal window
+  (how screens look, PSReadLine's Enter key there). Next: try it by hand on a Windows 11 PC.
+- **Not on Windows**: the AI terminal and web chat (the Swift program needs a Windows build), MLX, Remove BG, plugins
+  (no sandbox for PowerShell), Minecraft, Live Server for the phones in the Wi-Fi, the album cover, `/ios`.
+- The statuses are in `data/platform-matrix.tsv` (with the new mark *built*) and `data/platforms.tsv` (Windows: beta).
+  `MATRIX.md` below is the plan from 3.0 and its L/W column is not kept up to date.
+
 ## Decisions of the owner
 
 1. Running PowerShell here to test the Windows module: **yes** (asked 2026-11-01, "both" local and CI). Done with a verified tarball; deleted afterwards.

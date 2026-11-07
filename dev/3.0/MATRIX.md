@@ -1,5 +1,8 @@
 # Lotus 3.0 – feature compatibility matrix
 
+> What is tested where today: `data/platform-matrix.tsv` (the website's table). This file is the plan of 3.0; its
+> **L / W** column is not kept up to date – Lotus for Windows is described in `win/README.md` and `PROGRESS.md`.
+
 Written from the code of Lotus 2.23.0 (grep of every external program and Apple API, then a read of each module),
 not from memory. For each feature: how it works on macOS today, how it will work on Linux and on Windows, what the
 platforms share, and the status. Statuses use the words of `PROGRESS.md`: **tested**, **built**, **planned**,

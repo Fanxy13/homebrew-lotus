@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lotus — your terminal, in bloom</title>
-  <meta name="description" content="Lotus 3.0: a start screen and command center for the terminal. macOS and Linux today, Windows in development. Apps, weather, AI, audio and more.">
+  <meta name="description" content="Lotus 3.0: a start screen and command center for the terminal. On macOS, Linux and Windows (beta). Apps, weather, AI, audio and more.">
   <meta property="og:title" content="Lotus — your terminal, in bloom">
   <meta property="og:description" content="A start screen and command center for the terminal, on macOS and Linux. One line to install.">
   <meta name="theme-color" content="#05070a">
@@ -28,7 +28,7 @@
   <main>
     <header class="hero" id="top">
       <canvas id="scene" aria-hidden="true"></canvas>
-      <p class="eyebrow reveal">Lotus 3.0 · macOS and Linux · Windows in development</p>
+      <p class="eyebrow reveal">Lotus 3.0 · macOS, Linux and Windows (beta)</p>
       <h1 class="title reveal"><span>lotus</span></h1>
       <p class="tagline reveal">Your terminal. Reimagined. On the systems you use.</p>
       <div class="install-pill reveal" data-cmd="curl">
@@ -174,7 +174,7 @@
           <tbody></tbody>
         </table>
       </div>
-      <p class="pf-foot reveal"><span class="st st-yes">Yes</span> tested on that system &nbsp; <span class="st st-partial">Partly</span> works, with the limit named &nbsp; <span class="st st-soon">Soon</span> being built &nbsp; <span class="st st-no">No</span> not possible there</p>
+      <p class="pf-foot reveal"><span class="st st-yes">Yes</span> tested on that system &nbsp; <span class="st st-partial">Partly</span> works, with the limit named &nbsp; <span class="st st-built">Built</span> the code is there, not yet tested there &nbsp; <span class="st st-soon">Soon</span> being built &nbsp; <span class="st st-no">No</span> not possible there</p>
       <noscript><p class="pf-foot">The table needs JavaScript. The same list is in the <a href="docs.html#platforms">documentation</a>.</p></noscript>
     </section>
 
@@ -200,7 +200,7 @@
     <section class="faq" id="faq">
       <h2 class="reveal">Questions</h2>
       <div class="faq-list reveal">
-        <details><summary>Does it run on Windows?</summary><p>Not yet. A native PowerShell 7 version for Windows 11 is in development &ndash; no WSL, no compatibility layer. Until it is in a release, Lotus does not claim it: the table above says what is tested where.</p></details>
+        <details><summary>Does it run on Windows?</summary><p>Yes, as a beta: a native PowerShell 7 module for Windows 11 (or 10) and Windows Terminal &ndash; no WSL, no compatibility layer, no administrator rights. Install it in PowerShell 7 with the line of the Windows tab above. It is tested on every change on GitHub&rsquo;s Windows machines (x64 and Arm64), not yet by people in a real window; the table above says what is tested there.</p></details>
         <details><summary>Does Lotus need zsh on Linux?</summary><p>Lotus' engine is zsh. The install script asks before it installs it and shows the exact command first. Your own shell can stay bash: Lotus loads into zsh and bash alike.</p></details>
         <details><summary>Does it need administrator rights?</summary><p>No. It installs into your home folder. Where a command needs software from your system's package manager, Lotus shows the exact command and asks first &ndash; and the system asks for your password itself, in the open. Lotus never reads or stores it.</p></details>
         <details><summary>Does Lotus send anything anywhere?</summary><p>No telemetry. It goes online only for what you ask: the weather, a web search, an update check, the AI you chose. Your files and your clipboard stay on the computer.</p></details>
