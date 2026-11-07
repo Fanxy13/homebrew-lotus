@@ -45,6 +45,10 @@ ImageMagick that works before one that comes first in the PATH (936ef17).
   10 skipped: also the seven conversions of `/img` – that machine has no winget, and its `magick.exe` cannot write
   images), the files Windows PowerShell 5.1 must read, and every winget id of the catalog against the real winget. Locally (Linux, PowerShell
   7.6.9, Pester 5.9.1 from nuget.org): the same suite, and `zsh tests/run.zsh contract pets zetamac wording liveserver html`.
+  The zsh engine with the branch's changes to it (the pets' and the wizard's texts without Apple Intelligence, the
+  doctor, now playing, liveserver.py and convert.py with their Windows branches): `test.yml`, started by hand on the
+  branch at 7a36350 – green on both Macs (Apple silicon: 848 passed, 0 failed), Ubuntu, Debian, Fedora, Arch, Windows
+  and the site.
 - **Built, not tested on Windows**: the download of `/convert` (tested with stand-ins on Linux), `lotus update`, the media
   keys and the visualizer, opening an app (finding it is tested), anything that needs a real Windows Terminal window
   (how screens look, PSReadLine's Enter key there). Next: try it by hand on a Windows 11 PC.
