@@ -325,3 +325,30 @@ Describe 'a table, a file or a text of one item stays one item' {
         }
     }
 }
+
+Describe 'the setup on Windows' {
+    It 'names /ai at its AI step in every language – not the AI terminal or Apple Intelligence of the Mac' {
+        InModuleScope Lotus {
+            $was = $script:S['LOTUS_LANG']
+            try {
+                foreach ($lang in 'en', 'de', 'fr', 'es') {
+                    $script:S['LOTUS_LANG'] = $lang
+                    Import-LotusLang
+                    $script:LangGroups.Clear()
+                    Import-LotusLangGroup setup
+                    $q = T sw_ai_q_win
+                    $sub = T sw_ai_sub_win
+                    $q | Should -Match '/ai'
+                    $sub | Should -Match 'Ollama'
+                    "$q $sub" | Should -Not -Match 'Apple|[Tt]erminal'
+                    if ($lang -ne 'en') { $q | Should -Not -Be 'AI answers with /ai' }
+                    T sw_ai_sub_ai | Should -Not -Match 'Apple'          # (Linux: the zsh setup's text off a Mac)
+                }
+            } finally {
+                $script:S['LOTUS_LANG'] = $was
+                Import-LotusLang
+                $script:LangGroups.Clear()
+            }
+        }
+    }
+}

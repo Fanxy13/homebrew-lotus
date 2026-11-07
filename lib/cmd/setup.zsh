@@ -499,6 +499,8 @@ _sw_weather() {
 
 _sw_ai() {
   SW_STEP=4 SW_STAGE=4 SW_Q=$LOTUS_L[sw_ai_q] SW_SUB=$LOTUS_L[sw_ai_sub]
+  # Apple Intelligence is named only on a Mac
+  [[ $LOTUS_OS == macos ]] || SW_SUB=${LOTUS_L[sw_ai_sub_ai]:-$SW_SUB}
   _sw_select $(( sw_claude ? 2 : 1 )) "$LOTUS_L[sw_ai_later]|$LOTUS_L[sw_ai_later_d]" "$LOTUS_L[sw_ai_claude]|$LOTUS_L[sw_ai_claude_d]" || return 1
   (( REPLY == 2 )) && sw_claude=1 || sw_claude=0
   return 0
