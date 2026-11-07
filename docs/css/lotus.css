@@ -266,6 +266,7 @@ lotus-footer { display: block; position: relative; z-index: 2; }
 .st { display: inline-block; min-width: 54px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-align: center; border: 1px solid var(--line-strong); }
 .st-yes { color: var(--ink-accent); border-color: var(--ink-accent); }
 .st-partial { color: var(--text); }
+.st-built { color: var(--text); border-style: dotted; }
 .st-soon, .st-no { color: var(--muted); }
 .st-no { border-style: dashed; }
 .pf-foot { margin-top: 16px; color: var(--muted); font-size: 13px; }

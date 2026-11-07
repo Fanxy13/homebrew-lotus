@@ -539,7 +539,10 @@ _pet_phrase() {   # <pet> <kind: hi|reply> → REPLY
       key+=_$(( RANDOM % 2 + 1 ))
       REPLY=${LOTUS_L[$key]//\%s/$owner} ;;
     *)
-      REPLY="${(C)sound}! ${LOTUS_L[pt_noai]//\%s/$sound}" ;;
+      # Apple Intelligence is named only where the pets think with it
+      key=pt_noai
+      [[ ${LOTUS_PET_BRAIN:-apple} == apple ]] || key=pt_noai_ai
+      REPLY="${(C)sound}! ${${LOTUS_L[$key]:-$LOTUS_L[pt_noai]}//\%s/$sound}" ;;
   esac
 }
 

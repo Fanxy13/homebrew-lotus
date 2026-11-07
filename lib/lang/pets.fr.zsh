@@ -32,6 +32,8 @@ LOTUS_L+=(
   pt_wake '*bâille* Je rêvais …'
   pt_noai 'Pour l’instant je sais seulement faire %s – avec Apple Intelligence je peux parler.'
   pt_noai_hint 'Les animaux parlent avec Apple Intelligence (macOS 26 ou plus récent, puce Apple, activé dans les Réglages Système). /pets → Réglages choisit autre chose.'
+  pt_noai_ai 'Pour l’instant je sais seulement faire %s – avec l’IA de /ai je peux parler.'
+  pt_noai_hint_ai 'Les animaux parlent avec l’IA de /ai : lotus ai login connecte Claude ; Ollama ou une clé compatible OpenAI marchent aussi. /pets → Réglages choisit autre chose.'
   pt_waking '%s se réveille pour la première fois (environ 15 secondes, une seule fois) …'
   pt_confused 'Hmm, je n’ai pas compris. Encore une fois ?'
   pt_help_ask 'Salut %s ! Pour quoi avez-vous besoin d’aide ?'  pt_help_more 'Autre chose ?'

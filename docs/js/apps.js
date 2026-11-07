@@ -1,6 +1,6 @@
 // Lotus website – the /install catalog from data/apps.tsv, with the same fuzzy search as the terminal
 (async () => {
-  const rows = (await Lotus.tsv('apps')).map(([name, cask, cats, app, desc]) => ({ name, cask, cats: cats.split(','), desc }));
+  const rows = (await Lotus.tsv('apps')).map(([name, cask, cats, app, desc, winget]) => ({ name, cask, cats: cats.split(','), desc, winget: winget && winget !== '-' ? winget : '' }));
   const order = ['Browsers', 'Communication', 'Microsoft', 'Development', 'Media', 'Utilities', 'Games', 'Productivity', 'Free alternatives', 'Open-source software'];
   const list = document.getElementById('apps'), filter = document.getElementById('filter'), chips = document.getElementById('cats');
   let active = 'All';
@@ -25,7 +25,7 @@
     }
     list.innerHTML = items.map((a) => `
       <article class="card app-card">
-        <div class="app-head"><span class="app-icon">${Lotus.esc(a.name[0])}</span><div><h3>${Lotus.esc(a.name)}</h3><p class="muted small">Homebrew Cask · ${Lotus.esc(a.cask)}</p></div></div>
+        <div class="app-head"><span class="app-icon">${Lotus.esc(a.name[0])}</span><div><h3>${Lotus.esc(a.name)}</h3><p class="muted small">Homebrew Cask · ${Lotus.esc(a.cask)}${a.winget ? ` · winget · ${Lotus.esc(a.winget)}` : ''}</p></div></div>
         <p class="app-desc">${Lotus.esc(a.desc)}</p>
         <p>${a.cats.map((c) => `<span class="tag">${Lotus.esc(c)}</span>`).join('')}</p>
         <div class="codeblock small"><code><span class="dollar">$</span> /install ${Lotus.esc(a.name)}</code>${Lotus.copyButton('/install ' + a.name)}</div>

@@ -1,0 +1,16 @@
+# What the pets know about Lotus for Windows – told to them when they talk and when they help with /help (win/Public/pets.ps1).
+# The same format as lotus.tsv: one line per feature (its id from data/features.tsv), a tab, what a pet knows; only the
+# lines of features that are on are used. Only what Lotus does on Windows belongs here – lotus.tsv is the Mac's.
+core	Lotus is the start screen and command center of this PowerShell window. /help: a pet asks what you need and shows the commands. /settings changes everything (theme, name, logo, features). Logos: Lotus, Apple, Flag of Earth or your own, in the theme's colors (a gradient through them) or their own. Your own theme: make it in the Theme Studio on the Lotus website, then lotus themes add. /lotus cheatsheet lists every command, /clock shows a clock, lotus update gets the newest Lotus. /img convert turns images and whole folders into JPEG, PNG, WebP, HEIC, AVIF, PDF and more, with ImageMagick from winget.
+apps	/app <name> opens an app of the Start menu, typos are fine. /install shows good apps by category and installs them with winget.
+homebrew	/brew <words> searches winget, the package manager of Windows, and installs what you choose after showing the exact command.
+web	/search and /google search the web, /web opens a site, a pasted link opens in the browser.
+weather	/weather [city] shows the weather with ASCII art and three days ahead.
+ai	/ai <question> answers right in the window, with Claude, an OpenAI-compatible service or Ollama; /ai alone is a chat. /ai explain, /ai write and /ai summarize help with text; /ai command suggests a command and puts it on the command line – Lotus never runs it. On Windows the AI cannot change files or run commands.
+music	/np shows what is playing; /play, /pause, /skip, /back control it, /vu and /vd make it louder and quieter.
+visualizer	/lotus visual shows an animated audio visualizer.
+media	/convert <link> saves a video you may download as MP3 or MP4, with yt-dlp and ffmpeg from winget.
+pets	Type a pet's name to talk to it; /feed <name> feeds it; /zetamac is a math game – 120 seconds of mental arithmetic like Zetamac, and every right answer feeds the pets; /pets to adopt up to three.
+caffeine	/caffeine keeps the PC awake for a while – for downloads, renders or a server; closing the window does not stop it, lotus caffeine off does.
+meshchat	/meshchat is one chat with everyone nearby over Bluetooth, without internet – with Macs and PCs that have MeshChat. It is public, and signed so no one can write in your name; /tell <name> sends to one person only, encrypted. /meshchat demo tries it alone; /meshchat doctor helps when Bluetooth does not work.
+live	/liveserver in a project folder shows the site in the browser and reloads it on every save – on Windows for this PC only. /html turns the open page, a file or all of the folder into Word, PDF, text, Markdown, OpenDocument or RTF: the code with colors and line numbers, or with --page what a visitor reads.

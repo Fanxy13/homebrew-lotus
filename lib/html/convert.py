@@ -129,7 +129,32 @@ def data_dir():
     return os.environ.get("LOTUS_LIVE_DATA") or os.path.join(HOME, ".local/state/lotus/live")
 
 
-def live_server(pid):
+def live_server(pid, start=""):
+    """Is pid the Live Server that wrote the note? Windows has no ps: kernel32 tells whether it runs, is Python and
+    started when the note says (lib/live/liveserver.py writes it the same way)."""
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        k = ctypes.WinDLL("kernel32", use_last_error=True)
+        k.OpenProcess.restype, k.OpenProcess.argtypes = wintypes.HANDLE, [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        k.CloseHandle.argtypes = [wintypes.HANDLE]
+        k.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        k.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+        k.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+        h = k.OpenProcess(0x1000, False, pid)
+        if not h:
+            return False
+        try:
+            code = wintypes.DWORD()
+            if not k.GetExitCodeProcess(h, ctypes.byref(code)) or code.value != 259:
+                return False
+            buf, size = ctypes.create_unicode_buffer(32768), wintypes.DWORD(32768)
+            name = buf.value if k.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)) else ""
+            t = [wintypes.FILETIME() for _ in range(4)]
+            k.GetProcessTimes(h, *[ctypes.byref(x) for x in t])
+            return "python" in os.path.basename(name).lower() and (not start or str((t[0].dwHighDateTime << 32) | t[0].dwLowDateTime) == start)
+        finally:
+            k.CloseHandle(h)
     try:
         out = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, timeout=3).stdout
     except (OSError, subprocess.SubprocessError):
@@ -150,7 +175,7 @@ def open_page(folder):
             continue
         try:
             with open(os.path.join(running, name)) as f:
-                pid, root = f.read().split("\n")[:2]
+                pid, root, *more = f.read().split("\n")
             with open(os.path.join(running, name + ".page")) as f:
                 rel, stamp = (f.read().split("\n") + ["", "0"])[:2]
         except (OSError, ValueError):
@@ -159,7 +184,7 @@ def open_page(folder):
         if not rel or not (folder == root or folder.startswith(root + os.sep) or root.startswith(folder + os.sep)):
             continue
         path = os.path.realpath(os.path.join(root, rel))
-        if not path.startswith(root + os.sep) or not os.path.isfile(path) or not live_server(int(pid)):
+        if not path.startswith(root + os.sep) or not os.path.isfile(path) or not live_server(int(pid), more[1].strip() if len(more) > 1 else ""):
             continue
         try:
             stamp = float(stamp)

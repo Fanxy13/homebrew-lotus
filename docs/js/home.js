@@ -6,7 +6,7 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ── Install commands (from data/project.tsv) ────────────────
-  // The system the visitor is on picks the command first; Windows has nothing to install yet and says so
+  // The system the visitor is on picks the command first (Windows: the line for PowerShell 7)
   const mine = () => {
     const ua = navigator.userAgent || '';
     if (/Windows/i.test(ua)) return 'windows';
@@ -15,20 +15,18 @@
     if (/Linux|X11/i.test(ua)) return 'linux';
     return 'curl';
   };
-  const WINDOWS = 'Windows is in development \u2013 there is nothing to install yet';
   const NOTES = {
     curl: 'A short setup asks for your name, theme and language. ',
     brew: 'A short setup asks for your name, theme and language. ',
     linux: 'The script asks before it installs zsh and shows the command first. No administrator rights. ',
-    windows: 'A native PowerShell 7 version for Windows 11 is being built. The table above says what is tested where. ',
+    windows: 'In PowerShell 7 (Windows Terminal), no administrator rights; fastfetch is offered with its command first. A beta \u2013 the table above says what is tested where. ',
   };
   let CMDS = {};
   function showCommand(pill, key) {
     pill.dataset.cmd = key;
-    pill.classList.toggle('no-copy', key === 'windows');
     const dollar = $('.dollar', pill);
-    if (dollar) dollar.hidden = key === 'windows';
-    $('.cmd-text', pill).textContent = key === 'windows' ? WINDOWS : (CMDS[key] || '');
+    if (dollar) dollar.textContent = key === 'windows' ? 'PS>' : '$';
+    $('.cmd-text', pill).textContent = CMDS[key] || '';
   }
   Lotus.installCommands().then((c) => {
     CMDS = c;
