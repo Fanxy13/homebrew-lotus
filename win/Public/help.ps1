@@ -125,7 +125,7 @@ function script:Invoke-LotusSuggest {
     $rank = Get-LotusRank $word 50 $words.ToArray()
     $best = if ($rank.Scores.Count) { $rank.Scores[0] } else { 0 }
     Write-LotusError 'Command not found' "/$word"
-    if (Get-Command Invoke-LotusPetReact -ErrorAction SilentlyContinue) { Invoke-LotusPetReact typo }
+    Show-LotusPetReact typo
     if (-not $rank.Names.Count) {
         Write-LotusDim 'Type /lotus cheatsheet to see every command.'
         Write-LotusLine ''

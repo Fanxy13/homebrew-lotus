@@ -234,10 +234,17 @@ function Read-LotusChoice {
 # A page title:   ◇ lotus / Remove BG     (optional dim line below)
 function Write-LotusHero {
     param([string]$Title, [string]$Sub)
-    Write-LotusLine ''
-    Write-LotusLine "    $(E accent)◇$($script:R) $($script:B)lotus$($script:R)$(E dim) / $($script:R)$($script:B)$(Convert-LotusHere $Title)$($script:R)"
-    if ($Sub) { Write-LotusLine ''; Write-LotusLine "    $(E dim)$(Convert-LotusHere $Sub)$($script:R)" }
-    Write-LotusLine ''
+    Write-LotusLine ((Get-LotusHeroLines $Title $Sub) -join "`n")
+}
+# The lines of that page title (a screen that draws itself again and again, like the math game, keeps them)
+function Get-LotusHeroLines {
+    param([string]$Title, [string]$Sub)
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('')
+    $lines.Add("    $(E accent)◇$($script:R) $($script:B)lotus$($script:R)$(E dim) / $($script:R)$($script:B)$(Convert-LotusHere $Title)$($script:R)")
+    if ($Sub) { $lines.Add(''); $lines.Add("    $(E dim)$(Convert-LotusHere $Sub)$($script:R)") }
+    $lines.Add('')
+    , $lines.ToArray()
 }
 function Write-LotusSection { param([string]$Text) Write-LotusLine "    $(E dim)$($Text.ToUpper())$($script:R)" }
 function Write-LotusKv {

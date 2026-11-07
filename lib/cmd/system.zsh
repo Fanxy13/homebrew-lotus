@@ -274,7 +274,8 @@ lotus_doctor() {
     case ${LOTUS_PET_BRAIN:-apple} in
       off) _row $opt Thinking "off – pets answer with short phrases" ;;
       *)   if _pet_brain >/dev/null 2>&1; then _row $ok Thinking "${${(M)PET_BRAIN:#apple}:+Apple Intelligence on this Mac}${${(M)PET_BRAIN:#ai}:+the AI of /ai}"
-           else _row $opt Thinking "${LOTUS_L[pt_noai_hint]}"; fi ;;
+           elif [[ ${LOTUS_PET_BRAIN:-apple} == apple ]]; then _row $opt Thinking "${LOTUS_L[pt_noai_hint]}"
+           else _row $opt Thinking "${LOTUS_L[pt_noai_hint_ai]:-$LOTUS_L[pt_noai_hint]}"; fi ;;
     esac
     ui_blank
   fi

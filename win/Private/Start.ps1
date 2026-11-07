@@ -289,3 +289,14 @@ function Show-LotusPetStart {
     Import-LotusCommand pets
     Show-LotusPetGreeting
 }
+
+# A pet comments on what just happened: typo · done (lotus_pet_react in lib/core.zsh)
+function Show-LotusPetReact {
+    param([string]$What)
+    if (-not (Test-LotusOn $script:S['LOTUS_PET_REACT']) -or -not (Test-LotusFeature 'pets') -or -not (Test-LotusOutTty)) { return }
+    $f = Join-Path $script:Paths.Conf 'pets.tsv'
+    if (-not (Test-Path -LiteralPath $f) -or (Get-Item -LiteralPath $f).Length -eq 0) { return }
+    if (-not (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot 'Public/pets.ps1'))) { return }
+    Import-LotusCommand pets
+    Invoke-LotusPetReact $What
+}

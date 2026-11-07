@@ -2,7 +2,8 @@
 # keyboard (LOTUS_NO_TTY), and puts the environment back when it is done. Keys for the screens come from a queue.
 
 $script:LotusTestVars = 'LOTUS_ROOT', 'LOTUS_CONF', 'LOTUS_CACHE', 'LOTUS_STATE', 'LOTUS_DATA', 'LOTUS_PROFILE', 'LOTUS_NO_TTY',
-'LOTUS_SRC', 'LOTUS_DEST', 'LOTUS_NO_PROFILE', 'LOTUS_SHELL_TEST', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'COLUMNS', 'LINES'
+'LOTUS_SRC', 'LOTUS_DEST', 'LOTUS_NO_PROFILE', 'LOTUS_SHELL_TEST', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'COLUMNS', 'LINES',
+'ANTHROPIC_API_KEY', 'LOTUS_AI_KEY', 'LOTUS_AI_OLLAMA'
 
 function Initialize-LotusTestEnv {
     param([string]$Name = 'lotus-test')
