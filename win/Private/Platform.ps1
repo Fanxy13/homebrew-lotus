@@ -540,3 +540,48 @@ function Find-LotusProgram {
     }
     $null
 }
+
+# Python 3.9 or newer, for Live Server and /html (lib/live, lib/html – its standard library only) → @{ Exe; Args;
+# Version }, or $null. The py launcher first: it comes only with a real Python. A python.exe in WindowsApps is Windows'
+# stand-in that sends you to the Microsoft Store – it counts only when it really answers. (Found once per session.)
+function Find-LotusPython {
+    if ($script:PythonFound) { return $script:PythonFound }
+    $tries = [System.Collections.Generic.List[object]]::new()
+    $launcher = Get-Command py -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($launcher) { $tries.Add(@($launcher.Source, '-3')) }
+    foreach ($n in 'python3', 'python') {
+        foreach ($c in @(Get-Command $n -CommandType Application -All -ErrorAction SilentlyContinue)) { $tries.Add(@($c.Source)) }
+    }
+    foreach ($t in $tries) {
+        $pre = @($t | Select-Object -Skip 1)
+        try { $v = & $t[0] @pre -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>$null } catch { continue }
+        if ($LASTEXITCODE -ne 0 -or "$v".Trim() -notmatch '^(\d+)\.(\d+)$') { continue }
+        if ([int]$Matches[1] -lt 3 -or ([int]$Matches[1] -eq 3 -and [int]$Matches[2] -lt 9)) { continue }
+        $script:PythonFound = [pscustomobject]@{ Exe = $t[0]; Args = $pre; Version = "$v".Trim() }
+        return $script:PythonFound
+    }
+    $null
+}
+
+# A Python program of Lotus, in the open (its output and keys go straight to the window), with these environment
+# variables for it alone, no bytecode in Lotus' folder and UTF-8 throughout → its exit code
+function Invoke-LotusPython {
+    param([Parameter(Mandatory)]$Python, [Parameter(Mandatory)][string]$Script, [string[]]$Arguments = @(), [hashtable]$Environment = @{})
+    $vars = @{ PYTHONDONTWRITEBYTECODE = '1'; PYTHONUTF8 = '1'; PYTHONIOENCODING = 'utf-8' }
+    foreach ($k in $Environment.Keys) { $vars[$k] = [string]$Environment[$k] }
+    $saved = @{}
+    foreach ($k in $vars.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $vars[$k]) }
+    try { Invoke-LotusInTheOpen $Python.Exe (@($Python.Args) + @('-B', $Script) + @($Arguments)) }
+    finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
+}
+
+# The same, its output as text (for a program that answers, not one that talks to you)
+function Invoke-LotusPythonText {
+    param([Parameter(Mandatory)]$Python, [Parameter(Mandatory)][string]$Script, [string[]]$Arguments = @(), [hashtable]$Environment = @{})
+    $vars = @{ PYTHONDONTWRITEBYTECODE = '1'; PYTHONUTF8 = '1'; PYTHONIOENCODING = 'utf-8' }
+    foreach ($k in $Environment.Keys) { $vars[$k] = [string]$Environment[$k] }
+    $saved = @{}
+    foreach ($k in $vars.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $vars[$k]) }
+    try { Invoke-LotusNativeText $Python.Exe (@($Python.Args) + @('-B', $Script) + @($Arguments)) }
+    finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
+}

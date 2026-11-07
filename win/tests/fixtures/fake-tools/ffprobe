@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+# An ffprobe for the tests of /convert: the sound of every video is AAC
+print("aac")

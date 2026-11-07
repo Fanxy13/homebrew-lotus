@@ -61,6 +61,7 @@ LOTUS_L+=(
   featw_ai        'Chat and answers with Claude, Ollama or an OpenAI-compatible API – on Windows without tools'
   featw_caffeine  'Keep your PC awake for a while – for downloads, renders or a server'
   featw_meshchat  'One chat with everyone nearby over Bluetooth – no internet, no server; Macs and PCs in the chat pass messages on'
+  featw_live      'Serve your project to the browser with a reload on every save – and turn its pages, CSS and JS into Word, PDF or text'
   sw_pet_none     'Not now'
   sw_pet_none_d   'later with /pets'
   sw_petname_q    'What is your %s called?'

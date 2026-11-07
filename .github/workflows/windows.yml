@@ -1,15 +1,17 @@
 # Lotus for Windows (win/, install.ps1) on real Windows, on every push that changes it – any branch: the Pester tests
-# (the module, the contract with the zsh engine, the installer from start to end, and win/tests/Windows.Tests.ps1 – what
-# only Windows has: the apps of the Start menu, keep awake, DPAPI, Windows command lines) with PowerShell 7 on x64 and
-# Arm64; the files that Windows PowerShell 5.1 has to read; every winget id of the app catalog, asked of winget itself.
+# (the module, the contract with the zsh engine, the installer from start to end with lotus.cmd, the PATH and the pinned
+# fastfetch, the pets, /ai against a fake AI, Live Server and /html with the runner's Python, /img with ImageMagick, and
+# win/tests/Windows.Tests.ps1 – what only Windows has: the apps of the Start menu, keep awake, DPAPI, Windows command
+# lines) with PowerShell 7 on x64 and Arm64; the files that Windows PowerShell 5.1 has to read; every winget id of the
+# app catalog, asked of winget itself.
 name: Lotus for Windows
 
 on:
   push:
     branches: ['**']
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
   pull_request:
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
   workflow_dispatch:
 
 permissions:
@@ -37,6 +39,13 @@ jobs:
           [Environment]::OSVersion | Out-String | Write-Host
           "Architecture: $([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)"
           "Line ends of a checked-out file: $(if ((Get-Content -Raw data/commands.tsv) -match "`r") { 'CRLF' } else { 'LF' })"
+      # /img converts with ImageMagick: with it the tests convert real images (without it they are reported as skipped)
+      - name: ImageMagick for /img
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          winget install --id ImageMagick.ImageMagick -e --accept-source-agreements --accept-package-agreements --disable-interactivity
+          Get-ChildItem (Join-Path $env:ProgramFiles 'ImageMagick-*\magick.exe') | ForEach-Object { & $_.FullName -version | Select-Object -First 1 }
       - name: Pester
         shell: pwsh
         run: |

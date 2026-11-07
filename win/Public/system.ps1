@@ -131,8 +131,9 @@ function script:Invoke-LotusDoctor {
     if ($y -and $f) { & $row $ok 'yt-dlp' "$y with ffmpeg  (/convert)" } else { & $row $opt 'yt-dlp' 'yt-dlp and ffmpeg are needed for /convert – it offers them' }
     $m = & $tool @('magick')
     if ($m) { & $row $ok 'ImageMagick' "$m  (/img convert)" } else { & $row $opt 'ImageMagick' 'needed for /img convert: winget install ImageMagick.ImageMagick' }
-    $py = & $tool @('py', 'python3', 'python')
-    if ($py) { & $row $ok 'Python' "$py  (/liveserver, /html)" } else { & $row $opt 'Python' 'needed for /liveserver and /html: winget install Python.Python.3.13' }
+    # (python.exe in WindowsApps only sends you to the Microsoft Store: Find-LotusPython counts a Python that answers)
+    $py = Find-LotusPython
+    if ($py) { & $row $ok 'Python' "$($py.Exe) $($py.Version)  (/liveserver, /html)" } else { & $row $opt 'Python' 'needed for /liveserver and /html: winget install Python.Python.3.13' }
     Import-LotusCommand meshchat
     $mc = Find-LotusMeshChat
     if ($mc) { & $row $ok 'MeshChat' "$mc  (/meshchat)" } else { & $row $opt 'MeshChat' 'meshchat.exe is not installed – /meshchat offers it' }

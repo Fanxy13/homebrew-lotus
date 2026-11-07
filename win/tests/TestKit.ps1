@@ -3,7 +3,7 @@
 
 $script:LotusTestVars = 'LOTUS_ROOT', 'LOTUS_CONF', 'LOTUS_CACHE', 'LOTUS_STATE', 'LOTUS_DATA', 'LOTUS_PROFILE', 'LOTUS_NO_TTY',
 'LOTUS_SRC', 'LOTUS_DEST', 'LOTUS_NO_PROFILE', 'LOTUS_SHELL_TEST', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'COLUMNS', 'LINES',
-'ANTHROPIC_API_KEY', 'LOTUS_AI_KEY', 'LOTUS_AI_CLAUDE_URL', 'OLLAMA_HOST'
+'ANTHROPIC_API_KEY', 'LOTUS_AI_KEY', 'LOTUS_AI_CLAUDE_URL', 'OLLAMA_HOST', 'LOTUS_DOWNLOADS', 'PATH'
 
 function Initialize-LotusTestEnv {
     param([string]$Name = 'lotus-test')
@@ -12,7 +12,8 @@ function Initialize-LotusTestEnv {
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     $saved = @{}
     foreach ($n in $script:LotusTestVars) { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
-    foreach ($n in $script:LotusTestVars) { [Environment]::SetEnvironmentVariable($n, $null) }
+    # (PATH is kept as it is – a test that puts a program in front of it gets it back afterwards)
+    foreach ($n in $script:LotusTestVars) { if ($n -cne 'PATH') { [Environment]::SetEnvironmentVariable($n, $null) } }
     $env:LOTUS_ROOT = $repo
     $env:LOTUS_CONF = Join-Path $tmp 'conf'
     $env:LOTUS_CACHE = Join-Path $tmp 'cache'

@@ -57,6 +57,10 @@ TEXT = ("text/", "application/json", "application/manifest+json", "application/x
 
 TTY = sys.stdout.isatty()
 HOME = os.path.realpath(os.path.expanduser("~"))
+# Windows (win/Public/live.ps1 starts it there): this PC only – sharing with the phones in the Wi-Fi needs the Mac's ifconfig
+# and is not on Windows yet; the processes are asked through kernel32 instead of ps, the browser opens with os.startfile
+WINDOWS = os.name == "nt"
+THIS, THE = ("this PC", "the PC") if WINDOWS else ("this Mac", "the Mac")
 
 
 # ── Lotus' look in the terminal ────────────────────────────────
@@ -546,7 +550,7 @@ class NetWatcher(threading.Thread):
             if new == old:
                 continue
             if not new:
-                log("⇄", "No Wi-Fi now – only this Mac opens it", DIM)
+                log("⇄", f"No Wi-Fi now – only {THIS} opens it", DIM)
             added = None
             for ip, what in new:
                 if (ip, what) not in old:
@@ -780,8 +784,44 @@ def running_dir():
     return path
 
 
-def alive(pid):
+def win_process(pid):
+    """Windows: (program, start time) of a process that runs – or None. Through kernel32: Windows has no ps."""
+    import ctypes
+    from ctypes import wintypes
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    k.OpenProcess.restype, k.OpenProcess.argtypes = wintypes.HANDLE, [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k.CloseHandle.argtypes = [wintypes.HANDLE]
+    k.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    k.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    k.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+    h = k.OpenProcess(0x1000, False, pid)            # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return None
+    try:
+        code = wintypes.DWORD()
+        if not k.GetExitCodeProcess(h, ctypes.byref(code)) or code.value != 259:     # STILL_ACTIVE
+            return None
+        buf, size = ctypes.create_unicode_buffer(32768), wintypes.DWORD(32768)
+        name = buf.value if k.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)) else ""
+        t = [wintypes.FILETIME() for _ in range(4)]
+        k.GetProcessTimes(h, *[ctypes.byref(x) for x in t])
+        return name, (t[0].dwHighDateTime << 32) | t[0].dwLowDateTime
+    finally:
+        k.CloseHandle(h)
+
+
+def started(pid):
+    """When a process started (Windows: written next to its number, so that a number Windows gives to another program
+    later is never taken for the server – nor stopped)."""
+    p = win_process(pid) if WINDOWS else None
+    return str(p[1]) if p else ""
+
+
+def alive(pid, start=""):
     """Is pid a live server that still runs? (A number macOS gave to another program since is not.)"""
+    if WINDOWS:
+        p = win_process(pid)
+        return bool(p) and "python" in os.path.basename(p[0]).lower() and (not start or str(p[1]) == start)
     try:
         out = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, timeout=3).stdout
     except (OSError, subprocess.SubprocessError):
@@ -803,7 +843,7 @@ def running():
             pid, port = int(pid), int(name)
         except (OSError, ValueError):
             pid = port = 0
-        if pid and alive(pid):
+        if pid and alive(pid, more[1].strip() if len(more) > 1 else ""):
             found.append((port, pid, root.strip(), "local" not in more))
         else:
             for stale in (path, path + ".page"):
@@ -833,7 +873,10 @@ def bind(ports, host):
 
 def open_browser(url):
     try:
-        subprocess.Popen(["/usr/bin/open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if WINDOWS:
+            os.startfile(url)                   # the default browser
+        else:
+            subprocess.Popen(["/usr/bin/open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
         pass
 
@@ -851,13 +894,13 @@ def usage():
                       ("lotus liveserver <page.html>", "opens that page"),
                       ("lotus liveserver --port 8080", "a port of your choice (otherwise 5500 or the next free one)"),
                       ("lotus liveserver --no-open", "without opening the browser"),
-                      ("lotus liveserver --local", "only this Mac, not the devices in your Wi-Fi"),
+                      ("lotus liveserver --local", f"only {THIS}, not the devices in your Wi-Fi"),
                       ("lotus liveserver --no-qr", "without the QR code for the phone's camera"),
                       ("lotus liveserver stop", "stops the ones running in other windows")):
         say(f"    {paint(KEY, cmd.ljust(30))}{what}")
     say()
     say(f"  {paint(DIM, 'The page reloads when you save a file – only the styles when you change CSS. Ctrl-C stops it.')}")
-    say(f"  {paint(DIM, 'This Mac and the phones and computers in the same Wi-Fi can open it – nobody else.')}")
+    say(f"  {paint(DIM, f'{THIS[0].upper() + THIS[1:]} and the phones and computers in the same Wi-Fi can open it – nobody else.')}")
     say(f"  {paint(DIM, 'A QR code on the screen opens it on the iPhone; Tab shows the one of the next network.')}")
     say(f"  {paint(DIM, 'Hidden files (.git, .env) and files outside the folder stay out.')}")
     say()
@@ -874,7 +917,7 @@ def stop():
         except OSError:
             pass
     deadline = time.monotonic() + 3
-    while time.monotonic() < deadline and any(alive(pid) for _, pid, _, _ in servers):
+    while time.monotonic() < deadline and any(alive(pid, "") for _, pid, _, _ in servers):
         time.sleep(0.05)
     for port, pid, root, _ in servers:
         say(f"  {paint(KEY, '✓', True)} Stopped http://127.0.0.1:{port}  {paint(DIM, tilde(root))}")
@@ -888,7 +931,7 @@ def main(args):
         return 0
     if args[:1] == ["stop"]:
         return stop()
-    target, port, show, wifi, qr = "", None, True, True, True
+    target, port, show, wifi, qr = "", None, True, not WINDOWS, True
     i = 0
     while i < len(args):
         a = args[i]
@@ -960,12 +1003,13 @@ def main(args):
     mark = os.path.join(running_dir(), str(port))
     server.hub.page_file = mark + ".page"
     with open(mark, "w") as f:
-        f.write(f"{os.getpid()}\n{site.root}\n{'wifi' if wifi else 'local'}\n")
+        f.write(f"{os.getpid()}\n{site.root}\n{'wifi' if wifi else 'local'}\n{started(os.getpid())}\n")
 
     def end(signum, frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, end)
-    signal.signal(signal.SIGHUP, end)
+    if hasattr(signal, "SIGHUP"):                   # (Windows has none)
+        signal.signal(signal.SIGHUP, end)
 
     pages = site.pages()
     index = site.index()
@@ -980,13 +1024,15 @@ def main(args):
         n = len(pages)
         kv("Address", f"{paint(KEY, base)}  {paint(DIM, '→ a menu of ' + (f'{n} page' if n == 1 else f'{n} pages') if n else '→ no pages yet')}")
     page = "" if start == "/" else start
-    if not wifi:
-        kv("Wi-Fi", paint(DIM, "off – only this Mac (--local)"))
+    if WINDOWS:
+        kv("Wi-Fi", paint(DIM, f"off – only {THIS}: the phones in the Wi-Fi are not on Windows yet"))
+    elif not wifi:
+        kv("Wi-Fi", paint(DIM, f"off – only {THIS} (--local)"))
     elif show_wifi(server.lan, port, page):
         if firewall_on():
             kv("", paint(DIM, "The macOS firewall is on: allow python3 when macOS asks."))
     else:
-        kv("Wi-Fi", paint(DIM, "not in a Wi-Fi now – the address shows here as soon as the Mac joins one"))
+        kv("Wi-Fi", paint(DIM, f"not in a Wi-Fi now – the address shows here as soon as {THE} joins one"))
     say()
     say(f"  {paint(KEY, '✓', True)} Live – the page reloads when you save. {paint(DIM, 'Ctrl-C stops it.')}")
     restore = key_reading() if TTY and wifi and qr else None

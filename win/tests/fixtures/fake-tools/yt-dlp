@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+# A yt-dlp for the tests of /convert (win/tests/Convert.Tests.ps1): it answers the way yt-dlp does – the version, the first
+# look (--skip-download prints title, length and file name), and a download with the progress lines Lotus asks for. A link
+# with "private" in it is a private video; FAKE_YTDLP_LOG gets every call.
+import os
+import sys
+import time
+
+a = sys.argv[1:]
+if os.environ.get("FAKE_YTDLP_LOG"):
+    with open(os.environ["FAKE_YTDLP_LOG"], "a", encoding="utf-8") as f:
+        f.write("\t".join(a) + "\n")
+if a == ["--version"]:
+    print("2026.10.01")
+    sys.exit(0)
+url = a[-1]
+if "private" in url:
+    print("ERROR: [youtube] abc123: Private video. Sign in if you've been granted access to this video", file=sys.stderr)
+    sys.exit(1)
+tpl = a[a.index("-o") + 1]
+title = "A Test Video"
+audio = "-x" in a
+base = tpl.replace("%(title).150B", title).replace("%(ext)s", "webm")
+if "--skip-download" in a:
+    print(title)
+    print("3:33")
+    print(base)
+    sys.exit(0)
+final = base.rsplit(".", 1)[0] + (".mp3" if audio else ".mp4")
+for i in range(1, 5):
+    print(f"LOTUS {i * 250000} 1000000 524288.0 {4 - i} {'none' if audio else 'avc1'}", flush=True)
+    time.sleep(0.15)                    # (a real download takes its time: the screen shows each step)
+print("LOTUS-PP started ExtractAudio" if audio else "LOTUS-PP started Merger", flush=True)
+with open(final, "wb") as f:
+    f.write(b"\0" * 2048)
+print(final, flush=True)
