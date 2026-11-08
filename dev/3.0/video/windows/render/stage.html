@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lotus for Windows – video stage</title>
+<link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+<style>
+  /* the whole font where it is installed (box drawing, arrows, shapes, braille); the package has only the alphabets */
+  @font-face { font-family: 'Mono'; font-weight: 400; src: local('JetBrains Mono Regular'), local('JetBrainsMono-Regular'), url('node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Mono'; font-weight: 700; src: local('JetBrains Mono Bold'), local('JetBrainsMono-Bold'), url('node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2') format('woff2'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2') format('woff2'); }
+  :root { --ground: #05070a; --ink: #e8eee6; --dim: #8a9a92; --matcha: #b9d58c; --lotus: #f2a7c3; --line: #1b222a; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+  body { position: relative; font-family: 'Mono', monospace; color: var(--ink);
+         background: radial-gradient(1200px 700px at 50% 42%, #0b1210 0%, var(--ground) 70%); }
+  #caption { position: absolute; left: 0; top: 64px; width: 100%; }
+  #caption .wrap { margin: 0 auto; }
+  #title { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 58px; line-height: 1; letter-spacing: .2px; }
+  #title em { font-style: italic; color: var(--matcha); }
+  #sub { margin-top: 14px; font-size: 21px; color: var(--dim); white-space: pre; }
+  #window { position: absolute; left: 50%; top: 214px; transform: translateX(-50%); background: #0c0c0c;
+            border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 40px 120px rgba(0, 0, 0, .65); overflow: hidden; }
+  #bar { height: 40px; display: flex; align-items: center; padding: 0 18px; gap: 12px; border-bottom: 1px solid #161b21;
+         font-size: 14px; color: #9aa7a0; background: #101315; }
+  #bar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--lotus); }
+  #bar .grow { flex: 1; }
+  #bar .ctl { letter-spacing: 14px; color: #5d6862; font-size: 13px; }
+  #term { padding: 16px 18px 18px; }
+  #note { position: absolute; right: 0; top: 0; font-size: 18px; color: var(--matcha); white-space: pre; }
+  #fade { position: absolute; inset: 0; width: 1920px; height: 1080px; opacity: 0; pointer-events: none; }
+  #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          background: radial-gradient(1100px 650px at 50% 45%, #0c1411 0%, var(--ground) 72%); opacity: 0; }
+  #card .big { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 132px; line-height: 1; }
+  #card .big b { font-weight: 400; color: var(--lotus); }
+  #card .tag { margin-top: 26px; font-size: 26px; color: var(--dim); }
+  #card .cmd { margin-top: 56px; padding: 18px 28px; border: 1px solid var(--line); border-radius: 12px; background: #0c0f10;
+               font-size: 24px; color: var(--ink); }
+  #card .cmd span { color: var(--matcha); }
+  #card .small { margin-top: 18px; font-size: 18px; color: #6f7d76; text-align: center; line-height: 1.6; white-space: pre; }
+</style>
+</head>
+<body>
+  <div id="caption"><div class="wrap"><div id="title"></div><div id="sub"></div></div></div>
+  <div id="window">
+    <div id="bar"><div class="dot"></div><div>PowerShell 7</div><div class="grow"></div><div class="ctl">— ▢ ✕</div></div>
+    <div id="term"></div>
+  </div>
+  <img id="fade" alt="">
+  <div id="card"></div>
+<script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="node_modules/@xterm/addon-canvas/lib/addon-canvas.js"></script>
+<script>
+// Campbell, the colors Windows Terminal starts with, so that PowerShell's own output looks as it does there
+const theme = {
+  background: '#0c0c0c', foreground: '#cccccc', cursor: '#cccccc', cursorAccent: '#0c0c0c', selectionBackground: '#264f78',
+  black: '#0c0c0c', red: '#c50f1f', green: '#13a10e', yellow: '#c19c00', blue: '#0037da', magenta: '#881798', cyan: '#3a96dd', white: '#cccccc',
+  brightBlack: '#767676', brightRed: '#e74856', brightGreen: '#16c60c', brightYellow: '#f9f1a5', brightBlue: '#3b78ff',
+  brightMagenta: '#b4009e', brightCyan: '#61d6d6', brightWhite: '#f2f2f2',
+};
+const frame2 = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+window.stage = {
+  async init({ cols, rows, fontSize }) {
+    await Promise.all([
+      document.fonts.load(`${fontSize}px "Mono"`), document.fonts.load(`bold ${fontSize}px "Mono"`),
+      document.fonts.load('italic 58px "Instrument Serif"'),
+    ]);
+    this.term = new Terminal({ cols, rows, fontSize, fontFamily: '"Mono", "DejaVu Sans Mono", monospace', lineHeight: 1.0,
+      theme, cursorBlink: false, cursorStyle: 'block', allowProposedApi: true, scrollback: 0, customGlyphs: true,
+      drawBoldTextInBrightColors: false, minimumContrastRatio: 1 });
+    this.term.loadAddon(new CanvasAddon.CanvasAddon());
+    this.term.open(document.getElementById('term'));
+    await frame2();
+    const w = document.getElementById('window').getBoundingClientRect();
+    document.querySelector('#caption .wrap').style.width = `${w.width}px`;
+    const note = document.getElementById('note') || document.createElement('div');
+    note.id = 'note';
+    document.querySelector('#caption .wrap').style.position = 'relative';
+    document.querySelector('#caption .wrap').appendChild(note);
+    return { width: w.width, height: w.height, top: w.top };
+  },
+  write(data) { return new Promise((r) => this.term.write(data, r)); },
+  async settle() { await frame2(); },
+  reset() { this.term.reset(); },
+  set({ title, sub, captionOpacity, note, noteOpacity, fade, fadeOpacity, card, cardOpacity, windowOpacity }) {
+    const t = document.getElementById('title');
+    if (title !== undefined && t.innerHTML !== title) t.innerHTML = title;
+    const s = document.getElementById('sub');
+    if (sub !== undefined && s.textContent !== sub) s.textContent = sub;
+    if (captionOpacity !== undefined) document.getElementById('caption').style.opacity = captionOpacity;
+    const n = document.getElementById('note');
+    if (note !== undefined && n.textContent !== note) n.textContent = note;
+    if (noteOpacity !== undefined) n.style.opacity = noteOpacity;
+    const f = document.getElementById('fade');
+    if (fade !== undefined) f.src = fade;
+    if (fadeOpacity !== undefined) f.style.opacity = fadeOpacity;
+    const c = document.getElementById('card');
+    if (card !== undefined && c.innerHTML !== card) c.innerHTML = card;
+    if (cardOpacity !== undefined) c.style.opacity = cardOpacity;
+    if (windowOpacity !== undefined) document.getElementById('window').style.opacity = windowOpacity;
+  },
+};
+</script>
+</body>
+</html>

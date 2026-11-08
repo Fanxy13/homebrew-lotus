@@ -89,7 +89,7 @@ function script:Show-LotusCaffeineStatus {
 
 function script:Show-LotusCaffeineMenu {
     if (-not (Test-LotusTty)) { return Show-LotusCaffeineStatus }
-    Write-LotusHeader (T caf_title 'Keep awake') (T caf_sub 'Your Mac does not sleep while this is on – for downloads, renders or a Minecraft server')
+    Write-LotusHeader (T caf_title 'Keep awake') (T caf_sub_win (T caf_sub 'Your Mac does not sleep while this is on – for downloads, renders or a Minecraft server'))
     if (Get-LotusCaffeineState) {
         foreach ($o in Show-LotusCaffeineStatus) { if (-not (Test-LotusStatus $o)) { Write-LotusLine $o } }
         Write-LotusLine ''

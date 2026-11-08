@@ -25,6 +25,14 @@ else check_has "elsewhere: the English text" "$LOTUS_L[caf_stop_q]" "your comput
 LOTUS_LANG=de; lotus_lang
 if [[ $LOTUS_OS == macos ]]; then check_has "a Mac: the German text" "$LOTUS_L[caf_on]" "Dein Mac"
 else check_has "elsewhere: the German text" "$LOTUS_L[caf_on]" "Dein Computer"; fi
+# at the start of a sentence too: "Your Mac stays awake", "Ton Mac reste éveillé", "Tu Mac sigue despierto"
+for lang word in en 'Your computer' fr 'Ton ordinateur' es 'Tu ordenador'; do
+  LOTUS_LANG=$lang; lotus_lang
+  if [[ $LOTUS_OS == macos ]]; then check_has "a Mac: $lang at the start of a sentence" "$LOTUS_L[caf_on]" "Mac"
+  else check_has "elsewhere: $lang at the start of a sentence" "$LOTUS_L[caf_on]" "$word"; fi
+done
+info=$(ui_info "Your Mac may sleep again" | plain)
+[[ $LOTUS_OS == macos ]] || check_has "elsewhere: ui_info at the start of a sentence" "$info" "Your computer may sleep again"
 # a text in a group of its own is changed the same way
 lotus_lang_group bg
 LOTUS_LANG=en; lotus_lang; lotus_lang_group bg

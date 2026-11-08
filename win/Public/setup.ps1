@@ -492,7 +492,8 @@ function script:Show-LotusWizardWeather {
 
 function script:Show-LotusWizardAi {
     $sw = $script:Sw
-    $sw.Step = 4; $sw.Stage = 4; $sw.Q = T sw_ai_q; $sw.Sub = T sw_ai_sub
+    # Windows has /ai – not the AI terminal, not Apple Intelligence
+    $sw.Step = 4; $sw.Stage = 4; $sw.Q = T sw_ai_q_win (T sw_ai_q); $sw.Sub = T sw_ai_sub_win (T sw_ai_sub)
     $r = Read-LotusWizardSelect $(if ($script:SwClaude) { 2 } else { 1 }) @("$(T sw_ai_later)|$(T sw_ai_later_d)", "$(T sw_ai_claude)|$(T sw_ai_claude_d)")
     if ($null -eq $r) { return $false }
     $script:SwClaude = $r -eq 2

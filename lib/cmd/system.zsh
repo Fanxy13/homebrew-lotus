@@ -32,7 +32,8 @@ lotus_setup() {
     source $LOTUS_ROOT/lib/cmd/setup.zsh
     lotus_cmd_setup_wizard || return 1
   fi
-  [[ -e $LOTUS_CONF/settings.zsh ]] || lotus_save
+  # a settings file made new here is of this version: read as one of Lotus 1.x it would skip the first setup
+  [[ -e $LOTUS_CONF/settings.zsh ]] || { LOTUS_CONFIG_VERSION=3; lotus_save }
   lotus_build force
   lotus_hook
 }

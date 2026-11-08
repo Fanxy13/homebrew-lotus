@@ -122,6 +122,22 @@ Describe 'the lines in the PowerShell profile' {
         lotus unhook *>&1 | Out-Null
         (Get-Content $env:LOTUS_PROFILE -Raw) | Should -Not -Match 'lotus'
     }
+    It 'a new install: after lotus setup --hook (install.ps1) the first start still brings the setup' {
+        # (the file it wrote was taken for one of Lotus 1.x, which marks Lotus as set up – no setup at the first start)
+        $f = Join-Path $env:LOTUS_CONF 'settings.zsh'
+        $before = if (Test-Path -LiteralPath $f) { Get-Content -LiteralPath $f -Raw } else { $null }
+        Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+        try {
+            InModuleScope Lotus { Initialize-Lotus }
+            lotus setup --hook *>&1 | Out-Null
+            Get-Content -LiteralPath $f -Raw | Should -Match "LOTUS_CONFIG_VERSION='?3'?"
+            InModuleScope Lotus { Initialize-Lotus; Test-LotusOn $script:S['LOTUS_CONFIGURED'] } | Should -BeFalse
+            lotus unhook *>&1 | Out-Null
+        } finally {
+            if ($null -ne $before) { Set-Content -LiteralPath $f -Value $before -NoNewline } else { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
+            InModuleScope Lotus { Initialize-Lotus }
+        }
+    }
 }
 
 Describe 'the start screen' {
@@ -322,6 +338,106 @@ Describe 'a table, a file or a text of one item stays one item' {
             Import-LotusCommand setup
             @(Split-LotusWrap 'one two three four' 9) | Should -Be @('one two', 'three', 'four')
             @(Split-LotusWrap 'short' 20) | Should -Be @('short')
+        }
+    }
+}
+
+Describe 'the setup on Windows' {
+    It 'names /ai at its AI step in every language – not the AI terminal or Apple Intelligence of the Mac' {
+        InModuleScope Lotus {
+            $was = $script:S['LOTUS_LANG']
+            try {
+                foreach ($lang in 'en', 'de', 'fr', 'es') {
+                    $script:S['LOTUS_LANG'] = $lang
+                    Import-LotusLang
+                    $script:LangGroups.Clear()
+                    Import-LotusLangGroup setup
+                    $q = T sw_ai_q_win
+                    $sub = T sw_ai_sub_win
+                    $q | Should -Match '/ai'
+                    $sub | Should -Match 'Ollama'
+                    "$q $sub" | Should -Not -Match 'Apple|[Tt]erminal'
+                    if ($lang -ne 'en') { $q | Should -Not -Be 'AI answers with /ai' }
+                    T sw_ai_sub_ai | Should -Not -Match 'Apple'          # (Linux: the zsh setup's text off a Mac)
+                }
+            } finally {
+                $script:S['LOTUS_LANG'] = $was
+                Import-LotusLang
+                $script:LangGroups.Clear()
+            }
+        }
+    }
+}
+
+Describe 'a command that /ai command or /help prepared' {
+    # (it never reached the line: the OnIdle event carries no MessageData, so an empty Insert put a NUL key – ^@ – there)
+    It 'is in the action that fills the next line, exactly – quotes and all' {
+        InModuleScope Lotus {
+            $cmd = "Get-ChildItem 'C:\My Files' | Where-Object Name -like '*" + [char]0x2019 + "s*'"
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseInput((Get-LotusLineAction $cmd).ToString(), [ref]$null, [ref]$errors)
+            $errors | Should -BeNullOrEmpty
+            $call = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)
+            $call.Member.Value | Should -Be 'Insert'
+            $call.Arguments[0].Value | Should -BeExactly $cmd
+        }
+    }
+    It 'waits for the next line after the lotus command (with PSReadLine)' {
+        Import-Module PSReadLine -ErrorAction SilentlyContinue
+        if (-not (Get-Module PSReadLine)) { Set-ItResult -Skipped -Because 'PSReadLine is not here'; return }
+        $f = Join-Path $env:LOTUS_CACHE 'ai-prompt'
+        Set-Content -LiteralPath $f -Value 'Get-Process | Sort-Object CPU -Descending'
+        try {
+            InModuleScope Lotus { Update-LotusShellAfter 'ai' }
+            Test-Path -LiteralPath $f | Should -BeFalse
+            $sub = @(Get-EventSubscriber -SourceIdentifier PowerShell.OnIdle -ErrorAction SilentlyContinue)
+            $sub.Count | Should -Be 1
+            $sub[0].Action.Command | Should -Match ([regex]::Escape("Insert('Get-Process | Sort-Object CPU -Descending')"))
+        } finally {
+            Get-EventSubscriber -SourceIdentifier PowerShell.OnIdle -ErrorAction SilentlyContinue | Unregister-Event
+            Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe 'a program that runs in the open (Live Server, winget, MeshChat)' {
+    It 'gets to finish when Ctrl-C stops it – its last lines come before the prompt, not over it' {
+        # (Ctrl-C reaches PowerShell and the program: Start-Process -Wait gave the prompt back at once, and Live Server's
+        # "Stopped" line came after it and wrote over it)
+        $marker = Join-Path $env:LOTUS_TMP 'goodbye.txt'
+        Remove-Item -LiteralPath $marker -ErrorAction SilentlyContinue
+        $ps = [powershell]::Create()
+        [void]$ps.AddScript({
+                param($module, $pwsh, $marker)
+                Import-Module $module
+                & (Get-Module Lotus) { param($p, $m) Invoke-LotusInTheOpen $p @('-NoProfile', '-Command', "Start-Sleep -Milliseconds 1500; Set-Content -LiteralPath '$m' bye") } $pwsh $marker
+            }).AddArgument((Get-Module Lotus).Path).AddArgument((Get-Process -Id $PID).Path).AddArgument($marker)
+        try {
+            $null = $ps.BeginInvoke()
+            Start-Sleep -Milliseconds 600
+            $ps.Stop()                                    # what Ctrl-C does to the PowerShell that waits
+            Test-Path -LiteralPath $marker | Should -BeTrue
+        } finally { $ps.Dispose() }
+    }
+    It 'hands on the exit code' {
+        InModuleScope Lotus { Invoke-LotusInTheOpen (Get-Process -Id $PID).Path @('-NoProfile', '-Command', 'exit 3') } | Should -Be 3
+    }
+}
+
+Describe 'the words of this system (texts written on a Mac)' {
+    It 'are used at the start of a sentence too, in every language – and keep awake names no Minecraft on Windows' {
+        if ($IsMacOS) { Set-ItResult -Skipped -Because 'on a Mac the texts stay as they are'; return }
+        InModuleScope Lotus {
+            $was = $script:S['LOTUS_LANG']
+            try {
+                foreach ($lang in 'en', 'de', 'fr', 'es') {
+                    $script:S['LOTUS_LANG'] = $lang
+                    Import-LotusLang
+                    foreach ($k in 'caf_on', 'caf_off', 'caf_stop_q', 'caf_sub_win') { T $k | Should -Not -Match '\bMac\b' -Because "$lang $k" }
+                    T caf_sub_win | Should -Not -Match 'Minecraft'
+                }
+                Convert-LotusHere 'Your Mac may sleep again' | Should -Not -Match '\bMac\b'
+            } finally { $script:S['LOTUS_LANG'] = $was; Import-LotusLang }
         }
     }
 }

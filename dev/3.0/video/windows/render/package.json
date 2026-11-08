@@ -1,0 +1,12 @@
+{
+  "name": "lotus-windows-video",
+  "private": true,
+  "type": "module",
+  "description": "Renders the Lotus for Windows video from a recording (asciicast) and a cut list",
+  "dependencies": {
+    "@fontsource/instrument-serif": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@xterm/addon-canvas": "0.7.0",
+    "@xterm/xterm": "5.5.0"
+  }
+}

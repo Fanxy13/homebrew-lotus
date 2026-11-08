@@ -13,6 +13,7 @@ LOTUS_L+=(
   sw_weather_q 'Tu ciudad para /weather'  sw_weather_sub 'Opcional – Enter para saltar. El pronóstico viene de Open-Meteo, sin cuenta.'
   sw_city 'Ciudad'
   sw_ai_q 'El terminal IA'  sw_ai_sub 'Lotus encuentra Apple Intelligence y Ollama solo. Claude necesita una clave API una vez.'
+  sw_ai_sub_ai 'Lotus encuentra Ollama solo. Claude necesita una clave API una vez.'  sw_ai_q_win 'Respuestas de IA con /ai'  sw_ai_sub_win 'Un chat y respuestas en la ventana. Lotus encuentra Ollama solo; Claude necesita una clave API una vez.'
   sw_ai_later 'Más tarde'  sw_ai_later_d 'escribe /ai cuando lo necesites'
   sw_ai_claude 'Conectar Claude ahora'  sw_ai_claude_d 'justo después: pega una clave API una vez'
   sw_ready 'Lotus está listo'  sw_enabled 'Activadas'  sw_disabled 'Desactivadas'  sw_none 'nada'

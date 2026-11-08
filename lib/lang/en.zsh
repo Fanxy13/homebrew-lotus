@@ -144,6 +144,7 @@ LOTUS_L+=(
   ai_ctx 'Context window'  ai_len 'Answer length'  ai_temp 'Creativity'  ai_temp_p 'precise'  ai_temp_b 'balanced'  ai_temp_c 'creative'  ai_kv 'Memory saver'
   head_ai_perm 'AI: what it may do'  ai_tools 'Work on this Mac'  ai_p_read 'Look at files in the folder'  ai_p_read_out 'Look at files elsewhere'
   caf_title 'Keep awake'  caf_sub 'Your Mac does not sleep while this is on – for downloads, renders or a Minecraft server'
+  caf_sub_win 'Your PC does not go to sleep while this is on – for downloads, renders or a server'
   caf_on 'Your Mac stays awake'  caf_off 'Your Mac may sleep again'  caf_until 'until'  caf_left 'left'  caf_forever 'until you turn it off'
   caf_was_off 'Keep awake is not on'  caf_status_on 'Keep awake: on'  caf_status_off 'Keep awake: off'  caf_stop_q 'Let your Mac sleep again?'  caf_how_long 'For how long?'
   clk_minimal 'Minimal'  clk_big 'Big'  clk_retro 'Retro'  clk_matrix 'Matrix'  clk_analog 'Analog'  clk_world 'World'

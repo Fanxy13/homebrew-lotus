@@ -85,7 +85,7 @@ Developer tools	-	log	/lotus log	What Lotus did: filter, search, details	/lotus 
 Developer tools	-	log live	/lotus log live	Follow new log entries as they happen	/lotus log live	0
 Developer tools	-	log level	/lotus log level <level>	How much is logged: off, warn, info, debug, trace	/lotus log level debug	0
 Developer tools	-	log clear	/lotus log clear	Delete the log	/lotus log clear	0
-Developer tools	-	-V	lotus -V <command>	Run a command and print every log line while it runs	lotus -V bg remove photo.jpg	0
+Developer tools	-	-V	lotus -V <command>	Run a command and print every log line while it runs	lotus -V weather Paris	0
 Developer tools	/minecraft	minecraft	/minecraft	Set up a Minecraft server, open its control center	/minecraft	0
 Developer tools	/mc	minecraft	/mc [server]	Short for /minecraft – with a name, that server's control center: players, ping, plugins, log	/mc survival	0
 Developer tools	/liveserver	liveserver	/liveserver [folder|page.html]	Serve the folder you are in like Live Server in VS Code: it reloads on every save, and phones and computers in the same Wi-Fi open it too	/liveserver	0

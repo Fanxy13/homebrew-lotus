@@ -52,6 +52,18 @@ Describe 'which AI answers' {
         lotus settings set LOTUS_AI_MODEL 'qwen3:4b' | Out-Null
         (InModuleScope Lotus { Initialize-Lotus; Get-LotusAiProvider }).Model | Should -Be 'qwen3:4b'
     }
+    It 'Ollama where it listens by itself: 127.0.0.1:11434, without OLLAMA_HOST' {
+        # (not localhost: that is ::1 first on Windows, and Windows takes about two seconds to give up on a refused
+        # connection – longer than the second /ai waits, so a running Ollama was not found there)
+        InModuleScope Lotus { Import-LotusCommand ai; Get-LotusAiOllamaUrl } | Should -Be 'http://127.0.0.1:11434'
+        $ollama = try { Start-LotusFakeAi -OnPort 11434 } catch { $null }
+        if (-not $ollama) { Set-ItResult -Skipped -Because 'port 11434 is taken here'; return }
+        try {
+            $p = InModuleScope Lotus { Initialize-Lotus; Get-LotusAiProvider }
+            $p.Name | Should -Be 'ollama'
+            $p.Model | Should -Be 'llama3:8b'
+        } finally { Stop-LotusFakeAi $ollama }
+    }
     It 'the provider of the settings only' {
         Use-Claude
         lotus settings set LOTUS_AI_PROVIDER openai | Out-Null

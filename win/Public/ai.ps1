@@ -47,7 +47,9 @@ function script:Get-LotusAiOpenAiKey { if ($env:LOTUS_AI_KEY) { $env:LOTUS_AI_KE
 function script:Get-LotusAiClaudeUrl { if ($env:LOTUS_AI_CLAUDE_URL) { $env:LOTUS_AI_CLAUDE_URL } else { 'https://api.anthropic.com/v1/messages' } }
 function script:Get-LotusAiOllamaUrl {
     $h = [string]$env:OLLAMA_HOST
-    if (-not $h) { return 'http://localhost:11434' }
+    # 127.0.0.1, where Ollama listens: localhost is ::1 first on Windows, and a refused connection takes Windows about two
+    # seconds – longer than the look for models waits
+    if (-not $h) { return 'http://127.0.0.1:11434' }
     if ($h -notmatch '^https?://') { $h = "http://$h" }
     $h = $h.TrimEnd('/') -replace '^(https?://)0\.0\.0\.0', '$1127.0.0.1'
     if ($h -notmatch ':\d+$') { $h += ':11434' }

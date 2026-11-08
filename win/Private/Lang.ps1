@@ -63,17 +63,20 @@ function Convert-LotusLangHere {
     if (-not $pairs.Count) { return }
     foreach ($k in @($script:L.Keys)) {
         $v = $script:L[$k]
-        foreach ($p in $pairs) { $v = $v.Replace($p[0], $p[1]) }
+        # (and each at the start of a sentence: "Your Mac stays awake", "Ton Mac", "Tu Mac")
+        foreach ($p in $pairs) { $v = $v.Replace($p[0], $p[1]).Replace((Get-LotusCapital $p[0]), (Get-LotusCapital $p[1])) }
         $script:L[$k] = $v
     }
 }
+function Get-LotusCapital { param([string]$Text) if ($Text) { $Text.Substring(0, 1).ToUpperInvariant() + $Text.Substring(1) } else { $Text } }
 
 # An English text written in the code ("this Mac", "Finder") in this system's words (_ui_here in lib/ui.zsh)
 function Convert-LotusHere {
     param([AllowEmptyString()][AllowNull()][string]$Text)
     $w = Get-LotusHereWords
     if (-not $w -or -not $Text) { return [string]$Text }
-    $Text.Replace('this Mac', $w.This).Replace('your Mac', $w.Your).Replace('the Mac', $w.The).Replace('Finder', $w.Files)
+    $Text = $Text.Replace('this Mac', $w.This).Replace('your Mac', $w.Your).Replace('the Mac', $w.The).Replace('Finder', $w.Files)
+    $Text.Replace('This Mac', (Get-LotusCapital $w.This)).Replace('Your Mac', (Get-LotusCapital $w.Your)).Replace('The Mac', (Get-LotusCapital $w.The))
 }
 
 # English first, then the language of the settings on top

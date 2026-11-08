@@ -1,0 +1,119 @@
+# The recording for the Lotus for Windows video, on GitHub's Windows machine (dev/3.0/video/windows/README.md).
+# Off camera first: the tools the scenes use – Ollama with a small model, ImageMagick, yt-dlp and ffmpeg – and a few
+# photos and a small website to work with. Lotus itself comes only from the install line of the first scene. Then
+# record.py plays every scene in a real PowerShell 7, and the take (an asciicast file) is committed next to it, so
+# that the video can be cut from it.
+name: Windows video recording
+
+on:
+  push:
+    branches: ['claude/**']
+    paths: [dev/3.0/video/windows/record.py, .github/workflows/windows-video.yml]
+  workflow_dispatch:
+    inputs:
+      take:
+        description: 'A take for the video: Lotus from main with the line from the website (otherwise a rehearsal)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-video-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  record:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      # a push rehearses (the branch's Lotus); a take is started by hand: workflow_dispatch with take
+      LOTUS_VIDEO_REHEARSAL: ${{ inputs.take && '0' || '1' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: The tools of the scenes (off camera)
+        shell: pwsh
+        run: |
+          $w = @('-e', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity')
+          winget list --accept-source-agreements --disable-interactivity | Out-Null   # the source terms, once, as on any PC
+          foreach ($id in 'Ollama.Ollama', 'ImageMagick.ImageMagick', 'yt-dlp.yt-dlp', 'Gyan.FFmpeg') {
+            "== $id"; winget install --id $id @w 2>&1 | Select-Object -Last 3
+          }
+          python -m pip install --quiet pyte pywinpty
+
+      - name: Ollama with qwen2.5:3b (off camera)
+        shell: pwsh
+        run: |
+          $ollama = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+          Get-Process -Name 'ollama*' -ErrorAction SilentlyContinue | Stop-Process -Force
+          $env:OLLAMA_KEEP_ALIVE = '3h'                 # stays loaded for the whole recording
+          Start-Process $ollama -ArgumentList 'serve' -WindowStyle Hidden
+          foreach ($i in 1..60) { try { Invoke-RestMethod http://127.0.0.1:11434/api/version | Out-Null; break } catch { Start-Sleep 1 } }
+          & $ollama pull qwen2.5:3b
+          $body = @{ model = 'qwen2.5:3b'; prompt = 'Say hello in five words.'; stream = $false } | ConvertTo-Json
+          (Invoke-RestMethod -Method Post http://127.0.0.1:11434/api/generate -Body $body -TimeoutSec 600).response
+
+      - name: Photos, a small website, the video link (off camera)
+        shell: pwsh
+        run: |
+          $magick = (Get-ChildItem (Join-Path $env:ProgramFiles 'ImageMagick-*\magick.exe') | Select-Object -First 1).FullName
+          $trip = New-Item -ItemType Directory -Force (Join-Path $HOME 'Pictures\Trip')
+          $n = 2041
+          foreach ($seed in 3, 5, 8, 13, 21) { & $magick -seed $seed -size 3000x2000 plasma:fractal -blur 0x2 -quality 92 (Join-Path $trip "IMG_$n.jpg"); $n++ }
+          Get-ChildItem $trip | Format-Table Name, Length -AutoSize
+          $site = New-Item -ItemType Directory -Force (Join-Path $HOME 'Projects\bakery')
+          $page = @(
+            '<!doctype html>', '<html lang="en">',
+            '<head><meta charset="utf-8"><title>Bakery Sunflower</title><link rel="stylesheet" href="style.css"></head>',
+            '<body>', '  <h1>Bakery Sunflower</h1>', '  <p>Fresh bread every morning from six.</p>',
+            '  <ul><li>Sourdough</li><li>Rye</li><li>Croissants</li></ul>', '</body>', '</html>')
+          Set-Content -LiteralPath (Join-Path $site 'index.html') -Value $page -Encoding utf8NoBOM
+          Set-Content -LiteralPath (Join-Path $site 'style.css') -Value @('body { font-family: Georgia, serif; margin: 3rem; background: #fffaf0; }', 'h1 { color: #b5651d; }') -Encoding utf8NoBOM
+          New-Item -ItemType Directory -Force (Join-Path $HOME 'Downloads') | Out-Null
+          # the video link: the Commons page when yt-dlp reads it, else the file itself
+          $ytdlp = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\yt-dlp.exe'
+          $page = 'https://commons.wikimedia.org/wiki/File:Big_Buck_Bunny_Trailer_400p.ogv'
+          & $ytdlp --simulate --print '%(title)s · %(duration)s s' $page
+          if ($LASTEXITCODE -ne 0) {
+            $q = Invoke-RestMethod 'https://commons.wikimedia.org/w/api.php?action=query&titles=File:Big_Buck_Bunny_Trailer_400p.ogv&prop=imageinfo&iiprop=url&format=json'
+            $file = @($q.query.pages.PSObject.Properties.Value)[0].imageinfo[0].url
+            "The Commons page did not work with yt-dlp – the file itself: $file"
+            "LOTUS_VIDEO_LINK=$file" | Out-File -Append $env:GITHUB_ENV
+          }
+
+      - name: Record every scene
+        shell: pwsh
+        run: |
+          if (-not (Get-Process -Name ollama -ErrorAction SilentlyContinue)) {
+            $env:OLLAMA_KEEP_ALIVE = '3h'
+            Start-Process (Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe') -ArgumentList 'serve' -WindowStyle Hidden
+          }
+          # a rehearsal installs this branch's Lotus (install.ps1's LOTUS_SRC): it tries what a merge would bring to main
+          if ($env:LOTUS_VIDEO_REHEARSAL -eq '1') { $env:LOTUS_SRC = $env:GITHUB_WORKSPACE }
+          python dev/3.0/video/windows/record.py recording.cast
+          "RECORD_EXIT=$LASTEXITCODE" | Out-File -Append $env:GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-video-take-${{ github.run_number }}
+          path: recording.cast
+          if-no-files-found: ignore
+
+      - name: Keep the take next to the script
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path recording.cast)) { 'no recording'; exit 1 }
+          $dir = New-Item -ItemType Directory -Force dev/3.0/video/windows/takes
+          $take = Join-Path $dir "take-$env:GITHUB_RUN_NUMBER.cast.gz"
+          python -c "import gzip, shutil, sys; shutil.copyfileobj(open(sys.argv[1], 'rb'), gzip.open(sys.argv[2], 'wb', 9))" recording.cast $take
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add $take
+          git commit -m "Windows video: $(if ($env:LOTUS_VIDEO_REHEARSAL -eq '1') { 'rehearsal' } else { 'take' }) $env:GITHUB_RUN_NUMBER ($(if ($env:RECORD_EXIT -eq '0') { 'every scene' } else { 'stopped early' }))"
+          git pull --rebase origin $env:GITHUB_REF_NAME
+          git push origin "HEAD:$env:GITHUB_REF_NAME"
+          if ($env:RECORD_EXIT -ne '0') { 'The recording stopped early – see the step above.'; exit 1 }

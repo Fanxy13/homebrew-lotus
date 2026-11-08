@@ -144,9 +144,12 @@ _lotus_lang_here() {
     case $LOTUS_LANG in
       de) v=${v//diesem Mac/diesem Computer}; v=${v//diesen Mac/diesen Computer}; v=${v//deinem Mac/deinem Computer}; v=${v//Dein Mac/Dein Computer}; v=${v//dein Mac/dein Computer}
           v=${v//deinen Mac/deinen Computer}; v=${v//dem Mac/dem Computer}; v=${v//der Mac/der Computer}; v=${v//den Mac/den Computer}; v=${v//Am Mac/Am Computer}; v=${v//Finder/Dateimanager} ;;
-      fr) v=${v//ce Mac/cet ordinateur}; v=${v//ton Mac/ton ordinateur}; v=${v//votre Mac/votre ordinateur}; v=${v//le Mac/l’ordinateur}; v=${v//du Mac/de l’ordinateur}; v=${v//Finder/le gestionnaire de fichiers} ;;
-      es) v=${v//este Mac/este ordenador}; v=${v//tu Mac/tu ordenador}; v=${v//el Mac/el ordenador}; v=${v//del Mac/del ordenador}; v=${v//en el Finder/en el gestor de archivos}; v=${v//Finder/gestor de archivos} ;;
-      *)  v=${v//this Mac/$LOTUS_THIS}; v=${v//your Mac/your computer}; v=${v//the Mac/$LOTUS_THE}; v=${v//Finder/$LOTUS_FILES_APP} ;;
+      fr) v=${v//ce Mac/cet ordinateur}; v=${v//ton Mac/ton ordinateur}; v=${v//votre Mac/votre ordinateur}; v=${v//le Mac/l’ordinateur}; v=${v//du Mac/de l’ordinateur}; v=${v//Finder/le gestionnaire de fichiers}
+          v=${v//Ce Mac/Cet ordinateur}; v=${v//Ton Mac/Ton ordinateur}; v=${v//Votre Mac/Votre ordinateur}; v=${v//Le Mac/L’ordinateur}; v=${v//Du Mac/De l’ordinateur} ;;
+      es) v=${v//este Mac/este ordenador}; v=${v//tu Mac/tu ordenador}; v=${v//el Mac/el ordenador}; v=${v//del Mac/del ordenador}; v=${v//en el Finder/en el gestor de archivos}; v=${v//Finder/gestor de archivos}
+          v=${v//Este Mac/Este ordenador}; v=${v//Tu Mac/Tu ordenador}; v=${v//El Mac/El ordenador}; v=${v//Del Mac/Del ordenador} ;;
+      *)  v=${v//this Mac/$LOTUS_THIS}; v=${v//your Mac/your computer}; v=${v//the Mac/$LOTUS_THE}; v=${v//Finder/$LOTUS_FILES_APP}
+          v=${v//This Mac/${(U)LOTUS_THIS[1]}${LOTUS_THIS[2,-1]}}; v=${v//Your Mac/Your computer}; v=${v//The Mac/${(U)LOTUS_THE[1]}${LOTUS_THE[2,-1]}} ;;
     esac
     LOTUS_L[$k]=$v
   done
