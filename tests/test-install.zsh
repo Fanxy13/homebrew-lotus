@@ -23,6 +23,10 @@ check_eq "install: the installed copy runs" "$(env -u LOTUS_ROOT $HOME/.local/bi
 check_has "install: ~/.bashrc has the lines of Lotus" "$(<$HOME/.bashrc)" "lib/init.bash"
 check_has "install: with the PATH for ~/.local/bin" "$(<$HOME/.bashrc)" 'export PATH="$HOME/.local/bin:$PATH"'
 check "install: ~/.zshrc was not touched (bash is the login shell)" test ! -e $HOME/.zshrc
+# without a terminal the install only writes the hook and the settings: the first start must still bring the setup (the
+# settings file it wrote was taken for one of Lotus 1.x before, which marks Lotus as set up)
+env -u LOTUS_ROOT $HOME/.local/bin/lotus show </dev/null >/dev/null 2>&1
+check_has "install: the first start still brings the setup" "$(<${XDG_CONFIG_HOME:-$HOME/.config}/lotus/settings.zsh)" "LOTUS_CONFIGURED='0'"
 
 # ── a second time: the same, nothing doubled ──
 out=$(SHELL=/bin/bash LOTUS_SRC=$LOTUS_ROOT sh $LOTUS_ROOT/install.sh </dev/null 2>&1 | plain)

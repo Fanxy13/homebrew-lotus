@@ -39,7 +39,8 @@ function script:Invoke-LotusSetup {
         if ($r) { return (St 1) }
         Initialize-Lotus
     }
-    if (-not (Test-Path -LiteralPath $script:Paths.Settings)) { Save-LotusSettings -Quiet }
+    # a settings file made new here is of this version: read as one of Lotus 1.x it would skip the first setup
+    if (-not (Test-Path -LiteralPath $script:Paths.Settings)) { $script:S['LOTUS_CONFIG_VERSION'] = '3'; Save-LotusSettings -Quiet }
     Update-LotusFastfetchConfig -Force
     $path = Add-LotusHook
     Write-LotusSuccess "$(T added_to 'Added to') $path"

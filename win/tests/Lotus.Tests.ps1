@@ -122,6 +122,22 @@ Describe 'the lines in the PowerShell profile' {
         lotus unhook *>&1 | Out-Null
         (Get-Content $env:LOTUS_PROFILE -Raw) | Should -Not -Match 'lotus'
     }
+    It 'a new install: after lotus setup --hook (install.ps1) the first start still brings the setup' {
+        # (the file it wrote was taken for one of Lotus 1.x, which marks Lotus as set up – no setup at the first start)
+        $f = Join-Path $env:LOTUS_CONF 'settings.zsh'
+        $before = if (Test-Path -LiteralPath $f) { Get-Content -LiteralPath $f -Raw } else { $null }
+        Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+        try {
+            InModuleScope Lotus { Initialize-Lotus }
+            lotus setup --hook *>&1 | Out-Null
+            Get-Content -LiteralPath $f -Raw | Should -Match "LOTUS_CONFIG_VERSION='?3'?"
+            InModuleScope Lotus { Initialize-Lotus; Test-LotusOn $script:S['LOTUS_CONFIGURED'] } | Should -BeFalse
+            lotus unhook *>&1 | Out-Null
+        } finally {
+            if ($null -ne $before) { Set-Content -LiteralPath $f -Value $before -NoNewline } else { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
+            InModuleScope Lotus { Initialize-Lotus }
+        }
+    }
 }
 
 Describe 'the start screen' {
