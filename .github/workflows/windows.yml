@@ -3,15 +3,16 @@
 # fastfetch, the pets, /ai against a fake AI, Live Server and /html with the runner's Python, /img with ImageMagick, and
 # win/tests/Windows.Tests.ps1 – what only Windows has: the apps of the Start menu, keep awake, DPAPI, Windows command
 # lines) with PowerShell 7 on x64 and Arm64; the files that Windows PowerShell 5.1 has to read; every winget id of the
-# app catalog, asked of winget itself.
+# app catalog, asked of winget itself; Remove BG for real: its Python runtime with PyTorch, BiRefNet Lite from Hugging
+# Face, and a picture cut out on the processor.
 name: Lotus for Windows
 
 on:
   push:
     branches: ['**']
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
   pull_request:
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
   workflow_dispatch:
 
 permissions:
@@ -57,6 +58,39 @@ jobs:
           $c.Run.Exit = $true
           $c.Output.Verbosity = 'Detailed'
           Invoke-Pester -Configuration $c
+
+  bg-real:
+    name: Remove BG on real Windows (PyTorch, BiRefNet Lite)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set it up and cut out a picture, the way you would
+        shell: pwsh
+        run: |
+          $tmp = Join-Path $env:RUNNER_TEMP 'lotus-bg'
+          $env:LOTUS_ROOT = $PWD.Path
+          $env:LOTUS_CONF = "$tmp\conf"; $env:LOTUS_CACHE = "$tmp\cache"; $env:LOTUS_DATA = "$tmp\data"; $env:LOTUS_STATE = "$tmp\state"
+          $show = { Get-Content "$tmp\state\lotus.log" -Tail 80 -ErrorAction SilentlyContinue; Get-Content "$tmp\cache\bg\worker.log" -Tail 40 -ErrorAction SilentlyContinue }
+          Import-Module ./win/Lotus.psd1
+          lotus settings set LOTUS_CONFIGURED 1 | Out-Null
+          lotus settings set LOTUS_LOG_LEVEL debug | Out-Null
+          $t0 = Get-Date
+          lotus bg setup --yes birefnet-lite
+          if ($LASTEXITCODE) { & $show; exit 1 }
+          "set up in $([int]((Get-Date) - $t0).TotalSeconds) s"
+          # an orange disc on a grey gradient, made with the runtime's own Pillow
+          $py = "$tmp\data\runtime\bg\Scripts\python.exe"
+          $img = "$tmp\disc.jpg"
+          & $py -c "import sys; from PIL import Image, ImageDraw; im = Image.linear_gradient('L').resize((640, 480)).convert('RGB'); ImageDraw.Draw(im).ellipse((200, 120, 440, 360), fill=(230, 120, 60)); im.save(sys.argv[1], quality=92)" $img
+          $t0 = Get-Date
+          $out = @(lotus bg remove $img --out "$tmp\out")
+          if ($LASTEXITCODE -or $out.Count -ne 1) { "status $LASTEXITCODE, output: $out"; & $show; exit 1 }
+          "cut out in $([int]((Get-Date) - $t0).TotalSeconds) s: $($out[0])"
+          # the disc stays, the gradient goes
+          & $py -c "import sys; from PIL import Image; a = Image.open(sys.argv[1]).getchannel('A'); w, h = a.size; c = a.getpixel((w // 2, h // 2)); e = a.getpixel((8, 8)); print('alpha in the disc', c, '- in a corner', e); sys.exit(0 if c > 128 and e < 128 else 1)" $out[0]
+          if ($LASTEXITCODE) { & $show; exit 1 }
+          lotus doctor --bg
 
   powershell51:
     name: Windows PowerShell 5.1 reads the shims and installers
