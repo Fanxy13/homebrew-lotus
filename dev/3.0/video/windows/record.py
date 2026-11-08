@@ -240,13 +240,24 @@ class Console:
             time.sleep(0.4)
             self._write('\r')
 
+    def paste(self, text, enter=False):
+        """What a person copies rather than types – the install line from the website, a link: all at once, as Ctrl+V
+        gives it to PowerShell."""
+        self._write(text)
+        time.sleep(0.8)
+        if enter:
+            self._write('\r')
+
     def key(self, *names, gap=0.35):
         for name in names:
             self._write(KEYS.get(name, name))
             time.sleep(gap)
 
     def select(self, label, limit=30):
+        """Down until the chosen line is the one – once there is a list: keys typed before it would all be read at once
+        when it comes, and the list would run past the line."""
         rx = re.compile(label)
+        self.wait_for(self.selected, 'a list to choose from', 120, quiet=0.3)
         for _ in range(limit):
             if rx.search(self.selected()):
                 time.sleep(0.4)
@@ -268,7 +279,7 @@ def install(rec):
     c.prompt(90)
     hold(1.5)
     rec.mark('scene:install')
-    c.type(INSTALL, enter=True)
+    c.paste(INSTALL, enter=True)                      # (copied from the website)
     c.wait(r'Install it now\? \[y/N\]|Welcome to Lotus', 300)   # the exact winget command first, then the question
     if re.search(r'Install it now\? \[y/N\]', c.text()):
         hold(1.5)
@@ -481,8 +492,9 @@ def video(rec, c):
     c.prompt(10)
     c.clear()
     rec.mark('scene:convert')
-    c.type(f'/convert {VIDEO}', enter=True)
-    c.wait(r'MP4', 180, quiet=1.0)                    # the first look at the link, then MP3 or MP4
+    c.type('/convert ')
+    c.paste(VIDEO, enter=True)                        # (a link is pasted, not typed)
+    c.wait(r'MP4 – video', 180, quiet=1.0)            # the choice, not the title above it ("MP3 or MP4")
     hold(2.5)
     c.select(r'MP3')
     c.key('enter')
