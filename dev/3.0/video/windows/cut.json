@@ -224,7 +224,7 @@
      {
       "after": "scene:catalog",
       "shows": "Looking up Brave",
-      "plus": -0.5
+      "plus": -0.8
      },
      {
       "after": "scene:catalog",
@@ -355,20 +355,8 @@
     [
      {
       "after": "scene:convert",
-      "shows": "Checking the video",
-      "plus": -0.3
-     },
-     {
-      "after": "scene:convert",
-      "shows": "Checking the video",
-      "plus": 0.6
-     }
-    ],
-    [
-     {
-      "after": "scene:convert",
       "shows": "^\\s+Big Buck Bunny Trailer 400p\\s*$",
-      "plus": -0.2
+      "plus": -0.6
      },
      {
       "after": "scene:convert",
