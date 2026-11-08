@@ -222,10 +222,9 @@ function script:Find-LotusBgPython {
 # seconds → its output, or '' when it failed
 function script:Invoke-LotusBgProbe {
     param([string]$Exe, [string[]]$Arguments)
-    $p = Start-LotusBgProcess $Exe $Arguments @{} -WithInput
+    $p = Start-LotusBgProcess $Exe $Arguments @{}
     if (-not $p) { return '' }
     try {
-        $p.StandardInput.Close()
         $err = $p.StandardError.ReadToEndAsync()
         $out = $p.StandardOutput.ReadToEndAsync()
         if (-not $p.WaitForExit(15000)) { try { $p.Kill($true) } catch { }; return '' }
@@ -290,7 +289,8 @@ function script:Add-LotusBgLog {
 
 # ── Programs Lotus waits for: the worker, pip, curl ──────────
 
-# A program with its output for Lotus to read – no window and no console of its own, so ctrl-c reaches only Lotus
+# A program with its output for Lotus to read – no window and no console of its own, so ctrl-c reaches only Lotus. Its
+# input is Lotus' (-WithInput: the worker's "cancel"), or closed at once: nothing it runs can wait for a key.
 function script:Start-LotusBgProcess {
     param([string]$Exe, [string[]]$Arguments, [hashtable]$Environment = @{}, [switch]$WithInput)
     $psi = [System.Diagnostics.ProcessStartInfo]::new($Exe)
@@ -298,13 +298,16 @@ function script:Start-LotusBgProcess {
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
-    $psi.RedirectStandardInput = [bool]$WithInput
+    $psi.RedirectStandardInput = $true
     $psi.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
     $psi.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
     $psi.CreateNoWindow = $true
     foreach ($k in $Environment.Keys) { $psi.Environment[$k] = [string]$Environment[$k] }
-    try { [System.Diagnostics.Process]::Start($psi) }
-    catch { Write-LotusLog ERROR bg "Could not start ${Exe}: $($_.Exception.Message)"; $null }
+    try {
+        $p = [System.Diagnostics.Process]::Start($psi)
+        if (-not $WithInput) { $p.StandardInput.Close() }
+        $p
+    } catch { Write-LotusLog ERROR bg "Could not start ${Exe}: $($_.Exception.Message)"; $null }
 }
 
 # The end of a program Lotus started: the worker is asked to stop (it does at its next step and cleans up after itself),
