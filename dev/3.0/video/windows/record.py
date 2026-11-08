@@ -182,9 +182,14 @@ class Console:
         return bool(rows) and bool(PROMPT.match(rows[-1].strip()))
 
     def line_ready(self):
-        """A prompt with a command on it that nobody typed – the one /ai command or /help prepared."""
-        rows = [line for line in self.lines() if line.strip()]
-        return bool(rows) and bool(re.match(r'^(PS .*?>|[\w.-]+@[\w.-]+ \S*>) \S', rows[-1].strip()))
+        """A prompt with a command on it that nobody typed – the one /ai command or /help prepared (a long one wraps, so
+        the prompt is the last line that starts with one)."""
+        rx = re.compile(r'^(PS .*?>|[\w.-]+@[\w.-]+ \S*>)( \S)?')
+        for line in reversed([line.strip() for line in self.lines() if line.strip()][-4:]):
+            m = rx.match(line)
+            if m:
+                return bool(m.group(2))
+        return False
 
     def prompt(self, timeout=60, quiet=0.8):
         self.wait_for(self.at_prompt, 'the prompt', timeout, quiet)
@@ -351,7 +356,7 @@ def ai(rec, c):
 def ai_command(rec, c):
     c.clear()
     rec.mark('scene:ai-command')
-    c.type('/ai command list the five largest files in this folder', enter=True)
+    c.type('/ai command show the processes that use the most memory', enter=True)
     c.wait(r'Put it on the command line', 300, quiet=1.0)
     hold(2.5)
     c.key('enter')
@@ -588,6 +593,19 @@ def finale(rec, c):
     hold(5)
 
 
+def recover(rec, c):
+    """(A rehearsal goes on after a scene that went wrong: back to the prompt – or a new window.)"""
+    for k in ('esc', 'q', 'ctrl-c', 'esc', 'ctrl-c'):
+        c.key(k, gap=0.8)
+        if c.at_prompt():
+            break
+    try:
+        c.prompt(20)
+        return c
+    except TimeoutError:
+        return window(rec)
+
+
 # name → (function, needs Windows)
 SCENES = {
     'setup': (setup_here, False),
@@ -618,8 +636,16 @@ def main(argv):
             if needs_windows and not WINDOWS:
                 print(f'(skipped here: {name} needs Windows)', flush=True)
                 continue
-            scene(rec, c)
-            rec.mark(f'end:{name}')
+            try:
+                scene(rec, c)
+                rec.mark(f'end:{name}')
+            except Exception as e:                    # a take stops here; a rehearsal notes it and goes on
+                if not REHEARSAL:
+                    raise
+                failed = failed or e
+                rec.mark(f'failed:{name}')
+                print(f'REHEARSAL – {name} went wrong: {e}', file=sys.stderr, flush=True)
+                c = recover(rec, c)
     except Exception as e:                            # the take is kept up to here, and the reason with it
         failed = e
         rec.mark(f'failed:{type(e).__name__}')
