@@ -98,6 +98,7 @@ class Console:
 
     def __init__(self, rec, argv, cwd=HOME, env=None):
         self.rec, self.lock, self.last, self.closed = rec, threading.Lock(), time.monotonic(), False
+        self.seen, self.changed = None, time.monotonic()
         self.screen = pyte.Screen(COLS, ROWS)
         self.vt = pyte.Stream(self.screen)
         env = dict(env or os.environ)
@@ -153,11 +154,16 @@ class Console:
             return [line.rstrip() for line in self.screen.display]
 
     def text(self):
-        return '\n'.join(self.lines())
+        text = '\n'.join(self.lines())
+        if text != self.seen:                         # (when what the screen shows changed last)
+            self.seen, self.changed = text, time.monotonic()
+        return text
 
     def resting(self):
-        with self.lock:
-            return time.monotonic() - self.last
+        """Seconds since the screen's text last changed. Menus redraw themselves while they wait (the same text, again and
+        again): it is the text that has to rest, not the output."""
+        self.text()
+        return time.monotonic() - self.changed
 
     def wait_for(self, test, what, timeout=40, quiet=0.5):
         end = time.monotonic() + timeout
@@ -237,6 +243,15 @@ def install(rec):
         rec.mark('rehearsal:setup-by-hand')           # (a rehearsal, on a Lotus that does not start it by itself yet)
         c.type('lotus setup', enter=True)
         c.wait(r'Welcome to Lotus', 90, quiet=1.5)
+    wizard(rec, c)
+    c.prompt(90)
+    hold(3)
+    c.type('exit', enter=True)
+    time.sleep(1.5)
+
+
+def wizard(rec, c):
+    """The setup, page by page: English, a name, Matcha, the start, the features, a city, the AI later, a cat."""
     rec.mark('scene:setup')
     hold(2)
     c.key('enter')                                    # English
@@ -260,7 +275,7 @@ def install(rec):
     c.type('Paris')
     hold(0.5)
     c.key('enter')
-    c.wait(r'The AI')
+    c.wait(r'AI answers with /ai|The AI terminal')        # (the title before and after the fix of 6e62090)
     hold(1.8)
     c.key('enter')                                    # later – Ollama is found by itself
     c.wait(r'Adopt a pet')
@@ -272,10 +287,16 @@ def install(rec):
     c.wait(r'Lotus is ready')
     hold(3)
     c.key('enter')                                    # Finish
-    c.prompt(90)
-    hold(3)
-    c.type('exit', enter=True)
-    time.sleep(1.5)
+
+
+def setup_here(rec, c):
+    """(To try the setup's pages outside Windows: lotus setup in this window.)"""
+    c.clear()
+    c.type('lotus setup', enter=True)
+    c.wait(r'Welcome to Lotus', 60, quiet=1.0)
+    wizard(rec, c)
+    c.prompt(60)
+    hold(2)
 
 
 def window(rec):
@@ -283,7 +304,10 @@ def window(rec):
     rec.mark('window')
     c = Console(rec, ['pwsh', '-NoLogo'], env=fresh_env())
     rec.mark('scene:start')
-    c.prompt(120, quiet=1.5)
+    c.wait_for(lambda: c.at_prompt() or 'Welcome to Lotus' in c.text(), 'the start screen', 120, quiet=1.5)
+    if 'Welcome to Lotus' in c.text():                # a Lotus not set up yet starts the setup in a new window
+        wizard(rec, c)
+        c.prompt(90, quiet=1.5)
     hold(6)
     return c
 
@@ -561,6 +585,7 @@ def finale(rec, c):
 
 # name → (function, needs Windows)
 SCENES = {
+    'setup': (setup_here, False),
     'weather': (weather, False), 'pet': (pet, False), 'ai': (ai, True), 'ai-command': (ai_command, True),
     'help': (help_pet, False), 'catalog': (catalog, True), 'brew': (brew, True), 'app': (app, True),
     'img': (photos, False), 'convert': (video, True), 'live': (live, False), 'html': (html, False),
@@ -583,7 +608,7 @@ def main(argv):
             install(rec)
         c = window(rec)
         for name, (scene, needs_windows) in SCENES.items():
-            if wanted and name not in wanted:
+            if wanted and name not in wanted or not wanted and name == 'setup':   # (the install runs the setup)
                 continue
             if needs_windows and not WINDOWS:
                 print(f'(skipped here: {name} needs Windows)', flush=True)
