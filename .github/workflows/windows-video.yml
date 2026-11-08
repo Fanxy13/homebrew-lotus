@@ -19,40 +19,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Where the recording runs: the session, the user, an interactive desktop – and what PowerShell sees in the console
-  # the recording opens (Lotus only shows its menus to a keyboard: a console, in an interactive session).
-  where:
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - name: The session of the runner
-        shell: pwsh
-        run: |
-          "step: UserInteractive=$([Environment]::UserInteractive) InputRedirected=$([Console]::IsInputRedirected) Session=$((Get-Process -Id $PID).SessionId) User=$env:USERNAME"
-          Get-Process -Name explorer, winlogon, Runner.Listener, Runner.Worker, Provisioner -ErrorAction SilentlyContinue | Select-Object Name, Id, SessionId | Format-Table -AutoSize | Out-String
-          "== query user"; query user 2>&1 | Out-String
-          "== services"; Get-Service | Where-Object { $_.Name -match 'runner|actions' } | Format-Table Name, Status, StartType -AutoSize | Out-String
-          "== autologon"; Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' | Select-Object AutoAdminLogon, DefaultUserName | Format-List | Out-String
-          python -m pip install --quiet pywinpty
-          Set-Content -LiteralPath diag.py -Value @'
-          import time
-          from winpty import PtyProcess
-          cmd = 'Write-Output ("ui=" + [Environment]::UserInteractive + " in=" + [Console]::IsInputRedirected + " out=" + [Console]::IsOutputRedirected + " session=" + (Get-Process -Id $PID).SessionId)'
-          p = PtyProcess.spawn(['pwsh', '-NoLogo', '-NoProfile', '-Command', cmd], dimensions=(30, 110))
-          out, t0 = '', time.time()
-          while time.time() - t0 < 40:
-              try:
-                  out += p.read(4096)
-              except EOFError:
-                  break
-          print('console child:', out.replace(chr(27), '<ESC>')[-700:])
-          '@
-          python diag.py
-
   record:
-    if: false                                         # (paused while the session is looked at)
     runs-on: windows-latest
     timeout-minutes: 90
+    env:
+      LOTUS_VIDEO_REHEARSAL: '1'                      # a rehearsal: main does not start the setup after the install yet
     steps:
       - uses: actions/checkout@v7
 
@@ -134,7 +105,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add $take
-          git commit -m "Windows video: take $env:GITHUB_RUN_NUMBER ($(if ($env:RECORD_EXIT -eq '0') { 'every scene' } else { 'stopped early' }))"
+          git commit -m "Windows video: $(if ($env:LOTUS_VIDEO_REHEARSAL -eq '1') { 'rehearsal' } else { 'take' }) $env:GITHUB_RUN_NUMBER ($(if ($env:RECORD_EXIT -eq '0') { 'every scene' } else { 'stopped early' }))"
           git pull --rebase origin $env:GITHUB_REF_NAME
           git push origin "HEAD:$env:GITHUB_REF_NAME"
           if ($env:RECORD_EXIT -ne '0') { 'The recording stopped early – see the step above.'; exit 1 }

@@ -35,8 +35,29 @@ SITE = os.path.join(HOME, 'Projects', 'bakery')
 PHOTOS = os.path.join(HOME, 'Pictures', 'Trip')
 KEYS = {'enter': '\r', 'esc': '\x1b', 'up': '\x1b[A', 'down': '\x1b[B', 'right': '\x1b[C', 'left': '\x1b[D',
         'bs': '\x7f', 'space': ' ', 'ctrl-c': '\x03', 'ctrl-l': '\x0c'}
+# a rehearsal looks for what goes wrong on Windows; it is never cut into the video
+REHEARSAL = os.environ.get('LOTUS_VIDEO_REHEARSAL') == '1'
 PROMPT = re.compile(r'^(PS .*>|[\w.-]+@[\w.-]+ .*>)\s*$')
 random.seed(7)
+
+
+def fresh_env():
+    """The environment of a window opened now: on Windows, PATH as the registry has it (the machine's, then the user's) –
+    so that what an installer just added to it (fastfetch from winget, lotus.cmd) is there, as in a new window on any PC."""
+    env = dict(os.environ)
+    if WINDOWS:
+        import winreg
+
+        def path_of(root, key):
+            try:
+                with winreg.OpenKey(root, key) as k:
+                    return winreg.QueryValueEx(k, 'Path')[0]
+            except OSError:
+                return ''
+        machine = path_of(winreg.HKEY_LOCAL_MACHINE, r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment')
+        user = path_of(winreg.HKEY_CURRENT_USER, 'Environment')
+        env['PATH'] = os.path.expandvars(';'.join(p for p in (machine, user) if p))
+    return env
 
 
 def hold(seconds):
@@ -75,11 +96,11 @@ class Console:
     """A PowerShell 7 in a pseudo console of COLS × ROWS: what it shows goes into a screen (to wait for) and into the
     recording."""
 
-    def __init__(self, rec, argv, cwd=HOME):
+    def __init__(self, rec, argv, cwd=HOME, env=None):
         self.rec, self.lock, self.last, self.closed = rec, threading.Lock(), time.monotonic(), False
         self.screen = pyte.Screen(COLS, ROWS)
         self.vt = pyte.Stream(self.screen)
-        env = dict(os.environ)
+        env = dict(env or os.environ)
         if WINDOWS:
             from winpty import PtyProcess
             self.proc = PtyProcess.spawn(argv, cwd=cwd, env=env, dimensions=(ROWS, COLS))
@@ -209,7 +230,13 @@ def install(rec):
     if re.search(r'Install it now\? \[y/N\]', c.text()):
         hold(1.5)
         c.type('y', enter=True)
-    c.wait(r'Welcome to Lotus', 600, quiet=1.5)
+    c.wait_for(lambda: 'Welcome to Lotus' in c.text() or c.at_prompt(), 'the setup', 600, quiet=1.5)
+    if 'Welcome to Lotus' not in c.text():
+        if not REHEARSAL:
+            raise TimeoutError(f'the setup did not start after the install:\n{c.text()}')
+        rec.mark('rehearsal:setup-by-hand')           # (a rehearsal, on a Lotus that does not start it by itself yet)
+        c.type('lotus setup', enter=True)
+        c.wait(r'Welcome to Lotus', 90, quiet=1.5)
     rec.mark('scene:setup')
     hold(2)
     c.key('enter')                                    # English
@@ -254,7 +281,7 @@ def install(rec):
 def window(rec):
     """A new PowerShell window: the profile loads Lotus, and the start screen comes up."""
     rec.mark('window')
-    c = Console(rec, ['pwsh', '-NoLogo'])
+    c = Console(rec, ['pwsh', '-NoLogo'], env=fresh_env())
     rec.mark('scene:start')
     c.prompt(120, quiet=1.5)
     hold(6)
