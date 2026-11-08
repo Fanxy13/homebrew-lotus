@@ -38,8 +38,21 @@ jobs:
         run: |
           $w = @('-e', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity')
           winget list --accept-source-agreements --disable-interactivity | Out-Null   # the source terms, once, as on any PC
-          foreach ($id in 'Ollama.Ollama', 'ImageMagick.ImageMagick', 'yt-dlp.yt-dlp', 'Gyan.FFmpeg') {
-            "== $id"; winget install --id $id @w 2>&1 | Select-Object -Last 3
+          # a download can fail for a while (GitHub's release servers answered 504 for a morning): each install is tried
+          # again, and the step stops here when a tool is still missing – every scene needs its tools
+          $there = [ordered]@{
+            'Ollama.Ollama'           = { Test-Path (Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe') }
+            'ImageMagick.ImageMagick' = { @(Get-ChildItem (Join-Path $env:ProgramFiles 'ImageMagick-*\magick.exe') -ErrorAction SilentlyContinue).Count -gt 0 }
+            'yt-dlp.yt-dlp'           = { (Test-Path (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\yt-dlp.exe')) -or [bool](Get-Command yt-dlp -ErrorAction SilentlyContinue) }
+            'Gyan.FFmpeg'             = { (Test-Path (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\ffmpeg.exe')) -or [bool](Get-Command ffmpeg -ErrorAction SilentlyContinue) }
+          }
+          foreach ($id in $there.Keys) {
+            foreach ($try in 1..6) {
+              "== $id (try $try)"; winget install --id $id @w 2>&1 | Select-Object -Last 3
+              if (& $there[$id]) { break }
+              Start-Sleep (15 * $try)
+            }
+            if (-not (& $there[$id])) { "$id is still not installed – its download failed every time"; exit 1 }
           }
           python -m pip install --quiet pyte pywinpty
 
