@@ -14,6 +14,10 @@ A video of two to three minutes, cut from one real recording on GitHub's Windows
   first scene, five photos and a small website are made to work with, and winget's source terms are accepted once.
 - **The cut**: only time is left out – the wait for a download, a model or winget, and parts of a scene. Nothing in a
   scene is changed, sped up or put together from other takes. Where a wait is cut, the video says how long it was.
+- **Rehearsals** (`LOTUS_VIDEO_REHEARSAL=1` in the workflow) install the branch's Lotus with install.ps1's `LOTUS_SRC`
+  and play every scene even when one goes wrong, to find what goes wrong on Windows before a take. They found seven
+  bugs of Lotus for Windows (each fixed with a test) and are never cut into the video. A take installs from `main`
+  with the line from the website, and stops at its first failure.
 - **Not in it**: sound, music, now playing and MeshChat – the machine has no audio and no Bluetooth.
 - The clip that `/convert` saves is the trailer of Big Buck Bunny, (c) Blender Foundation | www.bigbuckbunny.org,
   CC BY 3.0.
