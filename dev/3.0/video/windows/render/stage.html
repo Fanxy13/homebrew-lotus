@@ -136,7 +136,7 @@ window.stage = {
     this.L = { left, top, ww, wh, vw, vh, cw, ch, s, zmax: Math.min(1.55, 1 / s), viewLeft: left + 1 + padX, viewTop: top + 1 + bar + padY };
     $('dots').style.right = `${1920 - left - ww}px`;
     $('count').style.right = `${1920 - left - ww}px`;
-    Object.assign($('note').style, { right: `${1920 - left - ww + 14}px`, top: `${top + bar + 14}px` });
+    Object.assign($('note').style, { right: `${1920 - left - ww}px`, top: `${top - 50}px` });   // above the window, under the dots
     Object.assign($('fadebox').style, { left: `${left}px`, top: `${top}px`, width: `${ww}px`, height: `${wh}px` });
     Object.assign($('keys').style, { right: `${1920 - left - ww + 18}px`, top: `${top + wh - 70}px` });
     Object.assign($('fadebox').querySelector('img').style, { left: `${-left}px`, top: `${-top}px` });
@@ -207,7 +207,8 @@ window.stage = {
     const target = { z: zt, x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
     if (snap || !this.cam) this.cam = { ...target };
     else {
-      const k = 1 - Math.exp(-dt / 0.42);
+      // out quickly when more comes (nothing may be cut off), in slowly when it gets quieter
+      const k = 1 - Math.exp(-dt / (target.z < this.cam.z - 0.002 ? 0.1 : 0.42));
       for (const n of ['z', 'x', 'y']) this.cam[n] += (target[n] - this.cam[n]) * k;
     }
     const sc = L.s * this.cam.z;
