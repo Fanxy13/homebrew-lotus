@@ -65,6 +65,33 @@ def hold(seconds):
     time.sleep(seconds)
 
 
+class Screen(pyte.Screen):
+    """pyte's screen, with the alternate screen that full-screen programs use (CSI ?1049h … ?1049l – the settings):
+    leaving it brings back what was on the screen before, and the cursor, as a terminal does."""
+    ALT = {47, 1047, 1049}
+
+    def __init__(self, columns, lines):
+        super().__init__(columns, lines)
+        self.saved = None
+
+    def set_mode(self, *modes, **kwargs):
+        if kwargs.get('private') and self.ALT & set(modes) and self.saved is None:
+            self.saved = ({y: dict(line) for y, line in self.buffer.items()}, self.cursor.x, self.cursor.y)
+            self.erase_in_display(2)
+        super().set_mode(*modes, **kwargs)
+
+    def reset_mode(self, *modes, **kwargs):
+        if kwargs.get('private') and self.ALT & set(modes) and self.saved is not None:
+            rows, x, y = self.saved
+            self.saved = None
+            self.buffer.clear()
+            for row, cells in rows.items():
+                self.buffer[row].update(cells)
+            self.cursor.x, self.cursor.y = x, y
+            self.dirty.update(range(self.lines))
+        super().reset_mode(*modes, **kwargs)
+
+
 class Recording:
     """One timeline for the whole video: the output of every console and the markers."""
 
@@ -99,7 +126,7 @@ class Console:
     def __init__(self, rec, argv, cwd=HOME, env=None):
         self.rec, self.lock, self.last, self.closed = rec, threading.Lock(), time.monotonic(), False
         self.seen, self.changed = None, time.monotonic()
-        self.screen = pyte.Screen(COLS, ROWS)
+        self.screen = Screen(COLS, ROWS)
         self.vt = pyte.Stream(self.screen)
         env = dict(env or os.environ)
         if WINDOWS:
@@ -415,8 +442,13 @@ def brew(rec, c):
 def app(rec, c):
     c.clear()
     rec.mark('scene:app')
-    c.type('/app notpad', enter=True)                # a typo: the name is found anyway
-    c.prompt(40)
+    c.type('/app notpad', enter=True)                # a typo: Lotus asks whether Notepad is meant
+    asks = lambda: re.search(r'Did you mean .*\[Y/n\]', c.text())
+    c.wait_for(lambda: asks() or c.at_prompt(), 'the app', 40)
+    if asks():
+        hold(1.5)
+        c.key('y')
+        c.prompt(40)
     hold(3)
 
 

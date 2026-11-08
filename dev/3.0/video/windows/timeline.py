@@ -11,6 +11,8 @@ import sys
 
 import pyte
 
+from record import Screen                              # (with the alternate screen, as the recording reads it)
+
 
 def load(path):
     with (gzip.open(path, 'rt', encoding='utf-8') if path.endswith('.gz') else open(path, encoding='utf-8')) as f:
@@ -21,7 +23,7 @@ def load(path):
 def main(argv):
     head, events = load(argv[0])
     at = [float(x) for x in argv[2:]] if argv[1:2] == ['--at'] else []
-    screen = pyte.Screen(head['width'], head['height'])
+    screen = Screen(head['width'], head['height'])
     stream = pyte.Stream(screen)
     rows = lambda: [line.rstrip() for line in screen.display]
     if at:
