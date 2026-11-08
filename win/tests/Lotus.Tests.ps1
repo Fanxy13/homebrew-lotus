@@ -399,3 +399,27 @@ Describe 'a command that /ai command or /help prepared' {
         }
     }
 }
+
+Describe 'a program that runs in the open (Live Server, winget, MeshChat)' {
+    It 'gets to finish when Ctrl-C stops it – its last lines come before the prompt, not over it' {
+        # (Ctrl-C reaches PowerShell and the program: Start-Process -Wait gave the prompt back at once, and Live Server's
+        # "Stopped" line came after it and wrote over it)
+        $marker = Join-Path $env:LOTUS_TMP 'goodbye.txt'
+        Remove-Item -LiteralPath $marker -ErrorAction SilentlyContinue
+        $ps = [powershell]::Create()
+        [void]$ps.AddScript({
+                param($module, $pwsh, $marker)
+                Import-Module $module
+                & (Get-Module Lotus) { param($p, $m) Invoke-LotusInTheOpen $p @('-NoProfile', '-Command', "Start-Sleep -Milliseconds 1500; Set-Content -LiteralPath '$m' bye") } $pwsh $marker
+            }).AddArgument((Get-Module Lotus).Path).AddArgument((Get-Process -Id $PID).Path).AddArgument($marker)
+        try {
+            $null = $ps.BeginInvoke()
+            Start-Sleep -Milliseconds 600
+            $ps.Stop()                                    # what Ctrl-C does to the PowerShell that waits
+            Test-Path -LiteralPath $marker | Should -BeTrue
+        } finally { $ps.Dispose() }
+    }
+    It 'hands on the exit code' {
+        InModuleScope Lotus { Invoke-LotusInTheOpen (Get-Process -Id $PID).Path @('-NoProfile', '-Command', 'exit 3') } | Should -Be 3
+    }
+}

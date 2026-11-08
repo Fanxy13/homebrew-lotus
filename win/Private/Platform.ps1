@@ -526,8 +526,13 @@ function ConvertTo-LotusCommandLine {
 # PowerShell's pipeline, which would hold them back) → its exit code
 function Invoke-LotusInTheOpen {
     param([Parameter(Mandatory)][string]$Program, [string[]]$Arguments = @())
-    $p = if ($Arguments.Count) { Start-Process -FilePath $Program -ArgumentList (ConvertTo-LotusCommandLine $Arguments) -NoNewWindow -Wait -PassThru }
-         else { Start-Process -FilePath $Program -NoNewWindow -Wait -PassThru }
+    $p = if ($Arguments.Count) { Start-Process -FilePath $Program -ArgumentList (ConvertTo-LotusCommandLine $Arguments) -NoNewWindow -PassThru }
+         else { Start-Process -FilePath $Program -NoNewWindow -PassThru }
+    $null = $p.Handle                                 # (kept, so that the exit code can be read afterwards)
+    # Ctrl-C reaches PowerShell and the program: PowerShell stops at once, the program is still saying goodbye (Live
+    # Server's "Stopped …" line wrote over the prompt). It gets a few seconds for that, so the prompt comes after it.
+    try { while (-not $p.WaitForExit(200)) { } }
+    finally { if (-not $p.HasExited) { [void]$p.WaitForExit(5000) } }
     $p.ExitCode
 }
 
