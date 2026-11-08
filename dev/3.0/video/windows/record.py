@@ -338,7 +338,7 @@ def pet(rec, c):
 def ai(rec, c):
     c.clear()
     rec.mark('scene:ai')
-    c.type('/ai how do I see which apps start with Windows?', enter=True)
+    c.type('/ai how do I stop an app from starting with Windows', enter=True)
     c.prompt(300, quiet=1.5)
     hold(5)
 
