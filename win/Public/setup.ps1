@@ -240,7 +240,8 @@ function script:Read-LotusWizardSelect {
             foreach ($o in $Options) {
                 $parts = $o -split '\|', 2
                 $desc = if ($parts.Count -gt 1) { $parts[1] } else { '' }
-                $lines = if ($desc -and $dw -ge 16) { @(Split-LotusWrap $desc $dw) } else { @($desc) }
+                # (always an array: an if gives one line back as a string, and its [0] would be the first letter)
+                $lines = @(if ($desc -and $dw -ge 16) { Split-LotusWrap $desc $dw } else { $desc })
                 if (-not $lines.Count) { $lines = @('') }
                 $descs.Add($lines); $total += $lines.Count
             }

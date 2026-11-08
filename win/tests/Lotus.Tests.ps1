@@ -343,6 +343,20 @@ Describe 'a table, a file or a text of one item stays one item' {
 }
 
 Describe 'the setup on Windows' {
+    It 'shows the whole description next to each choice of a list – not its first letter' {
+        # (a description of one line came back from an if as a string, and the row showed its [0]: "Cat  c")
+        $out = Invoke-LotusWithKeys @('enter') {
+            Import-LotusCommand setup
+            Import-LotusThemes
+            Initialize-LotusWizard
+            $script:Sw.Q = 'Adopt a pet?'
+            Read-LotusWizardSelect 1 @('Cat|calm, and always near you', 'Dog|loyal and full of energy', 'Not now|maybe later, in /pets')
+        }
+        $plain = $out -replace "$([char]27)\[[0-9;?]*[A-Za-z]", ' '
+        $plain | Should -Match 'calm, and always near you'
+        $plain | Should -Match 'loyal and full of energy'
+        $plain | Should -Match 'maybe later, in /pets'
+    }
     It 'names /ai at its AI step in every language – not the AI terminal or Apple Intelligence of the Mac' {
         InModuleScope Lotus {
             $was = $script:S['LOTUS_LANG']

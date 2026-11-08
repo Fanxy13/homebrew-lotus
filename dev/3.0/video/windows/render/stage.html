@@ -79,6 +79,33 @@ window.stage = {
     document.querySelector('#caption .wrap').appendChild(note);
     return { width: w.width, height: w.height, top: w.top };
   },
+  // For the cut file's anchors: the first moment at or after each want's `after` (seconds) that the window shows its
+  // text (a regular expression, per line) – the take replayed once into a terminal of its own, as the video shows it
+  find(events, wants, cols, rows) {
+    const t = new Terminal({ cols, rows, scrollback: 0, allowProposedApi: true });
+    const rxs = wants.map((w) => new RegExp(w.shows, 'm'));
+    const found = wants.map(() => null);
+    let left = wants.length;
+    const text = () => {
+      const b = t.buffer.active, out = [];
+      for (let y = 0; y < rows; y++) out.push(b.getLine(b.viewportY + y)?.translateToString(true) ?? '');
+      return out.join('\n');
+    };
+    for (const [time, type, data] of events) {
+      if (type === 'o') t._core.writeSync(data);
+      else if (type === 'm' && data === 'window') t.reset();
+      else continue;
+      let shown = null;
+      for (let i = 0; i < wants.length; i++) {
+        if (found[i] !== null || time < wants[i].after) continue;
+        shown ??= text();
+        if (rxs[i].test(shown)) { found[i] = time; left--; }
+      }
+      if (!left) break;
+    }
+    t.dispose();
+    return found;
+  },
   write(data) { return new Promise((r) => this.term.write(data, r)); },
   async settle() { await frame2(); },
   reset() { this.term.reset(); },

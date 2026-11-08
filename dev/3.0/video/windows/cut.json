@@ -1,0 +1,587 @@
+{
+ "fps": 30,
+ "fontSize": 18,
+ "dissolve": 0.4,
+ "title": {
+  "seconds": 3.0,
+  "html": "<div class=\"big\">Lotus <b>for Windows</b></div><div class=\"tag\">A start screen and command center for PowerShell 7 · beta</div><div class=\"small\">One real run on GitHub's Windows machine – cut only for time</div>"
+ },
+ "end": {
+  "seconds": 4.5,
+  "html": "<div class=\"big\">Lotus <b>for Windows</b></div><div class=\"tag\">beta · PowerShell 7 · no administrator rights · no WSL</div><div class=\"cmd\"><span>PS&gt;</span> irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 | iex</div><div class=\"small\">fanxy13.github.io/homebrew-lotus\n\nRecorded in one run on GitHub's Windows machine (Windows Server 2025) · only time is cut\nBig Buck Bunny trailer: (c) Blender Foundation | www.bigbuckbunny.org, CC BY 3.0</div>"
+ },
+ "scenes": [
+  {
+   "name": "install",
+   "title": "Install in <em>one line</em>",
+   "sub": "the line from the website, in PowerShell 7",
+   "parts": [
+    [
+     "scene:install-0.4",
+     {
+      "after": "scene:install",
+      "shows": "Install it now\\? \\[y/N\\]",
+      "plus": 1.2
+     }
+    ],
+    [
+     {
+      "after": "scene:install",
+      "shows": "Install it now\\? \\[y/N\\]: y",
+      "plus": -0.3
+     },
+     {
+      "after": "scene:install",
+      "shows": "is in your PATH",
+      "plus": 0.2
+     }
+    ]
+   ]
+  },
+  {
+   "name": "setup",
+   "title": "A minute of <em>setup</em>",
+   "sub": "it starts by itself after the install",
+   "parts": [
+    [
+     {
+      "after": "scene:install",
+      "shows": "Welcome to Lotus",
+      "plus": 1.8
+     },
+     {
+      "after": "scene:install",
+      "shows": "Pick a theme",
+      "plus": 1.0
+     }
+    ],
+    [
+     {
+      "after": "scene:install",
+      "shows": "Adopt a pet\\?",
+      "plus": -0.2
+     },
+     {
+      "after": "scene:install",
+      "shows": "Lotus is ready",
+      "plus": 1.4
+     }
+    ]
+   ]
+  },
+  {
+   "name": "start",
+   "title": "Every window <em>starts here</em>",
+   "sub": "a new PowerShell window – the greeting and your PC",
+   "parts": [
+    [
+     "window+0.1",
+     {
+      "after": "window",
+      "shows": "Uptime / Date",
+      "plus": 3.2
+     }
+    ]
+   ]
+  },
+  {
+   "name": "weather",
+   "title": "The <em>weather</em>, right there",
+   "sub": "/weather – every /command works in PowerShell",
+   "parts": [
+    [
+     "scene:weather",
+     {
+      "after": "scene:weather",
+      "shows": "FORECAST",
+      "plus": 2.4
+     }
+    ]
+   ]
+  },
+  {
+   "name": "pet",
+   "title": "A pet that <em>talks</em>",
+   "sub": "mochi – the AI on this PC answers: Ollama, qwen2.5:3b",
+   "parts": [
+    [
+     "scene:pet",
+     {
+      "after": "scene:pet",
+      "shows": "about this PC\\?",
+      "plus": 0.5
+     }
+    ],
+    [
+     {
+      "after": "scene:pet",
+      "shows": "about this PC\\?\\n(?:.*\\n)*.*─┤ [^·\\s]",
+      "plus": -0.3
+     },
+     {
+      "after": "scene:pet",
+      "shows": "about this PC\\?\\n(?:.*\\n)*\\s*You\\s+›\\s*$",
+      "plus": 0.9
+     }
+    ]
+   ]
+  },
+  {
+   "name": "ai",
+   "title": "Ask the <em>AI</em>",
+   "sub": "/ai – here with Ollama, on the PC's own processor",
+   "parts": [
+    [
+     "scene:ai",
+     {
+      "after": "scene:ai",
+      "shows": "in two sentences\\n(?:.*\\n)*PS [^\\n]*>\\s*$",
+      "plus": 0.5
+     }
+    ]
+   ]
+  },
+  {
+   "name": "ai-command",
+   "title": "A command – <em>never run</em> for you",
+   "sub": "/ai command – it goes on your command line, you press Enter",
+   "parts": [
+    [
+     "scene:ai-command",
+     {
+      "after": "scene:ai-command",
+      "shows": "the most memory$",
+      "plus": 0.4
+     }
+    ],
+    [
+     {
+      "after": "scene:ai-command",
+      "shows": "Suggestion",
+      "plus": -0.2
+     },
+     {
+      "after": "scene:ai-command",
+      "shows": "Suggestion",
+      "plus": 2.2
+     }
+    ],
+    [
+     {
+      "after": "scene:ai-command",
+      "shows": "Ready on your command line",
+      "plus": -0.3
+     },
+     {
+      "after": "scene:ai-command",
+      "shows": "Ready on your command line",
+      "plus": 1.6
+     }
+    ]
+   ]
+  },
+  {
+   "name": "help",
+   "title": "<em>Help</em> in your own words",
+   "sub": "/help – Mochi finds the command",
+   "parts": [
+    [
+     "scene:help",
+     {
+      "after": "scene:help",
+      "shows": "make my photos smaller",
+      "plus": 0.6
+     }
+    ],
+    [
+     {
+      "after": "scene:help",
+      "shows": "This should help",
+      "plus": -0.2
+     },
+     {
+      "after": "scene:help",
+      "shows": "Press 1",
+      "plus": 1.6
+     }
+    ]
+   ]
+  },
+  {
+   "name": "catalog",
+   "title": "Apps from <em>winget</em>",
+   "sub": "/install – 61 apps in categories, the exact command first",
+   "parts": [
+    [
+     "scene:catalog",
+     {
+      "after": "scene:catalog",
+      "shows": "Zen Browser",
+      "plus": 0.8
+     }
+    ],
+    [
+     {
+      "after": "scene:catalog",
+      "shows": "Looking up Brave",
+      "plus": -0.8
+     },
+     {
+      "after": "scene:catalog",
+      "shows": "Looking up Brave",
+      "plus": 0.6
+     }
+    ],
+    [
+     {
+      "after": "scene:catalog",
+      "shows": "Install Brave\\? \\[y/N\\]",
+      "plus": -0.3
+     },
+     {
+      "after": "scene:catalog",
+      "shows": "Install Brave\\? \\[y/N\\]",
+      "plus": 1.2
+     }
+    ]
+   ]
+  },
+  {
+   "name": "brew",
+   "title": "Search and <em>install</em>",
+   "sub": "/brew ripgrep – all of winget, installed in the open",
+   "parts": [
+    [
+     "scene:brew",
+     {
+      "after": "scene:brew",
+      "shows": "Show details",
+      "plus": 0.4
+     }
+    ],
+    [
+     {
+      "after": "scene:brew",
+      "shows": "Install RipGrep GNU\\? \\[y/N\\]",
+      "plus": -0.3
+     },
+     {
+      "after": "scene:brew",
+      "shows": "Running: winget install",
+      "plus": 0.5
+     }
+    ],
+    [
+     {
+      "after": "scene:brew",
+      "shows": "Successfully installed",
+      "plus": -0.3
+     },
+     {
+      "after": "scene:brew",
+      "shows": "RipGrep GNU is installed",
+      "plus": 1.2
+     }
+    ]
+   ]
+  },
+  {
+   "name": "app",
+   "title": "Open apps <em>by name</em>",
+   "sub": "/app – typos included",
+   "parts": [
+    [
+     "scene:app",
+     {
+      "after": "scene:app",
+      "shows": "Opening Notepad",
+      "plus": 1.0
+     }
+    ]
+   ]
+  },
+  {
+   "name": "img",
+   "title": "Photos, <em>much smaller</em>",
+   "sub": "/img convert – five photos to WebP, with ImageMagick",
+   "parts": [
+    [
+     "scene:img",
+     {
+      "after": "scene:img",
+      "shows": "● WebP",
+      "plus": 0.4
+     }
+    ],
+    [
+     {
+      "after": "scene:img",
+      "shows": "1/5 IMG_2041",
+      "plus": -0.2
+     },
+     {
+      "after": "scene:img",
+      "shows": "Show them in File Explorer\\?",
+      "plus": 0.3
+     }
+    ]
+   ]
+  },
+  {
+   "name": "convert",
+   "title": "A video, saved as <em>MP3</em>",
+   "sub": "/convert – with yt-dlp and ffmpeg",
+   "parts": [
+    [
+     "scene:convert",
+     {
+      "after": "scene:convert",
+      "shows": "MP3 or MP4",
+      "plus": 0.8
+     }
+    ],
+    [
+     {
+      "after": "scene:convert",
+      "shows": "MP4 – video",
+      "plus": -0.2
+     },
+     {
+      "after": "scene:convert",
+      "shows": "MP4 – video",
+      "plus": 1.6
+     }
+    ],
+    [
+     {
+      "after": "scene:convert",
+      "shows": "^\\s+Big Buck Bunny Trailer 400p\\s*$",
+      "plus": -0.6
+     },
+     {
+      "after": "scene:convert",
+      "shows": "Show it in File Explorer",
+      "plus": 0.8
+     }
+    ]
+   ]
+  },
+  {
+   "name": "live",
+   "title": "<em>Live Server</em>",
+   "sub": "/liveserver – the page reloads when you save",
+   "parts": [
+    [
+     "scene:live",
+     {
+      "after": "scene:live",
+      "shows": "Live – the page reloads",
+      "plus": 0.9
+     }
+    ],
+    [
+     {
+      "after": "scene:live",
+      "shows": "style\\.css\\s+styles only",
+      "plus": -0.3
+     },
+     {
+      "after": "scene:live",
+      "shows": "style\\.css\\s+styles only",
+      "plus": 1.4
+     }
+    ],
+    [
+     {
+      "after": "scene:live",
+      "shows": "Stopped http",
+      "plus": -0.4
+     },
+     {
+      "after": "scene:live",
+      "shows": "Stopped http",
+      "plus": 1.0
+     }
+    ]
+   ]
+  },
+  {
+   "name": "html",
+   "title": "Web pages as <em>documents</em>",
+   "sub": "/html – PDF, Word, Markdown and more",
+   "parts": [
+    [
+     "scene:html",
+     {
+      "after": "scene:html",
+      "shows": "Into which format\\?",
+      "plus": 0.6
+     }
+    ],
+    [
+     {
+      "after": "scene:html",
+      "shows": "What should it show\\?",
+      "plus": 0.6
+     },
+     {
+      "after": "scene:html",
+      "shows": "Open it\\? \\[Y/n\\]",
+      "plus": 1.0
+     }
+    ]
+   ]
+  },
+  {
+   "name": "caffeine",
+   "title": "Keep the PC <em>awake</em>",
+   "sub": "/caffeine – for a download, a render, a server",
+   "parts": [
+    [
+     "scene:caffeine",
+     {
+      "after": "scene:caffeine",
+      "shows": "stays awake",
+      "plus": 0.6
+     }
+    ],
+    [
+     {
+      "after": "scene:caffeine",
+      "shows": "/caffeine of",
+      "plus": -0.8
+     },
+     {
+      "after": "scene:caffeine",
+      "shows": "may sleep again",
+      "plus": 0.7
+     }
+    ]
+   ]
+  },
+  {
+   "name": "clock",
+   "title": "A <em>clock</em>, six ways",
+   "sub": "/clock – ← → for the next one",
+   "parts": [
+    [
+     "scene:clock",
+     {
+      "after": "scene:clock",
+      "shows": "lotus clock · ",
+      "plus": 1.2
+     }
+    ],
+    [
+     {
+      "after": "scene:clock",
+      "shows": "lotus clock · Retro",
+      "plus": -0.1
+     },
+     {
+      "after": "scene:clock",
+      "shows": "lotus clock · Retro",
+      "plus": 1.2
+     }
+    ],
+    [
+     {
+      "after": "scene:clock",
+      "shows": "lotus clock · Matrix",
+      "plus": -0.1
+     },
+     {
+      "after": "scene:clock",
+      "shows": "lotus clock · Matrix",
+      "plus": 1.2
+     }
+    ],
+    [
+     {
+      "after": "scene:clock",
+      "shows": "lotus clock · Analog",
+      "plus": -0.1
+     },
+     {
+      "after": "scene:clock",
+      "shows": "lotus clock · Analog",
+      "plus": 1.4
+     }
+    ]
+   ]
+  },
+  {
+   "name": "zetamac",
+   "title": "A <em>math game</em> that feeds the pets",
+   "sub": "/zetamac – every right answer is a bite for Mochi",
+   "parts": [
+    [
+     "scene:zetamac",
+     {
+      "after": "scene:zetamac",
+      "shows": "Right 3\\b",
+      "plus": 0.3
+     }
+    ],
+    [
+     {
+      "after": "scene:zetamac",
+      "shows": "Game over",
+      "plus": -0.2
+     },
+     {
+      "after": "scene:zetamac",
+      "shows": "bites!",
+      "plus": 1.4
+     }
+    ]
+   ]
+  },
+  {
+   "name": "settings",
+   "title": "Everything in <em>/settings</em>",
+   "sub": "the theme and the prompt change as you choose",
+   "parts": [
+    [
+     {
+      "after": "scene:settings",
+      "shows": "› Theme\\s+‹",
+      "plus": -0.8
+     },
+     {
+      "after": "scene:settings",
+      "shows": "✓ saved",
+      "plus": 1.6
+     }
+    ],
+    [
+     {
+      "after": "scene:settings",
+      "shows": "Colored prompt\\s+● on",
+      "plus": -0.3
+     },
+     {
+      "after": "scene:settings",
+      "shows": "^\\S+@\\S+ \\S*>\\s*$",
+      "plus": 1.0
+     }
+    ]
+   ]
+  },
+  {
+   "name": "doctor",
+   "title": "<em>lotus doctor</em>",
+   "sub": "what Lotus finds on this PC",
+   "parts": [
+    [
+     "scene:doctor",
+     {
+      "after": "scene:doctor",
+      "shows": "Features\\s+\\d+ of \\d+ on",
+      "plus": 2.0
+     }
+    ]
+   ]
+  }
+ ]
+}
