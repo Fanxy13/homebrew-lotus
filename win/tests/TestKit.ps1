@@ -125,8 +125,8 @@ $script:FakeAiServer = {
 }
 
 function Start-LotusFakeAi {
-    param([int]$Port = 0)                             # (a port of its own, or one such as Ollama's 11434)
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
+    param([int]$OnPort = 0)                           # (a port of its own, or one such as Ollama's 11434)
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $OnPort)
     $listener.Start()
     $port = $listener.LocalEndpoint.Port
     $log = Join-Path ([System.IO.Path]::GetTempPath()) "lotus-fake-ai-$port.log"

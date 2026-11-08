@@ -56,7 +56,7 @@ Describe 'which AI answers' {
         # (not localhost: that is ::1 first on Windows, and Windows takes about two seconds to give up on a refused
         # connection – longer than the second /ai waits, so a running Ollama was not found there)
         InModuleScope Lotus { Import-LotusCommand ai; Get-LotusAiOllamaUrl } | Should -Be 'http://127.0.0.1:11434'
-        $ollama = try { Start-LotusFakeAi -Port 11434 } catch { $null }
+        $ollama = try { Start-LotusFakeAi -OnPort 11434 } catch { $null }
         if (-not $ollama) { Set-ItResult -Skipped -Because 'port 11434 is taken here'; return }
         try {
             $p = InModuleScope Lotus { Initialize-Lotus; Get-LotusAiProvider }
