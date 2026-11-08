@@ -110,6 +110,7 @@ LOTUS_L+=(
   bg_refine_always 'always open the editor'
   bg_refine_never 'never'
   bg_preview      'Preview after processing'
+  bg_preview_win  'Open the PNG after processing'
   bg_cache        'Model cache'
   log_level       'Log level'
   log_off         'Off'

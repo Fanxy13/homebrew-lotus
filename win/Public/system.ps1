@@ -149,6 +149,14 @@ function script:Invoke-LotusDoctor {
         Show-LotusPetDoctorRows $row $ok $opt
         Write-LotusBlank
     }
+    # Remove BG: when the feature is on, or on request (lotus doctor --bg)
+    if (((Test-LotusFeature 'bg') -or $Rest -contains '--bg' -or $Rest -contains '--all') -and (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot 'Public/bg.ps1'))) {
+        Write-LotusDim 'Remove BG'
+        Import-LotusCommand bg
+        Import-LotusLangGroup bg
+        Show-LotusBgDoctorRows $row $ok $bad $opt
+        Write-LotusBlank
+    }
     Write-LotusDim 'Diagnostics'
     $size = 0
     if (Test-Path -LiteralPath $script:Paths.Log) { $size = [Math]::Truncate((Get-Item -LiteralPath $script:Paths.Log).Length / 1024) }

@@ -37,11 +37,50 @@ def _interrupt(*_):
 signal.signal(signal.SIGTERM, _interrupt)
 
 
+def _watch_stdin():
+    """Windows has no signal Lotus could send: it writes "cancel" to stdin instead (closing it counts too, so a
+    closed terminal window stops the worker as well). The main thread stops at its next step, as with SIGTERM."""
+    import _thread
+    import threading
+
+    def run():
+        try:
+            for line in sys.stdin:
+                if line.strip() == "cancel":
+                    break
+        except (OSError, ValueError):
+            pass
+        _thread.interrupt_main()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+if os.environ.get("LOTUS_BG_CANCEL") == "stdin":
+    _watch_stdin()
+
+
+def total_memory():
+    """Bytes of memory: sysconf on macOS and Linux, GlobalMemoryStatusEx on Windows (which has no sysconf)."""
+    if hasattr(os, "sysconf"):
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    import ctypes
+
+    class Status(ctypes.Structure):
+        _fields_ = [("length", ctypes.c_ulong), ("load", ctypes.c_ulong)] + \
+                   [(n, ctypes.c_ulonglong) for n in ("phys", "avail", "page", "page_avail", "virt", "virt_avail", "ext")]
+
+    s = Status()
+    s.length = ctypes.sizeof(Status)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(s)):
+        return 0
+    return s.phys
+
+
 def cmd_probe(a):
     import platform
     emit("info", "python", platform.python_version())
     emit("info", "machine", platform.machine())
-    emit("info", "memory", os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES"))
+    emit("info", "memory", total_memory())
     try:
         import torch
     except Exception as e:
@@ -71,9 +110,9 @@ def cmd_check(a):
 
 
 def _memory_check(h, w):
-    total = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    total = total_memory()
     need = h * w * 28 + 2_500_000_000
-    if need > total * 0.8:
+    if total and need > total * 0.8:
         raise BgError("BG-007", "This image needs more memory than this Mac has.",
                       f"{w}×{h} needs about {need / 1e9:.1f} GB, the Mac has {total / 1e9:.0f} GB")
 

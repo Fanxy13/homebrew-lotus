@@ -19,8 +19,11 @@ function script:Invoke-Lotussetup {
     Invoke-LotusSetupWizard
 }
 
-# Features that Windows does not have (yet): what the features page says about them
-$script:FeatureNotHere = @{ ios = 'macOS only'; minecraft = 'not on Windows yet'; bg = 'not on Windows yet'; plugins = 'not on Windows yet' }
+# Features that Windows does not have (yet): what the features page says about them. Remove BG needs PyTorch, which is
+# built for Windows on x64 processors only.
+$script:FeatureNotHere = @{ ios = 'macOS only'; minecraft = 'not on Windows yet'; plugins = 'not on Windows yet' }
+if ($IsWindows -and $script:Os -and $script:Os.Arch -ne 'x86_64') { $script:FeatureNotHere['bg'] = 'not on Windows on Arm yet' }
+$script:BgHere = (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot 'Public/bg.ps1')) -and -not $script:FeatureNotHere.ContainsKey('bg')
 function script:Get-LotusFeatureAbout {
     param([string]$Id)
     $about = T "featd_$Id" $script:FeatureRow[$Id][3]
@@ -99,17 +102,6 @@ function script:Split-LotusWrap {
 }
 
 # ── The flower ────────────────────────────────────────────────
-
-# One color of a theme's flower (_bgu_ramp: dark below 0.6, light above) → "r;g;b"
-function script:Get-LotusRamp {
-    param([string]$Rgb, [double]$K)
-    $c = @($Rgb -split ';' | ForEach-Object { [double]$_ })
-    $m = ($c[0] + $c[1] + $c[2]) / 3.0
-    $deep = foreach ($x in $c) { $v = $x * 0.58 - ($m - $x) * 0.7; Get-LotusF10 ([Math]::Max(0, [Math]::Min(255, $v))) }
-    $tip = foreach ($x in $c) { $x + (255 - $x) * 0.62 }
-    if ($K -lt 0.6) { $a = $deep; $b = $c; $f = $K / 0.6 } else { $a = $c; $b = $tip; $f = ($K - 0.6) / 0.4 }
-    (0..2 | ForEach-Object { [long][Math]::Truncate($a[$_] + ($b[$_] - $a[$_]) * $f) }) -join ';'
-}
 
 # Pixel codes → colors of a theme: petals from its logo color, the pad from its key color
 function script:Get-LotusWizardPalette {
@@ -501,6 +493,34 @@ function script:Show-LotusWizardAi {
     $true
 }
 
+# Remove BG: the model, the output folder, and when to download – its own choices, drawn in the style of these pages
+# (Read-LotusSelect and Read-LotusLine ask through the hooks while a page is up)
+function script:Invoke-LotusWizardBg {
+    param([scriptblock]$Ask)
+    $script:SelectHook = { param($Default, $Options) Read-LotusWizardSelect $Default $Options }
+    $script:LineHook = { param($Label, $Text) Read-LotusWizardInput $Label $Text }
+    try { & $Ask } finally { $script:SelectHook = $null; $script:LineHook = $null }
+}
+function script:Show-LotusWizardBgModel {
+    $sw = $script:Sw
+    $sw.Step = 4; $sw.Stage = 4; $sw.Q = T bg_q_model; $sw.Sub = T bg_q_model_sub
+    Invoke-LotusWizardBg { Select-LotusBgModel }
+}
+function script:Show-LotusWizardBgOut {
+    $sw = $script:Sw
+    $sw.Step = 4; $sw.Stage = 4; $sw.Q = T bg_q_output; $sw.Sub = T bg_q_output_sub
+    Invoke-LotusWizardBg { Select-LotusBgOutput -Quiet }
+}
+function script:Show-LotusWizardBgWhen {
+    if (Test-LotusOn $script:S['LOTUS_BG_READY']) { return $true }
+    $sw = $script:Sw
+    $sw.Step = 4; $sw.Stage = 4; $sw.Q = T bg_q_when; $sw.Sub = Get-LotusBgText bg_q_when_sub
+    $r = Invoke-LotusWizardBg { Select-LotusBgWhen $script:SwBgNow }
+    if ($null -eq $r) { return $false }
+    $script:SwBgNow = [bool]$r
+    $true
+}
+
 # A pet moves in (when Pets is on and there is none yet): which kind, then its name. The lotus makes room for the
 # pet you point at.
 function script:Show-LotusWizardPetArt {
@@ -577,6 +597,10 @@ function script:Show-LotusWizardReviewPaint {
     if ($script:SwPetKind -and $script:SwPetName -and (Test-LotusFeature 'pets')) { $rows.Add("$(T pt_title 'Pets')|$($script:SwPetName) · $(Get-LotusPetKindLabel $script:SwPetKind)") }
     if ((Test-LotusFeature 'weather') -and $script:S['LOTUS_WEATHER_LOCATION']) { $rows.Add("$(T sw_city)|$($script:S['LOTUS_WEATHER_LOCATION'])") }
     if ((Test-LotusFeature 'ai') -and $script:SwClaude) { $rows.Add("$(Get-LotusFeatureLabel ai)|$(T sw_ai_claude)") }
+    if ($script:BgHere -and (Test-LotusFeature 'bg')) {
+        $out = if ([string]$script:S['LOTUS_BG_OUTPUT'] -ceq '@source') { T bg_out_source } else { Format-LotusPath (Expand-LotusBgDir $script:S['LOTUS_BG_OUTPUT']) 40 }
+        $rows.Add("$(T head_bg 'Remove BG')|$(Get-LotusBgModelLabel $script:S['LOTUS_BG_MODEL']) · $out")
+    }
     $room = (Get-LotusWizardRoom) - 1
     $show = @($rows | Select-Object -First ([Math]::Max(0, $room)))
     $lw = 0; foreach ($x in $show) { $k = ($x -split '\|', 2)[0]; if ($k.Length -gt $lw) { $lw = $k.Length } }
@@ -780,6 +804,7 @@ function script:Invoke-LotusWizardPages {
         foreach ($x in 'Lang', 'Name', 'Theme', 'Start', 'Features') { $pages.Add($x) }
         if (Test-LotusFeature 'weather') { $pages.Add('Weather') }
         if (Test-LotusFeature 'ai') { $pages.Add('Ai') }
+        if ($script:BgHere -and (Test-LotusFeature 'bg')) { $pages.Add('BgModel'); $pages.Add('BgOut'); $pages.Add('BgWhen') }
         if ($petsHere -and (Test-LotusFeature 'pets') -and -not $script:PetNamesAdopted) { $pages.Add('Pet'); $pages.Add('PetName') }
         $pages.Add('Review')
         if ($p -gt $pages.Count) { return $true }
@@ -804,7 +829,9 @@ function script:Invoke-LotusSetupWizard {
         Import-LotusPetKinds
         $script:PetNamesAdopted = @(Get-LotusPets).Count -gt 0
     }
+    if ($script:BgHere) { Import-LotusCommand bg; Import-LotusLangGroup bg }
     Write-LotusLog INFO setup 'Setup wizard started'
+    $script:SwBgNow = $false
     $script:SwClaude = $false; $script:SwPetKind = ''; $script:SwPetName = ''; $script:SwPetSeen = $false; $script:SwInt = $false
     $saved = @{}; foreach ($k in $script:S.Keys) { $saved[$k] = $script:S[$k] }
     Initialize-LotusWizard
@@ -844,6 +871,7 @@ function script:Invoke-LotusSetupWizard {
         Import-LotusCommand ai
         Invoke-LotusAiLogin | Out-Null
     }
+    if ($script:SwBgNow -and $script:BgHere -and (Test-LotusFeature 'bg')) { [void](Install-LotusBg) }
     St 0
 }
 
