@@ -23,7 +23,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     env:
-      LOTUS_VIDEO_REHEARSAL: '1'                      # a rehearsal: main does not start the setup after the install yet
+      LOTUS_VIDEO_REHEARSAL: '1'                      # a rehearsal, until main has the fixes the rehearsals found
     steps:
       - uses: actions/checkout@v7
 
@@ -84,6 +84,8 @@ jobs:
             $env:OLLAMA_KEEP_ALIVE = '3h'
             Start-Process (Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe') -ArgumentList 'serve' -WindowStyle Hidden
           }
+          # a rehearsal installs this branch's Lotus (install.ps1's LOTUS_SRC): it tries what a merge would bring to main
+          if ($env:LOTUS_VIDEO_REHEARSAL -eq '1') { $env:LOTUS_SRC = $env:GITHUB_WORKSPACE }
           python dev/3.0/video/windows/record.py recording.cast
           "RECORD_EXIT=$LASTEXITCODE" | Out-File -Append $env:GITHUB_ENV
 
