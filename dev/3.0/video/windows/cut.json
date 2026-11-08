@@ -198,34 +198,6 @@
    "say": "Or let it write a command for you. Lotus puts it on your command line, and never runs it on its own."
   },
   {
-   "name": "help",
-   "title": "<em>Help</em> in your own words",
-   "sub": "/help – Mochi finds the command",
-   "parts": [
-    [
-     "scene:help",
-     {
-      "after": "scene:help",
-      "shows": "make my photos smaller",
-      "plus": 0.6
-     }
-    ],
-    [
-     {
-      "after": "scene:help",
-      "shows": "This should help",
-      "plus": -0.2
-     },
-     {
-      "after": "scene:help",
-      "shows": "Press 1",
-      "plus": 1.6
-     }
-    ]
-   ],
-   "say": "Stuck? Ask for help in plain words, and Mochi finds the right command."
-  },
-  {
    "name": "catalog",
    "title": "Apps from <em>winget</em>",
    "sub": "/install – 61 apps in categories, the exact command first",
