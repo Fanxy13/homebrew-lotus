@@ -15,6 +15,10 @@ _ui_here() {
   _ui_t=${_ui_t//your Mac/your computer}
   _ui_t=${_ui_t//the Mac/$LOTUS_THE}
   _ui_t=${_ui_t//Finder/$LOTUS_FILES_APP}
+  # (and at the start of a sentence)
+  _ui_t=${_ui_t//This Mac/${(U)LOTUS_THIS[1]}${LOTUS_THIS[2,-1]}}
+  _ui_t=${_ui_t//Your Mac/Your computer}
+  _ui_t=${_ui_t//The Mac/${(U)LOTUS_THE[1]}${LOTUS_THE[2,-1]}}
 }
 
 # Header:  lotus / Weather   (optional dim subtitle on the right)

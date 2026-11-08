@@ -423,3 +423,21 @@ Describe 'a program that runs in the open (Live Server, winget, MeshChat)' {
         InModuleScope Lotus { Invoke-LotusInTheOpen (Get-Process -Id $PID).Path @('-NoProfile', '-Command', 'exit 3') } | Should -Be 3
     }
 }
+
+Describe 'the words of this system (texts written on a Mac)' {
+    It 'are used at the start of a sentence too, in every language – and keep awake names no Minecraft on Windows' {
+        if ($IsMacOS) { Set-ItResult -Skipped -Because 'on a Mac the texts stay as they are'; return }
+        InModuleScope Lotus {
+            $was = $script:S['LOTUS_LANG']
+            try {
+                foreach ($lang in 'en', 'de', 'fr', 'es') {
+                    $script:S['LOTUS_LANG'] = $lang
+                    Import-LotusLang
+                    foreach ($k in 'caf_on', 'caf_off', 'caf_stop_q', 'caf_sub_win') { T $k | Should -Not -Match '\bMac\b' -Because "$lang $k" }
+                    T caf_sub_win | Should -Not -Match 'Minecraft'
+                }
+                Convert-LotusHere 'Your Mac may sleep again' | Should -Not -Match '\bMac\b'
+            } finally { $script:S['LOTUS_LANG'] = $was; Import-LotusLang }
+        }
+    }
+}

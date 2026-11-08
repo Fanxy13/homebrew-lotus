@@ -50,6 +50,7 @@ LOTUS_L+=(
   ai_ctx 'Fenêtre de contexte'  ai_len 'Longueur des réponses'  ai_temp 'Créativité'  ai_temp_p 'précis'  ai_temp_b 'équilibré'  ai_temp_c 'créatif'  ai_kv 'Économie de mémoire'
   head_ai_perm 'IA : ce qu’elle peut faire'  ai_tools 'Travailler sur ce Mac'  ai_p_read 'Lire les fichiers du dossier'  ai_p_read_out 'Lire les fichiers ailleurs'
   caf_title 'Rester éveillé'  caf_sub 'Ton Mac ne se met pas en veille tant que c’est activé – pour un téléchargement, un rendu ou un serveur Minecraft'
+  caf_sub_win 'Ton PC ne se met pas en veille tant que c’est activé – pour un téléchargement, un rendu ou un serveur'
   caf_on 'Ton Mac reste éveillé'  caf_off 'Ton Mac peut de nouveau se mettre en veille'  caf_until 'jusqu’à'  caf_left 'restant'  caf_forever 'jusqu’à ce que tu l’arrêtes'
   caf_was_off 'Rester éveillé n’est pas activé'  caf_status_on 'Rester éveillé : activé'  caf_status_off 'Rester éveillé : désactivé'  caf_stop_q 'Laisser ton Mac se mettre en veille ?'  caf_how_long 'Pendant combien de temps ?'
   clk_minimal 'Minimal'  clk_big 'Grand'  clk_retro 'Rétro'  clk_matrix 'Matrix'  clk_analog 'Analogique'  clk_world 'Monde'

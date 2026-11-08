@@ -50,6 +50,7 @@ LOTUS_L+=(
   ai_ctx 'Ventana de contexto'  ai_len 'Longitud de respuesta'  ai_temp 'Creatividad'  ai_temp_p 'preciso'  ai_temp_b 'equilibrado'  ai_temp_c 'creativo'  ai_kv 'Ahorro de memoria'
   head_ai_perm 'IA: qué puede hacer'  ai_tools 'Trabajar en este Mac'  ai_p_read 'Ver archivos de la carpeta'  ai_p_read_out 'Ver archivos en otros sitios'
   caf_title 'Mantener despierto'  caf_sub 'Tu Mac no se duerme mientras esté activado – para descargas, renders o un servidor de Minecraft'
+  caf_sub_win 'Tu PC no se duerme mientras esté activado – para descargas, renders o un servidor'
   caf_on 'Tu Mac sigue despierto'  caf_off 'Tu Mac puede volver a dormir'  caf_until 'hasta'  caf_left 'restantes'  caf_forever 'hasta que lo apagues'
   caf_was_off 'Mantener despierto no está activado'  caf_status_on 'Mantener despierto: activado'  caf_status_off 'Mantener despierto: desactivado'  caf_stop_q '¿Dejar que tu Mac vuelva a dormir?'  caf_how_long '¿Por cuánto tiempo?'
   clk_minimal 'Mínimo'  clk_big 'Grande'  clk_retro 'Retro'  clk_matrix 'Matrix'  clk_analog 'Analógico'  clk_world 'Mundial'
