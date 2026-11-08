@@ -12,7 +12,7 @@
   "title": "Lotus <b>for Windows</b>",
   "tag": "beta · PowerShell 7 · no administrator rights · no WSL",
   "cmd": "irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 | iex",
-  "small": "fanxy13.github.io/homebrew-lotus\n\nRecorded in one run on GitHub's Windows machine (Windows Server 2025) · only time is cut\nBig Buck Bunny trailer: (c) Blender Foundation | www.bigbuckbunny.org, CC BY 3.0"
+  "small": "fanxy13.github.io/homebrew-lotus\n\nRecorded in one run on GitHub's Windows machine (Windows Server 2025) · only time is cut\nMusic made for this video · Big Buck Bunny trailer: (c) Blender Foundation | www.bigbuckbunny.org, CC BY 3.0"
  },
  "scenes": [
   {
