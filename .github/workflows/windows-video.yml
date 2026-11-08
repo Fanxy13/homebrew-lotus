@@ -10,6 +10,11 @@ on:
     branches: ['claude/**']
     paths: [dev/3.0/video/windows/record.py, .github/workflows/windows-video.yml]
   workflow_dispatch:
+    inputs:
+      take:
+        description: 'A take for the video: Lotus from main with the line from the website (otherwise a rehearsal)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -23,7 +28,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     env:
-      LOTUS_VIDEO_REHEARSAL: '1'                      # a rehearsal, until main has the fixes the rehearsals found
+      # a push rehearses (the branch's Lotus); a take is started by hand: workflow_dispatch with take
+      LOTUS_VIDEO_REHEARSAL: ${{ inputs.take && '0' || '1' }}
     steps:
       - uses: actions/checkout@v7
 
