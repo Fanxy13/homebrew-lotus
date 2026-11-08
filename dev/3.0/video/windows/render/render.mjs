@@ -246,11 +246,31 @@ async function main() {
   if (!ffmpeg) return;
   ffmpeg.stdin.end(); await once(ffmpeg, 'close');
 
+  // the narrator (voice.py: Kokoro, offline) – a line where a card or a scene begins
+  const lines = [];
+  for (const p of parts) {
+    if (p.kind === 'card' && cut[p.card].say) lines.push({ id: p.card, text: cut[p.card].say, t: p.start + (p.card === 'title' ? 0.45 : 0.55) });
+    else if (p.kind === 'take' && p.first && p.scene.say) lines.push({ id: p.scene.name, text: p.scene.say, t: p.start + 0.35 });
+  }
+  let voice = [];
+  if (lines.length && process.env.LOTUS_VIDEO_VOICE !== 'off') {
+    writeFileSync(`${base}.lines.json`, JSON.stringify(lines));
+    const v = spawnSync(process.env.VOICE_PYTHON || 'python3', [path.join(here, 'voice.py'), `${base}.lines.json`, `${base}.voice`], { stdio: 'inherit' });
+    if (v.status !== 0) throw new Error('voice.py failed (LOTUS_VIDEO_VOICE=off renders without the narrator)');
+    voice = JSON.parse(readFileSync(path.join(`${base}.voice`, 'lines.json'), 'utf8'));
+    voice.forEach((l, i) => {
+      const next = voice[i + 1];
+      if (next && l.t + l.seconds > next.t - 0.2) console.log(`  the line of ${l.id} (${l.seconds.toFixed(1)} s) runs into ${next.id}`);
+    });
+  }
+
   // the sound track, then both together
-  writeFileSync(`${base}.cues.json`, JSON.stringify({ duration: frames / fps, cues: cues(parts, cast.events) }));
+  const all = [...cues(parts, cast.events), ...voice.map((l) => ({ t: l.t, k: 'voice', file: l.file, seconds: l.seconds }))].sort((x, y) => x.t - y.t);
+  writeFileSync(`${base}.cues.json`, JSON.stringify({ duration: frames / fps, cues: all }));
   const a = spawnSync('python3', [path.join(here, 'audio.py'), `${base}.cues.json`, `${base}.wav`], { stdio: 'inherit' });
   if (a.status !== 0) throw new Error('audio.py failed');
   const m = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', `${base}.video.mp4`, '-i', `${base}.wav`, '-map', '0:v', '-map', '1:a',
+    '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11', '-ar', '48000',
     '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out], { stdio: 'inherit' });
   if (m.status !== 0) throw new Error('ffmpeg could not put the sound in');
   for (const f of [`${base}.video.mp4`, `${base}.wav`]) rmSync(f, { force: true });

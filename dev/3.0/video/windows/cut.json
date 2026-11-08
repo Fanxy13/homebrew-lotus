@@ -2,17 +2,19 @@
  "fps": 30,
  "fontSize": 30,
  "title": {
-  "seconds": 4.2,
+  "seconds": 5.6,
   "title": "Lotus <b>for Windows</b>",
   "tag": "A start screen and command center for PowerShell 7 · beta",
-  "small": "One real run on GitHub's Windows machine – cut only for time"
+  "small": "One real run on GitHub's Windows machine – cut only for time",
+  "say": "This is Lotus for Windows. A start screen and command center, for PowerShell 7."
  },
  "end": {
   "seconds": 6.0,
   "title": "Lotus <b>for Windows</b>",
   "tag": "beta · PowerShell 7 · no administrator rights · no WSL",
   "cmd": "irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 | iex",
-  "small": "fanxy13.github.io/homebrew-lotus\n\nRecorded in one run on GitHub's Windows machine (Windows Server 2025) · only time is cut\nMusic made for this video · Big Buck Bunny trailer: (c) Blender Foundation | www.bigbuckbunny.org, CC BY 3.0"
+  "small": "fanxy13.github.io/homebrew-lotus\n\nRecorded in one run on GitHub's Windows machine (Windows Server 2025) · only time is cut\nMusic made for this video · Big Buck Bunny trailer: (c) Blender Foundation | www.bigbuckbunny.org, CC BY 3.0",
+  "say": "Lotus for Windows. Free, open source, and one line away."
  },
  "scenes": [
   {
@@ -40,7 +42,8 @@
       "plus": 0.2
      }
     ]
-   ]
+   ],
+   "say": "Installing it takes one line, pasted from the website. No admin rights needed. It even sets up fastfetch for you."
   },
   {
    "name": "setup",
@@ -71,7 +74,8 @@
       "plus": 1.4
      }
     ]
-   ]
+   ],
+   "say": "Then a quick setup starts on its own. Your language, your name, a theme. And a pet."
   },
   {
    "name": "start",
@@ -90,7 +94,8 @@
       "plus": 3.4
      }
     ]
-   ]
+   ],
+   "say": "From now on, every new window greets you, with your PC at a glance."
   },
   {
    "name": "weather",
@@ -105,7 +110,8 @@
       "plus": 2.4
      }
     ]
-   ]
+   ],
+   "say": "Slash commands work right in PowerShell. Like the weather."
   },
   {
    "name": "pet",
@@ -132,7 +138,8 @@
       "plus": 0.9
      }
     ]
-   ]
+   ],
+   "say": "This is Mochi. It lives in your terminal, and chats with you through an AI that runs right on this PC."
   },
   {
    "name": "ai",
@@ -147,7 +154,8 @@
       "plus": 0.5
      }
     ]
-   ]
+   ],
+   "say": "Ask the AI anything with slash A-I. Here, it is Ollama, running locally."
   },
   {
    "name": "ai-command",
@@ -186,7 +194,8 @@
       "plus": 1.6
      }
     ]
-   ]
+   ],
+   "say": "Or let it write a command for you. Lotus puts it on your command line, and never runs it on its own."
   },
   {
    "name": "help",
@@ -213,7 +222,8 @@
       "plus": 1.6
      }
     ]
-   ]
+   ],
+   "say": "Stuck? Ask for help in plain words, and Mochi finds the right command."
   },
   {
    "name": "catalog",
@@ -252,7 +262,8 @@
       "plus": 1.2
      }
     ]
-   ]
+   ],
+   "say": "Browse sixty-one apps by category, and install them with win-get."
   },
   {
    "name": "brew",
@@ -291,7 +302,8 @@
       "plus": 1.2
      }
     ]
-   ]
+   ],
+   "say": "Or search all of win-get. Rip-grep installs in seconds, right in the open."
   },
   {
    "name": "app",
@@ -306,7 +318,8 @@
       "plus": 1.0
      }
     ]
-   ]
+   ],
+   "say": "Open any app by name. Typos included."
   },
   {
    "name": "img",
@@ -333,7 +346,8 @@
       "plus": 0.3
      }
     ]
-   ]
+   ],
+   "say": "Convert a whole folder of photos to Web P. Much smaller files, in one go."
   },
   {
    "name": "convert",
@@ -372,7 +386,8 @@
       "plus": 0.8
      }
     ]
-   ]
+   ],
+   "say": "Save the sound of a video you have the rights to, as an MP3."
   },
   {
    "name": "live",
@@ -411,7 +426,8 @@
       "plus": 1.0
      }
     ]
-   ]
+   ],
+   "say": "Building a website? Live Server reloads the page every time you save."
   },
   {
    "name": "html",
@@ -438,7 +454,8 @@
       "plus": 1.0
      }
     ]
-   ]
+   ],
+   "say": "And turn a web page into a PDF, a Word file, or Markdown."
   },
   {
    "name": "caffeine",
@@ -465,7 +482,8 @@
       "plus": 0.7
      }
     ]
-   ]
+   ],
+   "say": "Keep your PC awake for an hour, for a big download."
   },
   {
    "name": "clock",
@@ -516,7 +534,8 @@
       "plus": 1.4
      }
     ]
-   ]
+   ],
+   "say": "A full screen clock, in six designs."
   },
   {
    "name": "zetamac",
@@ -543,7 +562,8 @@
       "plus": 1.4
      }
     ]
-   ]
+   ],
+   "say": "A quick math game. Every right answer feeds your pet."
   },
   {
    "name": "settings",
@@ -574,7 +594,8 @@
       "plus": 1.0
      }
     ]
-   ]
+   ],
+   "say": "Every setting lives in one place, and changes as you go."
   },
   {
    "name": "doctor",
@@ -589,7 +610,8 @@
       "plus": 2.0
      }
     ]
-   ]
+   ],
+   "say": "And lotus doctor checks it all."
   }
  ]
 }

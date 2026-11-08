@@ -25,7 +25,7 @@ import time
 
 import pyte
 
-COLS, ROWS = 120, 30                                   # the size Windows Terminal opens with
+COLS, ROWS = 140, 30                                   # wide enough that no line of the start screen wraps
 WINDOWS = os.name == 'nt'
 HOME = os.path.expanduser('~')
 INSTALL = 'irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 | iex'

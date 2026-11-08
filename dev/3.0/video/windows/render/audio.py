@@ -256,7 +256,28 @@ def render(spec, out_path):
             for j in range(80):                                 # the install line, typed on the card
                 add(sfx, t0 + 1.2 + j / 46, clicks['key'][rng.integers(8)], 0.1, rng.uniform(-0.2, 0.2))
     sfx = reverb(sfx, wet=0.12, length=0.8, decay=0.12)
-    mix = mus + sfx
+    # the narrator, in the middle; the music steps back while it speaks
+    voice = np.zeros(n)
+    for c in spec['cues']:
+        if c['k'] != 'voice':
+            continue
+        with wave.open(c['file'], 'rb') as w:
+            v = np.frombuffer(w.readframes(w.getnframes()), '<i2').astype(np.float64) / 32768
+        i = int(round(c['t'] * SR)); j = min(n, i + len(v))
+        voice[i:j] += v[: j - i]
+    if np.any(voice):
+        loud = np.abs(voice) > 0.01
+        voice *= 0.16 / np.sqrt(np.mean(voice[loud] ** 2))     # the spoken parts at about −16 dB
+        hop = int(0.01 * SR)                                    # how much it speaks, every 10 ms, held a little
+        act = np.array([np.max(np.abs(voice[k:k + hop])) > 0.02 for k in range(0, n, hop)], dtype=float)
+        env = np.zeros_like(act); e = 0.0
+        for k, x in enumerate(act):
+            e += (x - e) * (0.35 if x > e else 0.03)            # quick to duck, slow to come back
+            env[k] = e
+        env = np.repeat(env, hop)[:n]
+        mus *= 1 - 0.55 * env
+        sfx *= 1 - 0.25 * env
+    mix = mus + sfx + voice
     mix = np.tanh(1.1 * mix) / np.tanh(1.1)
     mix *= 0.89 / max(1e-9, np.max(np.abs(mix)))
     pcm = (np.clip(mix, -1, 1).T * 32767).astype('<i2')
