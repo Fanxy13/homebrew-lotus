@@ -4,6 +4,7 @@
 
     python3 timeline.py takes/take-1.cast.gz
     python3 timeline.py takes/take-1.cast.gz --at 312.5 330
+    python3 timeline.py takes/take-1.cast.gz --find 'Pick a theme' 'Lotus is ready'   (when each first shows)
 """
 import gzip
 import json
@@ -26,6 +27,24 @@ def main(argv):
     screen = Screen(head['width'], head['height'])
     stream = pyte.Stream(screen)
     rows = lambda: [line.rstrip() for line in screen.display]
+    if argv[1:2] == ['--find']:
+        import re
+        wanted = [(w, re.compile(w)) for w in argv[2:]]
+        found = {}
+        for t, kind, data in events:
+            if kind == 'o':
+                stream.feed(data)
+            elif data == 'window':
+                screen.reset()
+            if kind != 'o' or len(found) == len(wanted):
+                continue
+            text = '\n'.join(rows())
+            for w, rx in wanted:
+                if w not in found and rx.search(text):
+                    found[w] = t
+        for w, _ in wanted:
+            print(f'{found[w]:8.2f}  {w}' if w in found else f'{"–":>8}  {w}')
+        return 0
     if at:
         k = 0
         for want in sorted(at):

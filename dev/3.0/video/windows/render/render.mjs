@@ -5,6 +5,7 @@
 //
 //   node render.mjs <take.cast[.gz]> <cut.json> <out.mp4>
 //   node render.mjs <take.cast[.gz]> <cut.json> --stills <dir> <second> [<second> …]   still frames, to look at
+//   node render.mjs <take.cast[.gz]> <cut.json> --plan                                the parts and their times
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
@@ -32,30 +33,49 @@ function loadCast(file) {
   return { head, events, marks };
 }
 
-// "scene:img+1.5", "end:img-2", "scene:pet#2", or seconds
-function at(expr, marks) {
+// A moment of the take: seconds, a marker ("scene:img+1.5", "end:img-2", "scene:pet#2"), or the first moment after one
+// that the window shows a text: { "after": "scene:app", "shows": "Did you mean", "plus": 0.5 } (a regular expression)
+const shownKey = (expr) => JSON.stringify([expr.after, expr.shows]);
+function at(expr, marks, shown) {
   if (typeof expr === 'number') return expr;
+  if (typeof expr === 'object') {
+    const t = shown?.get(shownKey(expr));
+    if (t == null) throw new Error(`"${expr.shows}" does not show after ${JSON.stringify(expr.after)}`);
+    return t + (expr.plus || 0);
+  }
   const m = /^(.+?)(?:#(\d+))?([+-]\d+(?:\.\d+)?)?$/.exec(expr);
   const times = marks.get(m[1]);
   if (!times) throw new Error(`no marker "${m[1]}" in the take`);
   return times[(m[2] ? +m[2] : 1) - 1] + (m[3] ? +m[3] : 0);
 }
 
+// The texts the cut waits for, found in one replay of the take in the page
+async function findShown(page, cut, cast) {
+  const wants = new Map();
+  for (const scene of cut.scenes) for (const part of scene.parts) for (const e of part) {
+    if (typeof e === 'object') wants.set(shownKey(e), { after: at(e.after, cast.marks), shows: e.shows });
+  }
+  const list = [...wants.values()];
+  const times = await page.evaluate(([ev, w, c, r]) => window.stage.find(ev, w, c, r), [cast.events, list, cast.head.width, cast.head.height]);
+  return new Map([...wants.keys()].map((k, i) => [k, times[i]]));
+}
+
+// What a note says where time is left out: the seconds, or minutes from one and a half on
 function later(seconds) {
-  if (seconds < 90) return `${Math.round(seconds / 5) * 5 || Math.round(seconds)} seconds later`;
+  if (seconds < 90) return `${Math.round(seconds)} seconds later`;
   const min = Math.round(seconds / 30) / 2;
-  return `${min} minute${min === 1 ? '' : 's'} later`;
+  return `${min} minutes later`;
 }
 
 const ease = (x) => 0.5 - Math.cos(Math.PI * Math.min(1, Math.max(0, x))) / 2;
 
 // The video, part by part: cards and stretches of the take
-function plan(cut, marks) {
+function plan(cut, marks, shown) {
   const parts = [{ kind: 'card', card: cut.title.html, seconds: cut.title.seconds, first: true }];
   for (const scene of cut.scenes) {
     let prev = null;
     for (const [a, b] of scene.parts) {
-      const from = at(a, marks), to = at(b, marks);
+      const from = at(a, marks, shown), to = at(b, marks, shown);
       if (!(to > from)) throw new Error(`${scene.name}: ${a} … ${b} is empty`);
       const gap = prev === null ? 0 : from - prev;
       parts.push({ kind: 'take', scene, from, to, note: gap > 3 ? later(gap) : '' });
@@ -82,11 +102,10 @@ class Player {
 
 async function main() {
   const [castFile, cutFile, out, ...rest] = process.argv.slice(2);
-  if (!out) { console.error('node render.mjs <take.cast[.gz]> <cut.json> <out.mp4 | --stills dir s…>'); process.exit(2); }
+  if (!out) { console.error('node render.mjs <take.cast[.gz]> <cut.json> <out.mp4 | --stills dir s… | --plan>'); process.exit(2); }
   const cast = loadCast(castFile);
   const cut = JSON.parse(readFileSync(cutFile, 'utf8'));
   const fps = cut.fps || 30;
-  const parts = plan(cut, cast.marks);
   const stills = out === '--stills' ? { dir: rest[0], at: rest.slice(1).map(Number) } : null;
 
   const browser = await chromium.launch();
@@ -94,6 +113,13 @@ async function main() {
   await page.goto(pathToFileURL(path.join(here, 'stage.html')).href);
   const box = await page.evaluate((o) => window.stage.init(o), { cols: cast.head.width, rows: cast.head.height, fontSize: cut.fontSize || 18 });
   console.log(`window ${Math.round(box.width)}×${Math.round(box.height)} px at ${Math.round(box.top)}`);
+  const parts = plan(cut, cast.marks, await findShown(page, cut, cast));
+  if (out === '--plan') {                         // the parts with their times in the take, to check a cut
+    for (const p of parts) console.log(p.kind === 'card' ? `card ${p.seconds} s` : `${p.scene.name.padEnd(12)} ${p.from.toFixed(2).padStart(7)} … ${p.to.toFixed(2).padStart(7)}  ${(p.to - p.from).toFixed(1).padStart(5)} s  ${p.note}`);
+    console.log(`${(parts.reduce((s, p) => s + (p.kind === 'card' ? p.seconds : p.to - p.from), 0)).toFixed(1)} s in all`);
+    await browser.close();
+    return;
+  }
   const set = (s) => page.evaluate((x) => window.stage.set(x), s);
   const player = new Player(page, cast.events);
 
