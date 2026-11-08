@@ -4,15 +4,16 @@
 # win/tests/Windows.Tests.ps1 – what only Windows has: the apps of the Start menu, keep awake, DPAPI, Windows command
 # lines) with PowerShell 7 on x64 and Arm64; the files that Windows PowerShell 5.1 has to read; every winget id of the
 # app catalog, asked of winget itself; Remove BG for real: its Python runtime with PyTorch, BiRefNet Lite from Hugging
-# Face, and a picture cut out on the processor.
+# Face, and a picture cut out on the processor; a Minecraft server for real: Java from adoptium.net, Paper from PaperMC,
+# run in the background until it is ready, with LotusBridge's TPS, a command, and a stop that saves.
 name: Lotus for Windows
 
 on:
   push:
     branches: ['**']
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/fake-modrinth.py, .gitattributes, .github/workflows/windows.yml]
   pull_request:
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, tests/contract/**, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/fake-modrinth.py, .gitattributes, .github/workflows/windows.yml]
   workflow_dispatch:
 
 permissions:
@@ -91,6 +92,80 @@ jobs:
           & $py -c "import sys; from PIL import Image; a = Image.open(sys.argv[1]).getchannel('A'); w, h = a.size; c = a.getpixel((w // 2, h // 2)); e = a.getpixel((8, 8)); print('alpha in the disc', c, '- in a corner', e); sys.exit(0 if c > 128 and e < 128 else 1)" $out[0]
           if ($LASTEXITCODE) { & $show; exit 1 }
           lotus doctor --bg
+
+  mc-real:
+    name: Minecraft on real Windows (Temurin, Paper, LotusBridge)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up a Paper server and run it, the way the control center does
+        shell: pwsh
+        run: |
+          $tmp = Join-Path $env:RUNNER_TEMP 'lotus-mc'
+          $env:LOTUS_ROOT = $PWD.Path
+          $env:LOTUS_CONF = "$tmp\conf"; $env:LOTUS_CACHE = "$tmp\cache"; $env:LOTUS_DATA = "$tmp\data"; $env:LOTUS_STATE = "$tmp\state"
+          $env:LOTUS_MC_HOME = "$tmp\Minecraft"
+          Import-Module ./win/Lotus.psd1
+          lotus settings set LOTUS_CONFIGURED 1 | Out-Null
+          lotus settings set LOTUS_LOG_LEVEL debug | Out-Null
+          $ok = & (Get-Module Lotus) {
+            Initialize-Lotus
+            Import-LotusCommand minecraft
+            Import-LotusLangGroup mc
+            # the newest release that Paper has a build for
+            $manifest = Get-LotusMcJson 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
+            $version = $null; $vjson = $null
+            foreach ($v in @($manifest.versions | Where-Object { $_.type -eq 'release' } | Select-Object -First 6)) {
+              $b = Get-LotusMcJson "https://fill.papermc.io/v3/projects/paper/versions/$($v.id)/builds/latest"
+              if ($b -and $b.downloads.'server:default'.url) { $version = $v.id; $vjson = Get-LotusMcJson $v.url; break }
+            }
+            if (-not $version) { Write-Host '::error::Paper has no build for the newest releases'; return $false }
+            $need = [int]$vjson.javaVersion.majorVersion
+            Write-Host "Minecraft $version (Paper), Java $need"
+            # Java the way Lotus fetches it when there is none: Eclipse Temurin from adoptium.net, its SHA-256 checked
+            if (-not (Save-LotusJava $need)) { return $false }
+            $javaHome = Join-Path $env:LOTUS_DATA "java\$need"
+            if (-not (Test-Path (Join-Path $javaHome 'bin\javac.exe'))) { Write-Host '::error::the JDK has no javac'; return $false }
+            Write-Host "Java: $(Get-LotusJavaLabel $javaHome) · Find-LotusJava $($need): $(Find-LotusJava $need)"
+            $dir = Join-Path $env:LOTUS_MC_HOME "paper-$version"
+            New-LotusDir $dir | Out-Null
+            if (-not (Save-LotusMcServerJar $dir 'paper' $version $vjson)) { return $false }
+            Write-LotusMcServerFiles $dir 'paper' $version $javaHome '2G' $true 'A Lotus test on Windows' 10 'easy'
+            Initialize-LotusMcc $dir
+            $m = $script:Mcc
+            if (-not (Start-LotusMccServer)) { Write-Host '::error::the runner did not start'; return $false }
+            $t0 = Get-Date
+            while ($m.State -cne 'running' -and ((Get-Date) - $t0).TotalSeconds -lt 600) {
+              Start-Sleep -Seconds 1; Read-LotusMccLog; Update-LotusMccProbe
+              if ($m.State -cin 'stopped', 'crashed') { break }
+            }
+            Write-Host "state after $([int]((Get-Date) - $t0).TotalSeconds) s: $($m.State) (pid $($m.Pid), runner $($m.Wrap))"
+            $good = $m.State -ceq 'running'
+            if ($good) {
+              # LotusBridge: built by the runner with the JDK, its file every two seconds
+              for ($i = 0; $i -lt 60 -and -not $m.Bridge; $i++) { Start-Sleep -Seconds 1; Update-LotusMccProbe; Update-LotusMccBridge }
+              Write-Host "LotusBridge: $(if ($m.Bridge) { "TPS $($m.Tps), tick $($m.Mspt) ms" } else { 'no status' })"
+              if (-not $m.Bridge) { $good = $false; Write-Host '::error::LotusBridge gave no status' }
+              [void](Send-LotusMccCommand 'list')
+              $seen = $false
+              for ($i = 0; $i -lt 30 -and -not $seen; $i++) { Start-Sleep -Seconds 1; Read-LotusMccLog; $seen = [bool]($m.Log | Where-Object { $_ -match 'players online' }) }
+              Write-Host "list answered: $seen"
+              if (-not $seen) { $good = $false }
+              Update-LotusMccSample
+              Write-Host "memory $($m.Rss) MB, CPU $($m.Cpu) %, world $([int]($m.WorldKb / 1024)) MB"
+            }
+            Stop-LotusMccServer
+            for ($i = 0; $i -lt 120 -and $m.State -cnotin 'stopped', 'crashed'; $i++) { Start-Sleep -Seconds 1; Read-LotusMccLog; Update-LotusMccProbe }
+            Write-Host "after the stop: $($m.State), exit code $($m.Exit)"
+            if ($m.State -cne 'stopped' -or $m.Exit -ne 0) { $good = $false }
+            Close-LotusMccLog
+            Write-Host '--- the end of console.log ---'
+            Get-Content (Join-Path $dir '.lotus\console.log') -Tail 40 | ForEach-Object { Write-Host $_ }
+            $good
+          }
+          lotus doctor | Out-Host
+          if (-not ($ok | Select-Object -Last 1)) { Get-Content "$tmp\state\lotus.log" -Tail 60; exit 1 }
 
   powershell51:
     name: Windows PowerShell 5.1 reads the shims and installers
