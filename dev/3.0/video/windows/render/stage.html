@@ -10,74 +10,133 @@
   @font-face { font-family: 'Mono'; font-weight: 700; src: local('JetBrains Mono Bold'), local('JetBrainsMono-Bold'), url('node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2') format('woff2'); }
   @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2') format('woff2'); }
   @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2') format('woff2'); }
-  :root { --ground: #05070a; --ink: #e8eee6; --dim: #8a9a92; --matcha: #b9d58c; --lotus: #f2a7c3; --line: #1b222a; }
+  :root { --ground: #05070a; --ink: #e8eee6; --dim: #8a9a92; --matcha: #b9d58c; --lotus: #f2a7c3; --gold: #e9c46a; --line: #1d252c; }
   html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
-  body { position: relative; font-family: 'Mono', monospace; color: var(--ink);
-         background: radial-gradient(1200px 700px at 50% 42%, #0b1210 0%, var(--ground) 70%); }
-  #caption { position: absolute; left: 0; top: 64px; width: 100%; }
-  #caption .wrap { margin: 0 auto; }
-  #title { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 58px; line-height: 1; letter-spacing: .2px; }
-  #title em { font-style: italic; color: var(--matcha); }
-  #sub { margin-top: 14px; font-size: 21px; color: var(--dim); white-space: pre; }
-  #window { position: absolute; left: 50%; top: 214px; transform: translateX(-50%); background: #0c0c0c;
-            border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 40px 120px rgba(0, 0, 0, .65); overflow: hidden; }
-  #bar { height: 40px; display: flex; align-items: center; padding: 0 18px; gap: 12px; border-bottom: 1px solid #161b21;
-         font-size: 14px; color: #9aa7a0; background: #101315; }
-  #bar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--lotus); }
+  body { position: relative; font-family: 'Mono', monospace; color: var(--ink); }
+  #glow { position: absolute; inset: 0; }
+  .cap { position: absolute; top: 46px; white-space: nowrap; will-change: transform, opacity; }
+  .cap .t { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 60px; line-height: 1.05; letter-spacing: .2px; }
+  .cap .t em { font-style: italic; color: var(--matcha); }
+  .cap .s { margin-top: 10px; font-size: 21px; color: var(--dim); }
+  #dots { position: absolute; top: 64px; display: flex; gap: 9px; align-items: center; }
+  #dots i { display: block; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid #3a4640; box-sizing: border-box; }
+  #dots i.done { background: #4d5c55; border-color: #4d5c55; }
+  #dots i.now { background: var(--matcha); border-color: var(--matcha); }
+  #count { position: absolute; top: 88px; font-size: 15px; color: #5f6e67; letter-spacing: 1px; text-align: right; }
+  #note { position: absolute; padding: 7px 14px; border-radius: 999px; font-size: 17px; color: #0b0f0c;
+          background: var(--matcha); box-shadow: 0 8px 30px rgba(185, 213, 140, .25); white-space: nowrap; opacity: 0; }
+  #window { position: absolute; background: #0c0c0c; border: 1px solid var(--line); border-radius: 12px;
+            box-shadow: 0 40px 120px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 255, 255, .02) inset; overflow: hidden; }
+  #bar { height: 38px; display: flex; align-items: flex-end; padding: 0 0 0 10px; background: #171a1c; border-bottom: 1px solid #0c0c0c; }
+  #tab { height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 12px; background: #0c0c0c;
+         border-radius: 8px 8px 0 0; font-size: 14px; color: #d6dcd8; }
+  #tab .ico { width: 16px; height: 16px; border-radius: 3px; background: #2a5bd7; color: #fff; font-size: 10px; font-weight: 700;
+              display: flex; align-items: center; justify-content: center; letter-spacing: -1px; }
+  #bar .plus { margin: 0 0 7px 12px; color: #7c8781; font-size: 18px; }
   #bar .grow { flex: 1; }
-  #bar .ctl { letter-spacing: 14px; color: #5d6862; font-size: 13px; }
-  #term { padding: 16px 18px 18px; }
-  #note { position: absolute; right: 0; top: 0; font-size: 18px; color: var(--matcha); white-space: pre; }
-  #fade { position: absolute; inset: 0; width: 1920px; height: 1080px; opacity: 0; pointer-events: none; }
-  #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-          background: radial-gradient(1100px 650px at 50% 45%, #0c1411 0%, var(--ground) 72%); opacity: 0; }
-  #card .big { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 132px; line-height: 1; }
+  #bar .ctl { align-self: center; display: flex; gap: 30px; padding-right: 20px; color: #8d9792; font-size: 15px; }
+  #view { position: relative; overflow: hidden; margin: 12px 14px; }
+  #term { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  #fadebox { position: absolute; overflow: hidden; opacity: 0; pointer-events: none; }
+  #fadebox img { position: absolute; }
+  #card { position: absolute; inset: 0; opacity: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          background: radial-gradient(1100px 680px at 50% 42%, #0d1612 0%, var(--ground) 72%); }
+  #card pre.art { margin: 0 0 30px; font-family: 'Mono', monospace; font-size: 15px; line-height: 1.12; }
+  #card pre.art span { display: block; }
+  #card .big { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 128px; line-height: 1; }
   #card .big b { font-weight: 400; color: var(--lotus); }
-  #card .tag { margin-top: 26px; font-size: 26px; color: var(--dim); }
-  #card .cmd { margin-top: 56px; padding: 18px 28px; border: 1px solid var(--line); border-radius: 12px; background: #0c0f10;
-               font-size: 24px; color: var(--ink); }
+  #card .tag { margin-top: 24px; font-size: 26px; color: var(--dim); }
+  #card .cmd { margin-top: 44px; padding: 18px 28px; border: 1px solid #26302b; border-radius: 12px; background: #0b0e0d;
+               font-size: 24px; color: var(--ink); min-width: 1240px; box-sizing: border-box; white-space: pre; }
   #card .cmd span { color: var(--matcha); }
-  #card .small { margin-top: 18px; font-size: 18px; color: #6f7d76; text-align: center; line-height: 1.6; white-space: pre; }
+  #card .cmd u { text-decoration: none; display: inline-block; width: 12px; height: 26px; margin-left: 2px; vertical-align: -5px; background: var(--ink); }
+  #card .small { margin-top: 20px; font-size: 18px; color: #6f7d76; text-align: center; line-height: 1.7; white-space: pre; }
+  #curtain { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
-  <div id="caption"><div class="wrap"><div id="title"></div><div id="sub"></div></div></div>
+  <canvas id="glow" width="1920" height="1080"></canvas>
+  <div class="cap" id="capA"><div class="t"></div><div class="s"></div></div>
+  <div class="cap" id="capB"><div class="t"></div><div class="s"></div></div>
+  <div id="dots"></div><div id="count"></div>
   <div id="window">
-    <div id="bar"><div class="dot"></div><div>PowerShell 7</div><div class="grow"></div><div class="ctl">— ▢ ✕</div></div>
-    <div id="term"></div>
+    <div id="bar"><div id="tab"><div class="ico">&gt;_</div><div>PowerShell 7</div></div><div class="plus">+</div><div class="grow"></div><div class="ctl"><span>—</span><span>▢</span><span>✕</span></div></div>
+    <div id="view"><div id="term"></div></div>
   </div>
-  <img id="fade" alt="">
+  <div id="note"></div>
+  <div id="fadebox"><img alt=""></div>
   <div id="card"></div>
+  <div id="curtain"></div>
 <script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
 <script src="node_modules/@xterm/addon-canvas/lib/addon-canvas.js"></script>
 <script>
 // Campbell, the colors Windows Terminal starts with, so that PowerShell's own output looks as it does there
 const theme = {
-  background: '#0c0c0c', foreground: '#cccccc', cursor: '#cccccc', cursorAccent: '#0c0c0c', selectionBackground: '#264f78',
+  background: '#0c0c0c', foreground: '#cccccc', cursor: '#e8e8e8', cursorAccent: '#0c0c0c', selectionBackground: '#264f78',
   black: '#0c0c0c', red: '#c50f1f', green: '#13a10e', yellow: '#c19c00', blue: '#0037da', magenta: '#881798', cyan: '#3a96dd', white: '#cccccc',
   brightBlack: '#767676', brightRed: '#e74856', brightGreen: '#16c60c', brightYellow: '#f9f1a5', brightBlue: '#3b78ff',
   brightMagenta: '#b4009e', brightCyan: '#61d6d6', brightWhite: '#f2f2f2',
 };
 const frame2 = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const ease = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const easeOut = (x) => { x = clamp(x, 0, 1); return 1 - Math.pow(1 - x, 3); };
+const $ = (id) => document.getElementById(id);
+
+// What a terminal shows: the rows and columns with something on them, and the cursor (for the camera)
+function extent(t, withCursor) {
+  const b = t.buffer.active, rows = t.rows;
+  let top = rows, bottom = -1, left = t.cols, right = -1;
+  for (let y = 0; y < rows; y++) {
+    const line = b.getLine(b.viewportY + y);
+    if (!line) continue;
+    const s = line.translateToString(true);
+    if (!s.trim()) continue;
+    const l = s.length - s.trimStart().length;
+    top = Math.min(top, y); bottom = Math.max(bottom, y); left = Math.min(left, l); right = Math.max(right, s.length - 1);
+  }
+  if (withCursor && !t._core.coreService.isCursorHidden) {
+    const cy = b.cursorY, cx = b.cursorX;
+    top = Math.min(top, cy); bottom = Math.max(bottom, cy); left = Math.min(left, cx); right = Math.max(right, cx);
+  }
+  return bottom < 0 ? null : { top, bottom, left, right };
+}
+
 window.stage = {
   async init({ cols, rows, fontSize }) {
     await Promise.all([
       document.fonts.load(`${fontSize}px "Mono"`), document.fonts.load(`bold ${fontSize}px "Mono"`),
-      document.fonts.load('italic 58px "Instrument Serif"'),
+      document.fonts.load('italic 60px "Instrument Serif"'),
     ]);
+    this.cols = cols; this.rows = rows;
     this.term = new Terminal({ cols, rows, fontSize, fontFamily: '"Mono", "DejaVu Sans Mono", monospace', lineHeight: 1.0,
-      theme, cursorBlink: false, cursorStyle: 'block', allowProposedApi: true, scrollback: 0, customGlyphs: true,
-      drawBoldTextInBrightColors: false, minimumContrastRatio: 1 });
+      theme, cursorBlink: false, cursorStyle: 'bar', cursorInactiveStyle: 'bar', cursorWidth: Math.round(fontSize / 10),
+      allowProposedApi: true, scrollback: 0, customGlyphs: true, drawBoldTextInBrightColors: false, minimumContrastRatio: 1 });
     this.term.loadAddon(new CanvasAddon.CanvasAddon());
-    this.term.open(document.getElementById('term'));
+    this.term.open($('term'));
+    // a second terminal a moment ahead of the first, never drawn: the camera sees what is about to come
+    this.scout = new Terminal({ cols, rows, scrollback: 0, allowProposedApi: true });
     await frame2();
-    const w = document.getElementById('window').getBoundingClientRect();
-    document.querySelector('#caption .wrap').style.width = `${w.width}px`;
-    const note = document.getElementById('note') || document.createElement('div');
-    note.id = 'note';
-    document.querySelector('#caption .wrap').style.position = 'relative';
-    document.querySelector('#caption .wrap').appendChild(note);
-    return { width: w.width, height: w.height, top: w.top };
+    const scr = this.term.element.querySelector('.xterm-screen').getBoundingClientRect();
+    const cw = scr.width, ch = scr.height;
+    // the window as large as fits under the caption; the terminal is drawn large and shown smaller, so that the camera
+    // can come closer without blurring
+    const top = 176, bottom = 24, side = 96, bar = 38, padX = 14, padY = 12;
+    const s = Math.min((1920 - 2 * side - 2 * padX) / cw, (1080 - top - bottom - bar - 2 * padY) / ch);
+    const vw = Math.round(cw * s), vh = Math.round(ch * s);
+    const ww = vw + 2 * padX, wh = vh + bar + 2 * padY, left = Math.round((1920 - ww) / 2);
+    Object.assign($('window').style, { left: `${left}px`, top: `${top}px`, width: `${ww}px`, height: `${wh}px` });
+    Object.assign($('view').style, { width: `${vw}px`, height: `${vh}px` });
+    for (const c of ['capA', 'capB']) $(c).style.left = `${left + 4}px`;
+    this.L = { left, top, ww, wh, vw, vh, cw, ch, s, zmax: Math.min(1.55, 1 / s), viewLeft: left + 1 + padX, viewTop: top + 1 + bar + padY };
+    $('dots').style.right = `${1920 - left - ww}px`;
+    $('count').style.right = `${1920 - left - ww}px`;
+    Object.assign($('note').style, { right: `${1920 - left - ww + 14}px`, top: `${top + bar + 14}px` });
+    Object.assign($('fadebox').style, { left: `${left}px`, top: `${top}px`, width: `${ww}px`, height: `${wh}px` });
+    Object.assign($('fadebox').querySelector('img').style, { left: `${-left}px`, top: `${-top}px` });
+    this.cam = null; this.capShown = null; this.capLayer = 'capA';
+    this.glow = $('glow').getContext('2d');
+    return this.L;
   },
   // For the cut file's anchors: the first moment at or after each want's `after` (seconds) that the window shows its
   // text (a regular expression, per line) – the take replayed once into a terminal of its own, as the video shows it
@@ -106,25 +165,125 @@ window.stage = {
     t.dispose();
     return found;
   },
-  write(data) { return new Promise((r) => this.term.write(data, r)); },
+  write(data, ahead) {
+    if (ahead) this.scout._core.writeSync(ahead);
+    return new Promise((r) => this.term.write(data, r));
+  },
+  reset() { this.term.reset(); this.scout.reset(); },
   async settle() { await frame2(); },
-  reset() { this.term.reset(); },
-  set({ title, sub, captionOpacity, note, noteOpacity, fade, fadeOpacity, card, cardOpacity, windowOpacity }) {
-    const t = document.getElementById('title');
-    if (title !== undefined && t.innerHTML !== title) t.innerHTML = title;
-    const s = document.getElementById('sub');
-    if (sub !== undefined && s.textContent !== sub) s.textContent = sub;
-    if (captionOpacity !== undefined) document.getElementById('caption').style.opacity = captionOpacity;
-    const n = document.getElementById('note');
-    if (note !== undefined && n.textContent !== note) n.textContent = note;
-    if (noteOpacity !== undefined) n.style.opacity = noteOpacity;
-    const f = document.getElementById('fade');
-    if (fade !== undefined) f.src = fade;
-    if (fadeOpacity !== undefined) f.style.opacity = fadeOpacity;
-    const c = document.getElementById('card');
-    if (card !== undefined && c.innerHTML !== card) c.innerHTML = card;
-    if (cardOpacity !== undefined) c.style.opacity = cardOpacity;
-    if (windowOpacity !== undefined) document.getElementById('window').style.opacity = windowOpacity;
+
+  // One frame of the video: what the terminal and the one ahead of it receive (in order, a reset where a new window
+  // opens), then everything around them
+  async frame(o) {
+    for (const [op, d] of o.ahead || []) { if (op === 'w') this.scout._core.writeSync(d); else this.scout.reset(); }
+    for (const [op, d] of o.ops || []) { if (op === 'w') await new Promise((r) => this.term.write(d, r)); else this.term.reset(); }
+    this.background(o.T);
+    if (o.card) this.card(o.card.kind, o.card.t, o.card.html, o.card.opacity, o.card.curtain);
+    if (o.cam) this.camera(o.cam.dt, o.cam.snap);
+    if (o.cap) this.caption(o.cap);
+    if (o.prog) this.progress(o.prog.i, o.prog.n, o.prog.t, o.prog.visible);
+    if (o.note) this.note(o.note.text, o.note.t);
+    if (o.fade) this.fade(o.fade.src, o.fade.o);
+    if (!o.quick) await frame2();
+  },
+
+  // The camera: as close as the rows and columns in use allow (up to zmax), on what is there and what comes next;
+  // it follows smoothly, and jumps at a cut (snap)
+  camera(dt, snap) {
+    const L = this.L, a = extent(this.term, true), b = extent(this.scout, false);
+    let e = a || b || { top: 0, bottom: this.rows - 1, left: 0, right: this.cols - 1 };
+    if (a && b) e = { top: Math.min(a.top, b.top), bottom: Math.max(a.bottom, b.bottom), left: Math.min(a.left, b.left), right: Math.max(a.right, b.right) };
+    const cw = L.cw / this.cols, chh = L.ch / this.rows;
+    const x0 = Math.max(0, e.left - 2) * cw, x1 = Math.min(this.cols, e.right + 3) * cw;
+    const y0 = Math.max(0, e.top - 1) * chh, y1 = Math.min(this.rows, e.bottom + 2) * chh;
+    const zt = clamp(Math.min(L.vw / ((x1 - x0) * L.s), L.vh / ((y1 - y0) * L.s)), 1, L.zmax);
+    const target = { z: zt, x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+    if (snap || !this.cam) this.cam = { ...target };
+    else {
+      const k = 1 - Math.exp(-dt / 0.42);
+      for (const n of ['z', 'x', 'y']) this.cam[n] += (target[n] - this.cam[n]) * k;
+    }
+    const sc = L.s * this.cam.z;
+    const tx = clamp(L.vw / 2 - this.cam.x * sc, L.vw - L.cw * sc, 0), ty = clamp(L.vh / 2 - this.cam.y * sc, L.vh - L.ch * sc, 0);
+    $('term').style.transform = `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${sc.toFixed(5)})`;
+  },
+
+  // The light behind everything: two soft glows that drift slowly
+  background(T) {
+    const g = this.glow;
+    g.fillStyle = '#05070a'; g.fillRect(0, 0, 1920, 1080);
+    const spot = (x, y, r, color) => {
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, color); gr.addColorStop(1, 'rgba(5,7,10,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 1920, 1080);
+    };
+    spot(960 + 420 * Math.sin(T * 0.11), 520 + 140 * Math.cos(T * 0.07), 1100, 'rgba(60, 92, 60, 0.30)');
+    spot(960 - 520 * Math.cos(T * 0.09), 640 + 160 * Math.sin(T * 0.13), 900, 'rgba(120, 60, 90, 0.20)');
+  },
+
+  caption({ key, title, sub, t }) {
+    if (key !== this.capShown) {
+      this.capLayer = this.capLayer === 'capA' ? 'capB' : 'capA';
+      const c = $(this.capLayer);
+      c.querySelector('.t').innerHTML = title; c.querySelector('.s').textContent = sub || '';
+      this.capShown = key;
+    }
+    const inn = $(this.capLayer), out = $(this.capLayer === 'capA' ? 'capB' : 'capA');
+    // the old one goes up and away first, then the new one rises in
+    const p = easeOut((t - 0.17) / 0.5), q = 1 - ease(t / 0.16);
+    inn.style.opacity = p.toFixed(3); inn.style.transform = `translateY(${(22 * (1 - p)).toFixed(2)}px)`;
+    out.style.opacity = q.toFixed(3); out.style.transform = `translateY(${(-14 * (1 - q)).toFixed(2)}px)`;
+  },
+
+  progress(i, n, t, visible) {
+    const d = $('dots');
+    if (d.children.length !== n) d.innerHTML = '<i></i>'.repeat(n);
+    [...d.children].forEach((el, k) => {
+      el.className = k < i ? 'done' : k === i ? 'now' : '';
+      el.style.transform = k === i ? `scale(${(1 + 0.6 * (1 - easeOut(t / 0.5))).toFixed(3)})` : '';
+    });
+    $('count').textContent = `${String(i + 1).padStart(2, '0')} / ${n}`;
+    d.style.opacity = $('count').style.opacity = visible ? 1 : 0;
+  },
+
+  note(text, t) {
+    const n = $('note');
+    if (n.textContent !== text) n.textContent = text;
+    const o = !text ? 0 : t < 0.25 ? ease(t / 0.25) : t < 2.6 ? 1 : 1 - ease((t - 2.6) / 0.5);
+    n.style.opacity = o.toFixed(3);
+    n.style.transform = `translateY(${(-8 * (1 - Math.min(1, t / 0.25))).toFixed(2)}px)`;
+  },
+
+  fade(src, o) {
+    const f = $('fadebox');
+    if (src !== undefined) f.querySelector('img').src = src;
+    f.style.opacity = o;
+  },
+
+  // The cards: the lotus of the start screen grows row by row, then the words come
+  card(kind, t, html, opacity, curtain) {
+    const c = $('card');
+    if (c.dataset.kind !== kind) { c.innerHTML = html; c.dataset.kind = kind; }
+    c.style.opacity = opacity;
+    $('curtain').style.opacity = curtain || 0;
+    const art = [...c.querySelectorAll('pre.art span')], n = art.length;
+    art.forEach((row, k) => {
+      const from = kind === 'title' ? 0.15 + (n - 1 - k) * 0.05 : 0.05 + (n - 1 - k) * 0.025;
+      const p = ease((t - from) / 0.35);
+      row.style.opacity = p.toFixed(3);
+      row.style.transform = `translateY(${(10 * (1 - p)).toFixed(2)}px)`;
+    });
+    const at = (sel, from, dur) => { const el = c.querySelector(sel); if (!el) return; const p = easeOut((t - from) / dur);
+      el.style.opacity = p.toFixed(3); el.style.transform = `translateY(${(26 * (1 - p)).toFixed(2)}px)`; };
+    if (kind === 'title') { at('.big', 1.05, 0.8); at('.tag', 1.6, 0.7); at('.small', 2.1, 0.7); }
+    else {
+      at('.big', 0.2, 0.7); at('.tag', 0.6, 0.6); at('.cmd', 0.9, 0.5); at('.small', 2.7, 0.7);
+      const cmd = c.querySelector('.cmd');
+      if (cmd) {
+        const full = cmd.dataset.text, k = clamp(Math.floor((t - 1.2) * 46), 0, full.length);
+        cmd.innerHTML = `<span>PS&gt;</span> ${full.slice(0, k).replace(/&/g, '&amp;').replace(/</g, '&lt;')}<u style="opacity:${k < full.length || Math.floor(t * 2) % 2 === 0 ? 1 : 0}"></u>`;
+      }
+    }
   },
 };
 </script>

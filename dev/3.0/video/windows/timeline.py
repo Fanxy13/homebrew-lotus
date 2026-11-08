@@ -59,6 +59,8 @@ def main(argv):
             print('\n'.join(rows()).rstrip())
         return 0
     for i, (t, kind, data) in enumerate(events):
+        if kind == 'i':                               # (what was typed: its echo is in the output)
+            continue
         if kind == 'm':
             print(f'\n{t:8.2f}  ▶ {data}')
             if data == 'window':

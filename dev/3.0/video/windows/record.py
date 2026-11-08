@@ -25,7 +25,7 @@ import time
 
 import pyte
 
-COLS, ROWS = 110, 32
+COLS, ROWS = 120, 30                                   # the size Windows Terminal opens with
 WINDOWS = os.name == 'nt'
 HOME = os.path.expanduser('~')
 INSTALL = 'irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 | iex'
@@ -104,6 +104,11 @@ class Recording:
     def out(self, data):
         with self.lock:
             self.events.append([self.now(), 'o', data])
+
+    def key(self, data):
+        """What was typed (asciicast's input events) – the video's key clicks come from them."""
+        with self.lock:
+            self.events.append([self.now(), 'i', data])
 
     def mark(self, label):
         with self.lock:
@@ -232,25 +237,29 @@ class Console:
         return chosen
 
     # ── keys ──
+    def press(self, data):
+        self.rec.key(data)
+        self._write(data)
+
     def type(self, text, enter=False):
         for ch in text:
-            self._write(ch)
+            self.press(ch)
             time.sleep(random.uniform(0.045, 0.105))       # about 13 keys a second
         if enter:
             time.sleep(0.4)
-            self._write('\r')
+            self.press('\r')
 
     def paste(self, text, enter=False):
         """What a person copies rather than types – the install line from the website, a link: all at once, as Ctrl+V
         gives it to PowerShell."""
-        self._write(text)
+        self.press(text)
         time.sleep(0.8)
         if enter:
-            self._write('\r')
+            self.press('\r')
 
     def key(self, *names, gap=0.35):
         for name in names:
-            self._write(KEYS.get(name, name))
+            self.press(KEYS.get(name, name))
             time.sleep(gap)
 
     def select(self, label, limit=30):
