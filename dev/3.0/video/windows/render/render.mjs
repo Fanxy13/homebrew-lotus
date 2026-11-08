@@ -128,6 +128,16 @@ function cues(parts, events) {
   return out;
 }
 
+// The keys worth showing as keycaps: what moves in a list, answers it or stops something – typed words are on the
+// screen already
+const KEYCAPS = { '\r': 'Enter', '\x1b': 'Esc', '\x1b[A': '↑', '\x1b[B': '↓', '\x1b[C': '→', '\x1b[D': '←', '\x7f': '⌫',
+  '\x03': 'Ctrl C', '\x0c': 'Ctrl L' };
+function keycap(data) {
+  if (KEYCAPS[data]) return KEYCAPS[data];
+  if (data.length > 3 && !data.startsWith('\x1b')) return 'Ctrl V';
+  return null;
+}
+
 class Player {                                   // the terminal as it was at second t of the take
   constructor(events) { Object.assign(this, { events, i: 0 }); }
   to(t) {
@@ -172,6 +182,7 @@ async function main() {
   } else mkdirSync(stills.dir, { recursive: true });
 
   const main = new Player(cast.events), scout = new Player(cast.events);
+  const inputs = cast.events.filter((e) => e[1] === 'i');
   const n = (p) => Math.round((p.kind === 'card' ? p.seconds : p.to - p.from) * fps);
   const frames = parts.reduce((s, p) => s + n(p), 0);
   const wanted = stills ? new Set(stills.at.map((s) => Math.round(s * fps))) : null;
@@ -205,6 +216,13 @@ async function main() {
         o.cap = { key: p.scene.name, title: p.scene.title, sub: p.scene.sub || '', t: T - sceneStart };
         o.prog = { i: p.index, n: nScenes, t: T - sceneStart, visible: true };
         o.note = { text: p.note, t: T - noteStart };
+        o.keys = [];
+        for (const [t, , data] of inputs) {                   // (the keys of the last 1.4 s of this part)
+          if (t > tt || t < Math.max(p.from, tt - 1.4)) continue;
+          const label = keycap(data);
+          if (label) o.keys.push([label, tt - t]);
+        }
+        o.keys = o.keys.slice(-6);
         if (f === 0) o.fade = { src: fadeSrc, o: fadeSrc ? 1 : 0 };
         else if (f < dissolve) o.fade = { o: 1 - ease(f / dissolve) };
         else if (f === dissolve) o.fade = { o: 0 };

@@ -52,6 +52,10 @@
   #card .cmd u { text-decoration: none; display: inline-block; width: 12px; height: 26px; margin-left: 2px; vertical-align: -5px; background: var(--ink); }
   #card .small { margin-top: 20px; font-size: 18px; color: #6f7d76; text-align: center; line-height: 1.7; white-space: pre; }
   #curtain { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
+  #keys { position: absolute; display: flex; gap: 8px; justify-content: flex-end; pointer-events: none; }
+  #keys b { font-weight: 700; font-size: 24px; color: #e8eee6; background: rgba(28, 33, 31, .92); border: 1px solid #3a4640;
+            border-bottom-width: 3px; border-radius: 9px; padding: 7px 15px 6px; min-width: 22px; text-align: center;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
 </style>
 </head>
 <body>
@@ -64,6 +68,7 @@
     <div id="view"><div id="term"></div></div>
   </div>
   <div id="note"></div>
+  <div id="keys"></div>
   <div id="fadebox"><img alt=""></div>
   <div id="card"></div>
   <div id="curtain"></div>
@@ -133,6 +138,7 @@ window.stage = {
     $('count').style.right = `${1920 - left - ww}px`;
     Object.assign($('note').style, { right: `${1920 - left - ww + 14}px`, top: `${top + bar + 14}px` });
     Object.assign($('fadebox').style, { left: `${left}px`, top: `${top}px`, width: `${ww}px`, height: `${wh}px` });
+    Object.assign($('keys').style, { right: `${1920 - left - ww + 18}px`, top: `${top + wh - 70}px` });
     Object.assign($('fadebox').querySelector('img').style, { left: `${-left}px`, top: `${-top}px` });
     this.cam = null; this.capShown = null; this.capLayer = 'capA';
     this.glow = $('glow').getContext('2d');
@@ -184,6 +190,7 @@ window.stage = {
     if (o.prog) this.progress(o.prog.i, o.prog.n, o.prog.t, o.prog.visible);
     if (o.note) this.note(o.note.text, o.note.t);
     if (o.fade) this.fade(o.fade.src, o.fade.o);
+    if (o.keys) this.keys(o.keys);
     if (!o.quick) await frame2();
   },
 
@@ -252,6 +259,18 @@ window.stage = {
     const o = !text ? 0 : t < 0.25 ? ease(t / 0.25) : t < 2.6 ? 1 : 1 - ease((t - 2.6) / 0.5);
     n.style.opacity = o.toFixed(3);
     n.style.transform = `translateY(${(-8 * (1 - Math.min(1, t / 0.25))).toFixed(2)}px)`;
+  },
+
+  // The keys pressed a moment ago, as keycaps in the corner of the window: [label, age in seconds]
+  keys(list) {
+    const k = $('keys');
+    const html = list.map(([label]) => `<b>${label}</b>`).join('');
+    if (k.dataset.html !== html) { k.innerHTML = html; k.dataset.html = html; }
+    [...k.children].forEach((el, i) => {
+      const age = list[i][1], p = easeOut(age / 0.12), q = 1 - ease((age - 1.0) / 0.4);
+      el.style.opacity = (p * q).toFixed(3);
+      el.style.transform = `translateY(${(8 * (1 - p)).toFixed(2)}px) scale(${(0.9 + 0.1 * p).toFixed(3)})`;
+    });
   },
 
   fade(src, o) {
