@@ -170,12 +170,20 @@ function Update-LotusShellAfter {
         $text = ([string](Read-LotusFile $f)).TrimEnd("`n")
         Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
         if ($text -and (Get-Module PSReadLine)) {
-            # PSReadLine raises OnIdle while it waits for keys: that is when the line can be filled
-            Register-EngineEvent -SourceIdentifier PowerShell.OnIdle -MaxTriggerCount 1 -MessageData $text -Action {
-                [Microsoft.PowerShell.PSConsoleReadLine]::Insert($event.MessageData)
-            } | Out-Null
+            # PSReadLine raises OnIdle while it waits for keys: that is when the line can be filled. The event it raises
+            # carries no MessageData ($Event.MessageData was empty, and an empty Insert put a NUL key, ^@, on the line),
+            # and an event's action runs in a scope of its own (no closure, no module) – so the text is in the action.
+            Register-EngineEvent -SourceIdentifier PowerShell.OnIdle -MaxTriggerCount 1 -Action (Get-LotusLineAction $text) | Out-Null
         }
     }
+}
+
+# The action that puts text onto the line PSReadLine is reading – the command a Lotus command prepared (it is never run):
+# the text as a single-quoted string, every quote PowerShell takes for one (' ‘ ’ ‚ ‛) doubled
+function Get-LotusLineAction {
+    param([string]$Text)
+    $literal = "'" + ($Text -replace "['\u2018\u2019\u201A\u201B]", '$0$0') + "'"
+    [scriptblock]::Create("[Microsoft.PowerShell.PSConsoleReadLine]::Insert($literal)")
 }
 
 # Lotus leaves this window (after lotus uninstall): Enter, the prompt and the module as they were

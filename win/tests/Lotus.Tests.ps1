@@ -368,3 +368,34 @@ Describe 'the setup on Windows' {
         }
     }
 }
+
+Describe 'a command that /ai command or /help prepared' {
+    # (it never reached the line: the OnIdle event carries no MessageData, so an empty Insert put a NUL key – ^@ – there)
+    It 'is in the action that fills the next line, exactly – quotes and all' {
+        InModuleScope Lotus {
+            $cmd = "Get-ChildItem 'C:\My Files' | Where-Object Name -like '*" + [char]0x2019 + "s*'"
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseInput((Get-LotusLineAction $cmd).ToString(), [ref]$null, [ref]$errors)
+            $errors | Should -BeNullOrEmpty
+            $call = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)
+            $call.Member.Value | Should -Be 'Insert'
+            $call.Arguments[0].Value | Should -BeExactly $cmd
+        }
+    }
+    It 'waits for the next line after the lotus command (with PSReadLine)' {
+        Import-Module PSReadLine -ErrorAction SilentlyContinue
+        if (-not (Get-Module PSReadLine)) { Set-ItResult -Skipped -Because 'PSReadLine is not here'; return }
+        $f = Join-Path $env:LOTUS_CACHE 'ai-prompt'
+        Set-Content -LiteralPath $f -Value 'Get-Process | Sort-Object CPU -Descending'
+        try {
+            InModuleScope Lotus { Update-LotusShellAfter 'ai' }
+            Test-Path -LiteralPath $f | Should -BeFalse
+            $sub = @(Get-EventSubscriber -SourceIdentifier PowerShell.OnIdle -ErrorAction SilentlyContinue)
+            $sub.Count | Should -Be 1
+            $sub[0].Action.Command | Should -Match ([regex]::Escape("Insert('Get-Process | Sort-Object CPU -Descending')"))
+        } finally {
+            Get-EventSubscriber -SourceIdentifier PowerShell.OnIdle -ErrorAction SilentlyContinue | Unregister-Event
+            Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
