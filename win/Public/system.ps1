@@ -135,6 +135,11 @@ function script:Invoke-LotusDoctor {
     # (python.exe in WindowsApps only sends you to the Microsoft Store: Find-LotusPython counts a Python that answers)
     $py = Find-LotusPython
     if ($py) { & $row $ok 'Python' "$($py.Exe) $($py.Version)  (/liveserver, /html)" } else { & $row $opt 'Python' 'needed for /liveserver and /html: winget install Python.Python.3.13' }
+    if (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot 'Public/minecraft.ps1')) {
+        Import-LotusCommand minecraft
+        $jh = Find-LotusJava 17
+        if ($jh) { & $row $ok 'Java' "$(Get-LotusJavaLabel $jh)  (/minecraft)" } else { & $row $opt 'Java' 'not installed – /minecraft can set it up' }
+    }
     Import-LotusCommand meshchat
     $mc = Find-LotusMeshChat
     if ($mc) { & $row $ok 'MeshChat' "$mc  (/meshchat)" } else { & $row $opt 'MeshChat' 'meshchat.exe is not installed – /meshchat offers it' }

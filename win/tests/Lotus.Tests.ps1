@@ -188,8 +188,12 @@ Describe 'the lotus command' {
         $out = lotus ios *>&1 | Out-String
         $out | Should -Match 'macOS only'
         $LASTEXITCODE | Should -Be 2
-        $out = lotus minecraft *>&1 | Out-String
+        $out = lotus plugin *>&1 | Out-String
         $out | Should -Match 'not on Windows yet'
+        # (Minecraft and Remove BG are there now: without a keyboard the assistant only shows its menu)
+        $out = lotus minecraft *>&1 | Out-String
+        $out | Should -Match 'server assistant'
+        $out | Should -Not -Match 'not on Windows yet'
     }
     It 'explains a feature that is turned off (and runs nothing)' {
         lotus features weather off *>&1 | Out-Null

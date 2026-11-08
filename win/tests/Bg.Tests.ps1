@@ -290,7 +290,7 @@ Describe 'Remove BG on Windows' {
             . (Join-Path $script:LotusModuleRoot 'Public/bg.ps1')
             $arch = $script:Os.Arch
             $script:Os.Arch = 'arm64'
-            try { Invoke-LotusBgCommand @('remove', 'x.png') *>&1 | Out-String } finally { $script:Os.Arch = $arch }
+            try { Invoke-Lotusbg 'bg' @('remove', 'x.png') *>&1 | Out-String } finally { $script:Os.Arch = $arch }
         }
         $plain = Get-Plain $out
         $plain | Should -Match 'BG-008'

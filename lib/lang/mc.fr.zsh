@@ -86,4 +86,12 @@ LOTUS_L+=(
   mc_del_otherdisk_linux 'Le serveur est sur un autre disque que ton dossier personnel, Lotus ne peut donc pas le mettre à la corbeille – supprime son dossier dans le gestionnaire de fichiers.'
   mc_del_nomove 'Il n’a pas pu être mis à la corbeille – rien n’a été supprimé.'
   mc_del_norm 'Le dossier n’a pas pu être supprimé : %s'
+  # Windows : les mêmes écrans avec les mots de Windows
+  mc_err_fifo_win 'Lotus n’a pas pu préparer la console du serveur'
+  mc_ext_stop_win 'Ce serveur tourne dans sa propre fenêtre – tape stop là-bas.'
+  mc_del_where_win 'Le dossier va dans la corbeille – tant qu’elle n’est pas vidée, il peut revenir.'
+  mc_del_trash_win 'Le serveur %s est supprimé – son dossier est dans la corbeille.'
+  mc_del_busy_win 'Quelque chose du serveur tourne encore – arrête-le (ou ferme la fenêtre de son start.cmd), puis supprime à nouveau.'
+  mc_del_nomove_win 'Il n’a pas pu être mis à la corbeille – rien n’a été supprimé.'
+  mc_del_norecycle_win 'Ce système n’a pas de corbeille que Lotus peut utiliser – supprime le dossier toi-même.'
 )

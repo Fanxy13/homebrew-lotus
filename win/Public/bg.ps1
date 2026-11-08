@@ -211,11 +211,29 @@ function script:Find-LotusBgPython {
         if ($seen[$key] -or $t[0] -match '[\\/]WindowsApps[\\/]') { continue }
         $seen[$key] = $true
         $pre = @($t | Select-Object -Skip 1)
-        try { $v = & $t[0] @pre -c 'import sys, venv, ensurepip, platform; print("%d.%d %s" % (sys.version_info[:2] + (platform.machine(),)))' 2>$null } catch { continue }
-        if ($LASTEXITCODE -ne 0 -or "$v".Trim() -notmatch '^(3\.1[0-4]) (AMD64|x86_64|amd64)$') { continue }
+        $v = Invoke-LotusBgProbe $t[0] (@($pre) + @('-c', 'import sys, venv, ensurepip, platform; print("%d.%d %s" % (sys.version_info[:2] + (platform.machine(),)))'))
+        if ("$v".Trim() -notmatch '^(3\.1[0-4]) (AMD64|x86_64|amd64)$') { continue }
         return [pscustomobject]@{ Exe = $t[0]; Args = $pre; Version = $Matches[1] }
     }
     $null
+}
+
+# What a program prints when it answers at once: no input (a launcher that would ask something gets none), at most 15
+# seconds → its output, or '' when it failed
+function script:Invoke-LotusBgProbe {
+    param([string]$Exe, [string[]]$Arguments)
+    $p = Start-LotusBgProcess $Exe $Arguments @{} -WithInput
+    if (-not $p) { return '' }
+    try {
+        $p.StandardInput.Close()
+        $err = $p.StandardError.ReadToEndAsync()
+        $out = $p.StandardOutput.ReadToEndAsync()
+        if (-not $p.WaitForExit(15000)) { try { $p.Kill($true) } catch { }; return '' }
+        $p.WaitForExit()
+        $null = $err.Result
+        if ($p.ExitCode -ne 0) { return '' }
+        [string]$out.Result
+    } catch { '' } finally { $p.Dispose() }
 }
 
 # Free space where Lotus keeps its data → GB

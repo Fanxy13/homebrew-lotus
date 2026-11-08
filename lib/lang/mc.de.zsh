@@ -86,4 +86,12 @@ LOTUS_L+=(
   mc_del_otherdisk_linux 'Der Server liegt auf einem anderen Laufwerk als dein Home-Ordner, deshalb kann Lotus ihn nicht in den Papierkorb legen – lösche seinen Ordner im Dateimanager.'
   mc_del_nomove 'Er konnte nicht in den Papierkorb gelegt werden – nichts wurde gelöscht.'
   mc_del_norm 'Der Ordner konnte nicht entfernt werden: %s'
+  # Windows: dieselben Bildschirme in den Worten von Windows
+  mc_err_fifo_win 'Lotus konnte die Konsole des Servers nicht vorbereiten'
+  mc_ext_stop_win 'Dieser Server läuft in einem eigenen Fenster – tippe dort stop.'
+  mc_del_where_win 'Der Ordner kommt in den Papierkorb – bis du ihn leerst, lässt er sich zurückholen.'
+  mc_del_trash_win 'Der Server %s ist gelöscht – sein Ordner liegt im Papierkorb.'
+  mc_del_busy_win 'Vom Server läuft noch etwas – stoppe es (oder schließe das Fenster seiner start.cmd) und lösche dann noch einmal.'
+  mc_del_nomove_win 'Er konnte nicht in den Papierkorb gelegt werden – nichts wurde gelöscht.'
+  mc_del_norecycle_win 'Hier gibt es keinen Papierkorb, den Lotus nutzen kann – lösche den Ordner selbst.'
 )

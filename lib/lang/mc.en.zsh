@@ -86,4 +86,12 @@ LOTUS_L+=(
   mc_del_otherdisk_linux 'The server is on another disk than your home folder, so Lotus cannot move it to the Trash – delete its folder in your file manager.'
   mc_del_nomove 'It could not be moved to the Trash – nothing was deleted.'
   mc_del_norm 'The folder could not be removed: %s'
+  # Windows: the same screens in Windows' words
+  mc_err_fifo_win 'Lotus could not prepare the console of the server'
+  mc_ext_stop_win 'This server runs in a window of its own – type stop there.'
+  mc_del_where_win 'The folder goes to the Recycle Bin – until you empty it, it can come back.'
+  mc_del_trash_win 'The server %s is deleted – its folder is in the Recycle Bin.'
+  mc_del_busy_win 'Something of the server still runs – stop it (or close the window of its start.cmd), then delete again.'
+  mc_del_nomove_win 'It could not be moved to the Recycle Bin – nothing was deleted.'
+  mc_del_norecycle_win 'This system has no Recycle Bin Lotus can use – delete the folder yourself.'
 )

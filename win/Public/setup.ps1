@@ -21,7 +21,7 @@ function script:Invoke-Lotussetup {
 
 # Features that Windows does not have (yet): what the features page says about them. Remove BG needs PyTorch, which is
 # built for Windows on x64 processors only.
-$script:FeatureNotHere = @{ ios = 'macOS only'; minecraft = 'not on Windows yet'; plugins = 'not on Windows yet' }
+$script:FeatureNotHere = @{ ios = 'macOS only'; plugins = 'not on Windows yet' }
 if ($IsWindows -and $script:Os -and $script:Os.Arch -ne 'x86_64') { $script:FeatureNotHere['bg'] = 'not on Windows on Arm yet' }
 $script:BgHere = (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot 'Public/bg.ps1')) -and -not $script:FeatureNotHere.ContainsKey('bg')
 function script:Get-LotusFeatureAbout {

@@ -86,4 +86,12 @@ LOTUS_L+=(
   mc_del_otherdisk_linux 'El servidor está en otro disco distinto de tu carpeta personal, así que Lotus no puede moverlo a la papelera – borra su carpeta en el gestor de archivos.'
   mc_del_nomove 'No se pudo mover a la papelera – no se borró nada.'
   mc_del_norm 'No se pudo quitar la carpeta: %s'
+  # Windows: las mismas pantallas con las palabras de Windows
+  mc_err_fifo_win 'Lotus no pudo preparar la consola del servidor'
+  mc_ext_stop_win 'Este servidor está en su propia ventana – escribe stop allí.'
+  mc_del_where_win 'La carpeta va a la papelera de reciclaje – hasta que la vacíes, se puede recuperar.'
+  mc_del_trash_win 'El servidor %s está borrado – su carpeta está en la papelera de reciclaje.'
+  mc_del_busy_win 'Algo del servidor sigue en marcha – detenlo (o cierra la ventana de su start.cmd) y vuelve a borrar.'
+  mc_del_nomove_win 'No se pudo mover a la papelera de reciclaje – no se borró nada.'
+  mc_del_norecycle_win 'Este sistema no tiene una papelera que Lotus pueda usar – borra la carpeta tú mismo.'
 )
