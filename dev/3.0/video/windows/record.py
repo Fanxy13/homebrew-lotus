@@ -181,6 +181,11 @@ class Console:
         rows = [line for line in self.lines() if line.strip()]
         return bool(rows) and bool(PROMPT.match(rows[-1].strip()))
 
+    def line_ready(self):
+        """A prompt with a command on it that nobody typed – the one /ai command or /help prepared."""
+        rows = [line for line in self.lines() if line.strip()]
+        return bool(rows) and bool(re.match(r'^(PS .*?>|[\w.-]+@[\w.-]+ \S*>) \S', rows[-1].strip()))
+
     def prompt(self, timeout=60, quiet=0.8):
         self.wait_for(self.at_prompt, 'the prompt', timeout, quiet)
 
@@ -338,7 +343,7 @@ def pet(rec, c):
 def ai(rec, c):
     c.clear()
     rec.mark('scene:ai')
-    c.type('/ai how do I stop an app from starting with Windows', enter=True)
+    c.type('/ai explain Get-Process in two sentences', enter=True)   # (a small model on the processor: a question it knows)
     c.prompt(300, quiet=1.5)
     hold(5)
 
@@ -346,11 +351,11 @@ def ai(rec, c):
 def ai_command(rec, c):
     c.clear()
     rec.mark('scene:ai-command')
-    c.type('/ai command the five biggest files in Downloads', enter=True)
+    c.type('/ai command list the five largest files in this folder', enter=True)
     c.wait(r'Put it on the command line', 300, quiet=1.0)
     hold(2.5)
     c.key('enter')
-    c.prompt(30)
+    c.wait_for(c.line_ready, 'the command on the next line', 30, quiet=0.8)
     hold(3.5)                                         # it waits on the line – Lotus never runs it
     c.key('esc' if WINDOWS else 'ctrl-c')
     c.prompt(10)
