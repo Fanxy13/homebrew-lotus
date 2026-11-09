@@ -30,33 +30,30 @@ from events import BgError, Stage, emit, log
 warnings.filterwarnings("ignore")
 
 
-def _interrupt(*_):
-    raise KeyboardInterrupt
-
-
-signal.signal(signal.SIGTERM, _interrupt)
-
-
-def _watch_stdin():
-    """Windows has no signal Lotus could send: it writes "cancel" to stdin instead (closing it counts too, so a
-    closed terminal window stops the worker as well). The main thread stops at its next step, as with SIGTERM."""
+def _watch_cancel(path):
+    """Windows has no signal Lotus could send: Lotus makes the file <path> instead, and the main thread stops at its
+    next step, as with SIGTERM. A file, not a line on stdin – a thread waiting on stdin makes Windows hold up
+    everything else that asks about that handle, and importing PyTorch does."""
     import _thread
     import threading
 
     def run():
-        try:
-            for line in sys.stdin:
-                if line.strip() == "cancel":
-                    break
-        except (OSError, ValueError):
-            pass
+        while not os.path.exists(path):
+            time.sleep(0.2)
         _thread.interrupt_main()
 
     threading.Thread(target=run, daemon=True).start()
 
 
-if os.environ.get("LOTUS_BG_CANCEL") == "stdin":
-    _watch_stdin()
+if os.environ.get("LOTUS_BG_CANCEL"):
+    _watch_cancel(os.environ["LOTUS_BG_CANCEL"])
+
+
+def _interrupt(*_):
+    raise KeyboardInterrupt
+
+
+signal.signal(signal.SIGTERM, _interrupt)
 
 
 def total_memory():

@@ -5,7 +5,7 @@ run      copies each image to <stem>_no_bg.png (next to it, or into --out) – a
 selftest a model that loads and answers in 0.42 s
 check    every model ok
 probe    a Python and a PyTorch
-A line "cancel" on stdin (LOTUS_BG_CANCEL=stdin) stops it like the real one: status 130.
+The file named by LOTUS_BG_CANCEL stops it like the real one: status 130.
 """
 import argparse
 import os
@@ -21,11 +21,10 @@ def emit(*parts):
 
 
 stopped = threading.Event()
-if os.environ.get("LOTUS_BG_CANCEL") == "stdin":
-    def watch():
-        for line in sys.stdin:
-            if line.strip() == "cancel":
-                break
+if os.environ.get("LOTUS_BG_CANCEL"):
+    def watch(path=os.environ["LOTUS_BG_CANCEL"]):
+        while not os.path.exists(path):
+            time.sleep(0.05)
         stopped.set()
     threading.Thread(target=watch, daemon=True).start()
 

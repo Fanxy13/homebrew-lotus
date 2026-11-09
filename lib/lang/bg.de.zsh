@@ -124,5 +124,5 @@ LOTUS_L+=(
   bg_t_BG-005_win 'PNG, JPG, WebP oder TIFF verwenden|HEIC braucht die HEIF- und HEVC-Erweiterungen aus dem Microsoft Store|Prüfen, ob die Datei in Fotos aufgeht'
   bg_t_BG-007_win 'Grosse Apps schliessen und erneut versuchen|BiRefNet Lite verwenden: /bg remove --model birefnet-lite <bild>'
   bg_t_BG-008_win 'Hintergrund entfernen braucht Windows mit x64-Prozessor: PyTorch gibt es für Windows on Arm noch nicht'
-  bg_t_BG-011_win 'Nochmals versuchen|Anderes Modell: /bg remove --model birefnet-lite <bild>'
+  bg_t_BG-011_win 'Nochmals versuchen|PyTorch braucht die Visual-C++-Laufzeit von Microsoft: winget install Microsoft.VCRedist.2015+.x64|Anderes Modell: /bg remove --model birefnet-lite <bild>'
 )

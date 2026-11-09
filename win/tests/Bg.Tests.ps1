@@ -204,21 +204,30 @@ Describe 'Remove BG on Windows' {
         Test-Path -LiteralPath $img | Should -BeTrue
     }
 
-    It 'asks the worker to stop with a line on its input – no signal Windows does not have' -Skip:(-not $script:Py) {
+    It 'asks the worker to stop with a file – no signal Windows does not have, and no wait on its input' -Skip:(-not $script:Py) {
         Use-TestBg
-        $r = InModuleScope Lotus -Parameters @{ Fake = $script:Fake } {
+        $r = InModuleScope Lotus -Parameters @{ Fake = $script:Fake; Tmp = $script:Ctx.Tmp } {
             $py = Get-LotusBgPython
-            $p = Start-LotusBgProcess $py[0] @('-B', $Fake, 'run', '--model', 'x', '--models-dir', '.', '--session', '.', '--out', '.', 'slow.png') @{ LOTUS_BG_CANCEL = 'stdin'; FAKE_BG_SLOW = '1' } -WithInput
+            $cancel = Join-Path $Tmp 'cancel-test'
+            $p = Start-LotusBgProcess $py[0] @('-B', $Fake, 'run', '--model', 'x', '--models-dir', '.', '--session', '.', '--out', '.', 'slow.png') @{ LOTUS_BG_CANCEL = $cancel; FAKE_BG_SLOW = '1' }
             $seen = $false
             while (-not $seen) { $l = $p.StandardOutput.ReadLine(); if ($null -eq $l) { break }; if ($l -eq "stage`tsegment") { $seen = $true } }
             $t0 = [datetime]::UtcNow
-            Stop-LotusBgProc $p -Gently
+            Stop-LotusBgProc $p $cancel
             @($seen, $p.HasExited, $p.ExitCode, ([datetime]::UtcNow - $t0).TotalSeconds)
         }
         $r[0] | Should -BeTrue
         $r[1] | Should -BeTrue
         $r[2] | Should -Be 130
         $r[3] | Should -BeLessThan 3
+    }
+
+    It 'the real worker never waits on its input: a thread of its own watches the file' -Skip:(-not $script:Py) {
+        # (a thread that read stdin made Windows hold up the import of PyTorch: every other question about that handle
+        # waited for it – the self-test hung on GitHub's Windows machine)
+        $code = Get-Content -Raw (Join-Path $script:Ctx.Repo 'lib/bg/worker.py')
+        $code | Should -Not -Match 'sys\.stdin'
+        $code | Should -Match 'LOTUS_BG_CANCEL'
     }
 
     It 'draws the blooming lotus: the title, the step, the flower, the keys' {

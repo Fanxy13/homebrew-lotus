@@ -290,9 +290,9 @@ function script:Add-LotusBgLog {
 # ── Programs Lotus waits for: the worker, pip, curl ──────────
 
 # A program with its output for Lotus to read – no window and no console of its own, so ctrl-c reaches only Lotus. Its
-# input is Lotus' (-WithInput: the worker's "cancel"), or closed at once: nothing it runs can wait for a key.
+# input is closed at once: nothing it runs can wait for a key.
 function script:Start-LotusBgProcess {
-    param([string]$Exe, [string[]]$Arguments, [hashtable]$Environment = @{}, [switch]$WithInput)
+    param([string]$Exe, [string[]]$Arguments, [hashtable]$Environment = @{})
     $psi = [System.Diagnostics.ProcessStartInfo]::new($Exe)
     foreach ($a in $Arguments) { $psi.ArgumentList.Add($a) }
     $psi.UseShellExecute = $false
@@ -305,20 +305,20 @@ function script:Start-LotusBgProcess {
     foreach ($k in $Environment.Keys) { $psi.Environment[$k] = [string]$Environment[$k] }
     try {
         $p = [System.Diagnostics.Process]::Start($psi)
-        if (-not $WithInput) { $p.StandardInput.Close() }
+        $p.StandardInput.Close()
         $p
     } catch { Write-LotusLog ERROR bg "Could not start ${Exe}: $($_.Exception.Message)"; $null }
 }
 
-# The end of a program Lotus started: the worker is asked to stop (it does at its next step and cleans up after itself),
-# anything else is stopped with what it started
+# The end of a program Lotus started: the worker is asked to stop – the file <cancel> (it stops at its next step and
+# cleans up after itself) – anything else is stopped with what it started
 function script:Stop-LotusBgProc {
-    param($P, [switch]$Gently)
+    param($P, [string]$Cancel)
     if (-not $P) { return }
     try {
         if (-not $P.HasExited) {
-            if ($Gently) {
-                try { $P.StandardInput.WriteLine('cancel'); $P.StandardInput.Close() } catch { }
+            if ($Cancel) {
+                try { [IO.File]::WriteAllText($Cancel, '') } catch { }
                 [void]$P.WaitForExit(3000)
             } else { $P.Kill($true); [void]$P.WaitForExit(3000) }
         }
@@ -391,10 +391,13 @@ function script:Invoke-LotusBgWorker {
     $b.Warn = [System.Collections.Generic.List[object]]::new()
     $py = Get-LotusBgPython
     New-LotusDir $script:Paths.State | Out-Null
+    # (the file that stops it: in the session folder, or the cache when there is no session)
+    $cancel = Join-Path $(if ($b.Session) { $b.Session } else { (Get-LotusBgDirs).Cache }) "cancel-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     $vars = @{ LOTUS_LOG = $script:Paths.Log; LOTUS_LOG_LEVEL = [string]$script:S['LOTUS_LOG_LEVEL']; LOTUS_VERBOSE = [string]$env:LOTUS_VERBOSE
-        PYTHONDONTWRITEBYTECODE = '1'; HF_HUB_OFFLINE = '1'; LOTUS_BG_CANCEL = 'stdin'
+        PYTHONDONTWRITEBYTECODE = '1'; HF_HUB_OFFLINE = '1'; LOTUS_BG_CANCEL = $cancel
     }
-    $p = Start-LotusBgProcess $py[0] (@($py | Select-Object -Skip 1) + @($script:BgWorker) + $Arguments) $vars -WithInput
+    New-LotusDir (Split-Path -Parent $cancel) | Out-Null
+    $p = Start-LotusBgProcess $py[0] (@($py | Select-Object -Skip 1) + @($script:BgWorker) + $Arguments) $vars
     if (-not $p) { $b.Err = @('BG-011', 'Lotus could not start the background remover.', $py[0]); return 1 }
     $b.Proc = $p
     Write-LotusLog DEBUG bg "Worker: $($Arguments[0]) (pid $($p.Id))"
@@ -436,7 +439,10 @@ function script:Invoke-LotusBgWorker {
         $p.WaitForExit()
         $st = $p.ExitCode
         Add-LotusBgLog $err.Result
-    } finally { Stop-LotusBgProc $p -Gently }
+    } finally {
+        Stop-LotusBgProc $p $cancel
+        Remove-Item -LiteralPath $cancel -Force -ErrorAction SilentlyContinue
+    }
     if ($rc -lt 0) { $rc = $st }
     if ($rc -and -not $b.Err.Count -and $rc -ne 130) {
         $tail = @(Get-Content -LiteralPath $b.Log -Tail 3 -ErrorAction SilentlyContinue) -join ' '

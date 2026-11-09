@@ -63,7 +63,7 @@ jobs:
   bg-real:
     name: Remove BG on real Windows (PyTorch, BiRefNet Lite)
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - name: Set it up and cut out a picture, the way you would
@@ -76,17 +76,24 @@ jobs:
           Import-Module ./win/Lotus.psd1
           lotus settings set LOTUS_CONFIGURED 1 | Out-Null
           lotus settings set LOTUS_LOG_LEVEL debug | Out-Null
+          # in a PowerShell of its own, with a limit: when something waits, the logs say where
+          $run = {
+            param([string]$What, [int]$Seconds)
+            $p = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList @('-NoProfile', '-Command', "Import-Module ./win/Lotus.psd1; $What; exit `$LASTEXITCODE") -NoNewWindow -PassThru
+            if (-not $p.WaitForExit($Seconds * 1000)) { $p.Kill($true); Write-Host "::error::$What did not finish in $Seconds s"; return 99 }
+            $p.ExitCode
+          }
           $t0 = Get-Date
-          lotus bg setup --yes birefnet-lite
-          if ($LASTEXITCODE) { & $show; exit 1 }
+          if ((& $run 'lotus bg setup --yes birefnet-lite' 1200) -ne 0) { & $show; exit 1 }
           "set up in $([int]((Get-Date) - $t0).TotalSeconds) s"
           # an orange disc on a grey gradient, made with the runtime's own Pillow
           $py = "$tmp\data\runtime\bg\Scripts\python.exe"
           $img = "$tmp\disc.jpg"
           & $py -c "import sys; from PIL import Image, ImageDraw; im = Image.linear_gradient('L').resize((640, 480)).convert('RGB'); ImageDraw.Draw(im).ellipse((200, 120, 440, 360), fill=(230, 120, 60)); im.save(sys.argv[1], quality=92)" $img
           $t0 = Get-Date
-          $out = @(lotus bg remove $img --out "$tmp\out")
-          if ($LASTEXITCODE -or $out.Count -ne 1) { "status $LASTEXITCODE, output: $out"; & $show; exit 1 }
+          if ((& $run "lotus bg remove '$img' --out '$tmp\out'" 600) -ne 0) { & $show; exit 1 }
+          $out = @(Get-ChildItem "$tmp\out" -Filter '*_no_bg.png' | ForEach-Object FullName)
+          if ($out.Count -ne 1) { "output: $out"; & $show; exit 1 }
           "cut out in $([int]((Get-Date) - $t0).TotalSeconds) s: $($out[0])"
           # the disc stays, the gradient goes
           & $py -c "import sys; from PIL import Image; a = Image.open(sys.argv[1]).getchannel('A'); w, h = a.size; c = a.getpixel((w // 2, h // 2)); e = a.getpixel((8, 8)); print('alpha in the disc', c, '- in a corner', e); sys.exit(0 if c > 128 and e < 128 else 1)" $out[0]

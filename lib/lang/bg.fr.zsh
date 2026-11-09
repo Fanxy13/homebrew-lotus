@@ -124,5 +124,5 @@ LOTUS_L+=(
   bg_t_BG-005_win 'Utilisez PNG, JPG, WebP ou TIFF|HEIC demande les extensions HEIF et HEVC du Microsoft Store|Vérifiez que le fichier s’ouvre dans Photos'
   bg_t_BG-007_win 'Fermez les grosses apps et réessayez|BiRefNet Lite : /bg remove --model birefnet-lite <image>'
   bg_t_BG-008_win 'Supprimer le fond demande Windows sur un processeur x64 : PyTorch n’existe pas encore pour Windows on Arm'
-  bg_t_BG-011_win 'Réessayez|Un autre modèle : /bg remove --model birefnet-lite <image>'
+  bg_t_BG-011_win 'Réessayez|PyTorch demande le runtime Visual C++ de Microsoft : winget install Microsoft.VCRedist.2015+.x64|Un autre modèle : /bg remove --model birefnet-lite <image>'
 )
