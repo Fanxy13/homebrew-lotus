@@ -1,6 +1,6 @@
 """Lotus Remove BG worker. Runs inside Lotus' own Python environment, one command per process:
 
-  probe                               what this Mac and the runtime can do
+  probe                               what this computer and the runtime can do
   check    [--model ID] [--full]      are the model files complete and unchanged?
   run      --model ID --backend B (--out DIR | --next-to-source) --session DIR [--keep MASK] IMAGE…
   refine   --session DIR --keep MASK  apply your KEEP marks to the last result (no model needed)
@@ -134,12 +134,17 @@ def cmd_check(a):
     return 0
 
 
+def _here():
+    """What this computer is called in a message. The log is not translated, so the right word is written here."""
+    return "Mac" if sys.platform == "darwin" else "PC" if sys.platform == "win32" else "computer"
+
+
 def _memory_check(h, w):
     total = total_memory()
     need = h * w * 28 + 2_500_000_000
     if total and need > total * 0.8:
-        raise BgError("BG-007", "This image needs more memory than this Mac has.",
-                      f"{w}×{h} needs about {need / 1e9:.1f} GB, the Mac has {total / 1e9:.0f} GB")
+        raise BgError("BG-007", f"This image needs more memory than this {_here()} has.",
+                      f"{w}×{h} needs about {need / 1e9:.1f} GB, the {_here()} has {total / 1e9:.0f} GB")
 
 
 def _save_session(session, meta, rgb_w, alpha_w):
@@ -312,8 +317,8 @@ def cmd_prepare(a):
     # the conversion's peak on GitHub's Windows machine: BiRefNet Lite 2.6 GB, BiRefNet 4.4 GB – with room to spare
     need = 4_000_000_000 if m["mb"] < 300 else 7_000_000_000
     if total and need > total * 0.9:
-        raise BgError("BG-007", f"Preparing {m['label']} for the graphics card needs more memory than this Mac has.",
-                      f"about {need / 1e9:.0f} GB, the Mac has {total / 1e9:.0f} GB")
+        raise BgError("BG-007", f"Preparing {m['label']} for the graphics card needs more memory than this PC has.",
+                      f"about {need / 1e9:.0f} GB, the PC has {total / 1e9:.0f} GB")
     emit("info", "model", m["label"])
     with Stage("prepare", "Preparing for the graphics card"):
         path, secs = onnxprep.export(m, a.models_dir)

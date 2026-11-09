@@ -309,6 +309,31 @@ Describe 'Remove BG on Windows' {
         [long]($mem -split "`t")[2] | Should -BeGreaterThan 100MB
     }
 
+    It 'the real worker names the computer it runs on: its texts go into the log as they are' -Skip:(-not $script:Py) {
+        # (the screen turns "this Mac" into "this PC", the log does not: "the Mac has 8 GB" would stand in the log of a PC)
+        @(Select-String -LiteralPath (Join-Path $script:Ctx.Repo 'lib/bg/worker.py') -Pattern '\b(this|the) Mac\b' -CaseSensitive |
+                ForEach-Object { "worker.py:$($_.LineNumber) $($_.Line.Trim())" }) | Should -BeNullOrEmpty
+        $ask = Join-Path $script:Ctx.Tmp 'memory-text.py'
+        $answer = Join-Path $script:Ctx.Tmp 'memory-text.txt'
+        # a picture no computer has the memory for (the worker's own output is its event channel: the answer goes to a file)
+        [IO.File]::WriteAllText($ask, (@(
+                    'import sys'
+                    'sys.path.insert(0, sys.argv[1])'
+                    'import worker'
+                    'try:'
+                    '    worker._memory_check(10 ** 6, 10 ** 6)'
+                    '    text = "no error"'
+                    'except worker.BgError as e:'
+                    '    text = f"{e.code} {e.reason} {e.detail}"'
+                    'open(sys.argv[2], "w", encoding="utf-8").write(text)'
+                ) -join "`n") + "`n")
+        & $script:Py -I -B $ask (Join-Path $script:Ctx.Repo 'lib/bg') $answer 2>$null | Out-Null
+        $text = [IO.File]::ReadAllText($answer)
+        $here = if ($IsWindows) { 'PC' } elseif ($IsMacOS) { 'Mac' } else { 'computer' }
+        $text | Should -Match "^BG-007 This image needs more memory than this $here has\."
+        $text | Should -Match "the $here has \d+ GB$"
+    }
+
     It 'with a graphics card: setup adds DirectML, prepares the model for the card and tests it there' -Skip:(-not ($script:Py -and $script:HasCurl)) {
         Use-TestBg -Card 'Test Card 4000|8192'
         Remove-Item -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite') -Recurse -Force -ErrorAction SilentlyContinue

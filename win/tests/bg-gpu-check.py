@@ -81,12 +81,23 @@ for mid in ("birefnet-lite", "birefnet"):
         continue
     try:
         import onnx
+        graph = onnx.load(path, load_external_data=False)
+        opset = max([o.version for o in graph.opset_import if o.domain in ("", "ai.onnx")] or [0])
         ops = {}
-        for n in onnx.load(path, load_external_data=False).graph.node:
+        for n in graph.graph.node:
             ops[n.op_type] = ops.get(n.op_type, 0) + 1
         check("DeformConv" not in ops and ops.get("GridSample", 0) > 0,
               f"{m['label']}: {os.path.getsize(path) / 1e6:.0f} MB, {sum(ops.values())} operations, "
               f"{ops.get('GridSample', 0)} GridSample, no DeformConv")
+
+        def since(op):
+            try:
+                return onnx.defs.get_schema(op, opset).since_version
+            except Exception:
+                return "?"
+        # every operator with the version of its definition: a card runs those DirectML has a kernel for (for the log)
+        print(f"  {m['label']}: opset {opset} · " + ", ".join(f"{op}-{since(op)} ×{c}" for op, c in sorted(ops.items(), key=lambda t: (-t[1], t[0]))), flush=True)
+        del graph
     except ImportError:
         print("  (no onnx package: the operators are not listed)")
     cpu = engines.load(mid, models_dir, "cpu")
