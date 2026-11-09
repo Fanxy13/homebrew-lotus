@@ -284,7 +284,13 @@ def _load_gpu(model, models_dir, required):
         emit("warn", "BG-W02", "The graphics card could not be used – the processor does the work.")
         return None
     if "DmlExecutionProvider" not in session.get_providers():
-        return no("DirectML did not start on the graphics card.", ", ".join(session.get_providers()))
+        # when DirectML cannot start on the card, ONNX Runtime goes on with the processor on its own (seen on GitHub's
+        # machine: "Falling back to ['CPUExecutionProvider']") – Lotus says so instead
+        if required:
+            raise BgError("BG-013", "DirectML did not start on the graphics card.", card["name"])
+        log("warn", f"DirectML did not start on {card['name']}: the session runs on {', '.join(session.get_providers())}")
+        emit("warn", "BG-W02", "The graphics card could not be used – the processor does the work.")
+        return None
     log("info", f"{model['label']} on {card['name']} (DirectML, device {card['index']}) in {time.time() - t0:.1f}s")
     return OnnxEngine(model, session, card)
 

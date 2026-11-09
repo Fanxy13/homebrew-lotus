@@ -309,7 +309,8 @@ def cmd_prepare(a):
     if bad:
         raise BgError("BG-009", f"{m['label']} is incomplete or damaged: {', '.join(bad)}")
     total = total_memory()
-    need = 6_000_000_000 if m["mb"] < 300 else 12_000_000_000     # measured on GitHub's Windows machine
+    # the conversion's peak on GitHub's Windows machine: BiRefNet Lite 2.6 GB, BiRefNet 4.4 GB – with room to spare
+    need = 4_000_000_000 if m["mb"] < 300 else 7_000_000_000
     if total and need > total * 0.9:
         raise BgError("BG-007", f"Preparing {m['label']} for the graphics card needs more memory than this Mac has.",
                       f"about {need / 1e9:.0f} GB, the Mac has {total / 1e9:.0f} GB")

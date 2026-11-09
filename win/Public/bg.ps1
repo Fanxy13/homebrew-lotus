@@ -1329,8 +1329,9 @@ function script:Install-LotusBg {
     if (-not $rt -and -not $md -and -not $gp -and -not $gc) { $script:S['LOTUS_BG_READY'] = '1'; Save-LotusSettings; return $true }
     if (-not $Yes -and -not ((Test-LotusTty) -and (Test-LotusOutTty))) { Show-LotusBgError 'BG-014' (T bg_e_notty 'This needs a terminal window once.') ''; return $false }
     if (-not (Test-LotusBgSystem)) { return $false }
-    # (a converted model is about twice the size of its download: BiRefNet's weights are 16-bit, the card's 32-bit)
-    $need = $(if ($rt) { 1300 } else { 0 }) + $(if ($md) { $m.Mb } else { 0 }) + $(if ($gp) { 100 } else { 0 }) + $(if ($gc) { 2 * $m.Mb } else { 0 }) + 500
+    # (a conversion holds the weights in 32 bits: BiRefNet Lite's are already – 184 MB –, BiRefNet's are 16-bit – 933 MB
+    # from 445)
+    $need = $(if ($rt) { 1300 } else { 0 }) + $(if ($md) { $m.Mb } else { 0 }) + $(if ($gp) { 100 } else { 0 }) + $(if ($gc) { 2 * $m.Mb + 100 } else { 0 }) + 500
     $free = Get-LotusBgFreeGb
     if ($free * 1024 -lt $need) { Show-LotusBgError 'BG-012' ((T bg_e_space 'Remove BG needs about %s GB of free space.').Replace('%s', [string]([Math]::Truncate($need / 1024) + 1))) "$free GB free"; return $false }
     if (-not $Yes) {
