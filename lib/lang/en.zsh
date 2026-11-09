@@ -104,6 +104,7 @@ LOTUS_L+=(
   bg_model        'Model'
   bg_backend      'Backend'
   bg_mps          'MPS (Apple GPU)'
+  bg_gpu          'Graphics card'
   bg_output       'Output folder'
   bg_refine       'Manual refinement'
   bg_refine_ask   'offer after each image'

@@ -5,10 +5,16 @@
   run      --model ID --backend B (--out DIR | --next-to-source) --session DIR [--keep MASK] IMAGE…
   refine   --session DIR --keep MASK  apply your KEEP marks to the last result (no model needed)
   selftest --model ID --backend B     load the model and cut out a small generated picture
+  prepare  --model ID                 convert BiRefNet for the graphics card (Windows, once per model)
+
+Backends: auto · cpu · mps (the Apple GPU) · gpu (on a Mac the same as mps; on Windows the graphics card through
+DirectML, for BiRefNet once it is prepared). auto takes the GPU when it can and the CPU otherwise.
 
 Events for the Lotus screen go to stdout, one per line, tab separated:
   stage <name> · info <key> <value> · image <n> <total> <path> · done <input> <output> <seconds>
   warn <code> <text> · error <code> <reason> <detail>
+  gpu <device id> <name> <MB of its own memory>          (probe, Windows: a graphics card DirectML can use)
+  model <id> ok|missing|damaged <files> [ready|-]         (check; ready: prepared for the graphics card)
 Details and tracebacks go to the Lotus log only. Images are read from and written to local files –
 nothing is uploaded, nothing is sent anywhere.
 """
@@ -89,7 +95,25 @@ def cmd_probe(a):
     for name in ("numpy", "cv2", "PIL", "timm", "kornia", "einops", "safetensors", "transparent_background"):
         ok = importlib.util.find_spec(name) is not None
         emit("info", "module", name, "ok" if ok else "missing")
+    if sys.platform == "win32":
+        _probe_gpu()
     return 0
+
+
+def _probe_gpu():
+    """Windows: the graphics cards DirectML could use, and whether ONNX Runtime with DirectML is installed"""
+    import gpu
+    for a in gpu.adapters():
+        log("debug", f"Adapter {a['index']}: {a['name']} · vendor {a['vendor']:04x} · {a['mb']} MB"
+                     f"{' · software' if a['software'] else ''}{' · Direct3D 12' if a['d3d12'] else ''}")
+    for c in gpu.cards():
+        emit("gpu", c["index"], c["name"], c["mb"])
+    try:
+        import onnxruntime as ort
+        emit("info", "onnxruntime", ort.__version__)
+        emit("info", "directml", int("DmlExecutionProvider" in ort.get_available_providers()))
+    except Exception:
+        emit("info", "directml", 0)
 
 
 def cmd_check(a):
@@ -102,7 +126,11 @@ def cmd_check(a):
             emit("model", mid, "missing", "")
             continue
         bad = engines.check_files(m, folder, full=a.full)
-        emit("model", mid, "damaged" if bad else "ok", ",".join(bad))
+        ready = "-"
+        if not bad and sys.platform == "win32" and m["engine"] == "birefnet":
+            import onnxprep
+            ready = "ready" if os.path.isfile(onnxprep.onnx_path(a.models_dir, m)) else "-"
+        emit("model", mid, "damaged" if bad else "ok", ",".join(bad), ready)
     return 0
 
 
@@ -269,6 +297,56 @@ def cmd_selftest(a):
     return 0
 
 
+def cmd_prepare(a):
+    """BiRefNet → an ONNX file for the graphics card, next to the weights it was made from"""
+    import engines
+    import onnxprep
+    models = engines.registry()
+    if a.model not in models:
+        raise BgError("BG-004", f"Unknown model: {a.model}")
+    m = models[a.model]
+    bad = engines.check_files(m, os.path.join(a.models_dir, a.model))
+    if bad:
+        raise BgError("BG-009", f"{m['label']} is incomplete or damaged: {', '.join(bad)}")
+    total = total_memory()
+    need = 6_000_000_000 if m["mb"] < 300 else 12_000_000_000     # measured on GitHub's Windows machine
+    if total and need > total * 0.9:
+        raise BgError("BG-007", f"Preparing {m['label']} for the graphics card needs more memory than this Mac has.",
+                      f"about {need / 1e9:.0f} GB, the Mac has {total / 1e9:.0f} GB")
+    emit("info", "model", m["label"])
+    with Stage("prepare", "Preparing for the graphics card"):
+        path, secs = onnxprep.export(m, a.models_dir)
+    emit("info", "seconds", f"{secs:.1f}")
+    emit("info", "peak_mb", peak_memory() // (1 << 20))
+    emit("done", "prepare", path, f"{secs:.1f}")
+    return 0
+
+
+def peak_memory():
+    """The most memory this process has used so far, in bytes (for the log of a conversion)"""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        class Counters(ctypes.Structure):
+            _fields_ = [("cb", wintypes.DWORD), ("faults", wintypes.DWORD)] + \
+                       [(n, ctypes.c_size_t) for n in ("peak_ws", "ws", "peak_paged", "paged", "peak_nonpaged",
+                                                       "nonpaged", "pagefile", "peak_pagefile")]
+
+        c = Counters()
+        c.cb = ctypes.sizeof(Counters)
+        k32 = ctypes.WinDLL("kernel32")
+        psapi = ctypes.WinDLL("psapi")
+        psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
+        k32.GetCurrentProcess.restype = wintypes.HANDLE
+        if psapi.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(c), c.cb):
+            return c.peak_ws
+        return 0
+    import resource
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak if sys.platform == "darwin" else peak * 1024
+
+
 def main():
     rc = 2
     try:
@@ -290,7 +368,7 @@ def _main():
         r = sub.add_parser(name)
         r.add_argument("--model", required=True)
         r.add_argument("--models-dir", required=True)
-        r.add_argument("--backend", default="auto", choices=["auto", "mps", "cpu"])
+        r.add_argument("--backend", default="auto", choices=["auto", "gpu", "mps", "cpu"])
         if name == "run":
             r.add_argument("--out", default="")
             r.add_argument("--next-to-source", action="store_true")
@@ -300,10 +378,13 @@ def _main():
     f = sub.add_parser("refine")
     f.add_argument("--session", required=True)
     f.add_argument("--keep", required=True)
+    g = sub.add_parser("prepare")
+    g.add_argument("--model", required=True)
+    g.add_argument("--models-dir", required=True)
     a = p.parse_args()
     try:
-        return {"probe": cmd_probe, "check": cmd_check, "run": cmd_run,
-                "refine": cmd_refine, "selftest": cmd_selftest}[a.cmd](a)
+        return {"probe": cmd_probe, "check": cmd_check, "run": cmd_run, "refine": cmd_refine,
+                "selftest": cmd_selftest, "prepare": cmd_prepare}[a.cmd](a)
     except BgError as e:
         log("error", f"{e.code} {e.reason}" + (f" – {e.detail}" if e.detail else ""))
         emit("error", e.code, e.reason, (e.detail or "")[:400])

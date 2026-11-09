@@ -8,7 +8,7 @@ AI terminal and web chat (Claude, Ollama, any OpenAI-compatible API)	yes	yes	par
 A local model that Lotus runs (MLX)	yes	no	no	Apple silicon only. Elsewhere use Ollama or llama.cpp: /ai talks to both.
 The AI looks at the web pages it builds	yes	partial	soon	Linux needs Chromium, Chrome or Edge.
 Image converter (/img convert)	yes	yes	yes	macOS: Apple ImageIO · Linux: ImageMagick. Windows: ImageMagick from winget – tested on x64; the Arm64 test machine has no ImageMagick that works.
-Remove BG	yes	soon	partial	Windows: x64 only – PyTorch has no build for Windows on Arm; on the processor, without the drawing editor. Tested on GitHub's Windows machine: the runtime, BiRefNet Lite and a real cut-out.
+Remove BG	yes	soon	partial	Windows: x64 only – OpenCV and torchvision have no build for Windows on Arm (PyTorch has one); without the drawing editor. On the processor: tested on GitHub's Windows machine with a real cut-out. On a graphics card through DirectML (BiRefNet, converted once on the PC): built – the conversion is tested against PyTorch, a real card not yet.
 MP3 and MP4 converter	yes	yes	built	yt-dlp and ffmpeg. Windows: yt-dlp and ffmpeg from winget – the download is tested with stand-ins on Linux, not yet on Windows.
 Live Server and /html	yes	yes	partial	Windows: this PC only – the phones in the Wi-Fi and the QR code not yet. Python 3.9 or newer.
 MeshChat (/meshchat)	partial	no	partial	Macs (lotus meshchat) and Windows 10 2004 or 11 (meshchat.exe) chat together over Bluetooth LE. The same protocol, checked byte for byte on both on every change; not yet tried between real computers.

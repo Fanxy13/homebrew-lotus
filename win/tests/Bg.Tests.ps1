@@ -48,10 +48,12 @@ BeforeAll {
     $script:PngBytes = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
     function New-TestPicture { param([string]$Name, [string]$Dir = $script:Pics) $p = Join-Path $Dir $Name; [IO.File]::WriteAllBytes($p, $script:PngBytes); $p }
 
-    # The module with the stand-ins: the small model list, the fake worker and this Python, a runtime that "is there"
+    # The module with the stand-ins: the small model list, the fake worker and this Python, a runtime that "is there".
+    # No graphics card – or with -Card "<name>|<MB>" one, whose DirectML "installs" without pip (a real card of this PC
+    # and the real pip never come into a test).
     function Use-TestBg {
-        param([switch]$RealWorker)
-        InModuleScope Lotus -Parameters @{ Reg = $script:Reg; Worker = $(if ($RealWorker) { Join-Path $script:Ctx.Repo 'lib/bg/worker.py' } else { $script:Fake }); Py = $script:Py } {
+        param([switch]$RealWorker, [string]$Card)
+        InModuleScope Lotus -Parameters @{ Reg = $script:Reg; Worker = $(if ($RealWorker) { Join-Path $script:Ctx.Repo 'lib/bg/worker.py' } else { $script:Fake }); Py = $script:Py; Card = $Card } {
             Initialize-Lotus
             Import-LotusCommand bg
             Import-LotusLangGroup bg
@@ -60,7 +62,22 @@ BeforeAll {
             Set-Item function:script:Get-LotusBgPython ([scriptblock]::Create(", @('$($Py -replace "'", "''")', '-B')"))
             Set-Item function:script:Test-LotusBgRuntime { $true }
             Set-Item function:script:Test-LotusBgSystem { $true }
+            Set-Item function:script:Get-LotusBgPyVersion { '3.13' }
+            $script:TestCards = @(if ($Card) { $c = $Card -split '\|'; [pscustomobject]@{ Id = '0'; Name = $c[0]; Mb = [int]$c[1] } })
+            Set-Item function:script:Get-LotusBgCards { $script:TestCards }
+            $script:TestGpuInstalls = 0
+            Set-Item function:script:Install-LotusBgGpu {
+                Set-LotusBgStage gpu_pkg
+                $rt = (Get-LotusBgDirs).Runtime
+                New-LotusDir $rt | Out-Null
+                Write-LotusFile (Join-Path $rt 'lotus-gpu') "$(Get-LotusBgReqStamp (Get-LotusBgGpuRequirements)) test`n"
+                $script:TestGpuInstalls++
+                $true
+            }
         }
+        if ($Card) { $env:FAKE_BG_GPU = $Card } else { Remove-Item Env:FAKE_BG_GPU -ErrorAction SilentlyContinue }
+        Remove-Item Env:FAKE_BG_DML, Env:FAKE_BG_GPU_FAIL -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Join-Path $env:LOTUS_DATA 'runtime/bg/lotus-gpu') -Force -ErrorAction SilentlyContinue
     }
     function Set-TestModel {
         param([string]$Id)
@@ -73,6 +90,7 @@ BeforeAll {
 }
 
 AfterAll {
+    Remove-Item Env:FAKE_BG_GPU, Env:FAKE_BG_DML, Env:FAKE_BG_GPU_FAIL -ErrorAction SilentlyContinue
     Remove-Module Lotus -Force -ErrorAction SilentlyContinue
     Restore-LotusTestEnv $script:Ctx
 }
@@ -289,6 +307,110 @@ Describe 'Remove BG on Windows' {
         $mem = $lines | Where-Object { $_ -like "info`tmemory`t*" } | Select-Object -First 1
         $mem | Should -Not -BeNullOrEmpty
         [long]($mem -split "`t")[2] | Should -BeGreaterThan 100MB
+    }
+
+    It 'with a graphics card: setup adds DirectML, prepares the model for the card and tests it there' -Skip:(-not ($script:Py -and $script:HasCurl)) {
+        Use-TestBg -Card 'Test Card 4000|8192'
+        Remove-Item -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite') -Recurse -Force -ErrorAction SilentlyContinue
+        $out = Get-Plain (Invoke-LotusWithKeys @('y') { Install-LotusBg 'birefnet-lite' })
+        $out | Should -Match 'DirectML\s+~40 MB\s+ONNX Runtime for Test Card 4000'
+        $out | Should -Match 'Then Lotus prepares BiRefNet Lite for the graphics card'
+        $out | Should -Match 'From\s+pypi\.org'
+        $out | Should -Match 'Fake Lite is ready \(GPU, 0\.42s\)'
+        InModuleScope Lotus { $script:TestGpuInstalls } | Should -Be 1
+        Test-Path -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite/gpu-1-fake.onnx') | Should -BeTrue
+        # all there: /bg setup has nothing left to do, and no question
+        $again = Get-Plain (Invoke-LotusWithKeys @() { Install-LotusBg 'birefnet-lite' -Gpu })
+        $again | Should -Not -Match 'What Lotus downloads'
+        InModuleScope Lotus { $script:TestGpuInstalls } | Should -Be 1
+    }
+
+    It 'when the card cannot run the model, its conversion goes and the processor does the work' -Skip:(-not ($script:Py -and $script:HasCurl)) {
+        Use-TestBg -Card 'Test Card 4000|8192'
+        Remove-Item -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite') -Recurse -Force -ErrorAction SilentlyContinue
+        $env:FAKE_BG_GPU_FAIL = '1'
+        try { $out = Get-Plain (Invoke-LotusWithKeys @('y') { Install-LotusBg 'birefnet-lite' }) }
+        finally { Remove-Item Env:FAKE_BG_GPU_FAIL -ErrorAction SilentlyContinue }
+        $out | Should -Match 'Fake Lite is ready \(CPU, 0\.42s\)'
+        $out | Should -Match 'The graphics card could not run BiRefNet Lite – the processor does the work'
+        @(Get-ChildItem -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite') -Filter 'gpu-*') | Should -BeNullOrEmpty
+    }
+
+    It 'no graphics card: setup downloads nothing for one and the processor does the work' -Skip:(-not ($script:Py -and $script:HasCurl)) {
+        Use-TestBg
+        Remove-Item -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite') -Recurse -Force -ErrorAction SilentlyContinue
+        $out = Get-Plain (Invoke-LotusWithKeys @('y') { Install-LotusBg 'birefnet-lite' })
+        $out | Should -Not -Match 'DirectML|graphics card'
+        $out | Should -Match 'Fake Lite is ready \(CPU, 0\.42s\)'
+        InModuleScope Lotus { $script:TestGpuInstalls } | Should -Be 0
+    }
+
+    It 'on the card when asked: without a prepared model it says why, then offers the processor' -Skip:(-not $script:Py) {
+        Use-TestBg -Card 'Test Card 4000|8192'
+        Set-TestModel 'birefnet-lite'
+        Get-ChildItem -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite') -Filter 'gpu-*' | Remove-Item -Force
+        lotus settings set LOTUS_BG_READY 1 | Out-Null
+        $outDir = Join-Path $script:Ctx.Tmp 'gpu-out'
+        lotus settings set LOTUS_BG_OUTPUT $outDir | Out-Null
+        $img = New-TestPicture 'dog.png'
+        $out = Get-Plain (Invoke-LotusWithKeys @('y', 'q') -ScriptBlock ([scriptblock]::Create("Initialize-Lotus; Invoke-Lotusbg 'bg' @('remove', '--gpu', '$($img -replace "'", "''")')")))
+        $out | Should -Match 'BG-013'
+        $out | Should -Match 'not prepared for the graphics card'
+        $out | Should -Match 'Try again on the CPU'
+        $out | Should -Match 'Transparent PNG created'
+        Test-Path -LiteralPath (Join-Path $outDir 'dog_no_bg.png') | Should -BeTrue
+    }
+
+    It 'names a graphics card that is not set up – once, after a cut-out the processor did' -Skip:(-not $script:Py) {
+        Use-TestBg -Card 'Test Card 4000|8192'
+        Set-TestModel 'birefnet-lite'
+        Get-ChildItem -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite') -Filter 'gpu-*' | Remove-Item -Force
+        lotus settings set LOTUS_BG_READY 1 | Out-Null
+        lotus settings set LOTUS_BG_BACKEND auto | Out-Null
+        lotus settings set LOTUS_BG_OUTPUT (Join-Path $script:Ctx.Tmp 'hint-out') | Out-Null
+        Remove-Item -LiteralPath (Join-Path $env:LOTUS_STATE 'bg-gpu-hint') -Force -ErrorAction SilentlyContinue
+        $cut = foreach ($name in 'one.png', 'two.png') {
+            $img = New-TestPicture $name
+            Get-Plain (Invoke-LotusWithKeys @('q') -ScriptBlock ([scriptblock]::Create("Initialize-Lotus; Invoke-Lotusbg 'bg' @('remove', '$($img -replace "'", "''")')")))
+        }
+        $cut[0] | Should -Match 'Your graphics card \(Test Card 4000\) can do this faster: /bg setup'
+        $cut[1] | Should -Match 'Transparent PNG created'
+        $cut[1] | Should -Not -Match 'Your graphics card'
+    }
+
+    It 'the doctor names the graphics card: used through DirectML, not set up yet, or none' -Skip:(-not $script:Py) {
+        Use-TestBg -Card 'Test Card 4000|8192'
+        Set-TestModel 'birefnet-lite'
+        Get-ChildItem -LiteralPath (Join-Path $env:LOTUS_DATA 'models/birefnet-lite') -Filter 'gpu-*' | Remove-Item -Force
+        $rows = { InModuleScope Lotus { Show-LotusBgDoctorRows { param($mark, $name, $text) "$name|$text" } 'ok' 'bad' 'opt' } }
+        $env:FAKE_BG_DML = '1'
+        try {
+            (& $rows) | Should -Contain 'GPU|Test Card 4000 · 8 GB – not set up yet – /bg setup lets it do the work'
+            New-Item -ItemType File -Force -Path (Join-Path $env:LOTUS_DATA 'models/birefnet-lite/gpu-1-fake.onnx') | Out-Null
+            $ready = @(& $rows)
+            $ready | Should -Contain 'GPU|Test Card 4000 · 8 GB – used through DirectML'
+            @($ready | Where-Object { $_ -match '^BiRefNet Lite\|on this (PC|computer) · ready for the graphics card$' }).Count | Should -Be 1
+        } finally { Remove-Item Env:FAKE_BG_DML -ErrorAction SilentlyContinue }
+        Use-TestBg
+        (& $rows) | Should -Contain 'GPU|no graphics card that DirectX 12 can use – the processor does the work'
+    }
+
+    It 'asks DXGI for the graphics adapters, as DirectML does – Windows'' software one is never a card' -Skip:(-not ($IsWindows -and $script:Py)) {
+        $json = & $script:Py -I -B -c 'import sys, json; sys.path.insert(0, sys.argv[1]); import gpu; print(json.dumps({"all": gpu.adapters(), "cards": gpu.cards()}))' (Join-Path $script:Ctx.Repo 'lib/bg')
+        $LASTEXITCODE | Should -Be 0
+        $r = $json | ConvertFrom-Json
+        @($r.all).Count | Should -BeGreaterThan 0 -Because 'Windows always has its Microsoft Basic Render Driver'
+        @($r.all | Where-Object { $_.vendor -eq 0x1414 -and $_.name -match 'Basic Render' } | Where-Object { -not $_.software }) | Should -BeNullOrEmpty
+        foreach ($c in @($r.cards)) { $c.software | Should -BeFalse; $c.d3d12 | Should -BeTrue }
+    }
+
+    It 'names a conversion after its weights'' SHA-256 – new weights never use an old one' -Skip:(-not $script:Py) {
+        # (the conversion itself needs PyTorch: the job "Remove BG on real Windows" of windows.yml converts the real model
+        # and compares the card's numbers with PyTorch's; here the module loads without PyTorch)
+        # (onnxprep imports the worker's events: what is printed goes to stderr, so the answer comes as an event)
+        $out = & $script:Py -I -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import events, onnxprep; events.emit(onnxprep.FORMAT, onnxprep.onnx_path("m", {"id": "birefnet", "files": [{"name": "birefnet.py", "sha256": "a" * 64, "bytes": "9"}, {"name": "model.safetensors", "sha256": "0123456789abcdef" * 4, "bytes": "99"}]}))' (Join-Path $script:Ctx.Repo 'lib/bg')
+        $LASTEXITCODE | Should -Be 0
+        $out | Should -Match '^1\tm[\\/]birefnet[\\/]gpu-1-0123456789ab\.onnx$'
     }
 
     It 'on Windows on Arm it says why it cannot run, before anything is downloaded' -Skip:(-not $IsWindows) {

@@ -1,0 +1,5 @@
+# Remove BG on the graphics card (Windows on x64, Python 3.11 – 3.14): added to Lotus' own environment by /bg setup when
+# the PC has a graphics card that DirectX 12 can use. ONNX Runtime with DirectML runs BiRefNet converted on this PC;
+# onnx is what PyTorch's TorchScript exporter writes the conversion with.
+onnxruntime-directml==1.24.4
+onnx==1.23.2

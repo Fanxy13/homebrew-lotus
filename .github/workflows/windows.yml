@@ -100,6 +100,53 @@ jobs:
           if ($LASTEXITCODE) { & $show; exit 1 }
           lotus doctor --bg
 
+  bg-gpu:
+    name: Remove BG for the graphics card on real Windows (the conversion, ONNX Runtime)
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up both BiRefNets, convert them the way /bg setup does with a card, compare with PyTorch
+        shell: pwsh
+        run: |
+          $tmp = Join-Path $env:RUNNER_TEMP 'lotus-bggpu'
+          $env:LOTUS_ROOT = $PWD.Path
+          $env:LOTUS_CONF = "$tmp\conf"; $env:LOTUS_CACHE = "$tmp\cache"; $env:LOTUS_DATA = "$tmp\data"; $env:LOTUS_STATE = "$tmp\state"
+          $show = { Get-Content "$tmp\state\lotus.log" -Tail 80 -ErrorAction SilentlyContinue }
+          Import-Module ./win/Lotus.psd1
+          lotus settings set LOTUS_CONFIGURED 1 | Out-Null
+          lotus settings set LOTUS_LOG_LEVEL debug | Out-Null
+          $run = {
+            param([string]$What, [int]$Seconds)
+            $p = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList @('-NoProfile', '-Command', "Import-Module ./win/Lotus.psd1; $What; exit `$LASTEXITCODE") -NoNewWindow -PassThru
+            if (-not $p.WaitForExit($Seconds * 1000)) { $p.Kill($true); Write-Host "::error::$What did not finish in $Seconds s"; return 99 }
+            $p.ExitCode
+          }
+          # 1. /bg setup as on any PC without a graphics card (GitHub's has none): nothing for a card is installed
+          foreach ($id in 'birefnet-lite', 'birefnet') {
+            $t0 = Get-Date
+            if ((& $run "lotus bg setup --yes $id" 1500) -ne 0) { & $show; exit 1 }
+            "$id set up in $([int]((Get-Date) - $t0).TotalSeconds) s"
+          }
+          if (Test-Path "$tmp\data\runtime\bg\lotus-gpu") { Write-Host '::error::DirectML was installed on a PC without a graphics card'; exit 1 }
+          # 2. what /bg setup adds when there is a card: DirectML, then each model converted on this PC
+          $py = "$tmp\data\runtime\bg\Scripts\python.exe"
+          & $py -s -E -m pip install --disable-pip-version-check --no-input --progress-bar off -r lib/bg/requirements-windows-gpu.txt
+          if ($LASTEXITCODE) { exit 1 }
+          $env:LOTUS_LOG = "$tmp\state\lotus.log"; $env:LOTUS_LOG_LEVEL = 'debug'
+          foreach ($id in 'birefnet-lite', 'birefnet') {
+            $t0 = Get-Date
+            $events = @(& $py -s -E -B -X utf8 lib/bg/worker.py prepare --model $id --models-dir "$tmp\data\models")
+            $events | ForEach-Object { "  $_" }
+            if ($LASTEXITCODE -or -not ($events -match '^done\tprepare\t')) { & $show; exit 1 }
+            "$id converted in $([int]((Get-Date) - $t0).TotalSeconds) s"
+          }
+          # 3. the converted models against PyTorch (on the processor: DirectML refuses Windows' software adapter), and
+          #    what Lotus does without a card
+          & $py -s -E -B -X utf8 win/tests/bg-gpu-check.py "$tmp\data\models"
+          if ($LASTEXITCODE) { & $show; exit 1 }
+          lotus doctor --bg
+
   mc-real:
     name: Minecraft on real Windows (Temurin, Paper, LotusBridge)
     runs-on: windows-latest

@@ -28,7 +28,7 @@ LOTUS_L+=(
 # Lotus 2.2
 LOTUS_L+=(
   head_features 'Funktionen'  head_bg 'Hintergrund entfernen'  head_diag 'Diagnose'
-  bg_model 'Modell'  bg_backend 'Backend'  bg_mps 'MPS (Apple-GPU)'  bg_output 'Zielordner'
+  bg_model 'Modell'  bg_backend 'Backend'  bg_mps 'MPS (Apple-GPU)'  bg_gpu 'Grafikkarte'  bg_output 'Zielordner'
   bg_refine 'Von Hand verfeinern'  bg_refine_ask 'nach jedem Bild anbieten'  bg_refine_always 'immer den Editor öffnen'  bg_refine_never 'nie'
   bg_preview 'Vorschau nach dem Freistellen'  bg_preview_win 'PNG danach öffnen'  bg_cache 'Modelle auf diesem Mac'
   log_level 'Protokoll'  log_off 'Aus'  log_warn 'Fehler und Warnungen'  log_info 'Normal'  log_debug 'Ausführlich'  log_trace 'Alles'

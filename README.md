@@ -415,17 +415,26 @@ Apple's Command Line Tools (`xcode-select --install`), like the AI terminal.
 filter → edge colors without the old background (blur-fusion foreground estimation), so
 there are no halos.
 
-**Settings** (`/settings → Remove BG`): model, backend (Auto, MPS, CPU), output folder,
-manual refinement (offer, always, never), preview after processing, model cache.
+**Settings** (`/settings → Remove BG`): model, backend (Auto, MPS – on Windows the graphics card –, CPU),
+output folder, manual refinement (offer, always, never), preview after processing, model cache.
 
 **On Windows** (x64): the same models and the same worker, in Lotus' own Python environment
-with PyTorch's Windows build – it runs on the processor, so *Auto* is BiRefNet Lite there.
-It needs Python 3.10–3.14 from python.org (`winget install Python.Python.3.13`; the Microsoft
+with PyTorch's Windows build on the processor – *Auto* is BiRefNet Lite there. With a graphics
+card that DirectX 12 can use (NVIDIA, AMD, Intel), `/bg setup` also adds DirectML (ONNX
+Runtime, about 40 MB) and converts BiRefNet once on the PC, from the weights Lotus checked;
+from then on BiRefNet runs on the card. DirectML has no deformable convolution, so BiRefNet's
+are rewritten for the conversion in operations it runs (GridSample and 1 × 1 convolutions) –
+the same numbers as torchvision's. **Not yet tried on a real card:** GitHub's Windows machines
+have none, so the tests convert both models and compare them with PyTorch on the processor.
+A card that fails leaves the work to the processor; `/bg remove --gpu` or `--cpu` picks one
+for a run, `/settings → Remove BG → Backend` for good. It needs Python 3.10–3.14 from
+python.org (3.11 or newer for the card; `winget install Python.Python.3.13` – the Microsoft
 Store's Python keeps what it writes in a folder of its own, so Lotus leaves it out) and
 Microsoft's Visual C++ runtime, which PyTorch uses. HEIC and AVIF go through Windows' own
 imaging component; the clipboard is Windows' (Ctrl+C, Win+Shift+S), a discarded PNG goes to
-the Recycle Bin. Not on Windows: the drawing editor, and Windows on Arm – PyTorch has no
-build for it, and `/bg` says so.
+the Recycle Bin. Not on Windows: the drawing editor, and Windows on Arm – OpenCV and
+torchvision, which Remove BG needs, have no build for it on PyPI yet (PyTorch has one), and
+`/bg` says so.
 
 ## Settings
 

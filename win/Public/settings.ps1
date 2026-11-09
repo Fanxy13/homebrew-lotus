@@ -1,6 +1,6 @@
 # /settings – the settings menu, a port of lib/settings.zsh. Rows of what Windows does not have (Apple Intelligence,
-# local MLX models, the AI web chat, the Apple GPU and the drawing editor of Remove BG, the live album cover, the
-# "Last login" line) are left out.
+# local MLX models, the AI web chat, the drawing editor of Remove BG, the live album cover, the "Last login" line) are
+# left out; Remove BG's backend offers the graphics card (DirectML) where the Mac offers its GPU (MPS).
 #   lotus settings                the menu (in a window), else the list
 #   lotus settings get NAME       one value (for scripts)      lotus settings set NAME VALUE
 # Status 10 after an uninstall from the menu, so the shell can unload Lotus.
@@ -88,11 +88,12 @@ function script:Get-LotusSettingsItems {
             "text|LOTUS_AI_URL|$(T ai_url 'API URL (optional)')|"
             "action|aikey|$(T ai_key 'API keys (Claude, OpenAI-compatible)')|")
     }
-    # (PyTorch, which Remove BG needs, is built for Windows on x64 only)
+    # (OpenCV and torchvision, which Remove BG needs, are built for Windows on x64 only)
     if ((& $on 'bg') -and (-not $IsWindows -or $script:Os.Arch -eq 'x86_64')) {
         & $add @(
             "head||$(T head_bg 'Remove BG')|"
             "choice|LOTUS_BG_MODEL|$(T bg_model 'Model')|auto=$(T col_auto 'Automatic');birefnet=BiRefNet;birefnet-lite=BiRefNet Lite;inspyrenet=InSPyReNet"
+            "choice|LOTUS_BG_BACKEND|$(T bg_backend 'Backend')|auto=$(T col_auto 'Automatic');gpu=$(T bg_gpu 'Graphics card');cpu=CPU"
             "action|bgout|$(T bg_output 'Output folder')|"
             "bool|LOTUS_BG_PREVIEW|$(T bg_preview_win (T bg_preview 'Preview after processing'))|"
             "action|bgmodels|$(T bg_cache 'Model cache')|")

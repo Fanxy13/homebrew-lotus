@@ -7,15 +7,19 @@ BiRefNet  (https://github.com/ZhengPeng7/BiRefNet, MIT)  – its official model 
           `transformers`; Lotus provides them instead of installing the whole library.
 InSPyReNet (https://github.com/plemeri/InSPyReNet, MIT) – the model code of its official package
           `transparent-background`, without the package's GUI, webcam and download helpers.
+
+Backends: PyTorch on the CPU, or on the Apple GPU (MPS) on a Mac. On Windows BiRefNet can also run on the graphics
+card: converted once on the PC (onnxprep.py), with ONNX Runtime and DirectML (OnnxEngine).
 """
 import hashlib
 import importlib
 import importlib.util
 import os
 import sys
+import time
 import types
 
-from events import BgError, log
+from events import BgError, emit, log
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MEAN = (0.485, 0.456, 0.406)
@@ -66,9 +70,22 @@ def pick_device(backend):
     has_mps = bool(mps and mps.is_built() and mps.is_available())
     if backend == "mps" and not has_mps:
         raise BgError("BG-013", "The Apple GPU (MPS) is not available to PyTorch on this Mac.")
-    if backend in ("auto", "mps") and has_mps:
+    if backend == "gpu" and not has_mps:
+        raise BgError("BG-013", "Remove BG has no graphics card backend on this system.")
+    if backend in ("auto", "mps", "gpu") and has_mps:
         return "mps"
     return "cpu"
+
+
+def _prepare(rgb, mh, mw):
+    """uint8 H × W × 3 → float32 1 × 3 × mh × mw, normalized the way the models were trained"""
+    import cv2
+    import numpy as np
+    h, w = rgb.shape[:2]
+    interp = cv2.INTER_AREA if mh * mw < h * w else cv2.INTER_LINEAR
+    x = cv2.resize(rgb, (mw, mh), interpolation=interp).astype(np.float32) / 255.0
+    x = (x - np.array(MEAN, np.float32)) / np.array(STD, np.float32)
+    return np.ascontiguousarray(x.transpose(2, 0, 1))[None]
 
 
 class Engine:
@@ -89,15 +106,11 @@ class Engine:
 
     def predict(self, rgb):
         """rgb: uint8 H × W × 3 → float32 alpha at model resolution (0 background … 1 foreground)."""
-        import cv2
         import numpy as np
         import torch
         h, w = rgb.shape[:2]
         mh, mw = self.input_size(h, w)
-        interp = cv2.INTER_AREA if mh * mw < h * w else cv2.INTER_LINEAR
-        x = cv2.resize(rgb, (mw, mh), interpolation=interp).astype(np.float32) / 255.0
-        x = (x - np.array(MEAN, np.float32)) / np.array(STD, np.float32)
-        t = torch.from_numpy(x.transpose(2, 0, 1).copy())[None].to(self.device)
+        t = torch.from_numpy(_prepare(rgb, mh, mw)).to(self.device)
         try:
             with torch.inference_mode():
                 out = self.net(t)
@@ -117,17 +130,52 @@ class Engine:
             torch.mps.empty_cache()
 
 
+class OnnxEngine:
+    """BiRefNet converted for the graphics card (onnxprep.py), run by ONNX Runtime with DirectML on Windows.
+    The same interface as Engine; device "gpu", card = the adapter it runs on (gpu.cards())."""
+
+    def __init__(self, model, session, card):
+        self.model = model
+        self.session = session
+        self.card = card
+        self.device = "gpu"
+        self.label = model["label"]
+        self.input = session.get_inputs()[0].name
+
+    def input_size(self, h, w):
+        n = self.model["input"]
+        return n, n
+
+    def predict(self, rgb):
+        import numpy as np
+        mh, mw = self.input_size(*rgb.shape[:2])
+        try:
+            pred = self.session.run(None, {self.input: _prepare(rgb, mh, mw)})[0][0, 0]
+        except KeyboardInterrupt:
+            raise
+        except BaseException as e:
+            raise translate(e, self.device) from e
+        return np.nan_to_num(pred.astype(np.float32), nan=0.0).clip(0, 1)
+
+    def close(self):
+        self.session = None
+
+
 def translate(e, device):
-    """PyTorch exceptions → Lotus errors with a code"""
+    """PyTorch and ONNX Runtime exceptions → Lotus errors with a code"""
     if isinstance(e, BgError):
         return e
     text = f"{type(e).__name__}: {e}"
-    if isinstance(e, MemoryError) or "out of memory" in text.lower():
+    low = text.lower()
+    # DirectML's out of memory: E_OUTOFMEMORY (8007000E), or the card dropped out (DXGI_ERROR_DEVICE_REMOVED)
+    if isinstance(e, MemoryError) or "out of memory" in low or "outofmemory" in low or "8007000e" in low:
         return BgError("BG-007", "Not enough memory for this image.", text)
     if isinstance(e, KeyboardInterrupt):
         return e
     if device == "mps":
         return BgError("BG-013", "PyTorch could not run the model on the Apple GPU (MPS).", text)
+    if device == "gpu":
+        return BgError("BG-013", "The graphics card could not run the model (DirectML).", text)
     return BgError("BG-011", "The model stopped with an error.", text)
 
 
@@ -192,6 +240,55 @@ def _inspyrenet(model, folder):
     return net
 
 
+def _load_gpu(model, models_dir, required):
+    """BiRefNet on the graphics card (Windows) → OnnxEngine, or None when it cannot be and was not asked for by name
+    (backend auto: then PyTorch on the CPU does the work, as before). backend gpu: a BG-013 that says why."""
+    def no(reason, detail=""):
+        if required:
+            raise BgError("BG-013", reason, detail)
+        log("info", f"Not on the graphics card: {reason}" + (f" ({detail})" if detail else ""))
+        return None
+
+    if model["engine"] != "birefnet":
+        return no(f"{model['label']} runs on the processor only.")
+    import gpu
+    cards = gpu.cards()
+    if not cards:
+        return no("This PC has no graphics card that DirectX 12 can use.")
+    try:
+        import onnxruntime as ort
+    except Exception as e:
+        return no("The graphics card is not set up for Remove BG yet.", f"onnxruntime-directml: {type(e).__name__}")
+    if "DmlExecutionProvider" not in ort.get_available_providers():
+        return no("The graphics card is not set up for Remove BG yet.", "ONNX Runtime without DirectML")
+    import onnxprep
+    path = onnxprep.onnx_path(models_dir, model)
+    if not os.path.isfile(path):
+        return no(f"{model['label']} is not prepared for the graphics card yet.", os.path.basename(path))
+    card = cards[0]
+    so = ort.SessionOptions()
+    so.enable_mem_pattern = False                          # DirectML needs both of these
+    so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    so.log_severity_level = 3
+    t0 = time.time()
+    try:
+        session = ort.InferenceSession(path, so, providers=[("DmlExecutionProvider", {"device_id": str(card["index"])}),
+                                                            "CPUExecutionProvider"])
+    except KeyboardInterrupt:
+        raise
+    except BaseException as e:
+        err = translate(e, "gpu")
+        if required:
+            raise err from e
+        log("warn", f"The graphics card could not load {model['label']}: {err.detail}")
+        emit("warn", "BG-W02", "The graphics card could not be used – the processor does the work.")
+        return None
+    if "DmlExecutionProvider" not in session.get_providers():
+        return no("DirectML did not start on the graphics card.", ", ".join(session.get_providers()))
+    log("info", f"{model['label']} on {card['name']} (DirectML, device {card['index']}) in {time.time() - t0:.1f}s")
+    return OnnxEngine(model, session, card)
+
+
 def load(model_id, models_dir, backend):
     models = registry()
     if model_id not in models:
@@ -201,6 +298,14 @@ def load(model_id, models_dir, backend):
     bad = check_files(model, folder)
     if bad:
         raise BgError("BG-009", f"{model['label']} is incomplete or damaged: {', '.join(bad)}")
+    if sys.platform == "win32":
+        if backend == "mps":                               # a setting from a Mac
+            backend = "auto"
+        if backend in ("auto", "gpu"):
+            engine = _load_gpu(model, models_dir, required=backend == "gpu")
+            if engine:
+                return engine
+            backend = "cpu"
     device = pick_device(backend)
     log("info", f"Loading {model['label']} on {device.upper()}")
     import torch

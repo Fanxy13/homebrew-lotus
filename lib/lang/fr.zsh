@@ -26,7 +26,7 @@ LOTUS_L+=(
 # Lotus 2.2
 LOTUS_L+=(
   head_features 'Fonctions'  head_bg 'Supprimer le fond'  head_diag 'Diagnostic'
-  bg_model 'Modèle'  bg_backend 'Calcul'  bg_mps 'MPS (GPU Apple)'  bg_output 'Dossier de sortie'
+  bg_model 'Modèle'  bg_backend 'Calcul'  bg_mps 'MPS (GPU Apple)'  bg_gpu 'Carte graphique'  bg_output 'Dossier de sortie'
   bg_refine 'Retouche à la main'  bg_refine_ask 'proposer après chaque image'  bg_refine_always 'toujours ouvrir l’éditeur'  bg_refine_never 'jamais'
   bg_preview 'Aperçu après le traitement'  bg_preview_win 'Ouvrir le PNG après le traitement'  bg_cache 'Modèles sur ce Mac'
   log_level 'Journal'  log_off 'Non'  log_warn 'Erreurs et avertissements'  log_info 'Normal'  log_debug 'Détaillé'  log_trace 'Tout'

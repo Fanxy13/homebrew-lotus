@@ -45,12 +45,12 @@ Everything of Lotus that Windows can have, with the program that does the work o
 | AI | `/ai`: a chat and answers from Claude (`lotus ai login`), Ollama or an OpenAI-compatible API – streamed, with the conversation of the last hour; `explain`, `write`, `summarize`, `command` (suggested, never run). Without tools: it cannot read or change files or run commands on Windows |
 | Converters | `/img` with ImageMagick, `/convert` with yt-dlp and ffmpeg (all from winget after a yes), `/html` with Python 3.9+ |
 | More | `/liveserver` (this PC only), `/weather`, `/clock` (all six designs), `/caffeine` (SetThreadExecutionState), music and volume (media keys, Core Audio), the visualizer, `/web` and the searches, `/meshchat` (`meshchat.exe`) |
-| Remove BG | `/bg remove` (images, folders, the drop zone), `/bg paste`, `/bg models`, the blooming lotus while it works – the Mac's worker (`lib/bg/worker.py`) with PyTorch's Windows build on the processor, in Lotus' own Python environment; HEIC and AVIF through Windows' imaging component. x64 only: PyTorch has no build for Windows on Arm. Without the drawing editor |
+| Remove BG | `/bg remove` (images, folders, the drop zone), `/bg paste`, `/bg models`, the blooming lotus while it works – the Mac's worker (`lib/bg/worker.py`) with PyTorch's Windows build on the processor, in Lotus' own Python environment – or BiRefNet on a graphics card through DirectML: converted once on the PC (`lib/bg/onnxprep.py`), the card found as DirectML finds it (`lib/bg/gpu.py`); built, not yet tried on a real card. HEIC and AVIF through Windows' imaging component. x64 only: OpenCV and torchvision have no build for Windows on Arm. Without the drawing editor |
 | Minecraft | `/minecraft`, `/mc <name>`: the setup (Vanilla from Mojang, Paper from PaperMC, Java found or fetched from adoptium.net – each checked against its checksum), the control center with its three pages (the little world, players, ping and TPS from LotusBridge; the icon, the description, plugins from Modrinth; the log and its command line), deleting to the Recycle Bin. The server runs in a hidden PowerShell of its own (`mc/run.ps1`): commands go to it through `.lotus\input`, its console to `.lotus\console.log`, and Windows stays awake while it runs. `start.cmd` runs it in a window of its own |
 
 Not on Windows yet: the AI terminal with its tools and the web chat (the Swift program has no Windows build), a model
-that Lotus runs itself, plugins (PowerShell has no sandbox Lotus could use), Remove BG on Windows on Arm (PyTorch has no
-build there) and its drawing editor, Live Server for the phones in the Wi-Fi, the album cover. The iPhone tools are for
+that Lotus runs itself, plugins (PowerShell has no sandbox Lotus could use), Remove BG on Windows on Arm (OpenCV and
+torchvision have no build there) and its drawing editor, Live Server for the phones in the Wi-Fi, the album cover. The iPhone tools are for
 macOS only. These commands say so instead of failing quietly.
 
 ## The code

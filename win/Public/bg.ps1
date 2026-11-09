@@ -1,12 +1,15 @@
 # /bg on Windows – remove image backgrounds on this PC with BiRefNet or InSPyReNet; the image never leaves it. A port
 # of lib/cmd/bg.zsh and lib/bg/{runtime,progress,manage}.zsh. The work is done by the same Python program as on the Mac
-# (lib/bg/worker.py), in Lotus' own Python environment (runtime\bg in Lotus' data folder) with PyTorch's Windows build,
-# on the processor. Its events come through a pipe. Windows has no signal Lotus could send it, so ctrl-c writes
-# "cancel" to it instead. PyTorch has no build for Windows on Arm yet: there /bg says so instead of failing later.
-# Drawing what to keep by hand needs the Mac's editor (Swift) – Windows gets the AI's result as it is.
-#   /bg remove <image|folder>…   ·   /bg remove (drop images; an empty ⏎ takes the clipboard)   ·   /bg paste
+# (lib/bg/worker.py), in Lotus' own Python environment (runtime\bg in Lotus' data folder) with PyTorch's Windows build
+# on the processor – or, when the PC has a graphics card that DirectX 12 can use, BiRefNet on the card: converted once
+# on this PC from the weights Lotus checked (lib/bg/onnxprep.py), run by ONNX Runtime with DirectML. The worker's events
+# come through a pipe; Windows has no signal Lotus could send it, so ctrl-c makes a file it looks for. Windows on Arm:
+# OpenCV and torchvision, which Remove BG needs, have no build for it on PyPI yet (PyTorch has one) – /bg says so before
+# anything is downloaded. Drawing what to keep by hand needs the Mac's editor (Swift): Windows saves the AI's result.
+#   /bg remove <image|folder>… [--gpu | --cpu]   ·   /bg remove (drop images; an empty ⏎ takes the clipboard)   ·   /bg paste
 #   /bg models · /bg output · /bg setup [--yes] [model] · /bg doctor · /bg help
-# Nothing is downloaded without a yes: the runtime (about 1 GB, from pypi.org) and a model (checked with SHA-256).
+# Nothing is downloaded without a yes: the runtime (about 1 GB, from pypi.org), DirectML for a graphics card (about
+# 40 MB, from pypi.org) and a model (checked with SHA-256).
 
 $script:BgExt = @('png', 'jpg', 'jpeg', 'webp', 'heic', 'heif', 'avif', 'tif', 'tiff', 'bmp', 'gif')
 $script:BgTb = 'transparent-background==1.3.4'      # InSPyReNet's model code (installed without extras)
@@ -20,6 +23,7 @@ $script:Bu = @{ On = $false; Live = $false }
 function script:Invoke-Lotusbg {
     param([string]$Cmd, [string[]]$Rest)
     Import-LotusLangGroup bg
+    $script:BgCards = $null          # the graphics cards are looked up again for each command
     try { Invoke-LotusBgCommand $Rest }
     catch [System.OperationCanceledException] {
         # ctrl-c in a screen: the worker was told to stop (in a finally), the screen and the session are closed
@@ -48,7 +52,7 @@ function script:Invoke-LotusBgCommand {
             if (-not (Test-LotusBgSystem)) { return (St 1) }
             if ($more -ccontains '--yes') {
                 $id = @($more | Where-Object { $_ -cne '--yes' }) | Select-Object -First 1
-                return (St $(if (Install-LotusBg (Resolve-LotusBgModel $id) -Yes) { 0 } else { 1 }))
+                return (St $(if (Install-LotusBg (Resolve-LotusBgModel $id) -Yes -Gpu) { 0 } else { 1 }))
             }
             return (St $(if (Start-LotusBgFirstUse) { 0 } else { 1 }))
         }
@@ -165,11 +169,12 @@ function script:Get-LotusBgSizeMb {
 
 # ── The runtime: Lotus' own Python environment ───────────────
 
-# Can this PC run it? PyTorch is built for Windows on x64 processors only. → $true, or the error screen and $false
+# Can this PC run it? On PyPI, OpenCV and torchvision are built for Windows on x64 processors only (PyTorch also for
+# Windows on Arm). → $true, or the error screen and $false
 function script:Test-LotusBgSystem {
     param([switch]$Quiet)
     if (-not $IsWindows -or $script:Os.Arch -eq 'x86_64') { return $true }
-    if (-not $Quiet) { Show-LotusBgError 'BG-008' 'PyTorch has no build for Windows on Arm yet.' "$(Get-LotusOsDescription)" }
+    if (-not $Quiet) { Show-LotusBgError 'BG-008' 'OpenCV and torchvision have no build for Windows on Arm yet.' "$(Get-LotusOsDescription)" }
     $false
 }
 
@@ -181,10 +186,11 @@ function script:Get-LotusBgPythonExe {
 function script:Get-LotusBgPython { , @((Get-LotusBgPythonExe), '-s', '-E', '-B', '-X', 'utf8') }
 function script:Get-LotusBgRequirements { Join-Path (Get-LotusRoot) 'lib/bg/requirements-windows-x86_64.txt' }
 
-# The requirements as a hash (their line ends do not count: a checkout may have changed them)
+# A list of requirements as a hash (its line ends do not count: a checkout may have changed them)
 function script:Get-LotusBgReqStamp {
+    param([string]$Path = (Get-LotusBgRequirements))
     $sha = [System.Security.Cryptography.SHA256]::Create()
-    try { ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes([string](Read-LotusFile (Get-LotusBgRequirements)))) | ForEach-Object { $_.ToString('x2') }) -join '' }
+    try { ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes([string](Read-LotusFile $Path))) | ForEach-Object { $_.ToString('x2') }) -join '' }
     finally { $sha.Dispose() }
 }
 # The runtime is there and matches this Lotus version's requirements
@@ -192,6 +198,76 @@ function script:Test-LotusBgRuntime {
     $stamp = Join-Path (Get-LotusBgDirs).Runtime 'lotus-runtime'
     if (-not (Test-Path -LiteralPath (Get-LotusBgPythonExe) -PathType Leaf) -or -not (Test-Path -LiteralPath $stamp -PathType Leaf)) { return $false }
     ((Read-LotusFile $stamp) -split '\s+')[0] -ceq (Get-LotusBgReqStamp)
+}
+
+# ── The graphics card: DirectML ──────────────────────────────
+# What it takes: a card DirectX 12 can use (lib/bg/gpu.py asks DXGI, as DirectML does), ONNX Runtime with DirectML in the
+# runtime (requirements-windows-gpu.txt, Python 3.11 or newer) and the model converted once (worker.py prepare).
+
+function script:Get-LotusBgGpuRequirements { Join-Path (Get-LotusRoot) 'lib/bg/requirements-windows-gpu.txt' }
+
+# DirectML is in the runtime and matches this Lotus version's list
+function script:Test-LotusBgGpuRuntime {
+    $stamp = Join-Path (Get-LotusBgDirs).Runtime 'lotus-gpu'
+    if (-not (Test-LotusBgRuntime) -or -not (Test-Path -LiteralPath $stamp -PathType Leaf)) { return $false }
+    ((Read-LotusFile $stamp) -split '\s+')[0] -ceq (Get-LotusBgReqStamp (Get-LotusBgGpuRequirements))
+}
+
+# The graphics cards DirectML can use, the best first → @([pscustomobject]@{ Id; Name; Mb }). lib/bg/gpu.py with the
+# runtime's Python, or – before there is a runtime – with the Python it will be made from. @() off Windows on x64.
+function script:Get-LotusBgCards {
+    if (-not $IsWindows -or $script:Os.Arch -ne 'x86_64') { return @() }
+    if ($null -ne $script:BgCards) { return $script:BgCards }
+    $exe = ''; $pre = @()
+    if (Test-Path -LiteralPath (Get-LotusBgPythonExe) -PathType Leaf) { $exe = Get-LotusBgPythonExe }
+    else { $py = Find-LotusBgPython; if ($py) { $exe = $py.Exe; $pre = @($py.Args) } }
+    $list = [System.Collections.Generic.List[object]]::new()
+    if ($exe) {
+        $out = Invoke-LotusBgProbe $exe (@($pre) + @('-I', '-B', '-X', 'utf8', (Join-Path (Get-LotusRoot) 'lib/bg/gpu.py')))
+        foreach ($line in "$out" -split "`r?`n") {
+            $f = $line -split "`t"
+            if ($f.Count -ge 4 -and $f[0] -ceq 'gpu') { $list.Add([pscustomobject]@{ Id = $f[1]; Name = $f[2]; Mb = Get-LotusInt $f[3] 0 }) }
+        }
+    }
+    Write-LotusLog DEBUG bg "Graphics cards for DirectML: $(if ($list.Count) { ($list | ForEach-Object { "$($_.Name) ($($_.Mb) MB)" }) -join ', ' } else { 'none' })"
+    $script:BgCards = $list.ToArray()
+    $script:BgCards
+}
+
+# "NVIDIA GeForce RTX 4070 · 12 GB" (the memory when the card has some of its own)
+function script:Get-LotusBgCardLabel {
+    param($Card)
+    if ($Card.Mb -ge 1024) { "$($Card.Name) · $([Math]::Round($Card.Mb / 1024)) GB" } else { $Card.Name }
+}
+
+# The Python of the runtime ("3.13", from its pyvenv.cfg), or of the one it would be made from (-New)
+function script:Get-LotusBgPyVersion {
+    param([switch]$New)
+    if ($New) { $py = Find-LotusBgPython; return $(if ($py) { $py.Version } else { '' }) }
+    $cfg = [string](Read-LotusFile (Join-Path (Get-LotusBgDirs).Runtime 'pyvenv.cfg'))
+    if ($cfg -match '(?m)^\s*version(?:_info)?\s*=\s*(\d+)\.(\d+)') { "$($Matches[1]).$($Matches[2])" } else { '' }
+}
+# ONNX Runtime with DirectML is built for Python 3.11 – 3.14
+function script:Test-LotusBgGpuPython {
+    param([string]$Version)
+    $Version -match '^3\.(\d+)$' -and [int]$Matches[1] -ge 11
+}
+
+# Is this model converted for the graphics card? (the worker knows the file's name: the weights' SHA-256 is in it)
+function script:Test-LotusBgPrepared {
+    param([string]$Id)
+    if (-not (Test-LotusBgRuntime)) { return $false }
+    foreach ($line in Get-LotusBgWorkerLines @('check', '--model', $Id, '--models-dir', (Get-LotusBgDirs).Models)) {
+        $f = $line -split "`t"
+        if ($f[0] -ceq 'model' -and $f[1] -ceq $Id) { return ($f.Count -gt 4 -and $f[4] -ceq 'ready') }
+    }
+    $false
+}
+# The conversion of a model goes (the card could not run it): the processor does the work from now on
+function script:Remove-LotusBgPrepared {
+    param([string]$Id)
+    $dir = Join-Path (Get-LotusBgDirs).Models $Id
+    Get-ChildItem -LiteralPath $dir -Filter 'gpu-*.onnx*' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
 # A Python for the runtime: 3.10 – 3.14 on x64, with venv → @{ Exe; Args; Version }, or $null. The py launcher first
@@ -809,8 +885,14 @@ function script:Show-LotusBgLastError {
 
 # After a failure: another installed model, when the model was the problem → "model <id>", or $null
 function script:Get-LotusBgFallback {
-    param([string]$Code, [string]$Model)
-    if (-not (Test-LotusTty) -or $Code -cnotin 'BG-004', 'BG-009') { return $null }
+    param([string]$Code, [string]$Model, [string]$Backend)
+    if (-not (Test-LotusTty)) { return $null }
+    # the graphics card failed (or ran out of memory): the processor, once
+    if ($Code -cin 'BG-013', 'BG-007' -and $Backend -cne 'cpu' -and [string]$script:Bg.Info['backend'] -cne 'CPU') {
+        if (Read-LotusConfirm (T bg_fb_cpu 'Try again on the CPU?') 'y') { return 'backend cpu' }
+        return $null
+    }
+    if ($Code -cnotin 'BG-004', 'BG-009') { return $null }
     foreach ($id in 'birefnet', 'inspyrenet', 'birefnet-lite') {
         if ($id -ceq $Model -or (Get-LotusBgModelState $id) -ne 'ok') { continue }
         $q = (T bg_fb_model '%1 failed. Try %2 instead?').Replace('%1', (Get-LotusBgModelLabel $Model)).Replace('%2', (Get-LotusBgModelLabel $id))
@@ -946,6 +1028,7 @@ function script:Invoke-LotusBgRemove {
         elseif ($w -cin '-b', '--backend' -and $i + 1 -lt $Words.Count) { $backend = $Words[++$i] }
         elseif ($w.StartsWith('--backend=')) { $backend = $w.Substring(10) }
         elseif ($w -ceq '--cpu') { $backend = 'cpu' }
+        elseif ($w -ceq '--gpu') { $backend = 'gpu' }
         elseif ($w -cin '-o', '--out' -and $i + 1 -lt $Words.Count) { $out = $Words[++$i] }
         elseif ($w.StartsWith('--out=')) { $out = $w.Substring(6) }
         elseif ($w -cin '--next-to-source', '--here') { $next = $true }
@@ -959,7 +1042,8 @@ function script:Invoke-LotusBgRemove {
         Write-LotusError (T bg_bad_model 'Unknown model') $model @("auto · $((@(Get-LotusBgModels) | ForEach-Object Id) -join ' · ')"); return (St 1)
     }
     if ($backend -ceq 'mps' -and $script:S['LOTUS_BG_BACKEND'] -ceq 'mps' -and $IsWindows) { $backend = 'auto' }    # (a setting from a Mac)
-    if ($backend -cnotin 'auto', 'cpu') { Write-LotusError (T bg_bad_backend 'Unknown backend') $backend @('auto · cpu'); return (St 1) }
+    if (-not $backend) { $backend = 'auto' }
+    if ($backend -cnotin 'auto', 'gpu', 'cpu') { Write-LotusError (T bg_bad_backend 'Unknown backend') $backend @('auto · gpu · cpu'); return (St 1) }
     if (-not (Test-LotusBgSystem)) { return (St 1) }
     $interactive = (Test-LotusOutTty) -and (Test-LotusTty)
 
@@ -1017,13 +1101,14 @@ function script:Invoke-LotusBgRemove {
             Stop-LotusBgUi
             if ($script:Bg.Done.Count) { break }       # some images done before the error: show them
             Show-LotusBgLastError
-            $fb = if ($tries++ -lt 2) { Get-LotusBgFallback $script:Bg.Err[0] $model } else { $null }
+            $fb = if ($tries++ -lt 2) { Get-LotusBgFallback $script:Bg.Err[0] $model $backend } else { $null }
             if (-not $fb) { return (St 1) }
-            $model = $fb.Substring(6)
+            if ($fb.StartsWith('backend ')) { $backend = $fb.Substring(8) } else { $model = $fb.Substring(6) }
             Write-LotusLog INFO bg "Trying again with $fb"
         }
         if ($images.Count -eq 1 -and $script:Bg.Done.Count) { Show-LotusBgResult }
         else { Show-LotusBgBatch $images.Count }
+        if ($interactive -and $backend -ceq 'auto') { Show-LotusBgCardHint $model }
         if ($script:Bg.Done.Count -and $interactive -and (Test-LotusFeature 'pets') -and (Test-Path -LiteralPath (Join-Path $script:LotusModuleRoot 'Public/pets.ps1'))) {
             Import-LotusCommand pets
             try { Invoke-LotusPetReact done } catch { }
@@ -1033,6 +1118,25 @@ function script:Invoke-LotusBgRemove {
         Stop-LotusBgUi
         Remove-LotusBgSession
     }
+}
+
+# Once ever: after a cut-out the processor did, when the PC has a graphics card that is not set up yet – one line that
+# says what /bg setup would do. (A mark in Lotus' state folder: it does not come back.)
+function script:Show-LotusBgCardHint {
+    param([string]$Model)
+    $b = $script:Bg
+    if ([string]$b.Info['backend'] -cne 'CPU' -or -not $b.Done.Count -or @($b.Warn | Where-Object { $_[0] -ceq 'BG-W02' }).Count) { return }
+    $mark = Join-Path $script:Paths.State 'bg-gpu-hint'
+    if (Test-Path -LiteralPath $mark) { return }
+    $m = Get-LotusBgModel $Model
+    if (-not $m -or $m.Engine -cne 'birefnet') { return }
+    New-LotusDir $script:Paths.State | Out-Null
+    Write-LotusFile $mark "$((Get-Date).ToString('yyyy-MM-dd', [cultureinfo]::InvariantCulture))`n"
+    $card = @(Get-LotusBgCards) | Select-Object -First 1
+    if (-not $card -or -not (Test-LotusBgGpuPython (Get-LotusBgPyVersion))) { return }
+    if ((Test-LotusBgGpuRuntime) -and (Test-LotusBgPrepared $Model)) { return }
+    Write-LotusDim "  $((T bg_gpu_hint 'Your graphics card (%s) can do this faster: /bg setup').Replace('%s', $card.Name))"
+    Write-LotusBlank
 }
 
 # ── Results ───────────────────────────────────────────────────
@@ -1062,7 +1166,10 @@ function script:Show-LotusBgResult {
             Write-LotusBlank
             if (Test-Path -LiteralPath $output) {
                 Write-LotusSuccess (T bg_png_ok 'Transparent PNG created')
-                if ($b.Warn.Count -and $b.Warn[0][0] -ceq 'BG-W01') { Write-LotusWarn (Get-LotusBgText bg_w_empty) }
+                foreach ($wn in $b.Warn) {
+                    if ($wn[0] -ceq 'BG-W01') { Write-LotusWarn (Get-LotusBgText bg_w_empty) }
+                    elseif ($wn[0] -ceq 'BG-W02') { Write-LotusWarn (T bg_w_gpu 'The graphics card could not be used this time – the processor did the work.') }
+                }
             }
             Write-LotusBlank
             Write-LotusLine "    $($k)o$r $(T bg_k_open 'open')   $($k)f$r $(T bg_k_finder 'show the folder')   $($k)d$r $(T bg_k_discard 'discard')   $($k)q$r $(T bg_k_done 'done')"
@@ -1103,6 +1210,7 @@ function script:Show-LotusBgBatch {
     Write-LotusHero (T bg_batch_title 'Backgrounds removed') "$ok / $N · $($secs.ToString('0.0', [cultureinfo]::InvariantCulture))s · $($b.Info['model']) · $($b.Info['backend'])"
     foreach ($x in $b.Done) { Write-LotusLine "    $k✓$r $(PadR (Cut (Split-Path -Leaf $x[0]) 28) 28) $d→$r $(Split-Path -Leaf $x[1])" }
     foreach ($x in $b.Skip) { Write-LotusLine "    $(E '1')$(E key2)!$r $(PadR (Cut (Split-Path -Leaf $x[0]) 28) 28) $d$($x[1])$r" }
+    if (@($b.Warn | Where-Object { $_[0] -ceq 'BG-W02' }).Count) { Write-LotusBlank; Write-LotusWarn (T bg_w_gpu 'The graphics card could not be used this time – the processor did the work.') }
     if ($b.Err.Count) { Write-LotusBlank; Show-LotusBgLastError }
     Write-LotusBlank
     if ($ok) {
@@ -1180,52 +1288,84 @@ function script:Select-LotusBgWhen {
 }
 
 function script:Show-LotusBgSummary {
-    param($Model, [bool]$Rt, [bool]$Md)
+    param($Model, [bool]$Rt, [bool]$Md, $Card, [bool]$Gp, [bool]$Gc)
     $d = E dim; $r = $script:R
     Write-LotusSection (T bg_dl_what 'What Lotus downloads'); Write-LotusBlank
     if ($Rt) { Write-LotusLine "    $(PadR (T bg_dl_runtime) 22)$(PadR (T bg_dl_runtime_mb) 12)$d$(T bg_dl_runtime_d)$r" }
+    if ($Gp) { Write-LotusLine "    $(PadR (T bg_dl_gpu 'DirectML') 22)$(PadR (T bg_dl_gpu_mb '~40 MB') 12)$d$((T bg_dl_gpu_d 'ONNX Runtime for %s – once').Replace('%s', $Card.Name))$r" }
     if ($Md) { Write-LotusLine "    $(PadR $Model.Label 22)$(PadR "$($Model.Mb) MB" 12)$d$(T bg_dl_model_d)$r" }
+    if ($Gc) { Write-LotusBlank; Write-LotusDim "  $((T bg_dl_prep 'Then Lotus prepares %s for the graphics card, on this PC.').Replace('%s', $Model.Label))" }
     Write-LotusBlank
     Write-LotusKv (T bg_dl_where 'Folder') (Format-LotusPath $script:Paths.Data)
     $hostName = ([Uri]$Model.Files[0].Url).Host
-    Write-LotusKv (T bg_dl_from 'From') $(if ($Rt) { "pypi.org · $hostName" } else { $hostName })
+    $from = @(@($(if ($Rt -or $Gp) { 'pypi.org' }), $(if ($Md) { $hostName })) | Where-Object { $_ })
+    if ($from.Count) { Write-LotusKv (T bg_dl_from 'From') ($from -join ' · ') }
     Write-LotusBlank
     Write-LotusDim "  $(T bg_dl_after)"
     Write-LotusBlank
 }
 
 # Installs what is missing for a model, with the progress screen and a short test at the end → $true when ready.
-# -Yes: no question (lotus bg setup --yes, for scripts)
+# -Yes: no question (lotus bg setup --yes, for scripts). The graphics card is set up along with the rest when the PC has
+# one: always when something is installed anyway, and with -Gpu (/bg setup) also when only the card is missing. When the
+# card's part fails, the processor does the work – that is never a reason for the setup to fail.
 function script:Install-LotusBg {
-    param([string]$Id, [switch]$Yes)
+    param([string]$Id, [switch]$Yes, [switch]$Gpu)
     if (-not $Id) { $Id = Resolve-LotusBgModel }
     $m = Get-LotusBgModel $Id
     $rt = -not (Test-LotusBgRuntime); $md = (Get-LotusBgModelState $Id) -ne 'ok'
-    if (-not $rt -and -not $md) { $script:S['LOTUS_BG_READY'] = '1'; Save-LotusSettings; return $true }
+    $card = $null; $gp = $false; $gc = $false
+    if (($rt -or $md -or $Gpu) -and $m.Engine -ceq 'birefnet') {
+        $card = @(Get-LotusBgCards) | Select-Object -First 1
+        if ($card -and -not (Test-LotusBgGpuPython (Get-LotusBgPyVersion -New:$rt))) {
+            Write-LotusLog INFO bg "Graphics card $($card.Name): DirectML needs Python 3.11 or newer"
+            $card = $null
+        }
+        if ($card) {
+            $gp = $rt -or -not (Test-LotusBgGpuRuntime)
+            $gc = $md -or $rt -or -not (Test-LotusBgPrepared $Id)
+        }
+    }
+    if (-not $rt -and -not $md -and -not $gp -and -not $gc) { $script:S['LOTUS_BG_READY'] = '1'; Save-LotusSettings; return $true }
     if (-not $Yes -and -not ((Test-LotusTty) -and (Test-LotusOutTty))) { Show-LotusBgError 'BG-014' (T bg_e_notty 'This needs a terminal window once.') ''; return $false }
     if (-not (Test-LotusBgSystem)) { return $false }
-    $need = $(if ($rt) { 1300 } else { 0 }) + $(if ($md) { $m.Mb } else { 0 }) + 500
+    # (a converted model is about twice the size of its download: BiRefNet's weights are 16-bit, the card's 32-bit)
+    $need = $(if ($rt) { 1300 } else { 0 }) + $(if ($md) { $m.Mb } else { 0 }) + $(if ($gp) { 100 } else { 0 }) + $(if ($gc) { 2 * $m.Mb } else { 0 }) + 500
     $free = Get-LotusBgFreeGb
     if ($free * 1024 -lt $need) { Show-LotusBgError 'BG-012' ((T bg_e_space 'Remove BG needs about %s GB of free space.').Replace('%s', [string]([Math]::Truncate($need / 1024) + 1))) "$free GB free"; return $false }
     if (-not $Yes) {
-        Show-LotusBgSummary $m $rt $md
+        Show-LotusBgSummary $m $rt $md $card $gp $gc
         if (-not (Read-LotusConfirm (T bg_dl_q 'Download and set up now?') 'y')) { Write-LotusInfo (T cancelled 'Cancelled.'); return $false }
     }
     $stages = [System.Collections.Generic.List[string]]::new()
     if ($rt) { $stages.Add("python|$(T bg_s_python 'Python environment')"); $stages.Add("packages|$(T bg_s_packages 'Installing PyTorch & co.')") }
     if ($md) { $stages.Add("download|$((T bg_s_download 'Downloading %s').Replace('%s', $m.Label))"); $stages.Add("verify|$(T bg_s_verify 'Checking the files')") }
+    if ($gp) { $stages.Add("gpu_pkg|$(T bg_s_gpu_pkg 'DirectML for the graphics card')") }
+    if ($gc) { $stages.Add("prepare|$((T bg_s_prepare 'Preparing %s for the graphics card').Replace('%s', $m.Label))") }
     $stages.Add("load_model|$(T bg_s_test_load 'Loading the model')"); $stages.Add("segment|$(T bg_s_test 'Test run')|$(T bg_ss_test 'Test')")
     $script:Bg.Err = @()
     $ok = $true
+    $cardNote = ''
     New-LotusBgSession
-    Write-LotusLog INFO bg "Installing: $(if ($rt) { 'runtime ' })$(if ($md) { $Id })"
+    Write-LotusLog INFO bg "Installing: $(if ($rt) { 'runtime ' })$(if ($md) { "$Id " })$(if ($gp) { 'DirectML ' })$(if ($gc) { "$Id for $($card.Name)" })"
     try {
         Start-LotusBgUi "$(T bg_title 'Remove BG') · $(T bg_setup 'Setup')" $stages.ToArray()
         if ($rt -and -not (Install-LotusBgRuntime)) { $ok = $false }
         if ($ok -and $md -and -not (Save-LotusBgModel $Id)) { $ok = $false }
+        if ($ok -and $gp -and -not (Install-LotusBgGpu)) { $cardNote = 'pkg'; $gc = $false; $script:Bg.Err = @() }
+        if ($ok -and $gc -and -not (Initialize-LotusBgGpuModel $Id)) { $cardNote = 'prep'; $script:Bg.Err = @() }
         if ($ok) {
             Set-LotusBgStage load_model
-            if ((Invoke-LotusBgWorker @('selftest', '--model', $Id, '--models-dir', (Get-LotusBgDirs).Models, '--backend', 'auto')) -ne 0) { $ok = $false }
+            $rc = Invoke-LotusBgWorker @('selftest', '--model', $Id, '--models-dir', (Get-LotusBgDirs).Models, '--backend', 'auto')
+            if ($rc -ne 0 -and $card -and -not $cardNote -and $script:Bg.Err.Count -and $script:Bg.Err[0] -cin 'BG-013', 'BG-007') {
+                # the card could not run it: its conversion goes, and the processor does the work
+                Write-LotusLog WARN bg "The graphics card could not run $Id`: $($script:Bg.Err[1]) $($script:Bg.Err[2])"
+                Remove-LotusBgPrepared $Id
+                $cardNote = 'run'
+                Set-LotusBgStage load_model
+                $rc = Invoke-LotusBgWorker @('selftest', '--model', $Id, '--models-dir', (Get-LotusBgDirs).Models, '--backend', 'cpu')
+            }
+            if ($rc -ne 0) { $ok = $false }
         }
         if ($ok) { Complete-LotusBgUi }
     } finally {
@@ -1238,8 +1378,37 @@ function script:Install-LotusBg {
     Write-LotusHero "$(T bg_title 'Remove BG') · $(T bg_setup 'Setup')"
     $label = if ($script:Bg.Info['model']) { $script:Bg.Info['model'] } else { $m.Label }
     Write-LotusSuccess "$((T bg_ready '%s is ready').Replace('%s', $label)) ($(if ($script:Bg.Info['backend']) { $script:Bg.Info['backend'] } else { 'CPU' }), $(if ($script:Bg.Info['seconds']) { $script:Bg.Info['seconds'] } else { '?' })s)"
+    switch ($cardNote) {
+        'pkg' { Write-LotusWarn (T bg_gpu_failed_pkg 'DirectML could not be installed – the processor does the work.') }
+        'prep' { Write-LotusWarn ((T bg_gpu_failed_prep '%s could not be prepared for the graphics card – the processor does the work.').Replace('%s', $m.Label)) }
+        'run' { Write-LotusWarn ((T bg_gpu_failed_run 'The graphics card could not run %s – the processor does the work.').Replace('%s', $m.Label)) }
+    }
     Write-LotusBlank
     $true
+}
+
+# DirectML into the runtime: ONNX Runtime with DirectML and onnx, which the conversion is written with (about 40 MB, once)
+function script:Install-LotusBgGpu {
+    Set-LotusBgStage gpu_pkg
+    $exe = Get-LotusBgPythonExe
+    $pip = @('-s', '-E', '-m', 'pip', '--disable-pip-version-check', '--no-input', 'install', '--progress-bar', 'off', '-r', (Get-LotusBgGpuRequirements))
+    if ((Invoke-LotusBgFollow pip $exe $pip) -ne 0) {
+        Write-LotusLog ERROR bg 'DirectML could not be installed (pip failed)'
+        $script:Bg.Err = @('BG-002', 'DirectML could not be installed.', 'pip failed – details in /lotus log'); return $false
+    }
+    Write-LotusFile (Join-Path (Get-LotusBgDirs).Runtime 'lotus-gpu') "$(Get-LotusBgReqStamp (Get-LotusBgGpuRequirements)) $((Get-Date).ToString('yyyy-MM-dd', [cultureinfo]::InvariantCulture))`n"
+    Write-LotusLog INFO bg 'DirectML installed into the runtime'
+    $true
+}
+
+# A BiRefNet model converted for the graphics card, next to its weights (worker.py prepare, once per model) → $true
+function script:Initialize-LotusBgGpuModel {
+    param([string]$Id)
+    Set-LotusBgStage prepare
+    $ok = (Invoke-LotusBgWorker @('prepare', '--model', $Id, '--models-dir', (Get-LotusBgDirs).Models)) -eq 0
+    if ($ok) { Write-LotusLog INFO bg "$Id prepared for the graphics card in $($script:Bg.Info['seconds'])s (peak $($script:Bg.Info['peak_mb']) MB)" }
+    else { Write-LotusLog ERROR bg "$Id could not be prepared for the graphics card: $($script:Bg.Err -join ' – ')" }
+    $ok
 }
 
 # Creates the Python environment and installs the packages (about 1 GB, once)
@@ -1335,7 +1504,7 @@ function script:Start-LotusBgFirstUse {
     if (-not (Select-LotusBgOutput)) { return $false }
     Save-LotusSettings
     Write-LotusBlank
-    Install-LotusBg (Resolve-LotusBgModel)
+    Install-LotusBg (Resolve-LotusBgModel) -Gpu
 }
 
 # /bg models – what is on this PC: download, remove, check
@@ -1358,7 +1527,7 @@ function script:Show-LotusBgModels {
         $r1 = Read-LotusSelect 1 @("$(T bg_a_done 'Done')|", "$(T bg_a_download 'Download a model')|", "$(T bg_a_remove 'Remove a model')|", "$(T bg_a_check)|", "$(T bg_a_remove_all)|$(T bg_a_remove_all_d)")
         if ($null -eq $r1 -or $r1 -eq 1) { return }
         switch ($r1) {
-            2 { $id = Select-LotusBgModelId (T bg_a_download 'Download a model'); if ($id -and (Test-LotusBgSystem)) { [void](Install-LotusBg $id) } }
+            2 { $id = Select-LotusBgModelId (T bg_a_download 'Download a model'); if ($id -and (Test-LotusBgSystem)) { [void](Install-LotusBg $id -Gpu) } }
             3 {
                 $id = Select-LotusBgModelId (T bg_a_remove 'Remove a model') -Installed
                 if (-not $id) { break }
@@ -1433,25 +1602,39 @@ function script:Show-LotusBgDoctorRows {
     if (Test-LotusBgSystem -Quiet) { & $Row $Ok 'PC' "$($script:Os.Arch) · $mem GB" }
     else { & $Row $Bad 'PC' "$($script:Os.Arch) – $(Get-LotusBgText 'bg_t_BG-008')" }
     $dirs = Get-LotusBgDirs
+    $ready = @{}
     if (Test-LotusBgRuntime) {
-        $p = @{}; $missing = [System.Collections.Generic.List[string]]::new()
+        $p = @{}; $missing = [System.Collections.Generic.List[string]]::new(); $cards = [System.Collections.Generic.List[object]]::new()
         foreach ($line in Get-LotusBgWorkerLines @('probe')) {
             $f = $line -split "`t"
+            if ($f[0] -ceq 'gpu' -and $f.Count -ge 4) { $cards.Add([pscustomobject]@{ Id = $f[1]; Name = $f[2]; Mb = Get-LotusInt $f[3] 0 }); continue }
             if ($f[0] -cne 'info') { continue }
             if ($f[1] -ceq 'module') { if ($f[3] -cne 'ok') { $missing.Add($f[2]) } } else { $p[$f[1]] = $f[2] }
         }
         & $Row $Ok 'Python' "$(if ($p['python']) { $p['python'] } else { '?' }) ($(Format-LotusPath $dirs.Runtime 60))"
         if ($p['torch']) { & $Row $Ok 'PyTorch' $p['torch'] } else { & $Row $Bad 'PyTorch' (Get-LotusBgText bg_d_torch) }
         if ($missing.Count) { & $Row $Bad 'Packages' "missing: $($missing -join ' ') – /bg models → $(T bg_a_remove_all)" }
-        & $Row $Opt 'GPU' (Get-LotusBgText bg_d_cpu)
+        if (-not $cards.Count) { & $Row $Opt 'GPU' (T bg_d_gpu_none 'no graphics card that DirectX 12 can use – the processor does the work') }
+        else {
+            foreach ($line in Get-LotusBgWorkerLines @('check', '--models-dir', $dirs.Models)) {
+                $f = $line -split "`t"
+                if ($f[0] -ceq 'model' -and $f.Count -gt 4 -and $f[4] -ceq 'ready') { $ready[$f[1]] = $true }
+            }
+            $name = Get-LotusBgCardLabel $cards[0]
+            if ($p['directml'] -ceq '1' -and $ready.Count) { & $Row $Ok 'GPU' "$name – $(T bg_d_gpu_ok 'used through DirectML')" }
+            elseif (-not (Test-LotusBgGpuPython (Get-LotusBgPyVersion))) { & $Row $Opt 'GPU' "$name – $(T bg_d_gpu_py 'needs Python 3.11 or newer')" }
+            else { & $Row $Opt 'GPU' "$name – $(T bg_d_gpu_setup 'not set up yet – /bg setup lets it do the work')" }
+        }
     } else {
         $py = Find-LotusBgPython
         if ($py) { & $Row $Opt 'Python' "$(T bg_d_rt_later 'installed on first use') (Python $($py.Version) found)" } else { & $Row $Opt 'Python' (Get-LotusBgText bg_d_nopython) }
+        $card = @(Get-LotusBgCards) | Select-Object -First 1
+        if ($card) { & $Row $Opt 'GPU' "$(Get-LotusBgCardLabel $card) – $(T bg_d_gpu_setup 'not set up yet – /bg setup lets it do the work')" }
     }
     & $Row $Ok 'Model cache' "$(Format-LotusPath $dirs.Models 60) ($(Get-LotusBgSizeMb $dirs.Models) MB)"
     foreach ($m in @(Get-LotusBgModels)) {
         switch (Get-LotusBgModelState $m.Id) {
-            'ok' { & $Row $Ok $m.Label (T bg_installed 'on this PC') }
+            'ok' { & $Row $Ok $m.Label "$(T bg_installed 'on this PC')$(if ($ready[$m.Id]) { " · $(T bg_d_ready 'ready for the graphics card')" })" }
             'partial' { & $Row $Bad $m.Label "$(T bg_partial 'incomplete') – /bg models" }
             default { & $Row $Opt $m.Label (T bg_not_installed 'not downloaded') }
         }
