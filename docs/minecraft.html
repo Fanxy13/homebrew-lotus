@@ -29,9 +29,9 @@
 
     <h2 class="section" id="need">What you need</h2>
     <div class="grid">
-      <div class="card"><h3>A Mac</h3><p class="muted">Apple silicon or Intel. It has to stay on while people play.</p></div>
+      <div class="card"><h3>A Mac or a PC</h3><p class="muted">A Mac (Apple silicon or Intel), a Linux computer, or Windows with PowerShell 7. It has to stay on while people play.</p></div>
       <div class="card"><h3>Java</h3><p class="muted">Minecraft servers run on Java. Lotus checks which version your Minecraft version needs and can install it for you.</p></div>
-      <div class="card"><h3>Memory</h3><p class="muted">2–4 GB for a few friends. Keep at least half of your Mac's memory for macOS.</p></div>
+      <div class="card"><h3>Memory</h3><p class="muted">2–4 GB for a few friends. Keep at least half of your computer's memory for the system.</p></div>
       <div class="card"><h3>Your router</h3><p class="muted">Only needed for friends outside your home. Playing on the same Wi-Fi needs no router changes.</p></div>
     </div>
 
@@ -57,9 +57,10 @@
       <div class="card"><h3>2 · Settings</h3><p class="muted">The server icon (drag in any picture – Lotus cuts the middle square to 64 × 64), the description under the name in the server list, the folder in Finder, and plugins. A preview shows the server the way your friends see it in their list.</p></div>
       <div class="card"><h3>3 · Log</h3><p class="muted">The console, colored: chat, joins, warnings and errors. <kbd>f</kbd> shows only chat and players, or only problems. Type <kbd>/</kbd> for a command like in Minecraft, <kbd>t</kbd> to chat as the server; <kbd>↑</kbd> brings earlier commands back.</p></div>
       <div class="card"><h3>Plugins</h3><p class="muted">On a Paper server: search Modrinth – it lists only plugins for your server's version, the most downloaded first – and install with <kbd>Enter</kbd>. Required plugins come along, every file is checked against its SHA-512. Your own <code>.jar</code>: press <kbd>d</kbd> and drag it into the window. <kbd>x</kbd> removes one.</p></div>
-      <div class="card"><h3>Delete a server</h3><p class="muted">Settings → <em>Delete server</em>, or <code>/minecraft</code> → <em>Delete a server</em>. You type the server's name to be sure; a running server is stopped first, then its folder – world, plugins, settings, log – goes to the Trash, where you can still get it back until you empty it.</p></div>
+      <div class="card"><h3>Delete a server</h3><p class="muted">Settings → <em>Delete server</em>, or <code>/minecraft</code> → <em>Delete a server</em>. You type the server's name to be sure; a running server is stopped first, then its folder – world, plugins, settings, log – goes to the Trash (on Windows: the Recycle Bin), where you can still get it back until you empty it.</p></div>
     </div>
-    <p class="muted">Ping and TPS: only the server knows them. For Paper servers Lotus builds a tiny plugin, LotusBridge, on your Mac (it writes one file with the numbers, nothing else). Vanilla servers do not tell them. Keys: <kbd>s</kbd> stop or start, <kbd>r</kbd> restart, <kbd>o</kbd> open the folder, <kbd>q</kbd> leave. While the server runs, your Mac stays awake (the display may still sleep).</p>
+    <p class="muted">Ping and TPS: only the server knows them. For Paper servers Lotus builds a tiny plugin, LotusBridge, on your computer (it writes one file with the numbers, nothing else). Vanilla servers do not tell them. Keys: <kbd>s</kbd> stop or start, <kbd>r</kbd> restart, <kbd>o</kbd> open the folder, <kbd>q</kbd> leave. While the server runs, your computer stays awake (the display may still sleep).</p>
+    <p class="muted">On Windows the server runs in a hidden PowerShell of its own, so closing the terminal does not stop it, and <code>start.cmd</code> in its folder runs it in a window of its own (stop it there by typing <code>stop</code>).</p>
 
     <h2 class="section" id="manual">Step by step, without Lotus</h2>
     <ol class="steps">
@@ -86,13 +87,15 @@
 
     <h2 class="section" id="wifi">Play on the same Wi-Fi</h2>
     <ol class="steps">
-      <li><h3>Find your Mac's local address</h3><p>System Settings → Wi-Fi → Details next to your network → IP address. It looks like <code>192.168.x.x</code>.</p></li>
+      <li><h3>Find your computer's local address</h3><p>On a Mac: System Settings → Wi-Fi → Details next to your network → IP address. On Windows: Settings → Network &amp; internet → your network → Properties → IPv4 address. It looks like <code>192.168.x.x</code>.</p></li>
       <li><h3>Join</h3><p>In Minecraft: Multiplayer → Add Server → enter that address followed by <code>:25565</code>. On the Mac itself, use <code>localhost</code>.</p></li>
     </ol>
 
     <h2 class="section" id="firewall">Allow the firewall</h2>
     <p>The first time the server starts, macOS may ask whether <em>java</em> may accept incoming network connections. Choose <strong>Allow</strong>.</p>
     <p class="muted">Missed it? System Settings → Network → Firewall → Options → find java and set it to allow incoming connections.</p>
+    <p>On Windows, Windows Defender Firewall asks whether <em>Java</em> may communicate on networks. Allow it on <strong>private</strong> networks.</p>
+    <p class="muted">Missed it? Windows Security → Firewall &amp; network protection → Allow an app through firewall → find Java and tick Private.</p>
 
     <h2 class="section" id="forward">Play over the internet: port forwarding</h2>
     <p>Your router hides every device at home behind one public address. Port forwarding tells it: “Minecraft traffic goes to this Mac.”</p>

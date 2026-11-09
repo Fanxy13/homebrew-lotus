@@ -418,6 +418,15 @@ there are no halos.
 **Settings** (`/settings → Remove BG`): model, backend (Auto, MPS, CPU), output folder,
 manual refinement (offer, always, never), preview after processing, model cache.
 
+**On Windows** (x64): the same models and the same worker, in Lotus' own Python environment
+with PyTorch's Windows build – it runs on the processor, so *Auto* is BiRefNet Lite there.
+It needs Python 3.10–3.14 from python.org (`winget install Python.Python.3.13`; the Microsoft
+Store's Python keeps what it writes in a folder of its own, so Lotus leaves it out) and
+Microsoft's Visual C++ runtime, which PyTorch uses. HEIC and AVIF go through Windows' own
+imaging component; the clipboard is Windows' (Ctrl+C, Win+Shift+S), a discarded PNG goes to
+the Recycle Bin. Not on Windows: the drawing editor, and Windows on Arm – PyTorch has no
+build for it, and `/bg` says so.
+
 ## Settings
 
 `/settings` – arrow keys to move, Enter or left/right to change, `v` to preview, `q` to close.
@@ -466,7 +475,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 - Plugins (`lotus plugin`) show what they may do before they are installed and need a yes. Limited plugins run in a macOS sandbox (only their own folders, no internet unless they ask for it, no keychain, no Apple Events, a clean environment without API keys); full ones run with your rights and must be allowed again after any change to their files. What you allowed is kept in `~/.config/lotus/plugins.tsv`.
 - `/convert` is meant for content you have the right to download. It does not bypass DRM or paywalls.
 - `/ios` only downloads official releases and checks compatibility before it does.
-- Remove BG runs on your Mac only. Images are never uploaded; models come from their official
+- Remove BG runs on your computer only. Images are never uploaded; models come from their official
   sources, pinned and checked with SHA-256, and are downloaded only after a yes.
 - The log masks keys and tokens and stays on your Mac.
 
