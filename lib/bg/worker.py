@@ -296,6 +296,15 @@ def cmd_selftest(a):
         secs = time.time() - t0
     if not np.isfinite(alpha).all() or alpha.max() <= 0:
         raise BgError("BG-004", f"{engine.label} gave an empty result in the test.")
+    if engine.device == "gpu":
+        # What a graphics card makes of the picture no other machine can check for it, so the setup does: the disc has to
+        # come out as the disc (the same two points and limits as the check of the build machine). A card that gets it
+        # wrong goes the way of one that fails: its conversion is dropped and the processor does the work.
+        h, w = alpha.shape[:2]
+        disc, corner = float(alpha[h // 2, w // 2]), float(alpha[h // 64, w // 64])
+        if not (disc > 0.5 and corner < 0.5):
+            raise BgError("BG-013", "The graphics card gave a wrong result in the test.",
+                          f"the middle of the disc {disc:.2f} (right: above 0.5), the corner {corner:.2f} (right: below 0.5)")
     emit("info", "seconds", f"{secs:.2f}")
     log("info", f"Self-test of {engine.label} on {engine.device.upper()}: {secs:.2f}s")
     emit("done", "selftest", "", f"{secs:.2f}")

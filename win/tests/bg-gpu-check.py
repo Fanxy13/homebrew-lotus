@@ -7,11 +7,15 @@
    conversion, which is what a card would run, not the card itself
 3. without a card, auto works on the processor and --backend gpu says why it cannot
    (with a card – should a runner ever have one – the model runs on it and is compared with PyTorch too)
+4. the test of /bg setup judges what a card makes of the picture: the disc is right, a cut-out that keeps everything,
+   nothing or the other way round sends the work back to the processor (engines that give what they are told)
 
 python bg-gpu-check.py <models dir>      (the runtime's Python; status 1 when something does not hold)
 """
 import os
+import subprocess
 import sys
+import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -163,6 +167,20 @@ else:
     want = engines.load("birefnet-lite", models_dir, "cpu").predict(img)
     d = np.abs(want - e.predict(img))
     check(d.max() < 0.02, f"a card: the same alpha as PyTorch (max {d.max():.1e})")
+
+
+# 4 · the test of the setup judges what a card makes of the picture (no card is here: engines that give what they are told)
+with tempfile.TemporaryDirectory() as tmp:
+    answer = os.path.join(tmp, "answer.txt")
+    run = subprocess.run([sys.executable, "-I", "-B", os.path.join(ROOT, "win", "tests", "fixtures", "selftest-judges-the-card.py"),
+                          os.path.join(ROOT, "lib", "bg"), answer], capture_output=True, text=True)
+    if os.path.isfile(answer):
+        with open(answer, encoding="utf-8") as f:
+            got = f.read().split("\n")
+    else:
+        got = [run.stderr.strip()[-300:] or f"no answer, exit code {run.returncode}"]
+check(got == ["gpu ok", "gpu BG-013", "gpu BG-013", "gpu BG-004", "cpu ok"],
+      f"the setup test judges a card's cut-out – the disc is right, all kept, nothing and the other way round are not ({' | '.join(got)})")
 
 print(f"\n{len(failed)} failed" if failed else "\nall held", flush=True)
 sys.exit(1 if failed else 0)

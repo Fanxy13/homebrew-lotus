@@ -13,6 +13,8 @@ BeforeDiscovery {
         }
         if ($script:Py) { break }
     }
+    $script:PyNumpy = $false
+    if ($script:Py) { & $script:Py -c 'import numpy' 2>$null; $script:PyNumpy = ($LASTEXITCODE -eq 0) }
     $script:HasCurl = [bool](Get-Command curl -CommandType Application -ErrorAction SilentlyContinue)
 }
 
@@ -332,6 +334,14 @@ Describe 'Remove BG on Windows' {
         $here = if ($IsWindows) { 'PC' } elseif ($IsMacOS) { 'Mac' } else { 'computer' }
         $text | Should -Match "^BG-007 This image needs more memory than this $here has\."
         $text | Should -Match "the $here has \d+ GB$"
+    }
+
+    It 'the setup test judges what a graphics card makes of the picture: the disc has to come out as the disc' -Skip:(-not $script:PyNumpy) {
+        # (engines that give what they are told, judged by the real worker: a card whose cut-out is wrong goes the way of one
+        # that fails – its conversion is dropped and the processor does the work; a processor is not judged this way)
+        $answer = Join-Path $script:Ctx.Tmp 'selftest-card.txt'
+        & $script:Py -I -B (Join-Path $PSScriptRoot 'fixtures/selftest-judges-the-card.py') (Join-Path $script:Ctx.Repo 'lib/bg') $answer 2>$null | Out-Null
+        [IO.File]::ReadAllText($answer) -split "`n" | Should -Be @('gpu ok', 'gpu BG-013', 'gpu BG-013', 'gpu BG-004', 'cpu ok')
     }
 
     It 'with a graphics card: setup adds DirectML, prepares the model for the card and tests it there' -Skip:(-not ($script:Py -and $script:HasCurl)) {
