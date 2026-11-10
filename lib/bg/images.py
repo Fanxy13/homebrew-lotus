@@ -1,12 +1,15 @@
 """Reading photos and writing the transparent PNG.
 
 Reading: everything Pillow knows (PNG, JPEG, WebP, TIFF, BMP, GIF …). HEIC, HEIF and AVIF go through
-macOS' own `sips` first – a local conversion into the session folder, the original is only read.
+macOS' own `sips` first – a local conversion into the session folder, the original is only read. On Windows
+Pillow tries them first, then Windows' own imaging component (WIC, the decoders Photos uses).
 Writing: a new file next to nothing else – photo_no_bg.png, photo_no_bg_2.png, … – written to a
 temporary name and moved into place, so there is never a half-written PNG and never an overwrite.
 """
+import base64
 import os
 import subprocess
+import sys
 
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -16,6 +19,7 @@ from events import BgError, log
 Image.MAX_IMAGE_PIXELS = 300_000_000
 EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".avif", ".tif", ".tiff", ".bmp", ".gif"}
 NATIVE = {".heic", ".heif", ".avif"}
+FIRST = NATIVE if sys.platform == "darwin" else set()    # converted by the system before Pillow tries them
 
 
 def _sips(path, session):
@@ -29,6 +33,48 @@ def _sips(path, session):
     return out
 
 
+# Windows PowerShell (always there) decodes with WIC and writes a PNG – the paths reach it through the
+# environment, never inside the command.
+_WIC = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationCore
+$in = [IO.File]::OpenRead($env:LOTUS_WIC_IN)
+try {
+  $d = [Windows.Media.Imaging.BitmapDecoder]::Create($in, 'PreservePixelFormat', 'OnLoad')
+  $e = New-Object Windows.Media.Imaging.PngBitmapEncoder
+  $e.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($d.Frames[0]))
+  $out = [IO.File]::Create($env:LOTUS_WIC_OUT)
+  try { $e.Save($out) } finally { $out.Close() }
+} finally { $in.Close() }
+"""
+
+
+def _wic(path, session):
+    """Converts with Windows' own imaging component (HEIC needs the HEIF and HEVC extensions of the Store)."""
+    os.makedirs(session, exist_ok=True)
+    out = os.path.join(session, "converted-%d.png" % (abs(hash(path)) % 10**8))
+    ps = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    env = dict(os.environ, LOTUS_WIC_IN=os.path.abspath(path), LOTUS_WIC_OUT=out)
+    code = base64.b64encode(_WIC.encode("utf-16-le")).decode("ascii")
+    try:
+        r = subprocess.run([ps, "-NoProfile", "-NonInteractive", "-EncodedCommand", code], env=env,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise BgError("BG-005", "Windows could not read this image.", str(e))
+    if r.returncode != 0 or not os.path.isfile(out):
+        raise BgError("BG-005", "Windows could not read this image.", r.stderr.decode(errors="replace").strip()[-400:])
+    return out
+
+
+def _convert(path, session):
+    """The system's own image tools for what Pillow cannot read: sips on macOS, WIC on Windows."""
+    if sys.platform == "darwin":
+        return _sips(path, session)
+    if os.name == "nt":
+        return _wic(path, session)
+    raise BgError("BG-005", "This system has no tool for this image format.", path)
+
+
 def load(path, session):
     """→ rgb (uint8 H×W×3, upright), its own alpha or None, ICC profile or None"""
     if not os.path.isfile(path):
@@ -36,8 +82,8 @@ def load(path, session):
     ext = os.path.splitext(path)[1].lower()
     source = path
     try:
-        if ext in NATIVE:
-            source = _sips(path, session)
+        if ext in FIRST:
+            source = _convert(path, session)
         im = Image.open(source)
         im.load()
     except BgError:
@@ -47,7 +93,7 @@ def load(path, session):
     except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as e:
         if source == path and ext not in {".png", ".jpg", ".jpeg"}:
             try:
-                im = Image.open(_sips(path, session))
+                im = Image.open(_convert(path, session))
                 im.load()
             except BgError:
                 raise BgError("BG-005", "This is not an image Lotus can read.", str(e))

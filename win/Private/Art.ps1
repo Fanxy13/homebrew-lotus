@@ -167,3 +167,14 @@ function ConvertTo-LotusLogoArt {
     }
     [pscustomobject]@{ Text = $sb.ToString(); Width = $w; Height = $h }
 }
+
+# One color of a theme's flower (_bgu_ramp: dark below 0.6, light above; the setup's lotus and /bg's bloom) → "r;g;b"
+function Get-LotusRamp {
+    param([string]$Rgb, [double]$K)
+    $c = @($Rgb -split ';' | ForEach-Object { [double]$_ })
+    $m = ($c[0] + $c[1] + $c[2]) / 3.0
+    $deep = foreach ($x in $c) { $v = $x * 0.58 - ($m - $x) * 0.7; Get-LotusF10 ([Math]::Max(0, [Math]::Min(255, $v))) }
+    $tip = foreach ($x in $c) { $x + (255 - $x) * 0.62 }
+    if ($K -lt 0.6) { $a = $deep; $b = $c; $f = $K / 0.6 } else { $a = $c; $b = $tip; $f = ($K - 0.6) / 0.4 }
+    (0..2 | ForEach-Object { [long][Math]::Truncate($a[$_] + ($b[$_] - $a[$_]) * $f) }) -join ';'
+}

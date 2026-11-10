@@ -24,8 +24,6 @@ foreach ($pair in @(
 # What Windows cannot do (yet), in words: module → the reason, and whether the table of what works where helps
 $script:NotOnWindows = @{
     ios       = @("iPhone and iPad tools need Apple’s tools: they are for macOS only.", $false)
-    minecraft = @('The Minecraft server setup is not on Windows yet.', $true)
-    bg        = @('Remove BG is not on Windows yet.', $true)
     plugin    = @('Plugins are not on Windows yet: Windows has no sandbox that PowerShell can use, so every plugin will need the approval a full-access one needs.', $true)
     aitools   = @('The AI program is not on Windows yet.', $true)
     shell     = @('bash-init is for bash on macOS and Linux. PowerShell has its own: lotus setup --hook', $false)

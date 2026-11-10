@@ -590,3 +590,108 @@ function Invoke-LotusPythonText {
     try { Invoke-LotusNativeText $Python.Exe (@($Python.Args) + @('-B', $Script) + @($Arguments)) }
     finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
 }
+
+# ── Programs that keep running ────────────────────────────────
+
+# A PowerShell script that runs on its own (lotus_os_detach): on Windows in a hidden window of its own, so closing the
+# terminal does not stop it → the process, or $null
+function Start-LotusDetached {
+    param([Parameter(Mandatory)][string]$Script, [string[]]$Arguments = @())
+    $pwsh = (Get-Process -Id $PID).Path
+    $line = ConvertTo-LotusCommandLine (@('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $Script) + $Arguments)
+    try {
+        if ($IsWindows) { Start-Process -FilePath $pwsh -ArgumentList $line -WindowStyle Hidden -PassThru -ErrorAction Stop }
+        else { Start-Process -FilePath $pwsh -ArgumentList $line -PassThru -ErrorAction Stop }
+    } catch { $null }
+}
+
+# A folder to the Recycle Bin, through the Windows shell. A folder too large for the bin is never deleted for good on
+# its own: the shell asks first, and a no deletes nothing. → 0 moved · 1 not (still there) · 2 no Recycle Bin here
+function Remove-LotusFolderToRecycleBin {
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not $IsWindows) { return 2 }
+    if (-not (Test-Path -LiteralPath $Path)) { return 1 }
+    if (-not ('LotusRecycle' -as [type])) {
+        try {
+            Add-Type -ErrorAction Stop -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class LotusRecycle {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct SHFILEOPSTRUCT {
+        public IntPtr hwnd; public uint wFunc; public string pFrom; public string pTo; public ushort fFlags;
+        [MarshalAs(UnmanagedType.Bool)] public bool fAnyOperationsAborted; public IntPtr hNameMappings; public string lpszProgressTitle;
+    }
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern int SHFileOperation(ref SHFILEOPSTRUCT op);
+    // FO_DELETE with FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI | FOF_WANTNUKEWARNING
+    public static int Recycle(string path, out bool aborted) {
+        var op = new SHFILEOPSTRUCT { wFunc = 3, pFrom = path + "\0\0", fFlags = 0x40 | 0x10 | 0x4 | 0x400 | 0x4000 };
+        int rc = SHFileOperation(ref op);
+        aborted = op.fAnyOperationsAborted;
+        return rc;
+    }
+}
+'@
+        } catch { return 2 }
+    }
+    $full = (Resolve-Path -LiteralPath $Path).ProviderPath
+    $aborted = $false
+    try { $rc = [LotusRecycle]::Recycle($full, [ref]$aborted) } catch { return 1 }
+    if ($rc -ne 0 -or $aborted -or (Test-Path -LiteralPath $full)) { return 1 }
+    0
+}
+
+# ── Pictures ──────────────────────────────────────────────────
+
+# The middle square of a picture, <size> × <size> pixels, as a PNG (lotus_os_image_square, with Windows' own drawing
+# library) → 0 · 1 not a picture it can read · 2 not possible on this system
+function Save-LotusImageSquare {
+    param([string]$Source, [int]$Size, [string]$Out)
+    if (-not $IsWindows) { return 2 }
+    try { Add-Type -AssemblyName System.Drawing -ErrorAction Stop } catch { return 2 }
+    $img = $null; $bmp = $null; $g = $null
+    try {
+        $img = [System.Drawing.Image]::FromFile($Source)
+        $side = [Math]::Min($img.Width, $img.Height)
+        $src = [System.Drawing.Rectangle]::new([int](($img.Width - $side) / 2), [int](($img.Height - $side) / 2), $side, $side)
+        $bmp = [System.Drawing.Bitmap]::new($Size, $Size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $g.DrawImage($img, [System.Drawing.Rectangle]::new(0, 0, $Size, $Size), $src, [System.Drawing.GraphicsUnit]::Pixel)
+        $bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
+        0
+    } catch { 1 }
+    finally { if ($g) { $g.Dispose() }; if ($bmp) { $bmp.Dispose() }; if ($img) { $img.Dispose() } }
+}
+
+# A picture as character art: <columns> × <rows> cells, two pixels per cell (half blocks) in the colors of this
+# terminal → the lines, or none when this system cannot read pictures
+function Get-LotusImageArt {
+    param([string]$Path, [int]$Cols, [int]$Rows)
+    if (-not $IsWindows) { return }
+    try { Add-Type -AssemblyName System.Drawing -ErrorAction Stop } catch { return }
+    $img = $null; $bmp = $null; $g = $null
+    try {
+        $img = [System.Drawing.Image]::FromFile($Path)
+        $bmp = [System.Drawing.Bitmap]::new($Cols, $Rows * 2, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.DrawImage($img, 0, 0, $Cols, $Rows * 2)
+        $esc = [char]27
+        for ($y = 0; $y -lt $Rows; $y++) {
+            $sb = [System.Text.StringBuilder]::new()
+            for ($x = 0; $x -lt $Cols; $x++) {
+                $t = $bmp.GetPixel($x, 2 * $y); $u = $bmp.GetPixel($x, 2 * $y + 1)
+                if ($t.A -lt 64 -and $u.A -lt 64) { [void]$sb.Append("$esc[0m "); continue }
+                $fg = ConvertTo-LotusSgr "$($u.R);$($u.G);$($u.B)"
+                $bg = ConvertTo-LotusBackground (ConvertTo-LotusSgr "$($t.R);$($t.G);$($t.B)")
+                if ($u.A -lt 64) { [void]$sb.Append("$esc[0;$(ConvertTo-LotusSgr "$($t.R);$($t.G);$($t.B)")m▀") }
+                elseif ($t.A -lt 64) { [void]$sb.Append("$esc[0;$($fg)m▄") }
+                else { [void]$sb.Append("$esc[0;$fg;$($bg)m▄") }
+            }
+            $sb.ToString() + "$esc[0m"
+        }
+    } catch { }
+    finally { if ($g) { $g.Dispose() }; if ($bmp) { $bmp.Dispose() }; if ($img) { $img.Dispose() } }
+}

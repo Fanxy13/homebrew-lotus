@@ -1,14 +1,20 @@
 """Lotus Remove BG worker. Runs inside Lotus' own Python environment, one command per process:
 
-  probe                               what this Mac and the runtime can do
+  probe                               what this computer and the runtime can do
   check    [--model ID] [--full]      are the model files complete and unchanged?
   run      --model ID --backend B (--out DIR | --next-to-source) --session DIR [--keep MASK] IMAGE…
   refine   --session DIR --keep MASK  apply your KEEP marks to the last result (no model needed)
   selftest --model ID --backend B     load the model and cut out a small generated picture
+  prepare  --model ID                 convert BiRefNet for the graphics card (Windows, once per model)
+
+Backends: auto · cpu · mps (the Apple GPU) · gpu (on a Mac the same as mps; on Windows the graphics card through
+DirectML, for BiRefNet once it is prepared). auto takes the GPU when it can and the CPU otherwise.
 
 Events for the Lotus screen go to stdout, one per line, tab separated:
   stage <name> · info <key> <value> · image <n> <total> <path> · done <input> <output> <seconds>
   warn <code> <text> · error <code> <reason> <detail>
+  gpu <device id> <name> <MB of its own memory>          (probe, Windows: a graphics card DirectML can use)
+  model <id> ok|missing|damaged <files> [ready|-]         (check; ready: prepared for the graphics card)
 Details and tracebacks go to the Lotus log only. Images are read from and written to local files –
 nothing is uploaded, nothing is sent anywhere.
 """
@@ -30,6 +36,25 @@ from events import BgError, Stage, emit, log
 warnings.filterwarnings("ignore")
 
 
+def _watch_cancel(path):
+    """Windows has no signal Lotus could send: Lotus makes the file <path> instead, and the main thread stops at its
+    next step, as with SIGTERM. A file, not a line on stdin – a thread waiting on stdin makes Windows hold up
+    everything else that asks about that handle, and importing PyTorch does."""
+    import _thread
+    import threading
+
+    def run():
+        while not os.path.exists(path):
+            time.sleep(0.2)
+        _thread.interrupt_main()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+if os.environ.get("LOTUS_BG_CANCEL"):
+    _watch_cancel(os.environ["LOTUS_BG_CANCEL"])
+
+
 def _interrupt(*_):
     raise KeyboardInterrupt
 
@@ -37,11 +62,28 @@ def _interrupt(*_):
 signal.signal(signal.SIGTERM, _interrupt)
 
 
+def total_memory():
+    """Bytes of memory: sysconf on macOS and Linux, GlobalMemoryStatusEx on Windows (which has no sysconf)."""
+    if hasattr(os, "sysconf"):
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    import ctypes
+
+    class Status(ctypes.Structure):
+        _fields_ = [("length", ctypes.c_ulong), ("load", ctypes.c_ulong)] + \
+                   [(n, ctypes.c_ulonglong) for n in ("phys", "avail", "page", "page_avail", "virt", "virt_avail", "ext")]
+
+    s = Status()
+    s.length = ctypes.sizeof(Status)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(s)):
+        return 0
+    return s.phys
+
+
 def cmd_probe(a):
     import platform
     emit("info", "python", platform.python_version())
     emit("info", "machine", platform.machine())
-    emit("info", "memory", os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES"))
+    emit("info", "memory", total_memory())
     try:
         import torch
     except Exception as e:
@@ -53,7 +95,25 @@ def cmd_probe(a):
     for name in ("numpy", "cv2", "PIL", "timm", "kornia", "einops", "safetensors", "transparent_background"):
         ok = importlib.util.find_spec(name) is not None
         emit("info", "module", name, "ok" if ok else "missing")
+    if sys.platform == "win32":
+        _probe_gpu()
     return 0
+
+
+def _probe_gpu():
+    """Windows: the graphics cards DirectML could use, and whether ONNX Runtime with DirectML is installed"""
+    import gpu
+    for a in gpu.adapters():
+        log("debug", f"Adapter {a['index']}: {a['name']} · vendor {a['vendor']:04x} · {a['mb']} MB"
+                     f"{' · software' if a['software'] else ''}{' · Direct3D 12' if a['d3d12'] else ''}")
+    for c in gpu.cards():
+        emit("gpu", c["index"], c["name"], c["mb"])
+    try:
+        import onnxruntime as ort
+        emit("info", "onnxruntime", ort.__version__)
+        emit("info", "directml", int("DmlExecutionProvider" in ort.get_available_providers()))
+    except Exception:
+        emit("info", "directml", 0)
 
 
 def cmd_check(a):
@@ -66,16 +126,25 @@ def cmd_check(a):
             emit("model", mid, "missing", "")
             continue
         bad = engines.check_files(m, folder, full=a.full)
-        emit("model", mid, "damaged" if bad else "ok", ",".join(bad))
+        ready = "-"
+        if not bad and sys.platform == "win32" and m["engine"] == "birefnet":
+            import onnxprep
+            ready = "ready" if os.path.isfile(onnxprep.onnx_path(a.models_dir, m)) else "-"
+        emit("model", mid, "damaged" if bad else "ok", ",".join(bad), ready)
     return 0
 
 
+def _here():
+    """What this computer is called in a message. The log is not translated, so the right word is written here."""
+    return "Mac" if sys.platform == "darwin" else "PC" if sys.platform == "win32" else "computer"
+
+
 def _memory_check(h, w):
-    total = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    total = total_memory()
     need = h * w * 28 + 2_500_000_000
-    if need > total * 0.8:
-        raise BgError("BG-007", "This image needs more memory than this Mac has.",
-                      f"{w}×{h} needs about {need / 1e9:.1f} GB, the Mac has {total / 1e9:.0f} GB")
+    if total and need > total * 0.8:
+        raise BgError("BG-007", f"This image needs more memory than this {_here()} has.",
+                      f"{w}×{h} needs about {need / 1e9:.1f} GB, the {_here()} has {total / 1e9:.0f} GB")
 
 
 def _save_session(session, meta, rgb_w, alpha_w):
@@ -227,10 +296,70 @@ def cmd_selftest(a):
         secs = time.time() - t0
     if not np.isfinite(alpha).all() or alpha.max() <= 0:
         raise BgError("BG-004", f"{engine.label} gave an empty result in the test.")
+    if engine.device == "gpu":
+        # What a graphics card makes of the picture no other machine can check for it, so the setup does: the disc has to
+        # come out as the disc (the same two points and limits as the check of the build machine). A card that gets it
+        # wrong goes the way of one that fails: its conversion is dropped and the processor does the work.
+        h, w = alpha.shape[:2]
+        disc, corner = float(alpha[h // 2, w // 2]), float(alpha[h // 64, w // 64])
+        if not (disc > 0.5 and corner < 0.5):
+            raise BgError("BG-013", "The graphics card gave a wrong result in the test.",
+                          f"the middle of the disc {disc:.2f} (right: above 0.5), the corner {corner:.2f} (right: below 0.5)")
     emit("info", "seconds", f"{secs:.2f}")
     log("info", f"Self-test of {engine.label} on {engine.device.upper()}: {secs:.2f}s")
     emit("done", "selftest", "", f"{secs:.2f}")
     return 0
+
+
+def cmd_prepare(a):
+    """BiRefNet → an ONNX file for the graphics card, next to the weights it was made from"""
+    import engines
+    import onnxprep
+    models = engines.registry()
+    if a.model not in models:
+        raise BgError("BG-004", f"Unknown model: {a.model}")
+    m = models[a.model]
+    bad = engines.check_files(m, os.path.join(a.models_dir, a.model))
+    if bad:
+        raise BgError("BG-009", f"{m['label']} is incomplete or damaged: {', '.join(bad)}")
+    total = total_memory()
+    # the conversion's peak on GitHub's Windows machine: BiRefNet Lite 2.6 GB, BiRefNet 4.4 GB – with room to spare
+    need = 4_000_000_000 if m["mb"] < 300 else 7_000_000_000
+    if total and need > total * 0.9:
+        raise BgError("BG-007", f"Preparing {m['label']} for the graphics card needs more memory than this PC has.",
+                      f"about {need / 1e9:.0f} GB, the PC has {total / 1e9:.0f} GB")
+    emit("info", "model", m["label"])
+    with Stage("prepare", "Preparing for the graphics card"):
+        path, secs = onnxprep.export(m, a.models_dir)
+    emit("info", "seconds", f"{secs:.1f}")
+    emit("info", "peak_mb", peak_memory() // (1 << 20))
+    emit("done", "prepare", path, f"{secs:.1f}")
+    return 0
+
+
+def peak_memory():
+    """The most memory this process has used so far, in bytes (for the log of a conversion)"""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        class Counters(ctypes.Structure):
+            _fields_ = [("cb", wintypes.DWORD), ("faults", wintypes.DWORD)] + \
+                       [(n, ctypes.c_size_t) for n in ("peak_ws", "ws", "peak_paged", "paged", "peak_nonpaged",
+                                                       "nonpaged", "pagefile", "peak_pagefile")]
+
+        c = Counters()
+        c.cb = ctypes.sizeof(Counters)
+        k32 = ctypes.WinDLL("kernel32")
+        psapi = ctypes.WinDLL("psapi")
+        psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
+        k32.GetCurrentProcess.restype = wintypes.HANDLE
+        if psapi.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(c), c.cb):
+            return c.peak_ws
+        return 0
+    import resource
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak if sys.platform == "darwin" else peak * 1024
 
 
 def main():
@@ -254,7 +383,7 @@ def _main():
         r = sub.add_parser(name)
         r.add_argument("--model", required=True)
         r.add_argument("--models-dir", required=True)
-        r.add_argument("--backend", default="auto", choices=["auto", "mps", "cpu"])
+        r.add_argument("--backend", default="auto", choices=["auto", "gpu", "mps", "cpu"])
         if name == "run":
             r.add_argument("--out", default="")
             r.add_argument("--next-to-source", action="store_true")
@@ -264,10 +393,13 @@ def _main():
     f = sub.add_parser("refine")
     f.add_argument("--session", required=True)
     f.add_argument("--keep", required=True)
+    g = sub.add_parser("prepare")
+    g.add_argument("--model", required=True)
+    g.add_argument("--models-dir", required=True)
     a = p.parse_args()
     try:
-        return {"probe": cmd_probe, "check": cmd_check, "run": cmd_run,
-                "refine": cmd_refine, "selftest": cmd_selftest}[a.cmd](a)
+        return {"probe": cmd_probe, "check": cmd_check, "run": cmd_run, "refine": cmd_refine,
+                "selftest": cmd_selftest, "prepare": cmd_prepare}[a.cmd](a)
     except BgError as e:
         log("error", f"{e.code} {e.reason}" + (f" – {e.detail}" if e.detail else ""))
         emit("error", e.code, e.reason, (e.detail or "")[:400])
