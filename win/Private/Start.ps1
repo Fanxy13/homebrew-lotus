@@ -216,7 +216,8 @@ function Get-LotusArtArgs {
         # the info needs about 56 columns – the cover never cuts it off
         $cw = [Math]::Min($Columns - 64, 2 * $block)
         if ($cw -ge 24) {
-            $cover = Get-LotusCover $cw $block $Song
+            $cover = $null
+            try { $cover = Get-LotusCover $cw $block $Song } catch { Write-LotusLog WARN cover "The cover could not be drawn: $($_.Exception.Message)" }
             if ($cover) {
                 $top = [Math]::Truncate(($block - $cover.Height) / 2)
                 $right = 6 + [Math]::Max($cover.Width, $lw) - $cover.Width

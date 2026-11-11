@@ -37,7 +37,7 @@ Everything of Lotus that Windows can have, with the program that does the work o
 
 | | |
 |---|---|
-| The start screen | the logo painted in the theme's gradient (OKLab, the same as zsh – the contract tests compare all 96 paintings), fastfetch with the same generated config, the greeting in 15 languages, now playing (from Windows' media controls through fastfetch – no album cover yet), the pet of the day |
+| The start screen | the logo painted in the theme's gradient (OKLab, the same as zsh – the contract tests compare all 96 paintings), fastfetch with the same generated config, the greeting in 15 languages, now playing (from Windows' media controls through fastfetch) with the album cover of the song in the logo's place – drawn once when the start screen is shown, no live updates yet, the pet of the day |
 | The shell | PSReadLine's Enter key turns `/weather Paris` into `lotus weather Paris` – also your shortcuts, pasted links, `open <app>`, a pet's name; the colored prompt; a command that `/help` or `/ai` prepared lands on the next line |
 | Setup and settings | the wizard with the blooming lotus, `/settings`, features, themes (and your own), logos, shortcuts, `lotus doctor`, the log viewer, texts in English, German, French and Spanish ("this PC" where the texts say "this Mac") |
 | Apps and software | `/app` (the Start menu's apps by name), `/install` (the app catalog: every app with a winget id) and `/brew` (winget search and install – the exact command first, then a question; winget asks its own questions in the open) |
@@ -50,7 +50,7 @@ Everything of Lotus that Windows can have, with the program that does the work o
 
 Not on Windows yet: the AI terminal with its tools and the web chat (the Swift program has no Windows build), a model
 that Lotus runs itself, plugins (PowerShell has no sandbox Lotus could use), Remove BG on Windows on Arm (OpenCV and
-torchvision have no build there) and its drawing editor, Live Server for the phones in the Wi-Fi, the album cover. The iPhone tools are for
+torchvision have no build there) and its drawing editor, Live Server for the phones in the Wi-Fi, live updates of the start screen (now playing and the cover change only when it is shown again). The iPhone tools are for
 macOS only. These commands say so instead of failing quietly.
 
 ## The code

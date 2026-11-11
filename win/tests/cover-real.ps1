@@ -79,13 +79,43 @@ if ($art) {
     Write-Host "  drawn: $($art.Width) × $($art.Height) in $($art.File)"
     $lines = ([IO.File]::ReadAllText($art.File)).TrimEnd("`n") -split "`n"
     Check ($art.Width -eq 40 -and $art.Height -eq 20) 'a square cover is as tall as half its width'
-    $rgb = { param($line, $left) $m = [regex]::Matches($line, '\x1b\[(?:[0-9;]*;)?38;2;(\d+);(\d+);(\d+)'); $x = if ($left) { $m[2] } else { $m[$m.Count - 3] }; @([int]$x.Groups[1].Value, [int]$x.Groups[2].Value, [int]$x.Groups[3].Value) }
+    $rgb = { param($line, $left) $m = [regex]::Matches($line, '\x1b\[(?:[0-9;]*;)?38;2;(\d+);(\d+);(\d+)'); $x = if ($left) { $m[0] } else { $m[$m.Count - 1] }; @([int]$x.Groups[1].Value, [int]$x.Groups[2].Value, [int]$x.Groups[3].Value) }
     $tl = & $rgb $lines[0] $true; $tr = & $rgb $lines[0] $false; $bl = & $rgb $lines[-1] $true; $br = & $rgb $lines[-1] $false
     Write-Host "  corners: top left $($tl -join ','), top right $($tr -join ','), bottom left $($bl -join ','), bottom right $($br -join ',')"
     Check ($tl[0] -gt 200 -and $tl[1] -lt 60 -and $tl[2] -lt 60) 'red at the top left'
     Check ($tr[1] -gt 200 -and $tr[0] -lt 60 -and $tr[2] -lt 60) 'green at the top right'
     Check ($bl[2] -gt 200 -and $bl[0] -lt 60 -and $bl[1] -lt 60) 'blue at the bottom left'
     Check ($br[0] -gt 200 -and $br[1] -gt 200 -and $br[2] -lt 60) 'yellow at the bottom right'
+}
+
+# the whole start screen, drawn by fastfetch: the song's lines and the cover where the logo is
+Write-Host "`nThe start screen, with fastfetch …"
+$ff = Get-Command fastfetch -CommandType Application -ErrorAction SilentlyContinue
+if (-not $ff) {
+    winget install --id Fastfetch-cli.Fastfetch -e --accept-source-agreements --accept-package-agreements --disable-interactivity | Out-Host
+    $env:PATH = [Environment]::GetEnvironmentVariable('PATH', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('PATH', 'User')
+    $ff = Get-Command fastfetch -CommandType Application -ErrorAction SilentlyContinue
+}
+if (-not $ff) {
+    Write-Host "::warning::fastfetch could not be installed on this runner: the start screen was not drawn"
+    Check $false 'fastfetch is there to draw the start screen'
+} else {
+    & $ff.Source --version | Select-Object -First 1
+    $screen = { param($columns) & $mod { param($c) Initialize-Lotus; Get-LotusStartText -Columns $c } $columns }
+    $text = & $screen 150
+    Write-Host ($text -split "`n" | Select-Object -First 30 | Out-String)
+    $plain = $text -replace "$([char]27)\[[0-9;]*m", ''
+    Check ($plain -match 'Lotus Test Song') 'the start screen names the song that plays'
+    $cached = @(Get-ChildItem (Join-Path $env:LOTUS_CACHE 'covers') -Filter '*-tc.txt' -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending)
+    $artFile = $cached | Select-Object -First 1
+    $first = if ($artFile) { ([IO.File]::ReadAllText($artFile.FullName) -split "`n")[0] } else { '' }
+    Check ($first -and $text.Contains($first)) 'the cover is on the start screen, where the logo is'
+    # the cover off: the logo is back
+    lotus settings set LOTUS_COVER 0 | Out-Null
+    Remove-Item -Path (Join-Path $env:LOTUS_CACHE 'np-*-*') -Force -ErrorAction SilentlyContinue
+    $text = & $screen 150
+    Check ($first -and -not $text.Contains($first)) 'with the cover switched off the logo is back'
+    lotus settings set LOTUS_COVER 1 | Out-Null
 }
 try { $player.Kill($true) } catch { }
 if ($failed.Count) { Write-Host "`n$($failed.Count) failed"; Get-Content (Join-Path $env:LOTUS_STATE 'lotus.log') -Tail 30 -ErrorAction SilentlyContinue; exit 1 }

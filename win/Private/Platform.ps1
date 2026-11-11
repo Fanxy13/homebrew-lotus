@@ -341,7 +341,7 @@ $ErrorActionPreference = 'Stop'
 try {
     Add-Type -AssemblyName System.Runtime.WindowsRuntime
     $await = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' } | Select-Object -First 1
-    function Wait($op, $type) { $t = $await.MakeGenericMethod($type).Invoke($null, @($op)); if (-not $t.Wait(8000)) { throw 'The media session did not answer' }; $t.Result }
+    function Wait($op, $type) { $t = $await.MakeGenericMethod($type).Invoke($null, @($op)); if (-not $t.Wait(4000)) { throw 'The media session did not answer' }; $t.Result }
     $null = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]
     $null = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties, Windows.Media.Control, ContentType = WindowsRuntime]
     $null = [Windows.Storage.Streams.IRandomAccessStreamWithContentType, Windows.Storage.Streams, ContentType = WindowsRuntime]
@@ -352,10 +352,10 @@ try {
     $p = Wait ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
     $b64 = { param($t) [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([string]$t)) }
     $asRead = [System.IO.WindowsRuntimeStreamExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsStreamForRead' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IInputStream' } | Select-Object -First 1
-    # the picture comes a moment after the session: asked again for a short while
+    # the picture comes a moment after the session: asked again for about two seconds
     $cover = 'nocover'
-    for ($try = 0; $try -lt 8 -and $cover -ne 'cover'; $try++) {
-        if ($try -gt 0) { Start-Sleep -Milliseconds 400; $p = Wait ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties]) }
+    for ($try = 0; $try -lt 6 -and $cover -ne 'cover'; $try++) {
+        if ($try -gt 0) { Start-Sleep -Milliseconds 350; $p = Wait ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties]) }
         if (-not $p.Thumbnail) { continue }
         try {
             $stream = Wait ($p.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
@@ -385,7 +385,7 @@ try {
         $proc.StandardInput.Close()
         $err = $proc.StandardError.ReadToEndAsync()
         $out = $proc.StandardOutput.ReadToEndAsync()
-        if (-not $proc.WaitForExit(15000)) { try { $proc.Kill($true) } catch { }; return $null }
+        if (-not $proc.WaitForExit(10000)) { try { $proc.Kill($true) } catch { }; return $null }
         $proc.WaitForExit()
         $null = $err.Result
         $line = @(([string]$out.Result) -split "`r?`n" | Where-Object { $_ }) | Select-Object -Last 1
