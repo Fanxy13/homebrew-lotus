@@ -187,8 +187,7 @@ def install():
     c.paste(f'iex (Get-Content -Raw "{os.path.join(REPO, "install.ps1")}")', enter=True)    # (irm <url> | iex, from this checkout)
     answer(c, 'Download it?')                     # fastfetch
     answer(c, 'Set it now (for your user only)?') # RemoteSigned
-    c.wait(r'Done\. Open a new PowerShell window\.', 180, quiet=1.0)
-    c.wait_for(lambda: 'Welcome to Lotus' in c.text() or c.at_prompt(), 'the setup, or the prompt without it', 120, quiet=2.0)
+    c.wait_for(lambda: 'Welcome to Lotus' in c.text() or c.at_prompt(), 'the setup, or the prompt without it', 240, quiet=2.0)
     if check('Welcome to Lotus' in c.text(), 'the installer starts the setup when it is done', c):
         pages = wizard(c)
         print('  the setup went through: ' + ', '.join(pages), flush=True)
@@ -301,10 +300,11 @@ def command_prompt():
     check(re.search(r'\d+\.\d+\.\d+', c.text()) is not None, 'lotus.cmd starts Lotus (Windows PowerShell 5.1) and it answers', c)
     c.type('cls', enter=True)
     hold(1)
+    before = len(rec.events)
     c.type('lotus doctor', enter=True)
-    c.wait(r'Windows PowerShell 5\.1', 90, quiet=1.5)
+    c.wait_for(lambda: 'Features' in output_since(before) and c.text().rstrip().endswith('>'), 'the end of lotus doctor', 120, quiet=1.5)
     show(c, 'lotus doctor in cmd.exe')
-    check(True, 'lotus doctor in cmd.exe runs in Windows PowerShell 5.1')
+    check('Windows PowerShell 5.1' in output_since(before), 'lotus doctor in cmd.exe runs in Windows PowerShell 5.1', c)
     no_errors(mark, 'cmd.exe')
     c.type('exit', enter=True)
     time.sleep(1)

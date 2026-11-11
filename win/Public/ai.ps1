@@ -57,11 +57,13 @@ function script:Get-LotusAiOllamaUrl {
 }
 function script:Test-LotusAiLoopback { param([string]$Url) $Url -match '^https?://(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:|/|$)' }
 
-# The models Ollama has (it answers within a second when it runs)
+# The models Ollama has. It answers at once when it runs, and a refused connection to 127.0.0.1 is at once too – the three
+# seconds are for a first request in a Windows PowerShell 5.1 that has not started its HTTP stack yet (one second was not enough
+# there: Ollama was not found on a busy machine)
 function script:Get-LotusAiOllamaModels {
     $url = Get-LotusAiOllamaUrl
     try {
-        $text = Get-LotusHttpText "$url/api/tags" 1 ([bool](Test-LotusAiLoopback $url))
+        $text = Get-LotusHttpText "$url/api/tags" 3 ([bool](Test-LotusAiLoopback $url))
         if (-not $text) { return @() }
         $r = $text | ConvertFrom-Json
         @($r.models | ForEach-Object { [string]$_.name } | Where-Object { $_ })
