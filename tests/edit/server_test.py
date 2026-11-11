@@ -192,7 +192,7 @@ def _():
     assert png_size(IMAGE) == (400, 300)
     status, _, out = ed.post("api/save?format=jpeg&quality=80&max=0&edited=1", body)
     assert json.loads(out)["name"] == "shot edited (2).jpg", out
-    leftovers = [f for f in os.listdir(D + "/data") for g in os.listdir(D + "/data/" + f) if g == "crop.png"]
+    leftovers = [f for f in os.listdir(D + "/data") for g in os.listdir(D + "/data/" + f) if g.startswith("crop")]
     assert not leftovers, "the upload is deleted after the save: %r" % leftovers
     assert "Saved" in ed.output() and "shot edited.jpg" in ed.output()
 

@@ -441,12 +441,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.refuse(400, "Content-Length is not a number.")
         if edited and not 0 < length <= UPLOAD_MAX:
             return self.refuse(413 if length else 411, "The picture is missing or too big.")
-        upload = os.path.join(s.work_dir, "crop.png")
+        upload = None
         ed.busy += 1
         try:
             if edited:
+                fd, upload = tempfile.mkstemp(prefix="crop-", suffix=".png", dir=s.work_dir)       # (a name of its own for every save)
                 left = length
-                with open(upload, "wb") as f:
+                with os.fdopen(fd, "wb") as f:
                     while left > 0:
                         chunk = self.rfile.read(min(1 << 20, left))
                         if not chunk:
@@ -467,10 +468,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(200, dict(item, ok=True, note=s.note))
         finally:
             ed.busy -= 1
-            try:
-                os.remove(upload)
-            except OSError:
-                pass
+            if upload:
+                try:
+                    os.remove(upload)
+                except OSError:
+                    pass
 
 
 class Server(ThreadingHTTPServer):
@@ -539,6 +541,9 @@ def main(argv):
     except engines.EngineError as e:
         session.forget()
         return fail("%s – %s" % (os.path.basename(args.image), e.reason), "Pictures: JPEG, PNG, HEIC, WebP, AVIF, GIF, TIFF, BMP, RAW …")
+    except KeyboardInterrupt:                                  # Ctrl-C while the picture is made ready
+        session.forget()
+        return 130
     ed = Editor(session, lang, env.get("LOTUS_THIS", "this computer"), env.get("LOTUS_FILES_APP", "the file manager"))
     try:
         server = Server(("127.0.0.1", args.port), Handler)

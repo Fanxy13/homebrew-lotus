@@ -204,5 +204,8 @@ the texts said "macOS user" on Linux.
   15 with the page in Chromium. Found by them: a class name used twice (the hint and the "editor stopped" overlay – the hint covered the
   screen while it faded), Enter on a button that was clicked with the mouse (a keyboard modality is not a Tab), a self-recursive
   test helper. Seen by eye: the saved file is the picture the frame showed (mirrored, straightened, 16:9).
-- Not yet checked: Safari and Chrome on a Mac by script (the page was driven in Chromium on Linux), the Swift converter's new
-  camera-data copy (it compiles and runs on the CI Macs, the page is not driven there – a CI Mac cannot talk to 127.0.0.1).
+- Checked on a Mac (the CI Macs, Apple silicon and Intel): the converter builds with the new camera-data field and the engine tests run
+  with ImageIO (a cropped JPEG carries the original's camera make; a photo on its side comes out upright), and the geometry (Node)
+  and the page's texts pass. Not yet checked: Safari and Chrome on a Mac by script (the page was driven in Chromium on Linux), and
+  the server over HTTP on a Mac (a CI Mac cannot talk to 127.0.0.1 – `tests/test-editserver.zsh` runs on a real Mac and in the Linux
+  containers, where it passes on Debian, Fedora and Arch).
