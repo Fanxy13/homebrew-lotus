@@ -110,3 +110,12 @@ and the whole Pester suite in 5.1:
   asks for them before Lotus draws.
 - A profile is read and written the way both read it: plain ASCII as it is, anything else (a user name with an umlaut is
   in the module's path) as UTF-8 with a byte order mark; an ANSI or UTF-16 profile and its line ends are kept.
+- `[RuntimeInformation]::OSArchitecture` was empty in a console of the CI: the installer and `Get-LotusOsArchitecture` take
+  the environment's `PROCESSOR_ARCHITECTURE` when .NET says nothing.
+- The installer takes a policy of its own for its window (Process, Bypass); Windows PowerShell then reports the policy it
+  sets for the user as an error ("Security error.", *overridden by a more specific scope*) although it is set – the
+  installer looks at what is set (`Get-ExecutionPolicy -Scope CurrentUser`), not at that error.
+- A look at Ollama (127.0.0.1) and the pages the tests fetch go through `HttpWebRequest` (`Get-LotusHttpText`): the
+  `-NoProxy` of `Invoke-WebRequest` is PowerShell 7's, and Windows PowerShell looks for a proxy first.
+- In the tests Windows PowerShell gets a stand-in for `Out-String` (`TestKit.ps1`): PowerShell 7 leaves the color codes out of
+  what a test collects with `6>&1 | Out-String` and does not wrap its lines; Windows PowerShell does neither.

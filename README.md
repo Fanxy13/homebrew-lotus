@@ -35,7 +35,7 @@ all from the terminal, under the lotus start screen you know from 1.x.
 |---|---|---|
 | macOS 11 or newer | supported | `curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh \| zsh` or `brew install Fanxy13/lotus/lotus` |
 | Linux (x86_64, arm64) | beta – tested in containers on Ubuntu 24.04, Debian 12, Fedora 42, Arch | `curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh \| sh` |
-| Windows 11 (or 10) | beta – tested on every change on GitHub's Windows machines (x64, Arm64), in the Windows PowerShell 5.1 that Windows 11 comes with and in PowerShell 7; not yet by people in a real window | `irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 \| iex` in PowerShell |
+| Windows 11 (or 10) | beta – tested on every change on GitHub's Windows machines: PowerShell 7 on x64 and Arm64, and the Windows PowerShell 5.1 that Windows 11 comes with on x64; not yet by people in their own window | `irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 \| iex` in PowerShell |
 
 On macOS:
 
