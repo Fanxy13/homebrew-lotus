@@ -147,6 +147,18 @@ jobs:
           if ($LASTEXITCODE) { & $show; exit 1 }
           lotus doctor --bg
 
+  cover-real:
+    name: Album cover on real Windows (a media session, its picture, the drawing)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # a player shows a song with a cover in Windows' media controls; Lotus asks for it, opens the picture with Windows' own
+      # image component and draws it (win/tests/cover-real.ps1)
+      - name: A player with a song and a cover, and Lotus drawing it
+        shell: pwsh
+        run: ./win/tests/cover-real.ps1
+
   mc-real:
     name: Minecraft on real Windows (Temurin, Paper, LotusBridge)
     runs-on: windows-latest

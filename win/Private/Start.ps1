@@ -189,9 +189,11 @@ function Get-LotusNowPlaying {
 # ── The art ───────────────────────────────────────────────────
 
 # fastfetch's arguments for the art next to <info lines> of information (lotus_art_pick): the logo, the minimal lotus
-# when the window is too narrow for it, or none
+# when the window is too narrow for it, or none – and while a song plays (<Song> is the first line of now playing, empty
+# when nothing plays) its cover in the logo's place, as big as the logo's room. With a cover the room stays wide enough
+# for the logo, so they can swap later without moving the info.
 function Get-LotusArtArgs {
-    param([int]$Info, [int]$Columns = (Get-LotusColumns))
+    param([int]$Info, [int]$Columns = (Get-LotusColumns), [string]$Song = '')
     $logo = $null
     $p = Get-LotusLogoPainted ([string]$script:S['LOTUS_LOGO'])
     if ($p) {
@@ -204,10 +206,28 @@ function Get-LotusArtArgs {
             }
         }
     }
+    $lw = 0; $lh = 0; $ltop = 0
+    if ($logo) {
+        $lw = $logo.Width; $lh = $logo.Height
+        $ltop = if ($lh -ge $Info - 2) { 2 } else { [Math]::Truncate(($Info - $lh) / 2) }
+    }
+    if ($Song -and $script:NpOn -and (Test-LotusOn $script:S['LOTUS_COVER'])) {
+        $block = [Math]::Max($lh + $ltop, $Info)
+        # the info needs about 56 columns – the cover never cuts it off
+        $cw = [Math]::Min($Columns - 64, 2 * $block)
+        if ($cw -ge 24) {
+            $cover = Get-LotusCover $cw $block $Song
+            if ($cover) {
+                $top = [Math]::Truncate(($block - $cover.Height) / 2)
+                $right = 6 + [Math]::Max($cover.Width, $lw) - $cover.Width
+                return @('--logo', $cover.File, '--logo-type', 'file-raw', '--logo-width', "$($cover.Width)", '--logo-height', "$($cover.Height)",
+                    '--logo-padding-top', "$top", '--logo-padding-left', '2', '--logo-padding-right', "$right")
+            }
+        }
+    }
     if (-not $logo) { return @('--logo', 'none') }
-    $top = if ($logo.Height -ge $Info - 2) { 2 } else { [Math]::Truncate(($Info - $logo.Height) / 2) }
-    @('--logo', $logo.File, '--logo-type', 'file-raw', '--logo-width', "$($logo.Width)", '--logo-height', "$($logo.Height)",
-        '--logo-padding-top', "$top", '--logo-padding-left', '2', '--logo-padding-right', '6')
+    @('--logo', $logo.File, '--logo-type', 'file-raw', '--logo-width', "$lw", '--logo-height', "$lh",
+        '--logo-padding-top', "$ltop", '--logo-padding-left', '2', '--logo-padding-right', '6')
 }
 
 # ── The start screen ──────────────────────────────────────────
@@ -220,13 +240,16 @@ function Get-LotusStartText {
     Update-LotusFastfetchConfig
     $cache = $script:Paths.Cache
     $info = Get-LotusInt ([string](Read-LotusFile (Join-Path $cache "fastfetch-$($script:Mode).jsonc.lines"))).Trim() 22
-    $args_ = @('-c', (Join-Path $cache "fastfetch-$($script:Mode).jsonc"), '--pipe', 'false') + (Get-LotusArtArgs $info $Columns)
-    $out = Invoke-LotusNativeText $ff $args_
-    $out = $out.Replace('@@LOTUS_HELLO@@', (Get-LotusHello)).Replace('@@LOTUS_SALUTE@@', (Get-LotusSalute))
+    # what plays is asked first: the art depends on it (a song that plays brings its cover)
+    $np = $null; $song = ''
     if ($script:NpOn) {
         $np = Get-LotusNowPlaying
-        $out = $out.Replace('@@LOTUS_NP1@@', $np[0]).Replace('@@LOTUS_NP2@@', $np[1])
+        if ($np[1] -like '*▶*') { $song = $np[0] }
     }
+    $args_ = @('-c', (Join-Path $cache "fastfetch-$($script:Mode).jsonc"), '--pipe', 'false') + (Get-LotusArtArgs $info $Columns -Song $song)
+    $out = Invoke-LotusNativeText $ff $args_
+    $out = $out.Replace('@@LOTUS_HELLO@@', (Get-LotusHello)).Replace('@@LOTUS_SALUTE@@', (Get-LotusSalute))
+    if ($script:NpOn) { $out = $out.Replace('@@LOTUS_NP1@@', $np[0]).Replace('@@LOTUS_NP2@@', $np[1]) }
     $out
 }
 
