@@ -11,18 +11,21 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - name: Each policy, one console
+      - name: Each policy, one console (the policy is written to the registry from PowerShell 7: Windows PowerShell cannot change it once it is Restricted)
         shell: pwsh
         run: |
           python -m pip install --quiet pyte pywinpty
-          $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-          & $ps -NoProfile -Command 'Get-ExecutionPolicy -List | Format-Table -AutoSize | Out-String'
-          foreach ($policy in 'Restricted', 'AllSigned', 'RemoteSigned') {
+          $key = 'HKLM:\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell'
+          "was: $((Get-ItemProperty $key).ExecutionPolicy)"
+          function Set-Policy([string]$p) {
+            if ($p -eq 'Undefined') { Remove-ItemProperty -Path $key -Name ExecutionPolicy -ErrorAction SilentlyContinue } else { Set-ItemProperty -Path $key -Name ExecutionPolicy -Value $p }
+          }
+          foreach ($policy in 'Restricted', 'AllSigned', 'Undefined') {
             "`n==================== LocalMachine $policy"
-            & $ps -NoProfile -Command "Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy $policy -Force"
+            Set-Policy $policy
             python .github/scripts/diag_policy.py
           }
-          "`n==================== Process-scope Restricted with the machine's default"
-          & $ps -NoProfile -Command "Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy Undefined -Force"
-          $env:PSExecutionPolicyPreference = 'Restricted'
-          python .github/scripts/diag_policy.py
+          "`n==================== Process scope Restricted, machine Undefined"
+          python .github/scripts/diag_policy.py -ExecutionPolicy Restricted
+          "`n==================== Process scope AllSigned, machine Undefined"
+          python .github/scripts/diag_policy.py -ExecutionPolicy AllSigned

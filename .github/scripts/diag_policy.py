@@ -11,7 +11,7 @@ from record import Console, Recording  # noqa: E402
 
 POWERSHELL = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 rec = Recording('diag.cast')
-c = Console(rec, [POWERSHELL, '-NoLogo'], env=record.fresh_env())
+c = Console(rec, [POWERSHELL, '-NoLogo'] + sys.argv[1:], env=record.fresh_env())
 time.sleep(10)
 for command in [
     "(Get-Item 'HKLM:\\SOFTWARE\\Microsoft\\PowerShell\\1\\ShellIds\\Microsoft.PowerShell').GetValue('ExecutionPolicy')",
@@ -20,7 +20,7 @@ for command in [
     'Get-ExecutionPolicy -List',
     '(Get-Module PSReadLine).Version.ToString()',
     "(Get-Command Get-ExecutionPolicy -ErrorAction SilentlyContinue).Source",
-    "[Environment]::GetEnvironmentVariable('PSModulePath')",
+    '$ExecutionContext.SessionState.LanguageMode',
 ]:
     c.type(command, enter=True)
     time.sleep(3.5)
