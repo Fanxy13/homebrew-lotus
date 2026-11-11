@@ -86,7 +86,9 @@ jobs:
       - name: Build the test image
         run: |
           platform=; [ "${{ matrix.distro }}" = arch ] && platform="--platform linux/amd64"
-          docker build $platform -q -f tests/docker/${{ matrix.distro }}.Dockerfile -t lotus-test:${{ matrix.distro }} .
+          # quiet; when it fails (a package mirror that is out of sync, a download that broke) once more, with the whole output
+          docker build $platform -q -f tests/docker/${{ matrix.distro }}.Dockerfile -t lotus-test:${{ matrix.distro }} . ||
+            docker build $platform --progress=plain -f tests/docker/${{ matrix.distro }}.Dockerfile -t lotus-test:${{ matrix.distro }} .
       - name: Tests (privileged, so that the plugin sandbox can be tested)
         run: LOTUS_TEST_JOBS=2 LOTUS_TEST_PRIV=1 tests/docker/par.sh ${{ matrix.distro }}      # two at a time: a few tests wait for programs they start and are slow when the CPU is busy
 
