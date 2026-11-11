@@ -19,6 +19,7 @@ function Test-LotusShellHost {
 function Enable-LotusShell {
     if (-not (Test-LotusShellHost)) { return }
     $script:ShellOn = $true
+    Enable-LotusVirtualTerminal
     Update-LotusShellTables
     Register-LotusEnterKey
     Set-LotusPrompt

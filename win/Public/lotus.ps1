@@ -38,6 +38,7 @@ function lotus {
     $rest = [string[]]@($argv | Select-Object -Skip 1)
     $rc = 0
     try {
+        Enable-LotusVirtualTerminal      # (Windows PowerShell 5.1 does not switch the console to colors by itself)
         Initialize-Lotus
         foreach ($o in (Invoke-LotusDispatch $cmd $rest)) {
             if (Test-LotusStatus $o) { $rc = $o.Code } else { $o }

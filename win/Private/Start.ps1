@@ -16,9 +16,10 @@ function Get-LotusFastfetch {
 function Invoke-LotusNativeText {
     param([Parameter(Mandatory)][string]$Program, [string[]]$Arguments)
     $enc = [Console]::OutputEncoding
+    $ErrorActionPreference = 'Continue'     # (a program's message on stderr is not an error here, whatever the caller set)
     try {
         try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
-        $out = & $Program @Arguments 2>$null
+        $out = & $Program @(ConvertTo-LotusNativeArgs $Arguments) 2>$null
         if ($null -eq $out) { return '' }
         (@($out) -join "`n").TrimEnd("`n")
     } finally {

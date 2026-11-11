@@ -1,7 +1,8 @@
 ﻿# /clock – a clock in the colors of your theme, a port of lib/cmd/clock.zsh
 #   lotus clock [minimal|big|retro|matrix|analog|world]
 # ←/→ or space switch the design, s seconds on/off, z a second time zone, q or esc leaves. The zones are the IANA names
-# of the settings (America/New_York …): .NET knows them on Windows too.
+# of the settings (America/New_York …): PowerShell 7 (.NET 6 and newer) knows them on Windows; Windows PowerShell 5.1 knows only
+# the Windows ids (Eastern Standard Time), so win/zones.tsv says which is which.
 
 $script:ClkDesigns = @('minimal', 'big', 'retro', 'matrix', 'analog', 'world')
 # big digits: 5 pixels wide, 7 high; the colon is 1 wide
@@ -83,12 +84,33 @@ function script:Initialize-LotusClock {
     $script:ClkRain = $null
 }
 
+# The Windows time zone id of an IANA name (Asia/Tokyo → Tokyo Standard Time), or $null – from win/zones.tsv, read once
+function script:Get-LotusWindowsZoneId {
+    param([string]$Zone)
+    if (-not $script:ClkIana) {
+        $script:ClkIana = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $file = Join-Path $script:LotusModuleRoot 'zones.tsv'
+        if (Test-Path -LiteralPath $file) {
+            foreach ($line in ([string](Read-LotusFile $file)) -split "`n") {
+                $f = $line.TrimEnd("`r") -split "`t"
+                if ($f.Count -ge 2 -and -not $f[0].StartsWith('#')) { $script:ClkIana[$f[0]] = $f[1] }
+            }
+        }
+    }
+    $id = $null
+    if ($script:ClkIana.TryGetValue($Zone, [ref]$id)) { $id } else { $null }
+}
+
 # The time in a zone, or $null when the zone is unknown (asked again once an hour, for daylight saving time)
 function script:Get-LotusClockZoneTime {
     param([string]$Zone, [datetime]$Utc)
     $z = $script:ClkZones[$Zone]
     if (-not $z -or ([datetime]::UtcNow - $z.At).TotalHours -gt 1) {
         $tz = try { [TimeZoneInfo]::FindSystemTimeZoneById($Zone) } catch { $null }
+        if (-not $tz) {
+            $win = Get-LotusWindowsZoneId $Zone
+            if ($win) { $tz = try { [TimeZoneInfo]::FindSystemTimeZoneById($win) } catch { $null } }
+        }
         $z = @{ Tz = $tz; At = [datetime]::UtcNow }
         $script:ClkZones[$Zone] = $z
     }

@@ -79,6 +79,25 @@ function Get-LotusNative {
     $method
 }
 
+# Windows PowerShell 5.1 does not switch its console to ANSI escape sequences (colors, cursor moves, the album cover) the way
+# PowerShell 7 does – PSReadLine does it only while a line is read. So before Lotus draws, the console is asked to understand
+# them (ENABLE_VIRTUAL_TERMINAL_PROCESSING, Windows 10 and newer). Output that goes to a file or a pipe has no console mode.
+function Enable-LotusVirtualTerminal {
+    if ($PSVersionTable.PSEdition -eq 'Core' -or -not $IsWindows) { return }
+    try {
+        $getHandle = Get-LotusNative 'kernel32.dll' 'GetStdHandle' ([IntPtr]) @([int])
+        $getMode = Get-LotusNative 'kernel32.dll' 'GetConsoleMode' ([bool]) @([IntPtr], [uint32].MakeByRefType())
+        $setMode = Get-LotusNative 'kernel32.dll' 'SetConsoleMode' ([bool]) @([IntPtr], [uint32])
+        foreach ($std in -11, -12) {        # standard output, standard error
+            $handle = $getHandle.Invoke($null, @($std))
+            $call = [object[]]@($handle, [uint32]0)
+            if ($getMode.Invoke($null, $call) -and -not ([uint32]$call[1] -band 4)) {
+                [void]$setMode.Invoke($null, @($handle, [uint32]([uint32]$call[1] -bor 4)))
+            }
+        }
+    } catch { }
+}
+
 # ── Open things ───────────────────────────────────────────────
 
 # A link or a path in its default application, without waiting (lotus_os_open) → 0, or 2 when nothing can open it here
@@ -636,6 +655,21 @@ function Get-LotusHttpStatus {
     } catch { $null }
 }
 
+# The arguments of a program that PowerShell calls itself (& $exe @args), as that program reads them back. Windows PowerShell
+# 5.1 (and PowerShell before 7.3) puts quotes around an argument with blanks but leaves the quotes inside it unescaped, and
+# it drops an empty one – so print("x") reaches Python as print(x). PowerShell 7.3 and newer do it right: unchanged there.
+function ConvertTo-LotusNativeArgs {
+    param([AllowNull()][AllowEmptyCollection()][AllowEmptyString()][string[]]$Arguments = @())
+    if ($null -eq $Arguments -or $Arguments.Count -eq 0) { return }
+    if ($PSVersionTable.PSEdition -eq 'Core' -and $PSVersionTable.PSVersion -ge [version]'7.3') { return $Arguments }
+    @(foreach ($a in $Arguments) {
+            if (-not $a) { '""'; continue }
+            $s = [regex]::Replace($a, '(\\*)"', '$1$1\"')
+            if ($s -match '\s') { $s = [regex]::Replace($s, '(\\+)$', '$1$1') }
+            $s
+        })
+}
+
 # A program run in the open: its own output, questions and progress go straight to this window (not through
 # PowerShell's pipeline, which would hold them back) → its exit code
 function Invoke-LotusInTheOpen {
@@ -671,9 +705,11 @@ function Find-LotusPython {
     foreach ($n in 'python3', 'python') {
         foreach ($c in @(Get-Command $n -CommandType Application -All -ErrorAction SilentlyContinue)) { $tries.Add(@($c.Source)) }
     }
+    $ErrorActionPreference = 'Continue'     # (a program's message on stderr is not an error here, whatever the caller set)
     foreach ($t in $tries) {
         $pre = @($t | Select-Object -Skip 1)
-        try { $v = & $t[0] @pre -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>$null } catch { continue }
+        # (no double quotes in the Python program: Windows PowerShell 5.1 does not pass them on)
+        try { $v = & $t[0] @pre -c "import sys; print('%d.%d' % sys.version_info[:2])" 2>$null } catch { continue }
         if ($LASTEXITCODE -ne 0 -or "$v".Trim() -notmatch '^(\d+)\.(\d+)$') { continue }
         if ([int]$Matches[1] -lt 3 -or ([int]$Matches[1] -eq 3 -and [int]$Matches[2] -lt 9)) { continue }
         $script:PythonFound = [pscustomobject]@{ Exe = $t[0]; Args = $pre; Version = "$v".Trim() }

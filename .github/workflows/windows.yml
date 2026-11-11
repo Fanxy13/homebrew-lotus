@@ -275,13 +275,17 @@ jobs:
           $r = Invoke-Pester -Configuration $c
           # what failed, in a few lines at the end of the log
           "`n==== RESULT passed=$($r.PassedCount) failed=$($r.FailedCount) skipped=$($r.SkippedCount) total=$($r.TotalCount)"
+          # (without the color codes, the messages in full, and the line of the test that failed)
+          $codes = '\x1b\[[0-9;?]*[ -/]*[@-~]'
           foreach ($t in $r.Failed) {
-            $m = ($t.ErrorRecord | ForEach-Object { "$($_.Exception.Message)" }) -join ' | ' -replace '\s+', ' '
-            "FAILED: $($t.ExpandedPath) :: $($m.Substring(0, [Math]::Min(330, $m.Length)))"
+            $m = ($t.ErrorRecord | ForEach-Object { "$($_.Exception.Message)" }) -join ' | ' -replace $codes, '' -replace '\s+', ' '
+            $where = ($t.ErrorRecord | Select-Object -First 1 | ForEach-Object { "$($_.ScriptStackTrace)" }) -split "`r?`n" | Select-Object -First 1
+            "FAILED: $($t.ExpandedPath) :: $($m.Substring(0, [Math]::Min(900, $m.Length))) [$where]"
           }
           foreach ($k in $r.Containers | Where-Object { $_.Result -eq 'Failed' -and $_.ErrorRecord }) {
-            $m = ($k.ErrorRecord | ForEach-Object { "$($_.Exception.Message)" }) -join ' | ' -replace '\s+', ' '
-            "CONTAINER: $(Split-Path -Leaf $k.Item) :: $($m.Substring(0, [Math]::Min(330, $m.Length)))"
+            $m = ($k.ErrorRecord | ForEach-Object { "$($_.Exception.Message)" }) -join ' | ' -replace $codes, '' -replace '\s+', ' '
+            $where = ($k.ErrorRecord | Select-Object -First 1 | ForEach-Object { "$($_.ScriptStackTrace)" }) -split "`r?`n" | Select-Object -First 2
+            "CONTAINER: $(Split-Path -Leaf $k.Item) :: $($m.Substring(0, [Math]::Min(900, $m.Length))) [$($where -join ' / ')]"
           }
           if ($r.FailedCount -or $r.FailedContainersCount) { exit 1 }
 
