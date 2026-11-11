@@ -227,9 +227,15 @@ def new_window():
     check(not WRITTEN_OUT.search(text), 'no color codes written out as text', c)
     if os.path.exists(os.path.join(APP, 'vendor', 'fastfetch', 'fastfetch.exe')):
         check('Hardware' in text and 'CPU' in text, 'fastfetch drew the system next to the logo', c)
-    last = [ln for ln in c.lines() if ln.strip()][-1]
-    check(re.match(r'^[\w.-]+@[\w.-]+ \S*>\s*$', last.strip()) is not None, "the prompt is Lotus' (user@computer folder>)", c)
+    last = lambda: ([ln for ln in c.lines() if ln.strip()] or [''])[-1].strip()
+    check(re.match(r'^PS .*>$', last()) is not None, "the prompt is PowerShell's while the setting 'Colored prompt' is off", c)
     no_errors(mark, 'the new window')
+
+    # the setting 'Colored prompt': the prompt becomes Lotus' (user@computer folder>) in this very window
+    c.type('lotus settings set LOTUS_PROMPT 1', enter=True)
+    colored = lambda: re.match(r'^[\w.-]+@[\w.-]+ \S*>$', last()) is not None
+    c.wait_for(colored, "Lotus' colored prompt", 30, quiet=0.8)
+    check(colored(), "the setting 'Colored prompt' turns the prompt into Lotus' (user@computer folder>)", c)
 
     # /clock: the Enter key rewrites it to "lotus clock" - then q leaves the full-screen clock
     mark = len(rec.events)
