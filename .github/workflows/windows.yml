@@ -2,7 +2,8 @@
 # (the module, the contract with the zsh engine, the installer from start to end with lotus.cmd, the PATH and the pinned
 # fastfetch, the pets, /ai against a fake AI, Live Server and /html with the runner's Python, /img with ImageMagick, and
 # win/tests/Windows.Tests.ps1 – what only Windows has: the apps of the Start menu, keep awake, DPAPI, Windows command
-# lines) with PowerShell 7 on x64 and Arm64; the files that Windows PowerShell 5.1 has to read; every winget id of the
+# lines) with PowerShell 7 on x64 and Arm64; the files that Windows PowerShell 5.1 has to read, the whole suite in it, and a
+# real console with it (the install line typed into a Windows that runs no scripts, the new window, cmd.exe); every winget id of the
 # app catalog, asked of winget itself; Remove BG for real: its Python runtime with PyTorch, BiRefNet Lite from Hugging
 # Face, and a picture cut out on the processor; a Minecraft server for real: Java from adoptium.net, Paper from PaperMC,
 # run in the background until it is ready, with LotusBridge's TPS, a command, and a stop that saves.
@@ -11,9 +12,9 @@ name: Lotus for Windows
 on:
   push:
     branches: ['**']
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/fake-modrinth.py, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/fake-modrinth.py, dev/3.0/video/windows/record.py, .gitattributes, .github/workflows/windows.yml]
   pull_request:
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/fake-modrinth.py, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/fake-modrinth.py, dev/3.0/video/windows/record.py, .gitattributes, .github/workflows/windows.yml]
   workflow_dispatch:
 
 permissions:
@@ -288,6 +289,31 @@ jobs:
             "CONTAINER: $(Split-Path -Leaf $k.Item) :: $($m.Substring(0, [Math]::Min(900, $m.Length))) [$($where -join ' / ')]"
           }
           if ($r.FailedCount -or $r.FailedContainersCount) { exit 1 }
+
+  terminal-51:
+    name: Windows PowerShell 5.1 in a real console (a Windows 11 fresh out of the box)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: A Windows PowerShell that runs no script files (the policy of a new Windows 11)
+        shell: pwsh
+        run: |
+          $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          & $ps -NoProfile -Command 'Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy Restricted -Force; Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Undefined -Force; Get-ExecutionPolicy -List | Format-Table -AutoSize | Out-String; $PSVersionTable.PSVersion.ToString(); (Get-Module PSReadLine -ListAvailable | Select-Object -First 1).Version.ToString()'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          python -m pip install --quiet pyte pywinpty
+      - name: Install, start screen, commands, unhook - typed into the console, as a person would
+        shell: pwsh
+        env:
+          LOTUS_TERMINAL_CAST: ${{ github.workspace }}\terminal51.cast
+        run: python win/tests/terminal51.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terminal-51-cast
+          path: terminal51.cast
+          if-no-files-found: ignore
 
   winget-ids:
     name: The winget ids of the app catalog exist
