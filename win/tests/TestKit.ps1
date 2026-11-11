@@ -22,6 +22,10 @@ function Initialize-LotusTestEnv {
     $env:LOTUS_PROFILE = Join-Path $tmp 'profile.ps1'
     $env:LOTUS_NO_TTY = '1'
     $env:COLUMNS = '140'
+    # Windows PowerShell 5.1 reads and writes text as ANSI unless it is told otherwise (PowerShell 7: UTF-8); Lotus' files are UTF-8
+    if ($PSVersionTable.PSEdition -ne 'Core') {
+        foreach ($c in 'Get-Content', 'Set-Content', 'Add-Content', 'Out-File') { $global:PSDefaultParameterValues["${c}:Encoding"] = 'UTF8' }
+    }
     [pscustomobject]@{ Repo = $repo; Tmp = $tmp; Saved = $saved }
 }
 
@@ -29,6 +33,7 @@ function Restore-LotusTestEnv {
     param($Context)
     if (-not $Context) { return }
     foreach ($n in $Context.Saved.Keys) { [Environment]::SetEnvironmentVariable($n, $Context.Saved[$n]) }
+    foreach ($c in 'Get-Content', 'Set-Content', 'Add-Content', 'Out-File') { $global:PSDefaultParameterValues.Remove("${c}:Encoding") }
     Remove-Item -LiteralPath $Context.Tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 

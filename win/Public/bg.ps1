@@ -521,7 +521,7 @@ function script:Invoke-LotusBgWorker {
     }
     if ($rc -lt 0) { $rc = $st }
     if ($rc -and -not $b.Err.Count -and $rc -ne 130) {
-        $tail = @(Get-Content -LiteralPath $b.Log -Tail 3 -ErrorAction SilentlyContinue) -join ' '
+        $tail = @(Get-Content -LiteralPath $b.Log -Tail 3 -Encoding UTF8 -ErrorAction SilentlyContinue) -join ' '
         $b.Err = @('BG-011', "The background remover stopped unexpectedly (status $rc).", $tail)
     }
     if ($b.Err.Count) { return 1 }

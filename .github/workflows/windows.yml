@@ -270,9 +270,20 @@ jobs:
           $global:IsWindows = $true; $global:IsLinux = $false; $global:IsMacOS = $false; $global:IsCoreCLR = $false
           $c = New-PesterConfiguration
           $c.Run.Path = 'win/tests'
-          $c.Run.Exit = $true
-          $c.Output.Verbosity = 'Detailed'
-          Invoke-Pester -Configuration $c
+          $c.Run.PassThru = $true
+          $c.Output.Verbosity = 'Normal'
+          $r = Invoke-Pester -Configuration $c
+          # what failed, in a few lines at the end of the log
+          "`n==== RESULT passed=$($r.PassedCount) failed=$($r.FailedCount) skipped=$($r.SkippedCount) total=$($r.TotalCount)"
+          foreach ($t in $r.Failed) {
+            $m = ($t.ErrorRecord | ForEach-Object { "$($_.Exception.Message)" }) -join ' | ' -replace '\s+', ' '
+            "FAILED: $($t.ExpandedPath) :: $($m.Substring(0, [Math]::Min(330, $m.Length)))"
+          }
+          foreach ($k in $r.Containers | Where-Object { $_.Result -eq 'Failed' -and $_.ErrorRecord }) {
+            $m = ($k.ErrorRecord | ForEach-Object { "$($_.Exception.Message)" }) -join ' | ' -replace '\s+', ' '
+            "CONTAINER: $(Split-Path -Leaf $k.Item) :: $($m.Substring(0, [Math]::Min(330, $m.Length)))"
+          }
+          if ($r.FailedCount -or $r.FailedContainersCount) { exit 1 }
 
   winget-ids:
     name: The winget ids of the app catalog exist
