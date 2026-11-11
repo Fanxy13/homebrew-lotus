@@ -1,4 +1,4 @@
-# /lotus visual – the audio visualizer, a port of lib/cmd/visual.zsh. No system gives terminal programs the levels of
+﻿# /lotus visual – the audio visualizer, a port of lib/cmd/visual.zsh. No system gives terminal programs the levels of
 # what plays, so the motion is simulated and follows the playback state: lively when music plays, calm otherwise.
 
 $script:VisModes = @('bars', 'wave', 'spectrum', 'particles', 'minimal', 'circular', 'retro', 'matrix')

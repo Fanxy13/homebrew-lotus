@@ -1,4 +1,4 @@
-# install.ps1 from start to end, into a temporary folder and a temporary profile (nothing of yours is touched). On
+﻿# install.ps1 from start to end, into a temporary folder and a temporary profile (nothing of yours is touched). On
 # Windows also: lotus.cmd in the user PATH (the PATH is put back as it was), cmd.exe running it, and Lotus' own pinned
 # fastfetch – downloaded from GitHub and checked against data/vendor.tsv.
 
@@ -19,6 +19,49 @@ BeforeAll {
         $saved = @{}
         foreach ($k in $vars.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $vars[$k]) }
         try { & $script:Pwsh -NoProfile -NonInteractive -File (Join-Path $script:Repo 'install.ps1') 2>&1 | Out-String }
+        finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
+    }
+    # The installer in Windows PowerShell with an execution policy that is made up: Get-ExecutionPolicy and Set-ExecutionPolicy are
+    # functions in the window that runs it - they say what the policy is (Scope=Policy;…) and write down what the installer
+    # sets (a Windows 11 that came out of the box is Restricted: the real one cannot be had on a machine that is in use)
+    function Invoke-TestInstallPolicy {
+        param([string]$Dest, [string]$Policies, [hashtable]$Env = @{})
+        $wrapper = Join-Path $script:Tmp 'policy-wrapper.ps1'
+        Set-Content -LiteralPath $wrapper -Encoding UTF8 -Value @'
+$global:SetCalls = New-Object System.Collections.ArrayList
+$pol = @{}
+foreach ($p in ($env:TEST_POLICIES -split ';')) { if ($p) { $k, $v = $p -split '='; $pol[$k] = $v } }
+function Get-ExecutionPolicy {
+    [CmdletBinding()] param([switch]$List, [string]$Scope)
+    $scopes = 'MachinePolicy', 'UserPolicy', 'Process', 'CurrentUser', 'LocalMachine'
+    if ($List) { foreach ($s in $scopes) { [pscustomobject]@{ Scope = $s; ExecutionPolicy = $(if ($pol[$s]) { $pol[$s] } else { 'Undefined' }) } }; return }
+    if ($Scope) { if ($pol[$Scope]) { return $pol[$Scope] } else { return 'Undefined' } }
+    foreach ($s in $scopes) { if ($pol[$s] -and $pol[$s] -ne 'Undefined') { return $pol[$s] } }
+    'Restricted'
+}
+function Set-ExecutionPolicy {
+    [CmdletBinding()] param($ExecutionPolicy, $Scope, [switch]$Force)
+    [void]$global:SetCalls.Add("$Scope=$ExecutionPolicy")
+    if ($env:TEST_SETFAIL -eq '1' -and $Scope -eq 'CurrentUser') { throw 'Access to the registry key is denied.' }     # (it really did not work)
+    $pol[[string]$Scope] = [string]$ExecutionPolicy
+    if ($env:TEST_OVERRIDE -eq '1' -and $Scope -ne 'Process') {
+        # what Windows PowerShell does when the window has a policy of its own (Process): the user's is set, and reported as an
+        # error without a message of its own ("Security error."), the real one being in the details
+        $err = [System.Management.Automation.ErrorRecord]::new([System.Security.SecurityException]::new(), 'ExecutionPolicyOverride', [System.Management.Automation.ErrorCategory]::PermissionDenied, $null)
+        $err.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('Windows PowerShell updated your execution policy successfully, but the setting is overridden by a policy defined at a more specific scope.')
+        $PSCmdlet.WriteError($err)
+    }
+}
+function Read-Host { param($Prompt) '' }      # (nobody answers: the question gets a no, with a keyboard or without)
+. $env:TEST_INSTALLER
+'SET: ' + ($global:SetCalls -join ';')
+'@
+        $vars = @{ LOTUS_SRC = $script:Repo; LOTUS_DEST = $Dest; LOTUS_PROFILE = (Join-Path $script:Tmp 'profile-policy.ps1'); LOTUS_NO_PATH = '1'; LOTUS_NO_SETUP = '1'; LOTUS_FASTFETCH = 'no'
+            TEST_POLICIES = $Policies; TEST_INSTALLER = (Join-Path $script:Repo 'install.ps1') }
+        foreach ($k in $Env.Keys) { $vars[$k] = $Env[$k] }
+        $saved = @{}
+        foreach ($k in $vars.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $vars[$k]) }
+        try { & $script:Pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $wrapper 2>&1 | Out-String }
         finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) } }
     }
 }
@@ -65,6 +108,52 @@ Describe 'install.ps1' {
         $dest = Join-Path $script:Tmp 'app'
         Invoke-TestInstall $dest | Out-Null
         ([regex]::Matches((Get-Content (Join-Path $script:Tmp 'profile.ps1') -Raw), '# >>> lotus >>>')).Count | Should -Be 1
+    }
+}
+
+# Windows PowerShell on a new Windows 11 runs no script files (ExecutionPolicy Restricted): what the installer does about it
+Describe 'install.ps1 and the execution policy of Windows PowerShell' -Skip:($PSVersionTable.PSEdition -eq 'Core') {
+    It 'Restricted: its own window runs scripts (Process, Bypass), and the user gets RemoteSigned after the command is shown' {
+        $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') 'LocalMachine=Restricted' @{ LOTUS_YES = '1' }
+        $out | Should -Match 'SET: Process=Bypass;CurrentUser=RemoteSigned'
+        $out | Should -Match 'The command: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned'
+        $out | Should -Match 'ExecutionPolicy RemoteSigned for your user'
+        $out | Should -Match 'Done'
+    }
+    It 'the policy of the user is set although PowerShell calls it overridden by the window''s own policy – that is no failure' {
+        # (Windows PowerShell reports "Security error." for it: the installer looks at what is set, not at that error)
+        $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') 'LocalMachine=Restricted' @{ LOTUS_YES = '1'; TEST_OVERRIDE = '1' }
+        $out | Should -Match 'SET: Process=Bypass;CurrentUser=RemoteSigned'
+        $out | Should -Match 'ExecutionPolicy RemoteSigned for your user'
+        $out | Should -Not -Match 'It did not work'
+    }
+    It 'a policy that really cannot be set is reported, with the reason' {
+        $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') 'LocalMachine=Restricted' @{ LOTUS_YES = '1'; TEST_SETFAIL = '1' }
+        $out | Should -Match 'It did not work: Access to the registry key is denied'
+        $out | Should -Not -Match 'ExecutionPolicy RemoteSigned for your user'
+        $out | Should -Match 'Done'
+    }
+    It 'asks first: without a yes the user policy stays as it is, and the installer says what happens then' {
+        $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') 'LocalMachine=Restricted'
+        $out | Should -Match 'SET: Process=Bypass\s*$'
+        $out | Should -Match 'Without it a new window prints an error'
+    }
+    It 'a policy that runs local scripts (RemoteSigned, Unrestricted, a user policy) is left alone' {
+        foreach ($p in 'LocalMachine=RemoteSigned', 'LocalMachine=Unrestricted', 'LocalMachine=Restricted;CurrentUser=RemoteSigned', 'LocalMachine=Restricted;CurrentUser=Bypass') {
+            $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') $p @{ LOTUS_YES = '1' }
+            $out | Should -Match 'SET:\s*$' -Because $p
+            $out | Should -Not -Match 'Set it now' -Because $p
+        }
+    }
+    It 'a policy of the organization is never changed, and the installer says so' {
+        $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') 'MachinePolicy=AllSigned' @{ LOTUS_YES = '1' }
+        $out | Should -Match 'A policy of your organization \(AllSigned\)'
+        $out | Should -Not -Match 'CurrentUser=RemoteSigned'
+    }
+    It 'LOTUS_NO_PROFILE=1: the profile is not touched, so the policy is not asked about' {
+        $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') 'LocalMachine=Restricted' @{ LOTUS_YES = '1'; LOTUS_NO_PROFILE = '1' }
+        $out | Should -Match 'SET: Process=Bypass\s*$'
+        $out | Should -Match 'Your profile was not changed'
     }
 }
 

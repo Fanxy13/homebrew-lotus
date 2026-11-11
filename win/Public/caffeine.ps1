@@ -1,4 +1,4 @@
-# lotus caffeine – keep the computer awake for a while, a port of lib/cmd/caffeine.zsh. On Windows a hidden PowerShell
+﻿# lotus caffeine – keep the computer awake for a while, a port of lib/cmd/caffeine.zsh. On Windows a hidden PowerShell
 # holds SetThreadExecutionState (system and display required) and ends by itself when the time is up; closing the
 # terminal does not stop it. Lotus keeps its process id, start and end time in the state folder (caffeine) and only ever
 # stops a process that it started itself.

@@ -1,4 +1,4 @@
-# /ai on Windows (Public/ai.ps1) against a small fake AI on 127.0.0.1 (TestKit.ps1: Start-LotusFakeAi) – Claude's,
+﻿# /ai on Windows (Public/ai.ps1) against a small fake AI on 127.0.0.1 (TestKit.ps1: Start-LotusFakeAi) – Claude's,
 # OpenAI's and Ollama's streams, the conversation of the last hour, the commands, the keys, and a pet that thinks with it.
 # No real key is used: the test kit empties ANTHROPIC_API_KEY, LOTUS_AI_KEY, LOTUS_AI_CLAUDE_URL and OLLAMA_HOST.
 
@@ -162,7 +162,7 @@ Describe 'answers' {
         $out = lotus ai command 'find files larger than 1 GB' 6>&1 | Out-String
         $out | Should -Match 'COMMAND\s+Get-ChildItem -Recurse \| Where-Object Length -gt 1GB'
         $out | Should -Match 'Lotus never runs it'
-        (Get-LastRequest).body.system[0].text | Should -Match 'single command line for PowerShell 7 on Windows'
+        (Get-LastRequest).body.system[0].text | Should -Match 'single command line for (PowerShell 7|Windows PowerShell 5\.1) on Windows'
         $put = Invoke-LotusWithKeys @('enter') { Invoke-LotusAiCommand 'find files larger than 1 GB' }
         Get-Plain $put | Should -Match 'Ready on your command line'
         Get-Content (Join-Path $env:LOTUS_CACHE 'ai-prompt') | Should -Be 'Get-ChildItem -Recurse | Where-Object Length -gt 1GB'

@@ -1,4 +1,4 @@
-# The album cover on the start screen: while a song plays, its cover takes the logo's place (Private/Art.ps1: the drawing and
+﻿# The album cover on the start screen: while a song plays, its cover takes the logo's place (Private/Art.ps1: the drawing and
 # Get-LotusCover; Private/Platform.ps1: Get-LotusMediaCover, Windows' media session; Private/Start.ps1: Get-LotusArtArgs).
 # The drawing is the one of lib/cover.pl, byte for byte (fixtures/cover/expected.tsv holds what the Mac's script makes of
 # each picture); the media session is a stand-in here – the job "Album cover on real Windows" of windows.yml asks the
@@ -31,7 +31,7 @@ Describe 'the art of a cover' {
         $art = InModuleScope Lotus -Parameters @{ Bmp = $script:Pics[$Name]; Cols = $Cols; Rows = $Rows; Mode = $Mode } {
             ConvertTo-LotusCoverArt -Bmp $Bmp -Cols $Cols -Rows $Rows -TrueColor ($Mode -eq 'tc')
         }
-        $sha = [BitConverter]::ToString([System.Security.Cryptography.SHA256]::HashData([System.Text.UTF8Encoding]::new($false).GetBytes($art.Text))).Replace('-', '').ToLowerInvariant()
+        $sha = [BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.UTF8Encoding]::new($false).GetBytes($art.Text))).Replace('-', '').ToLowerInvariant()
         $sha | Should -Be $Sha
     }
     It 'keeps the picture''s shape: a cell is one pixel wide and two tall' {

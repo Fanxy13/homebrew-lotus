@@ -1,4 +1,4 @@
-# /app and "open <name>": an installed app by its name, typos included – a port of lib/cmd/app.zsh. The apps are the
+﻿# /app and "open <name>": an installed app by its name, typos included – a port of lib/cmd/app.zsh. The apps are the
 # ones of the Start menu (the Applications folder Get-StartApps lists: Store apps and the others).
 
 function script:Invoke-Lotusapp {

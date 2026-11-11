@@ -1,4 +1,4 @@
-# Colors: 24-bit when the terminal has it, else the nearest of the 256 – the same numbers as lotus_sgr in lib/core.zsh.
+﻿# Colors: 24-bit when the terminal has it, else the nearest of the 256 – the same numbers as lotus_sgr in lib/core.zsh.
 # $script:C[role] = the SGR code of a theme color (logo key accent key2 salute border dim music), $script:Mode = tc | 256
 
 $script:C = @{}

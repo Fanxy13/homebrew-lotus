@@ -1,4 +1,4 @@
-# Your own commands: lotus shortcut add yt https://youtube.com → /yt – a port of lib/cmd/shortcuts.zsh. Stored in
+﻿# Your own commands: lotus shortcut add yt https://youtube.com → /yt – a port of lib/cmd/shortcuts.zsh. Stored in
 # settings.zsh as LOTUS_SHORTCUTS[name]="type|target|on/off". Types: url (with {q} for search words), app, path (a
 # folder or file), lotus (a Lotus command). Shell commands are deliberately not possible.
 

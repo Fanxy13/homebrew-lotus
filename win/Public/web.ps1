@@ -1,4 +1,4 @@
-# /google, /search, /web, links, /lotus web, /lotus github – a port of lib/cmd/web.zsh
+﻿# /google, /search, /web, links, /lotus web, /lotus github – a port of lib/cmd/web.zsh
 
 $script:Engines = @{
     google     = 'https://www.google.com/search?q='

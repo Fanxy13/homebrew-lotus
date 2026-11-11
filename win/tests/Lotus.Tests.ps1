@@ -1,4 +1,4 @@
-# Pester 5. The module's own functions are reached with InModuleScope; `lotus` itself is called like a user does.
+﻿# Pester 5. The module's own functions are reached with InModuleScope; `lotus` itself is called like a user does.
 # These run on Windows in CI (.github/workflows/windows.yml, test.yml) – and on any system with PowerShell 7.
 # The settings file in fixtures/ was written by the zsh engine (lotus_save), so the two sides are tested against each other.
 
@@ -113,6 +113,45 @@ Describe 'the lines in the PowerShell profile' {
             $after = Get-Content $profilePath -Raw
             $after | Should -Not -Match 'lotus'
             $after | Should -Match 'Set-Alias ll'
+        }
+    }
+    It 'writes a profile both PowerShells read right: ASCII as it is, a path with an umlaut with a byte order mark' {
+        InModuleScope Lotus {
+            $was = $script:LotusModuleRoot
+            try {
+                $plain = Join-Path $env:LOTUS_TMP 'profile-ascii.ps1'
+                Add-LotusHook -ProfilePath $plain | Out-Null
+                $bytes = [IO.File]::ReadAllBytes($plain)
+                ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB) | Should -BeFalse
+                $script:LotusModuleRoot = Join-Path $env:LOTUS_TMP 'Jörg/lotus/win'
+                $umlaut = Join-Path $env:LOTUS_TMP 'profile-umlaut.ps1'
+                Set-Content -LiteralPath $umlaut -Value 'Set-Alias ll Get-ChildItem'
+                Add-LotusHook -ProfilePath $umlaut | Out-Null
+                $bytes = [IO.File]::ReadAllBytes($umlaut)
+                '{0:X2}{1:X2}{2:X2}' -f $bytes[0], $bytes[1], $bytes[2] | Should -Be 'EFBBBF'      # (Windows PowerShell 5.1 reads UTF-8 only with it)
+                [Text.Encoding]::UTF8.GetString($bytes) | Should -Match 'Jörg'
+                Remove-LotusHook -ProfilePath $umlaut | Should -BeTrue
+                [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($umlaut)) | Should -Not -Match 'lotus'
+            } finally { $script:LotusModuleRoot = $was }
+        }
+    }
+    It 'keeps what the profile already is: ANSI text, UTF-16, Windows line ends' {
+        InModuleScope Lotus {
+            # an ANSI profile (Windows PowerShell 5.1's Set-Content made one): the ä must still be an ä afterwards
+            $ansi = Join-Path $env:LOTUS_TMP 'profile-ansi.ps1'
+            [IO.File]::WriteAllBytes($ansi, [byte[]](0x23, 0x20, 0x61, 0xE4, 0x0D, 0x0A, 0x53, 0x65, 0x74, 0x2D, 0x41, 0x6C, 0x69, 0x61, 0x73, 0x20, 0x6C, 0x6C, 0x20, 0x67, 0x63, 0x0D, 0x0A))
+            Add-LotusHook -ProfilePath $ansi | Out-Null
+            $text = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($ansi))
+            $text | Should -Match "a\u00E4"
+            $text | Should -Match 'Set-Alias ll gc'
+            $text | Should -Match "`r`n"                                  # (the line ends it had)
+            # a UTF-16 profile (Out-File's default in Windows PowerShell 5.1)
+            $u16 = Join-Path $env:LOTUS_TMP 'profile-utf16.ps1'
+            [IO.File]::WriteAllText($u16, "Set-Alias ll gc`r`n", [Text.Encoding]::Unicode)
+            Test-LotusHook -ProfilePath $u16 | Should -BeFalse
+            Add-LotusHook -ProfilePath $u16 | Out-Null
+            Test-LotusHook -ProfilePath $u16 | Should -BeTrue
+            [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($u16)) | Should -Match 'Set-Alias ll gc'
         }
     }
     It 'lotus setup --hook writes them to the profile, lotus unhook takes them out' {

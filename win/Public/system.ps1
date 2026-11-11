@@ -1,4 +1,4 @@
-# lotus setup, update, doctor, uninstall, unhook – a port of lib/cmd/system.zsh for Windows
+﻿# lotus setup, update, doctor, uninstall, unhook – a port of lib/cmd/system.zsh for Windows
 
 function script:Invoke-Lotussystem {
     param([string]$Cmd, [string[]]$Rest)
@@ -8,8 +8,9 @@ function script:Invoke-Lotussystem {
         'doctor' { return Invoke-LotusDoctor $Rest }
         'uninstall' { return Invoke-LotusUninstall $Rest }
         'unhook' {
-            if (Remove-LotusHook) { Write-LotusSuccess "$(T removed_from 'Removed from') $(Get-LotusProfilePath)" }
-            else { Write-LotusInfo 'There were no Lotus lines in your PowerShell profile.' }
+            $gone = 0
+            foreach ($pp in (Get-LotusProfilePaths)) { if (Remove-LotusHook -ProfilePath $pp) { Write-LotusSuccess "$(T removed_from 'Removed from') $pp"; $gone++ } }
+            if (-not $gone) { Write-LotusInfo 'There were no Lotus lines in your PowerShell profile.' }
             return (St 0)
         }
     }
@@ -42,8 +43,7 @@ function script:Invoke-LotusSetup {
     # a settings file made new here is of this version: read as one of Lotus 1.x it would skip the first setup
     if (-not (Test-Path -LiteralPath $script:Paths.Settings)) { $script:S['LOTUS_CONFIG_VERSION'] = '3'; Save-LotusSettings -Quiet }
     Update-LotusFastfetchConfig -Force
-    $path = Add-LotusHook
-    Write-LotusSuccess "$(T added_to 'Added to') $path"
+    foreach ($pp in (Get-LotusProfilePaths)) { $path = Add-LotusHook -ProfilePath $pp; Write-LotusSuccess "$(T added_to 'Added to') $path" }
     Write-LotusInfo 'Open a new PowerShell window – or load it here: . $PROFILE.CurrentUserAllHosts'
     St 0
 }
@@ -105,8 +105,11 @@ function script:Invoke-LotusDoctor {
     Write-LotusHeader 'Doctor' "lotus $(Get-LotusVersion)"
     $o = $script:Os
     & $row $ok $(if ($IsWindows) { 'Windows' } else { 'System' }) "$(Get-LotusOsDescription)$(if ($IsWindows) { " (build $($o.Build))" })"
-    $psok = $PSVersionTable.PSVersion -ge [version]'7.2'
-    & $row $(if ($psok) { $ok } else { $bad }) 'PowerShell' "$($PSVersionTable.PSVersion)$(if (-not $psok) { ' – Lotus needs 7.2 or newer: winget install Microsoft.PowerShell' })"
+    # (Windows PowerShell 5.1 – the one Windows 11 comes with – and PowerShell 7.2 or newer)
+    $core = $PSVersionTable.PSEdition -eq 'Core'
+    $psok = if ($core) { $PSVersionTable.PSVersion -ge [version]'7.2' } else { $PSVersionTable.PSVersion -ge [version]'5.1' }
+    $psName = if ($core) { 'PowerShell' } else { 'Windows PowerShell' }
+    & $row $(if ($psok) { $ok } else { $bad }) 'PowerShell' "$psName $($PSVersionTable.PSVersion)$(if (-not $psok) { ' – Lotus needs Windows PowerShell 5.1 or PowerShell 7.2 or newer: winget install Microsoft.PowerShell' })"
     & $row $ok 'Terminal' $(if ($o.Terminal) { $o.Terminal } else { T unknown_term 'unknown terminal' })
     if ($IsWindows) {
         $pk = Get-LotusPackageManagers
@@ -184,7 +187,7 @@ function script:Invoke-LotusUninstall {
         Write-LotusBlank
         if (-not (Read-LotusConfirm 'Uninstall Lotus completely?' 'n')) { Write-LotusInfo (T cancelled 'Cancelled.'); return (St 1) }
     }
-    if (Remove-LotusHook) { Write-LotusSuccess "$(T removed_from 'Removed from') $(Get-LotusProfilePath)" }
+    foreach ($pp in (Get-LotusProfilePaths)) { if (Remove-LotusHook -ProfilePath $pp) { Write-LotusSuccess "$(T removed_from 'Removed from') $pp" } }
     # keep awake that Lotus started stops with it
     try { Import-LotusCommand caffeine; Stop-LotusCaffeine -Quiet | Out-Null } catch { }
     foreach ($s in 'lotus-ai', 'lotus-ai-claude', 'lotus-hf') { Remove-LotusSecret $s | Out-Null }

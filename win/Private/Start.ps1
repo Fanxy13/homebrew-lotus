@@ -1,4 +1,4 @@
-# The start screen – a port of lotus_render, lotus_build, lotus_art_pick, the greetings and now playing (lib/core.zsh,
+﻿# The start screen – a port of lotus_render, lotus_build, lotus_art_pick, the greetings and now playing (lib/core.zsh,
 # lib/art.zsh). fastfetch draws it with the same generated config as on macOS and Linux (the contract tests compare it).
 
 # fastfetch: the one on the PATH, else the copy the installer put next to Lotus (data/vendor.tsv pins it)
@@ -16,9 +16,10 @@ function Get-LotusFastfetch {
 function Invoke-LotusNativeText {
     param([Parameter(Mandatory)][string]$Program, [string[]]$Arguments)
     $enc = [Console]::OutputEncoding
+    $ErrorActionPreference = 'Continue'     # (a program's message on stderr is not an error here, whatever the caller set)
     try {
         try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
-        $out = & $Program @Arguments 2>$null
+        $out = & $Program @(ConvertTo-LotusNativeArgs $Arguments) 2>$null
         if ($null -eq $out) { return '' }
         (@($out) -join "`n").TrimEnd("`n")
     } finally {

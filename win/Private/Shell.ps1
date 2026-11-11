@@ -1,4 +1,4 @@
-# The PowerShell adapter – what lib/init.zsh is for zsh and lib/init.bash for bash: the start screen when a window opens,
+﻿# The PowerShell adapter – what lib/init.zsh is for zsh and lib/init.bash for bash: the start screen when a window opens,
 # the /commands, the Enter extras, the prompt in the theme's color, and the command line that Lotus prepares.
 #
 # /weather cannot be a PowerShell alias that takes the rest of the line, and a pasted link with & does not even parse.
@@ -19,6 +19,7 @@ function Test-LotusShellHost {
 function Enable-LotusShell {
     if (-not (Test-LotusShellHost)) { return }
     $script:ShellOn = $true
+    Enable-LotusVirtualTerminal
     Update-LotusShellTables
     Register-LotusEnterKey
     Set-LotusPrompt
@@ -119,7 +120,11 @@ function Convert-LotusShellLine {
 function Register-LotusEnterKey {
     if (-not (Get-Module PSReadLine)) { return }
     if ($null -eq $script:EnterWas) {
-        $script:EnterWas = (Get-PSReadLineKeyHandler -Chord Enter -ErrorAction SilentlyContinue | Select-Object -First 1).Function
+        # (what Enter does now: -Chord is newer than the PSReadLine 2.0 of Windows PowerShell 5.1, which lists the bound keys)
+        $was = $null
+        try { $was = Get-PSReadLineKeyHandler -Chord Enter -ErrorAction Stop | Select-Object -First 1 } catch { }
+        if (-not $was) { $was = Get-PSReadLineKeyHandler -Bound -ErrorAction SilentlyContinue | Where-Object { $_.Key -eq 'Enter' } | Select-Object -First 1 }
+        $script:EnterWas = $was.Function
         if (-not $script:EnterWas -or $script:EnterWas -eq 'LotusAcceptLine') { $script:EnterWas = 'AcceptLine' }
     }
     # (no closure: this script block belongs to the Lotus module, so it sees its functions and $script: state; when the

@@ -1,4 +1,4 @@
-# /convert on Windows (Public/convert.ps1): the questions, yt-dlp's first look, the download with its progress lines, the
+﻿# /convert on Windows (Public/convert.ps1): the questions, yt-dlp's first look, the download with its progress lines, the
 # file it reports, the reasons a download fails – against small stand-ins for yt-dlp, ffmpeg and ffprobe (fixtures/
 # fake-tools, Python scripts; they run as programs where a script with #! can, so not on Windows itself).
 

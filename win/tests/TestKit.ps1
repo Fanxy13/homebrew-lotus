@@ -1,4 +1,4 @@
-# Shared by the test files: each one runs in folders of its own (nothing of yours is read or changed), never waits for a
+﻿# Shared by the test files: each one runs in folders of its own (nothing of yours is read or changed), never waits for a
 # keyboard (LOTUS_NO_TTY), and puts the environment back when it is done. Keys for the screens come from a queue.
 
 $script:LotusTestVars = 'LOTUS_ROOT', 'LOTUS_CONF', 'LOTUS_CACHE', 'LOTUS_STATE', 'LOTUS_DATA', 'LOTUS_PROFILE', 'LOTUS_NO_TTY',
@@ -22,6 +22,24 @@ function Initialize-LotusTestEnv {
     $env:LOTUS_PROFILE = Join-Path $tmp 'profile.ps1'
     $env:LOTUS_NO_TTY = '1'
     $env:COLUMNS = '140'
+    # Windows PowerShell 5.1 reads and writes text as ANSI unless it is told otherwise (PowerShell 7: UTF-8); Lotus' files are UTF-8
+    if ($PSVersionTable.PSEdition -ne 'Core') {
+        foreach ($c in 'Get-Content', 'Set-Content', 'Add-Content', 'Out-File') { $global:PSDefaultParameterValues["${c}:Encoding"] = 'UTF8' }
+        # The tests collect what Lotus shows with  6>&1 | Out-String  and read it as the plain text a person sees. PowerShell 7 does
+        # that by itself: it leaves the color codes out and does not wrap a line at the width of the window. Windows PowerShell
+        # 5.1 does neither – so its Out-String is stood in for here (the real one does the work).
+        function global:Out-String {
+            [CmdletBinding()]
+            param([switch]$Stream, [int]$Width = 4096, [Parameter(ValueFromPipeline = $true)][AllowNull()][psobject]$InputObject)
+            begin { $items = [System.Collections.Generic.List[object]]::new() }
+            process { $items.Add($InputObject) }
+            end {
+                $codes = '\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)'
+                $text = @($items.ToArray() | Microsoft.PowerShell.Utility\Out-String -Width $Width -Stream:$Stream)
+                if ($Stream) { foreach ($t in $text) { [regex]::Replace($t, $codes, '') } } else { [regex]::Replace(($text -join ''), $codes, '') }
+            }
+        }
+    }
     [pscustomobject]@{ Repo = $repo; Tmp = $tmp; Saved = $saved }
 }
 
@@ -29,6 +47,8 @@ function Restore-LotusTestEnv {
     param($Context)
     if (-not $Context) { return }
     foreach ($n in $Context.Saved.Keys) { [Environment]::SetEnvironmentVariable($n, $Context.Saved[$n]) }
+    foreach ($c in 'Get-Content', 'Set-Content', 'Add-Content', 'Out-File') { $global:PSDefaultParameterValues.Remove("${c}:Encoding") }
+    Remove-Item -LiteralPath function:global:Out-String -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $Context.Tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 

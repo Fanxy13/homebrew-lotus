@@ -1,4 +1,4 @@
-# /bg on Windows (Public/bg.ps1): the screens, the models, the download with its checksum, the Python it picks and the
+﻿# /bg on Windows (Public/bg.ps1): the screens, the models, the download with its checksum, the Python it picks and the
 # events of the worker – with a stand-in for the worker (fixtures/fake-bg-worker.py: the same commands and events, no
 # PyTorch) and a small list of models whose files are a few bytes, served from this disk. The real worker answers the
 # commands that need no PyTorch. The real model run is the job "Remove BG on real Windows" of windows.yml.
@@ -14,7 +14,11 @@ BeforeDiscovery {
         if ($script:Py) { break }
     }
     $script:PyNumpy = $false
-    if ($script:Py) { & $script:Py -c 'import numpy' 2>$null; $script:PyNumpy = ($LASTEXITCODE -eq 0) }
+    if ($script:Py) {
+        # (Pester runs this with ErrorActionPreference Stop: Windows PowerShell 5.1 would make an error of the traceback on stderr)
+        $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try { & $script:Py -c 'import numpy' 2>$null; $script:PyNumpy = ($LASTEXITCODE -eq 0) } finally { $ErrorActionPreference = $eap }
+    }
     $script:HasCurl = [bool](Get-Command curl -CommandType Application -ErrorAction SilentlyContinue)
 }
 
@@ -329,6 +333,7 @@ Describe 'Remove BG on Windows' {
                     '    text = f"{e.code} {e.reason} {e.detail}"'
                     'open(sys.argv[2], "w", encoding="utf-8").write(text)'
                 ) -join "`n") + "`n")
+        $ErrorActionPreference = 'Continue'      # (Windows PowerShell 5.1: a message on stderr is no error, hidden or not)
         & $script:Py -I -B $ask (Join-Path $script:Ctx.Repo 'lib/bg') $answer 2>$null | Out-Null
         $text = [IO.File]::ReadAllText($answer)
         $here = if ($IsWindows) { 'PC' } elseif ($IsMacOS) { 'Mac' } else { 'computer' }
@@ -340,6 +345,7 @@ Describe 'Remove BG on Windows' {
         # (engines that give what they are told, judged by the real worker: a card whose cut-out is wrong goes the way of one
         # that fails – its conversion is dropped and the processor does the work; a processor is not judged this way)
         $answer = Join-Path $script:Ctx.Tmp 'selftest-card.txt'
+        $ErrorActionPreference = 'Continue'
         & $script:Py -I -B (Join-Path $PSScriptRoot 'fixtures/selftest-judges-the-card.py') (Join-Path $script:Ctx.Repo 'lib/bg') $answer 2>$null | Out-Null
         [IO.File]::ReadAllText($answer) -split "`n" | Should -Be @('gpu ok', 'gpu BG-013', 'gpu BG-013', 'gpu BG-004', 'cpu ok')
     }
@@ -431,7 +437,11 @@ Describe 'Remove BG on Windows' {
     }
 
     It 'asks DXGI for the graphics adapters, as DirectML does – Windows'' software one is never a card' -Skip:(-not ($IsWindows -and $script:Py)) {
-        $json = & $script:Py -I -B -c 'import sys, json; sys.path.insert(0, sys.argv[1]); import gpu; print(json.dumps({"all": gpu.adapters(), "cards": gpu.cards()}))' (Join-Path $script:Ctx.Repo 'lib/bg')
+        # (no double quotes in the Python program: Windows PowerShell 5.1 does not pass them on to a program)
+        $code = @'
+import sys, json; sys.path.insert(0, sys.argv[1]); import gpu; print(json.dumps({'all': gpu.adapters(), 'cards': gpu.cards()}))
+'@
+        $json = & $script:Py -I -B -c $code (Join-Path $script:Ctx.Repo 'lib/bg')
         $LASTEXITCODE | Should -Be 0
         $r = $json | ConvertFrom-Json
         @($r.all).Count | Should -BeGreaterThan 0 -Because 'Windows always has its Microsoft Basic Render Driver'
@@ -443,7 +453,10 @@ Describe 'Remove BG on Windows' {
         # (the conversion itself needs PyTorch: the job "Remove BG on real Windows" of windows.yml converts the real model
         # and compares the card's numbers with PyTorch's; here the module loads without PyTorch)
         # (onnxprep imports the worker's events: what is printed goes to stderr, so the answer comes as an event)
-        $out = & $script:Py -I -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import events, onnxprep; events.emit(onnxprep.FORMAT, onnxprep.onnx_path("m", {"id": "birefnet", "files": [{"name": "birefnet.py", "sha256": "a" * 64, "bytes": "9"}, {"name": "model.safetensors", "sha256": "0123456789abcdef" * 4, "bytes": "99"}]}))' (Join-Path $script:Ctx.Repo 'lib/bg')
+        $code = @'
+import sys; sys.path.insert(0, sys.argv[1]); import events, onnxprep; events.emit(onnxprep.FORMAT, onnxprep.onnx_path('m', {'id': 'birefnet', 'files': [{'name': 'birefnet.py', 'sha256': 'a' * 64, 'bytes': '9'}, {'name': 'model.safetensors', 'sha256': '0123456789abcdef' * 4, 'bytes': '99'}]}))
+'@
+        $out = & $script:Py -I -B -c $code (Join-Path $script:Ctx.Repo 'lib/bg')
         $LASTEXITCODE | Should -Be 0
         $out | Should -Match '^1\tm[\\/]birefnet[\\/]gpu-1-0123456789ab\.onnx$'
     }

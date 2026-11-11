@@ -1,4 +1,4 @@
-# Where Lotus' program files and the user's files are.
+﻿# Where Lotus' program files and the user's files are.
 
 function Get-LotusRoot {
     # LOTUS_ROOT for tests and developers; else the folder above the module (a checkout, or an install that ships

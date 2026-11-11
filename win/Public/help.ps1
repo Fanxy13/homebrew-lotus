@@ -1,4 +1,4 @@
-# lotus help, cheatsheet, themes, suggestions for unknown commands – a port of lib/cmd/help.zsh
+﻿# lotus help, cheatsheet, themes, suggestions for unknown commands – a port of lib/cmd/help.zsh
 
 function script:Invoke-Lotushelp {
     param([string]$Cmd, [string[]]$Rest)

@@ -1,4 +1,4 @@
-# /install – the app catalog (data/apps.tsv) by category, a port of lib/cmd/install.zsh. On Windows the apps come from
+﻿# /install – the app catalog (data/apps.tsv) by category, a port of lib/cmd/install.zsh. On Windows the apps come from
 # winget, by the id in the catalog's winget column (checked against winget by the CI); apps that are for macOS only
 # have none and are left out. An app that is not in the catalog is looked for in winget itself.
 

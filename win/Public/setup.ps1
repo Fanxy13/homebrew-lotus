@@ -1,4 +1,4 @@
-# The first-time setup (lotus setup) and the features page (lotus features) – a port of lib/cmd/setup.zsh.
+﻿# The first-time setup (lotus setup) and the features page (lotus features) – a port of lib/cmd/setup.zsh.
 #
 #                       (a lotus that opens a little with every step)
 #                   ━━━━━  ━━━━━  ━━━━━  ─────  ─────

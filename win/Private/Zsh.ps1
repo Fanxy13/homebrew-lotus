@@ -1,4 +1,4 @@
-# Reading the files that the zsh engine writes and sources – settings.zsh, lib/lang/*.zsh, the LOTUS_KEYS list and the
+﻿# Reading the files that the zsh engine writes and sources – settings.zsh, lib/lang/*.zsh, the LOTUS_KEYS list and the
 # defaults in lib/core.zsh – and writing values the way zsh's ${(qq)…} does. Nothing is ever expanded or run: only
 # the quoting is undone ('single', "double" with its backslashes, $'ANSI-C', bare words with \ escapes).
 

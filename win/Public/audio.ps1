@@ -1,4 +1,4 @@
-# /np /play /pause /skip /back /repeat /mute /vu /vd – a port of lib/cmd/audio.zsh. What plays comes from fastfetch
+﻿# /np /play /pause /skip /back /repeat /mute /vu /vd – a port of lib/cmd/audio.zsh. What plays comes from fastfetch
 # (Windows' media controls); the keys are the media keys every such player answers, the volume is Core Audio's.
 
 function script:Invoke-Lotusaudio {

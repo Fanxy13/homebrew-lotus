@@ -1,19 +1,22 @@
 # Lotus for Windows – beta
 
-A native PowerShell 7 module for Windows 11 (or 10) and Windows Terminal: no WSL, no Git Bash, no compatibility layer,
-no administrator rights. It is a port of the zsh engine (`lib/`) and reads the same files: `settings.zsh`, `data/`,
+A native PowerShell module for Windows 11 (or 10) and Windows Terminal: no WSL, no Git Bash, no compatibility layer,
+no administrator rights – and nothing to update first: it runs in the **Windows PowerShell 5.1 that Windows 11 comes
+with**, and in PowerShell 7. It is a port of the zsh engine (`lib/`) and reads the same files: `settings.zsh`, `data/`,
 `logos/`, `lib/lang/` and the version, keys and defaults in `lib/core.zsh`.
 
-**Status:** tested on every change on GitHub's Windows machines – Windows x64 and Windows 11 Arm64, PowerShell 7
-(`.github/workflows/windows.yml`), about 350 Pester tests, none skipped on x64 but the downloads of `/convert` (on Arm64
-also the conversions of `/img`: that machine has no winget and no ImageMagick that works). It has not yet been used by
-people in a real Windows Terminal window: what the tests cannot see (how a screen looks, PowerShell's Enter key in a
-real window, a real install with winget) is the next thing to try. What works where:
-[data/platform-matrix.tsv](../data/platform-matrix.tsv) – *yes* only where a test ran on Windows.
+**Status:** tested on every change on GitHub's Windows machines (`.github/workflows/windows.yml`): the Pester tests in
+PowerShell 7 on Windows x64 and Windows 11 Arm64 and – the whole suite – in Windows PowerShell 5.1 on x64, and a real
+console with Windows PowerShell 5.1 (a ConPTY, the pseudo console Windows Terminal draws too) on a Windows whose
+execution policy is *Restricted*, like a new Windows 11: the install line is pasted in, its questions are answered, the
+setup clicked through, a new window loads Lotus from the profile, and `/clock`, `/settings`, `lotus doctor`, `lotus.cmd`
+in cmd.exe and `lotus unhook` are used (`win/tests/terminal51.py`). It has not yet been used by people in their own
+Windows Terminal window. What works where: [data/platform-matrix.tsv](../data/platform-matrix.tsv) – *yes* only where
+a test ran on Windows.
 
 ## Install
 
-In PowerShell 7:
+In PowerShell – the Windows PowerShell 5.1 of Windows 11 is enough, PowerShell 7 works too:
 
 ```powershell
 irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 | iex
@@ -26,6 +29,16 @@ that Lotus loads in every PowerShell window. Then the setup starts. `lotus updat
 version; `lotus uninstall` takes everything out again (the folder, your PATH entry, the profile block, your settings).
 Options for scripts are environment variables – `LOTUS_DEST`, `LOTUS_NO_PATH=1`, `LOTUS_NO_PROFILE=1`,
 `LOTUS_FASTFETCH=winget|pinned|no`, `LOTUS_YES=1` (see the top of `install.ps1`).
+
+**A new Windows 11 lets Windows PowerShell run no script files** (the execution policy is *Restricted*) – not Lotus'
+module, and not the profile that loads it. The line above still works, because it is text typed in, not a file. For its
+own work the installer takes a policy for that one window (*Process*, ends with the window); for the profile it shows the
+command and asks – `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` (your user only: local scripts
+run, downloaded ones need a signature; PowerShell 7 has this by default). With *no*, Lotus is installed, `lotus` works in
+cmd.exe, and a new PowerShell window prints PowerShell's own error about the profile until the command above is run. A
+policy set by your organization is never changed; the installer says so. The profile block goes into the profile of
+Windows PowerShell and, when it is installed, of PowerShell 7 (`lotus unhook` takes it out of both); `lotus.cmd` starts
+PowerShell 7 when it is there, else Windows PowerShell.
 
 Your files: settings in `%APPDATA%\lotus`, cache, state and data in `%LOCALAPPDATA%\lotus` (`XDG_*` and the `LOTUS_CONF`,
 `LOTUS_CACHE`, `LOTUS_STATE`, `LOTUS_DATA` variables are honored). API keys are kept with DPAPI: only your Windows
@@ -71,5 +84,38 @@ Install-Module Pester -MinimumVersion 5.5 -Scope CurrentUser
 Invoke-Pester -Path win/tests -Output Detailed
 ```
 
-They run anywhere PowerShell 7 does (macOS and Linux too – the Windows parts are skipped there) and touch nothing of
-yours: every file gets folders of its own, no keyboard is waited for, the environment comes back afterwards.
+They run anywhere PowerShell 7 does (macOS and Linux too – the Windows parts are skipped there) and in Windows
+PowerShell 5.1, and touch nothing of yours: every file gets folders of its own, no keyboard is waited for, the
+environment comes back afterwards. The real console test needs Windows, `pip install pyte pywinpty`, and a Windows
+PowerShell whose policy you do not mind changing: `python win/tests/terminal51.py` (it is the CI's job; it installs
+Lotus into your user profile).
+
+## Windows PowerShell 5.1 and PowerShell 7
+
+One code base for both – what Windows PowerShell 5.1 (.NET Framework 4.8) lacks is not used, or replaced by something both
+have. The rules, kept by the lint test, the job *Windows PowerShell 5.1 reads every script* (parses every file in 5.1)
+and the whole Pester suite in 5.1:
+
+- Every script of the module has a **byte order mark** (UTF-8): Windows PowerShell reads a file without one as ANSI, so
+  a "–" or a "▶" in a string would become several characters, some of them quotes. `install.ps1` and `bin\lotus.ps1` are
+  run with `irm | iex` and by the shims: they are ASCII.
+- No `??`, `?:`, `&&`, `||`, `` `e ``, `$IsWindows` (the module sets it for 5.1), `ProcessStartInfo.ArgumentList`
+  (`Set-LotusProcessArguments`), `Process.Kill($true)` (`Stop-LotusProcessTree`), `Invoke-WebRequest -SkipHttpErrorCheck`
+  and `-NoProxy` (`Get-LotusHttpStatus`, `Get-LotusHttpText`), `Add-Type` with newer C# than 5.
+- A program PowerShell calls itself gets its arguments through `ConvertTo-LotusNativeArgs`: Windows PowerShell passes
+  `print("x")` to Python without its quotes, and drops an empty argument.
+- Time zones: .NET Framework knows only the Windows ids; `zones.tsv` (the CLDR table) says which IANA name is which, for
+  `/clock`.
+- Windows PowerShell does not turn on ANSI colors for its console the way PowerShell 7 does – `Enable-LotusVirtualTerminal`
+  asks for them before Lotus draws.
+- A profile is read and written the way both read it: plain ASCII as it is, anything else (a user name with an umlaut is
+  in the module's path) as UTF-8 with a byte order mark; an ANSI or UTF-16 profile and its line ends are kept.
+- `[RuntimeInformation]::OSArchitecture` was empty in a console of the CI: the installer and `Get-LotusOsArchitecture` take
+  the environment's `PROCESSOR_ARCHITECTURE` when .NET says nothing.
+- The installer takes a policy of its own for its window (Process, Bypass); Windows PowerShell then reports the policy it
+  sets for the user as an error ("Security error.", *overridden by a more specific scope*) although it is set – the
+  installer looks at what is set (`Get-ExecutionPolicy -Scope CurrentUser`), not at that error.
+- A look at Ollama (127.0.0.1) and the pages the tests fetch go through `HttpWebRequest` (`Get-LotusHttpText`): the
+  `-NoProxy` of `Invoke-WebRequest` is PowerShell 7's, and Windows PowerShell looks for a proxy first.
+- In the tests Windows PowerShell gets a stand-in for `Out-String` (`TestKit.ps1`): PowerShell 7 leaves the color codes out of
+  what a test collects with `6>&1 | Out-String` and does not wrap its lines; Windows PowerShell does neither.

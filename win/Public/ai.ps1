@@ -1,4 +1,4 @@
-# /ai on Windows – answers from Claude, an OpenAI-compatible API or Ollama, right in the window: a port of the parts of
+﻿# /ai on Windows – answers from Claude, an OpenAI-compatible API or Ollama, right in the window: a port of the parts of
 # lib/cmd/ai.zsh that need no AI program. The AI terminal with its tools (files, commands, web pages), the web chat,
 # models on this computer and the statistics belong to the AI program (lib/ai, Swift), which has no Windows build yet –
 # here /ai is a chat that answers and remembers the conversation for an hour, and cannot read or change files or run
@@ -57,11 +57,15 @@ function script:Get-LotusAiOllamaUrl {
 }
 function script:Test-LotusAiLoopback { param([string]$Url) $Url -match '^https?://(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:|/|$)' }
 
-# The models Ollama has (it answers within a second when it runs)
+# The models Ollama has. It answers at once when it runs, and a refused connection to 127.0.0.1 is at once too – the three
+# seconds are for a first request in a Windows PowerShell 5.1 that has not started its HTTP stack yet (one second was not enough
+# there: Ollama was not found on a busy machine)
 function script:Get-LotusAiOllamaModels {
     $url = Get-LotusAiOllamaUrl
     try {
-        $r = Invoke-RestMethod -Uri "$url/api/tags" -TimeoutSec 1 -NoProxy:(Test-LotusAiLoopback $url) -ErrorAction Stop
+        $text = Get-LotusHttpText "$url/api/tags" 3 ([bool](Test-LotusAiLoopback $url))
+        if (-not $text) { return @() }
+        $r = $text | ConvertFrom-Json
         @($r.models | ForEach-Object { [string]$_.name } | Where-Object { $_ })
     } catch { @() }
 }
@@ -237,6 +241,7 @@ function script:Start-LotusAiRequest {
         }
     }
     try {
+        Add-Type -AssemblyName System.Net.Http      # (loaded in PowerShell 7, not in Windows PowerShell 5.1)
         $handler = [System.Net.Http.HttpClientHandler]::new()
         if (Test-LotusAiLoopback $url) { $handler.UseProxy = $false }
         $req.Client = [System.Net.Http.HttpClient]::new($handler)
@@ -668,7 +673,9 @@ function script:Invoke-LotusAiCommand {
     $p = Use-LotusAiProvider
     if (-not $p) { return (St 1) }
     Write-LotusHeader 'AI' "command for: $Task"
-    $answer = Invoke-LotusAiAnswer -System 'You are a Windows PowerShell expert. Answer with a single command line for PowerShell 7 on Windows, nothing else.' -Messages @(@{ role = 'user'; text = $Task }) -Provider $p -Spinner
+    # (the command has to run in the PowerShell this is: Windows PowerShell 5.1 has no &&, ?: or ??)
+    $shell = if ($PSVersionTable.PSEdition -eq 'Core') { 'PowerShell 7' } else { 'Windows PowerShell 5.1' }
+    $answer = Invoke-LotusAiAnswer -System "You are a Windows PowerShell expert. Answer with a single command line for $shell on Windows, nothing else." -Messages @(@{ role = 'user'; text = $Task }) -Provider $p -Spinner
     if ($null -eq $answer) { return (St 1) }
     $lines = @(($answer -replace '`', '') -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -notmatch '^(powershell|pwsh|ps1?|shell|cmd)$' })
     $cmd = if ($lines.Count) { $lines[0] } else { '' }
@@ -785,8 +792,8 @@ function script:Test-LotusAiClaudeKey {
     param([string]$Key)
     $url = (Get-LotusAiClaudeUrl) -replace '/messages/?$', '/models'
     try {
-        $r = Invoke-WebRequest -Uri $url -Headers @{ 'x-api-key' = $Key; 'anthropic-version' = '2023-06-01' } -TimeoutSec 20 -SkipHttpErrorCheck -NoProxy:(Test-LotusAiLoopback $url) -ErrorAction Stop
-        [int]$r.StatusCode
+        $r = Get-LotusHttpStatus -Uri $url -Headers @{ 'x-api-key' = $Key; 'anthropic-version' = '2023-06-01' } -TimeoutSec 20 -NoProxy ([bool](Test-LotusAiLoopback $url))
+        if ($r) { [int]$r.StatusCode } else { 0 }
     } catch { 0 }
 }
 

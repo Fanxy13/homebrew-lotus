@@ -1,4 +1,4 @@
-# The contract between the two engines (tests/contract): Lotus for Windows has to make exactly what the zsh engine makes
+﻿# The contract between the two engines (tests/contract): Lotus for Windows has to make exactly what the zsh engine makes
 # of the same cases – the colors, the fuzzy scores, the settings file, the language files, the painted logos, the
 # fastfetch configs and the greetings. tests/contract/expected holds zsh's answers (tests/test-contract.zsh keeps them
 # current); these tests run on Windows, Linux and macOS.
@@ -13,7 +13,7 @@ BeforeAll {
     function script:Read-Expected([string]$Name) { [System.IO.File]::ReadAllText((Join-Path $script:Expected $Name)).Replace("`r`n", "`n") }
     function script:Rows([string]$Name) { (Read-Expected $Name).TrimEnd("`n") -split "`n" | ForEach-Object { , ($_ -split "`t") } }
     function script:Sha256([string]$Text) {
-        $h = [System.Security.Cryptography.SHA256]::HashData([System.Text.UTF8Encoding]::new($false).GetBytes($Text))
+        $h = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.UTF8Encoding]::new($false).GetBytes($Text))
         -join ($h | ForEach-Object { $_.ToString('x2') })
     }
 }
@@ -80,7 +80,7 @@ Describe 'the language files, read as data' {
                 [Array]::Sort($keys, [StringComparer]::Ordinal)
                 $sb = [System.Text.StringBuilder]::new()
                 foreach ($k in $keys) { [void]$sb.Append($k).Append([char]0x1f).Append($map[$k]).Append([char]0x1e) }
-                $h = [System.Security.Cryptography.SHA256]::HashData([System.Text.UTF8Encoding]::new($false).GetBytes($sb.ToString()))
+                $h = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.UTF8Encoding]::new($false).GetBytes($sb.ToString()))
                 $map.Count | Should -Be ([int]$r[1]) -Because $r[0]
                 (-join ($h | ForEach-Object { $_.ToString('x2') })) | Should -Be $r[2] -Because $r[0]
             }

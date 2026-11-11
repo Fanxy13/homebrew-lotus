@@ -1,4 +1,4 @@
-# The platform layer for Windows – the functions of lib/platform/*.zsh, by their PowerShell names. A function that this
+﻿# The platform layer for Windows – the functions of lib/platform/*.zsh, by their PowerShell names. A function that this
 # system cannot offer returns status 2 and prints nothing; the command says in words what is not possible. Nothing is
 # faked. A function with more to say than a status returns a result: Code (the status), Value, Msg (why it failed).
 #
@@ -12,10 +12,21 @@ function Lr { param([int]$Code, $Value = $null, [string[]]$Msg = @()) [pscustomo
 
 # ── This system ───────────────────────────────────────────────
 
+# The processor of this PC as .NET names it (X64, Arm64, X86): RuntimeInformation says it – in one console of Windows PowerShell 5.1 on
+# the CI it said nothing ($null), so the environment answers when .NET does not
+function Get-LotusOsArchitecture {
+    try { $a = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture; if ($null -ne $a -and "$a") { return "$a" } } catch { }
+    $cpu = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+    if ($cpu -eq 'ARM64') { return 'Arm64' }
+    if ($cpu -eq 'x86') { return 'X86' }
+    if ($cpu -eq 'AMD64') { return 'X64' }
+    if ([Environment]::Is64BitOperatingSystem) { 'X64' } else { 'X86' }
+}
+
 function Initialize-LotusPlatform {
     if ($script:Os) { return }
     $os = [ordered]@{ Name = 'other'; Version = ''; Build = 0; Release = ''; Product = ''; Arch = 'unknown'; Terminal = '' }
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    $arch = Get-LotusOsArchitecture
     $os.Arch = switch ($arch) { 'X64' { 'x86_64' } 'Arm64' { 'arm64' } 'X86' { 'x86' } default { $arch.ToLowerInvariant() } }
     if ($IsWindows) {
         $os.Name = 'windows'
@@ -77,6 +88,25 @@ function Get-LotusNative {
     $method = $tb.CreateType().GetMethod($Name)
     $script:Native[$key] = $method
     $method
+}
+
+# Windows PowerShell 5.1 does not switch its console to ANSI escape sequences (colors, cursor moves, the album cover) the way
+# PowerShell 7 does – PSReadLine does it only while a line is read. So before Lotus draws, the console is asked to understand
+# them (ENABLE_VIRTUAL_TERMINAL_PROCESSING, Windows 10 and newer). Output that goes to a file or a pipe has no console mode.
+function Enable-LotusVirtualTerminal {
+    if ($PSVersionTable.PSEdition -eq 'Core' -or -not $IsWindows) { return }
+    try {
+        $getHandle = Get-LotusNative 'kernel32.dll' 'GetStdHandle' ([IntPtr]) @([int])
+        $getMode = Get-LotusNative 'kernel32.dll' 'GetConsoleMode' ([bool]) @([IntPtr], [uint32].MakeByRefType())
+        $setMode = Get-LotusNative 'kernel32.dll' 'SetConsoleMode' ([bool]) @([IntPtr], [uint32])
+        foreach ($std in -11, -12) {        # standard output, standard error
+            $handle = $getHandle.Invoke($null, @($std))
+            $call = [object[]]@($handle, [uint32]0)
+            if ($getMode.Invoke($null, $call) -and -not ([uint32]$call[1] -band 4)) {
+                [void]$setMode.Invoke($null, @($handle, [uint32]([uint32]$call[1] -bor 4)))
+            }
+        }
+    } catch { }
 }
 
 # ── Open things ───────────────────────────────────────────────
@@ -374,8 +404,8 @@ try {
     $proc = $null
     try {
         $psi = [System.Diagnostics.ProcessStartInfo]::new($ps)
-        foreach ($a in '-NoProfile', '-NonInteractive', '-EncodedCommand', $enc) { $psi.ArgumentList.Add($a) }
-        $psi.Environment['LOTUS_COVER_OUT'] = $OutFile
+        Set-LotusProcessArguments $psi @('-NoProfile', '-NonInteractive', '-EncodedCommand', $enc)
+        $psi.EnvironmentVariables['LOTUS_COVER_OUT'] = $OutFile
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
         $psi.RedirectStandardInput = $true
@@ -385,7 +415,7 @@ try {
         $proc.StandardInput.Close()
         $err = $proc.StandardError.ReadToEndAsync()
         $out = $proc.StandardOutput.ReadToEndAsync()
-        if (-not $proc.WaitForExit(10000)) { try { $proc.Kill($true) } catch { }; return $null }
+        if (-not $proc.WaitForExit(10000)) { Stop-LotusProcessTree $proc; return $null }
         $proc.WaitForExit()
         $null = $err.Result
         $line = @(([string]$out.Result) -split "`r?`n" | Where-Object { $_ }) | Select-Object -Last 1
@@ -490,7 +520,11 @@ function Remove-LotusUserPath {
 # ── This computer ─────────────────────────────────────────────
 
 function Get-LotusCpuCount { [Environment]::ProcessorCount }
-function Get-LotusMemBytes { [long][GC]::GetGCMemoryInfo().TotalAvailableMemoryBytes }
+function Get-LotusMemBytes {
+    # (.NET Framework, under Windows PowerShell 5.1, has no GetGCMemoryInfo: the processor's board knows)
+    try { return [long][GC]::GetGCMemoryInfo().TotalAvailableMemoryBytes } catch { }
+    try { [long](Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop).TotalPhysicalMemory } catch { 0 }
+}
 function Get-LotusChip {
     if ($IsWindows) {
         try { return ((Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | Select-Object -First 1).Name).Trim() } catch { }
@@ -597,6 +631,75 @@ function ConvertTo-LotusCommandLine {
             })) -join ' '
 }
 
+# A ProcessStartInfo's arguments: one by one where .NET has ArgumentList (PowerShell 7), else as one quoted line (Windows
+# PowerShell 5.1 runs on .NET Framework, which has only Arguments)
+function Set-LotusProcessArguments {
+    param([Parameter(Mandatory)][System.Diagnostics.ProcessStartInfo]$Info, [string[]]$Arguments = @())
+    if ([System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList')) { foreach ($a in $Arguments) { $Info.ArgumentList.Add($a) } }
+    elseif ($Arguments.Count) { $Info.Arguments = ConvertTo-LotusCommandLine $Arguments }
+}
+
+# A program and everything it started (Process.Kill($true) is .NET Core's; on .NET Framework taskkill does the tree)
+function Stop-LotusProcessTree {
+    param($Process)
+    if (-not $Process) { return }
+    try { if ([System.Diagnostics.Process].GetMethod('Kill', [type[]]@([bool]))) { $Process.Kill($true); return } } catch { }
+    try { & (Join-Path $env:SystemRoot 'System32\taskkill.exe') /PID $Process.Id /T /F 2>&1 | Out-Null } catch { }
+    try { if (-not $Process.HasExited) { $Process.Kill() } } catch { }
+}
+
+# The status of an HTTP request and its headers, whatever the status is (Invoke-WebRequest -SkipHttpErrorCheck is
+# PowerShell 7's; a 4xx or 5xx is an error in Windows PowerShell 5.1) → @{ StatusCode; Headers }, or $null when nobody answered
+function Get-LotusHttpStatus {
+    param([Parameter(Mandatory)][string]$Uri, [string]$Method = 'GET', [hashtable]$Headers = @{}, [int]$TimeoutSec = 20, [bool]$Redirect = $true, [bool]$NoProxy = $false)
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($Uri)
+        $req.Method = $Method
+        $req.Timeout = $TimeoutSec * 1000
+        $req.AllowAutoRedirect = $Redirect
+        $req.UserAgent = "lotus/$(Get-LotusVersion)"
+        if ($NoProxy) { $req.Proxy = $null }
+        foreach ($k in $Headers.Keys) { $req.Headers[$k] = [string]$Headers[$k] }
+        $resp = $null
+        try { $resp = $req.GetResponse() } catch [System.Net.WebException] { $resp = $_.Exception.Response; if ($null -eq $resp) { return $null } }
+        try { [pscustomobject]@{ StatusCode = [int]$resp.StatusCode; Headers = $resp.Headers } } finally { $resp.Dispose() }
+    } catch { $null }
+}
+
+# The body of a GET as text, or $null when nobody answered in time or the answer was an error. With -NoProxy (an address of this
+# computer) no proxy is asked for: Windows PowerShell 5.1 looks for one first, and that can take longer than the second
+# Invoke-RestMethod -TimeoutSec 1 gives it.
+function Get-LotusHttpText {
+    param([Parameter(Mandatory)][string]$Uri, [int]$TimeoutSec = 20, [bool]$NoProxy = $false)
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($Uri)
+        $req.Timeout = $TimeoutSec * 1000
+        $req.ReadWriteTimeout = $TimeoutSec * 1000
+        $req.UserAgent = "lotus/$(Get-LotusVersion)"
+        if ($NoProxy) { $req.Proxy = $null }
+        $resp = $req.GetResponse()
+        try {
+            $reader = [System.IO.StreamReader]::new($resp.GetResponseStream(), [System.Text.Encoding]::UTF8)
+            try { $reader.ReadToEnd() } finally { $reader.Dispose() }
+        } finally { $resp.Dispose() }
+    } catch { $null }
+}
+
+# The arguments of a program that PowerShell calls itself (& $exe @args), as that program reads them back. Windows PowerShell
+# 5.1 (and PowerShell before 7.3) puts quotes around an argument with blanks but leaves the quotes inside it unescaped, and
+# it drops an empty one – so print("x") reaches Python as print(x). PowerShell 7.3 and newer do it right: unchanged there.
+function ConvertTo-LotusNativeArgs {
+    param([AllowNull()][AllowEmptyCollection()][AllowEmptyString()][string[]]$Arguments = @())
+    if ($null -eq $Arguments -or $Arguments.Count -eq 0) { return }
+    if ($PSVersionTable.PSEdition -eq 'Core' -and $PSVersionTable.PSVersion -ge [version]'7.3') { return $Arguments }
+    @(foreach ($a in $Arguments) {
+            if (-not $a) { '""'; continue }
+            $s = [regex]::Replace($a, '(\\*)"', '$1$1\"')
+            if ($s -match '\s') { $s = [regex]::Replace($s, '(\\+)$', '$1$1') }
+            $s
+        })
+}
+
 # A program run in the open: its own output, questions and progress go straight to this window (not through
 # PowerShell's pipeline, which would hold them back) → its exit code
 function Invoke-LotusInTheOpen {
@@ -632,9 +735,11 @@ function Find-LotusPython {
     foreach ($n in 'python3', 'python') {
         foreach ($c in @(Get-Command $n -CommandType Application -All -ErrorAction SilentlyContinue)) { $tries.Add(@($c.Source)) }
     }
+    $ErrorActionPreference = 'Continue'     # (a program's message on stderr is not an error here, whatever the caller set)
     foreach ($t in $tries) {
         $pre = @($t | Select-Object -Skip 1)
-        try { $v = & $t[0] @pre -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>$null } catch { continue }
+        # (no double quotes in the Python program: Windows PowerShell 5.1 does not pass them on)
+        try { $v = & $t[0] @pre -c "import sys; print('%d.%d' % sys.version_info[:2])" 2>$null } catch { continue }
         if ($LASTEXITCODE -ne 0 -or "$v".Trim() -notmatch '^(\d+)\.(\d+)$') { continue }
         if ([int]$Matches[1] -lt 3 -or ([int]$Matches[1] -eq 3 -and [int]$Matches[2] -lt 9)) { continue }
         $script:PythonFound = [pscustomobject]@{ Exe = $t[0]; Args = $pre; Version = "$v".Trim() }

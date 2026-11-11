@@ -1,4 +1,4 @@
-# /minecraft and /mc on Windows – the Minecraft server setup assistant, a port of lib/cmd/minecraft.zsh. Server files
+﻿# /minecraft and /mc on Windows – the Minecraft server setup assistant, a port of lib/cmd/minecraft.zsh. Server files
 # come only from the official sources: Mojang (Vanilla) and PaperMC (Paper), each checked against its checksum. Java
 # comes from what is installed, or – after a yes – from Eclipse Temurin (adoptium.net), into Lotus' own folder: no
 # administrator rights, its SHA-256 checked before anything is unpacked. A server runs in its control center
@@ -146,7 +146,7 @@ function script:Save-LotusMcServerJar {
     Write-LotusDim "From: $(([Uri]$url).Host)"
     $part = Join-Path $Dir 'server.jar.part'
     $curl = Find-LotusProgram @('curl')
-    $ok = if ($curl) { (Invoke-LotusInTheOpen $curl @('-fL', '--progress-bar', '-o', $part, $url)) -eq 0 } else { try { Invoke-WebRequest -Uri $url -OutFile $part -ErrorAction Stop; $true } catch { $false } }
+    $ok = if ($curl) { (Invoke-LotusInTheOpen $curl @('-fL', '--progress-bar', '-o', $part, $url)) -eq 0 } else { try { Invoke-WebRequest -Uri $url -OutFile $part -UseBasicParsing -ErrorAction Stop; $true } catch { $false } }
     if (-not $ok) { Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue; Write-LotusError 'Download failed'; return $false }
     if ($sum) {
         $got = (Get-FileHash -LiteralPath $part -Algorithm $algo).Hash.ToLowerInvariant()
@@ -306,7 +306,7 @@ function script:Save-LotusJava {
     $tmp = Join-Path $script:Paths.Cache "java-$Major$ext"
     Write-LotusDim "From: github.com/adoptium · $([Math]::Truncate($size / 1MB)) MB"
     $curl = Find-LotusProgram @('curl')
-    $ok = if ($curl) { (Invoke-LotusInTheOpen $curl @('-fL', '--progress-bar', '-o', $tmp, $url)) -eq 0 } else { try { Invoke-WebRequest -Uri $url -OutFile $tmp -ErrorAction Stop; $true } catch { $false } }
+    $ok = if ($curl) { (Invoke-LotusInTheOpen $curl @('-fL', '--progress-bar', '-o', $tmp, $url)) -eq 0 } else { try { Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing -ErrorAction Stop; $true } catch { $false } }
     if (-not $ok) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue; Write-LotusError 'The download failed'; return $false }
     if ((Get-LotusSha256 $tmp) -cne $want) { Remove-Item -LiteralPath $tmp -Force; Write-LotusError 'Checksum mismatch' 'The download was damaged or changed.' @('Nothing was installed.'); return $false }
     Write-LotusSuccess 'Checksum verified'

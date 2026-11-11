@@ -2,4 +2,4 @@
 # id	label	status	needs	note
 macos	macOS	supported	macOS 11 or newer, zsh (bash 4.4 or newer works too)	Apple silicon and Intel. Homebrew or the install script.
 linux	Linux	beta	zsh (the installer offers it), curl, a terminal with UTF-8	Tested in containers on Ubuntu 24.04, Debian 12, Fedora 42 and Arch. zsh or bash as your shell. The install script; no administrator rights.
-windows	Windows	beta	Windows 11 (or 10), PowerShell 7.2 or newer, Windows Terminal	A native PowerShell module, no WSL, no administrator rights. Tested on every change on GitHub's Windows machines (x64 and Arm64) – not yet by people in a real window. The install script (irm … | iex).
+windows	Windows	beta	Windows 11 (or 10) with its Windows PowerShell 5.1 (PowerShell 7.2 or newer works too), Windows Terminal	A native PowerShell module, no WSL, no administrator rights, nothing to update first. Tested on every change on GitHub's Windows machines – PowerShell 7 on x64 and Arm64, Windows PowerShell 5.1 on x64 (the whole test suite, and a real console) – not yet by people in their own window. The install script (irm … | iex).

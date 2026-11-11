@@ -1,4 +1,4 @@
-# /bg on Windows – remove image backgrounds on this PC with BiRefNet or InSPyReNet; the image never leaves it. A port
+﻿# /bg on Windows – remove image backgrounds on this PC with BiRefNet or InSPyReNet; the image never leaves it. A port
 # of lib/cmd/bg.zsh and lib/bg/{runtime,progress,manage}.zsh. The work is done by the same Python program as on the Mac
 # (lib/bg/worker.py), in Lotus' own Python environment (runtime\bg in Lotus' data folder) with PyTorch's Windows build
 # on the processor – or, when the PC has a graphics card that DirectX 12 can use, BiRefNet on the card: converted once
@@ -303,7 +303,7 @@ function script:Invoke-LotusBgProbe {
     try {
         $err = $p.StandardError.ReadToEndAsync()
         $out = $p.StandardOutput.ReadToEndAsync()
-        if (-not $p.WaitForExit(15000)) { try { $p.Kill($true) } catch { }; return '' }
+        if (-not $p.WaitForExit(15000)) { Stop-LotusProcessTree $p; return '' }
         $p.WaitForExit()
         $null = $err.Result
         if ($p.ExitCode -ne 0) { return '' }
@@ -370,7 +370,7 @@ function script:Add-LotusBgLog {
 function script:Start-LotusBgProcess {
     param([string]$Exe, [string[]]$Arguments, [hashtable]$Environment = @{})
     $psi = [System.Diagnostics.ProcessStartInfo]::new($Exe)
-    foreach ($a in $Arguments) { $psi.ArgumentList.Add($a) }
+    Set-LotusProcessArguments $psi $Arguments
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
@@ -378,7 +378,7 @@ function script:Start-LotusBgProcess {
     $psi.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
     $psi.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
     $psi.CreateNoWindow = $true
-    foreach ($k in $Environment.Keys) { $psi.Environment[$k] = [string]$Environment[$k] }
+    foreach ($k in $Environment.Keys) { $psi.EnvironmentVariables[$k] = [string]$Environment[$k] }
     try {
         $p = [System.Diagnostics.Process]::Start($psi)
         $p.StandardInput.Close()
@@ -396,7 +396,7 @@ function script:Stop-LotusBgProc {
             if ($Cancel) {
                 try { [IO.File]::WriteAllText($Cancel, '') } catch { }
                 [void]$P.WaitForExit(3000)
-            } else { $P.Kill($true); [void]$P.WaitForExit(3000) }
+            } else { Stop-LotusProcessTree $P; [void]$P.WaitForExit(3000) }
         }
     } catch { }
     finally { $script:Bg.Proc = $null }
@@ -521,7 +521,7 @@ function script:Invoke-LotusBgWorker {
     }
     if ($rc -lt 0) { $rc = $st }
     if ($rc -and -not $b.Err.Count -and $rc -ne 130) {
-        $tail = @(Get-Content -LiteralPath $b.Log -Tail 3 -ErrorAction SilentlyContinue) -join ' '
+        $tail = @(Get-Content -LiteralPath $b.Log -Tail 3 -Encoding UTF8 -ErrorAction SilentlyContinue) -join ' '
         $b.Err = @('BG-011', "The background remover stopped unexpectedly (status $rc).", $tail)
     }
     if ($b.Err.Count) { return 1 }

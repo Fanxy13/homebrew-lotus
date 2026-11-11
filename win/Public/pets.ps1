@@ -1,4 +1,4 @@
-# /pets on Windows – little pixel friends that live in the terminal (feature "pets", up to 3), a port of lib/cmd/pets.zsh.
+﻿# /pets on Windows – little pixel friends that live in the terminal (feature "pets", up to 3), a port of lib/cmd/pets.zsh.
 #   /pets                    adopt, talk, feed, rename, personality, settings
 #   <name> [message]         a pet's name typed in the shell talks to it (→ lotus pet <name> …)
 #   /feed [name]             feed a pet – pets get hungry after half a day (they never get ill)

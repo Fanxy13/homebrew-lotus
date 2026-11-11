@@ -1,4 +1,4 @@
-# /meshchat – one chat with everyone nearby over Bluetooth, no internet, no server. On Windows it is a program of its own,
+﻿# /meshchat – one chat with everyone nearby over Bluetooth, no internet, no server. On Windows it is a program of its own,
 # meshchat.exe (win/meshchat): the same protocol as the Macs' MeshChat, byte for byte, in the same chat. Lotus starts it
 # with what you typed after /meshchat (demo, doctor, history, nick, relay …), or offers its installer – the one that
 # checks the program's SHA-256 against its release before anything runs.

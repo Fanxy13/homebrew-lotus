@@ -35,7 +35,7 @@ all from the terminal, under the lotus start screen you know from 1.x.
 |---|---|---|
 | macOS 11 or newer | supported | `curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh \| zsh` or `brew install Fanxy13/lotus/lotus` |
 | Linux (x86_64, arm64) | beta – tested in containers on Ubuntu 24.04, Debian 12, Fedora 42, Arch | `curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh \| sh` |
-| Windows 11 (or 10) | beta – tested on every change on GitHub's Windows machines (x64, Arm64), not yet by people in a real window | `irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 \| iex` in PowerShell 7 |
+| Windows 11 (or 10) | beta – tested on every change on GitHub's Windows machines: PowerShell 7 on x64 and Arm64, and the Windows PowerShell 5.1 that Windows 11 comes with on x64; not yet by people in their own window | `irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 \| iex` in PowerShell |
 
 On macOS:
 
@@ -55,7 +55,8 @@ On Linux (no administrator rights; the script asks before it installs zsh, Lotus
 curl -fsSL https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.sh | sh
 ```
 
-On Windows, in **PowerShell 7** (Windows Terminal) – no administrator rights, no WSL:
+On Windows, in **PowerShell** (Windows Terminal) – the Windows PowerShell 5.1 that comes with Windows 11 is enough, PowerShell 7 works
+too; no administrator rights, no WSL:
 
 ```powershell
 irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 | iex
@@ -63,10 +64,12 @@ irm https://raw.githubusercontent.com/Fanxy13/homebrew-lotus/main/install.ps1 | 
 
 It copies Lotus into `%LOCALAPPDATA%\lotus\app`, puts `lotus.cmd` into your user PATH, offers fastfetch (winget, or a
 pinned release checked against its sha256 – the command first, then a question) and adds a block to your PowerShell
-profile; see [win/README.md](win/README.md). Without PowerShell 7: `winget install --id Microsoft.PowerShell -e`.
+profile; see [win/README.md](win/README.md). A new Windows 11 lets Windows PowerShell run no script files at all (the policy
+is *Restricted*) – not even a profile: the installer shows the command that fixes it for your user
+(`Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`) and asks first. Nothing has to be updated.
 
 Lotus loads into **zsh and bash** on macOS and Linux (`lotus setup` puts its lines into the startup file of the shell
-you log in with), and into **PowerShell 7** on Windows. What works on which system is listed on the
+you log in with), and into **PowerShell** on Windows (Windows PowerShell 5.1 and PowerShell 7). What works on which system is listed on the
 [website](https://fanxy13.github.io/homebrew-lotus/#platforms) and in [data/platform-matrix.tsv](data/platform-matrix.tsv)
 – only what is tested on a system is marked as working there.
 
@@ -79,7 +82,7 @@ Run it again any time with `lotus setup`; switch features with `lotus features`.
 Want Lotus on a key combination? Add the **[Open Lotus](https://www.icloud.com/shortcuts/0ad5b36d73e745bebbaba4635344382e)**
 shortcut, then give it a keyboard shortcut in the Shortcuts app (info button → Add Keyboard Shortcut).
 
-Needs macOS 11 or newer, a Linux with zsh (the installer offers it), or Windows 11 (or 10) with PowerShell 7.2 or newer.
+Needs macOS 11 or newer, a Linux with zsh (the installer offers it), or Windows 11 (or 10) with its Windows PowerShell 5.1 (PowerShell 7.2 or newer works too).
 [fastfetch](https://github.com/fastfetch-cli/fastfetch) is installed automatically (on Linux a pinned release, checked
 against its sha256; on Windows after a question, with winget or the pinned release). Optional tools (yt-dlp, ffmpeg, Java,
 ImageMagick, a package manager on a Mac …) are offered when a command needs them, with the exact command and a question
@@ -503,7 +506,7 @@ is written as `~`. Normal level writes errors, warnings and important events; `d
 | `lib/ai/download.py` | Downloads a model for `lotus ai local` and reports the bytes received, for Lotus' progress line |
 | `lib/ai/Page.swift` | `view_page`: renders a web page in WebKit without a window and reports what a person would notice |
 | `lib/bg/` | Remove BG: runtime and model installer, the blooming progress screen (frames in `data/bloom.txt`, made by `scripts/make-bloom.py`, also used by the website), the Python worker (models, matting), the Swift editor |
-| `win/` | Lotus for Windows: the PowerShell 7 module (`Lotus.psd1`, `Private/`, `Public/` – a port of `lib/` that reads the same `data/`, `logos/` and `lib/lang/`), its Pester tests (`win/tests`, also the contract with the zsh engine in `tests/contract`); `install.ps1` and `bin/lotus.cmd`, `bin/lotus.ps1` install and start it |
+| `win/` | Lotus for Windows: the PowerShell module for Windows PowerShell 5.1 and PowerShell 7 (`Lotus.psd1`, `Private/`, `Public/` – a port of `lib/` that reads the same `data/`, `logos/` and `lib/lang/`), its Pester tests (`win/tests`, also the contract with the zsh engine in `tests/contract`); `install.ps1` and `bin/lotus.cmd`, `bin/lotus.ps1` install and start it |
 | `win/meshchat/` | MeshChat for Windows: `meshchat.exe` in C# – the same protocol as `lib/meshchat`, with Windows' own Bluetooth; the test vectors in `lib/meshchat/Tests/vectors.txt` keep both alike |
 | `lib/meshchat/` | MeshChat: the Swift program (Bluetooth, the mesh, signatures, the chat's screen) with its protocol tests, built once on first use in its sandbox by `meshchat.zsh`; `lib/cmd/meshchat.zsh` starts it |
 | `lib/cmd/plugin.zsh`, `plugins/`, `packs/`, `PLUGINS.md` | Plugins: the sandbox, the commands, AI tools and start screen lines of plugins, the installer and packs – the examples and the guide |

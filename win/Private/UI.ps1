@@ -1,4 +1,4 @@
-# The terminal UI: the same screens as lib/ui.zsh (themed, no emoji). Every command builds its screens from these.
+﻿# The terminal UI: the same screens as lib/ui.zsh (themed, no emoji). Every command builds its screens from these.
 # Keys come from the console – or from $script:KeyQueue, which the tests fill (a keyboard that runs dry counts as esc).
 
 $script:R = "$([char]27)[0m"

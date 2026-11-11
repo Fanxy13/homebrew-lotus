@@ -1,4 +1,4 @@
-# The interface texts: the same files as the zsh engine (lib/lang/<lang>.zsh, lib/lang/<group>.<lang>.zsh), read as data.
+﻿# The interface texts: the same files as the zsh engine (lib/lang/<lang>.zsh, lib/lang/<group>.<lang>.zsh), read as data.
 # English first, then the chosen language on top. The texts were written on a Mac: on Windows "this Mac" becomes
 # "this PC" and "Finder" becomes File Explorer, in the language the texts are in.
 

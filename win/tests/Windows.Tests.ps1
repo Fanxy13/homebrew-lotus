@@ -1,4 +1,4 @@
-# What only Windows has – run on Windows only (.github/workflows/windows.yml): the system the module sees, Windows API
+﻿# What only Windows has – run on Windows only (.github/workflows/windows.yml): the system the module sees, Windows API
 # calls without a compiler, the apps of the Start menu, keep awake with SetThreadExecutionState, secrets protected by
 # DPAPI, and command lines as Windows programs split them.
 

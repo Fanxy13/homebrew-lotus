@@ -1,4 +1,4 @@
-# Logos: preview the built-in ones, paste your own ASCII art – a port of lib/cmd/logo.zsh
+﻿# Logos: preview the built-in ones, paste your own ASCII art – a port of lib/cmd/logo.zsh
 #   lotus logo · lotus logo import [--clipboard] · lotus logo reset · lotus logo preview <name>
 
 $script:LogoMaxW = 80
