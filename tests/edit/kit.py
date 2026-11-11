@@ -80,13 +80,15 @@ def with_exif(src_jpeg, dst, orientation=6, make="Lotus Test Camera"):
 
 
 def bmp_pixel(path, x, y):
-    """(r, g, b) of a pixel of an uncompressed 24-bit BMP (the way the tests look into a picture)."""
+    """(r, g, b) of a pixel of an uncompressed BMP, 24 or 32 bits (the way the tests look into a picture)."""
     with open(path, "rb") as f:
         d = f.read()
     off, w = struct.unpack("<I", d[10:14])[0], struct.unpack("<i", d[18:22])[0]
     h, bpp = struct.unpack("<i", d[22:26])[0], struct.unpack("<H", d[28:30])[0]
-    assert bpp == 24, "a 24-bit BMP, not %d" % bpp
-    row = (w * 3 + 3) // 4 * 4
+    assert bpp in (24, 32), "a 24 or 32-bit BMP, not %d" % bpp
+    step = bpp // 8
+    row = (w * step + 3) // 4 * 4
     yy = (h - 1 - y) if h > 0 else y
-    b, g, r = d[off + yy * row + x * 3: off + yy * row + x * 3 + 3]
+    at = off + yy * row + x * step
+    b, g, r = d[at], d[at + 1], d[at + 2]
     return r, g, b

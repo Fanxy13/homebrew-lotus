@@ -109,6 +109,9 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .angle { font-size: 15px; font-weight: 600; color: var(--text); min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
 .angle.set { color: var(--yellow); }
 
+/* the controls wait until the picture is there */
+.app.loading .tools, .app.loading .dial-area, .app.loading .tab, .app.loading .bar .pill-yellow { opacity: .4; pointer-events: none; }
+
 /* ── The tabs at the bottom ── */
 .tabs { display: flex; justify-content: center; gap: 6px; padding: 6px var(--pad) 12px; border-top: 1px solid var(--line); background: #0b0b0c; }
 .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 104px; padding: 6px 0 4px; border-radius: 12px; color: var(--text-2); font-size: 12px; font-weight: 500; transition: color .15s, background .15s; }

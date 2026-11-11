@@ -94,6 +94,9 @@ What the Windows glue (`Invoke-LotusImgEdit`) has to do – this is all of it:
 4. `/img` without arguments calls it, `/img edit <picture>` too; remove `img edit` and `/img` from `$script:RowsNotHere`.
 5. `win/tests/Edit.Tests.ps1`: run `tests/edit/page_test.py`, `engine_test.py` and `server_test.py` with the Python the module
    found (they are plain Python and run on Windows as they are), and the geometry test with Node when it is there.
+6. Ship it: `lib/edit` goes into the list of folders in `install.ps1` (next to `lib/live` and `lib/html`) and into the `paths:`
+   of `.github/workflows/windows.yml`, so that a change of the editor runs the Windows tests. (`install.sh` and the Homebrew
+   cask copy the whole of `lib` already.)
 
 ## What stays system-specific on purpose
 

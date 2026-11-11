@@ -32,7 +32,8 @@ img_edit() {
     ui_error "No picture to edit" "" "Pictures: ${(j:, :)${(U)IMG_EXT[1,12]}} …"
     return 1
   fi
-  if (( ${#${(u)IMG_FROM:#(|clipboard)}} )); then
+  local -a folders=(${(u)IMG_FROM:#(|clipboard)})
+  if (( ${#folders} )); then
     ui_error "The editor opens one picture at a time" "" "A whole folder: /img convert <folder>"
     return 1
   fi

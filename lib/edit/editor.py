@@ -266,6 +266,11 @@ def files_app(lang, name):
     return FILES_APP.get(lang, {}).get(name, name)
 
 
+def same_token(given, token):
+    """Is `given` (a piece of the request path, which http.server decodes as Latin-1) the secret? Never raises on odd bytes."""
+    return hmac.compare_digest(given.encode("latin-1", "replace"), token.encode("ascii"))
+
+
 def js_json(data):
     # in a <script> block: nothing in the text may end the block or start a comment
     return json.dumps(data, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026") \
@@ -365,7 +370,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.text(403, "This editor answers only to 127.0.0.1.")
         url = urlsplit(self.path)
         parts = url.path.split("/")                         # ['', token, ...]
-        if len(parts) < 2 or not hmac.compare_digest(parts[1], ed.token):
+        if len(parts) < 2 or not same_token(parts[1], ed.token):
             return self.text(404, "Not found")
         rest = "/".join(parts[2:])
         if len(parts) == 2:
@@ -398,7 +403,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.refuse(403, "This editor answers only to 127.0.0.1.")
         url = urlsplit(self.path)
         parts = url.path.split("/")
-        if len(parts) < 3 or not hmac.compare_digest(parts[1], ed.token):
+        if len(parts) < 3 or not same_token(parts[1], ed.token):
             return self.refuse(404, "Not found")
         if not self.same_site():
             return self.refuse(403, "Not from this page.")
@@ -430,7 +435,10 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 return default
         key, edited = (q.get("format") or [""])[0], (q.get("edited") or ["0"])[0] == "1"
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return self.refuse(400, "Content-Length is not a number.")
         if edited and not 0 < length <= UPLOAD_MAX:
             return self.refuse(413 if length else 411, "The picture is missing or too big.")
         upload = os.path.join(s.work_dir, "crop.png")

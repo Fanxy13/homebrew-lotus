@@ -35,6 +35,10 @@ out=$(lotus img edit $HOME/nothing.png 2>&1 < /dev/null | plain)
 check_has "a picture that is not there" "$out" "Not found: $HOME/nothing.png"
 zf_mkdir -p $HOME/pics/folder
 print -r -- "not an image" >| $HOME/pics/not.png
+print -r -- "not an image either" >| $HOME/pics/folder/one.png
+out=$(lotus img edit $HOME/pics/folder 2>&1 < /dev/null | plain)
+check_has "a folder is for /img convert" "$out" "The editor opens one picture at a time"
+check_has "and the way to it is shown" "$out" "/img convert <folder>"
 out=$(lotus img edit $HOME/pics/not.png 2>&1 < /dev/null | plain)
 if (( $+commands[python3] )) && { [[ $LOTUS_OS == macos ]] || (( $+commands[magick] || ($+commands[convert] && $+commands[identify]) )) }; then
   check_has "what is not a picture is said" "$out" "not.png"

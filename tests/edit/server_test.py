@@ -132,6 +132,16 @@ def _():
         assert status == 404, (path, status)
     status, _, _ = ed.post("/wrong-secret/api/quit", token=False)
     assert status == 404 and ed.proc.poll() is None
+    status, _, _ = ed.request("GET", "/%C3%A9%FF%00/image", token=False)                    # odd bytes in the address
+    assert status == 404, status
+    c = http.client.HTTPConnection("127.0.0.1", ed.port, timeout=10)                         # a length that is no number
+    c.putrequest("POST", "/%s/api/save?format=jpeg&edited=1" % ed.token, skip_host=True)
+    c.putheader("Host", "127.0.0.1:%d" % ed.port)
+    c.putheader("X-Lotus-Edit", "1")
+    c.putheader("Content-Length", "many")
+    c.endheaders()
+    assert c.getresponse().status == 400
+    c.close()
 
 
 @test("a web page cannot reach it under a name of its own (DNS rebinding): only 127.0.0.1 and localhost")
