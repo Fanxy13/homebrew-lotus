@@ -437,7 +437,11 @@ Describe 'Remove BG on Windows' {
     }
 
     It 'asks DXGI for the graphics adapters, as DirectML does – Windows'' software one is never a card' -Skip:(-not ($IsWindows -and $script:Py)) {
-        $json = & $script:Py -I -B -c 'import sys, json; sys.path.insert(0, sys.argv[1]); import gpu; print(json.dumps({"all": gpu.adapters(), "cards": gpu.cards()}))' (Join-Path $script:Ctx.Repo 'lib/bg')
+        # (no double quotes in the Python program: Windows PowerShell 5.1 does not pass them on to a program)
+        $code = @'
+import sys, json; sys.path.insert(0, sys.argv[1]); import gpu; print(json.dumps({'all': gpu.adapters(), 'cards': gpu.cards()}))
+'@
+        $json = & $script:Py -I -B -c $code (Join-Path $script:Ctx.Repo 'lib/bg')
         $LASTEXITCODE | Should -Be 0
         $r = $json | ConvertFrom-Json
         @($r.all).Count | Should -BeGreaterThan 0 -Because 'Windows always has its Microsoft Basic Render Driver'
@@ -449,7 +453,10 @@ Describe 'Remove BG on Windows' {
         # (the conversion itself needs PyTorch: the job "Remove BG on real Windows" of windows.yml converts the real model
         # and compares the card's numbers with PyTorch's; here the module loads without PyTorch)
         # (onnxprep imports the worker's events: what is printed goes to stderr, so the answer comes as an event)
-        $out = & $script:Py -I -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import events, onnxprep; events.emit(onnxprep.FORMAT, onnxprep.onnx_path("m", {"id": "birefnet", "files": [{"name": "birefnet.py", "sha256": "a" * 64, "bytes": "9"}, {"name": "model.safetensors", "sha256": "0123456789abcdef" * 4, "bytes": "99"}]}))' (Join-Path $script:Ctx.Repo 'lib/bg')
+        $code = @'
+import sys; sys.path.insert(0, sys.argv[1]); import events, onnxprep; events.emit(onnxprep.FORMAT, onnxprep.onnx_path('m', {'id': 'birefnet', 'files': [{'name': 'birefnet.py', 'sha256': 'a' * 64, 'bytes': '9'}, {'name': 'model.safetensors', 'sha256': '0123456789abcdef' * 4, 'bytes': '99'}]}))
+'@
+        $out = & $script:Py -I -B -c $code (Join-Path $script:Ctx.Repo 'lib/bg')
         $LASTEXITCODE | Should -Be 0
         $out | Should -Match '^1\tm[\\/]birefnet[\\/]gpu-1-0123456789ab\.onnx$'
     }

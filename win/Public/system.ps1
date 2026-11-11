@@ -105,8 +105,11 @@ function script:Invoke-LotusDoctor {
     Write-LotusHeader 'Doctor' "lotus $(Get-LotusVersion)"
     $o = $script:Os
     & $row $ok $(if ($IsWindows) { 'Windows' } else { 'System' }) "$(Get-LotusOsDescription)$(if ($IsWindows) { " (build $($o.Build))" })"
-    $psok = $PSVersionTable.PSVersion -ge [version]'7.2'
-    & $row $(if ($psok) { $ok } else { $bad }) 'PowerShell' "$($PSVersionTable.PSVersion)$(if (-not $psok) { ' – Lotus needs 7.2 or newer: winget install Microsoft.PowerShell' })"
+    # (Windows PowerShell 5.1 – the one Windows 11 comes with – and PowerShell 7.2 or newer)
+    $core = $PSVersionTable.PSEdition -eq 'Core'
+    $psok = if ($core) { $PSVersionTable.PSVersion -ge [version]'7.2' } else { $PSVersionTable.PSVersion -ge [version]'5.1' }
+    $psName = if ($core) { 'PowerShell' } else { 'Windows PowerShell' }
+    & $row $(if ($psok) { $ok } else { $bad }) 'PowerShell' "$psName $($PSVersionTable.PSVersion)$(if (-not $psok) { ' – Lotus needs Windows PowerShell 5.1 or PowerShell 7.2 or newer: winget install Microsoft.PowerShell' })"
     & $row $ok 'Terminal' $(if ($o.Terminal) { $o.Terminal } else { T unknown_term 'unknown terminal' })
     if ($IsWindows) {
         $pk = Get-LotusPackageManagers

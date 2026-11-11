@@ -81,15 +81,19 @@ Describe '/liveserver' -Skip:(-not $script:HasPython) {
         $cmd = "Import-Module '$module'; Set-Location '$($script:Site)'; lotus liveserver --no-open --port $port"
         $server = Start-Process -FilePath $script:Pwsh -ArgumentList @('-NoProfile', '-Command', $cmd) -PassThru -RedirectStandardOutput (Join-Path $script:Ctx.Tmp 'live.out') -RedirectStandardError (Join-Path $script:Ctx.Tmp 'live.err')
         try {
+            # (the pages come through Lotus' own request: Invoke-WebRequest -NoProxy is PowerShell 7's, and Windows PowerShell 5.1
+            # would look for a proxy first)
+            $get = { param($Path) InModuleScope Lotus -Parameters @{ Url = "http://127.0.0.1:$port$Path" } { Get-LotusHttpText -Uri $Url -TimeoutSec 2 -NoProxy $true } }
             $page = $null
             $deadline = (Get-Date).AddSeconds(20)
             while (-not $page -and (Get-Date) -lt $deadline) {
-                try { $page = Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -TimeoutSec 2 -NoProxy -UseBasicParsing } catch { Start-Sleep -Milliseconds 300 }
+                $page = & $get '/'
+                if (-not $page) { Start-Sleep -Milliseconds 300 }
             }
             $page | Should -Not -BeNullOrEmpty -Because (Get-Content (Join-Path $script:Ctx.Tmp 'live.err') -Raw)
-            $page.Content | Should -Match '<h1>Hello</h1>'
-            $page.Content | Should -Match '/__lotus/reload.js'
-            (Invoke-WebRequest -Uri "http://127.0.0.1:$port/css/site.css" -UseBasicParsing).Content | Should -Match 'color'
+            $page | Should -Match '<h1>Hello</h1>'
+            $page | Should -Match '/__lotus/reload.js'
+            (& $get '/css/site.css') | Should -Match 'color'
             $hidden = InModuleScope Lotus -Parameters @{ Url = "http://127.0.0.1:$port/.env" } { (Get-LotusHttpStatus -Uri $Url -NoProxy $true).StatusCode }
             $hidden | Should -Not -Be 200
             # the note it left for stop and /html: in Lotus' state folder

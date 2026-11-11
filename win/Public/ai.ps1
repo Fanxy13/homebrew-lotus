@@ -61,8 +61,9 @@ function script:Test-LotusAiLoopback { param([string]$Url) $Url -match '^https?:
 function script:Get-LotusAiOllamaModels {
     $url = Get-LotusAiOllamaUrl
     try {
-        $np = if ((Test-LotusAiLoopback $url) -and (Get-Command Invoke-RestMethod).Parameters.ContainsKey('NoProxy')) { @{ NoProxy = $true } } else { @{} }
-        $r = Invoke-RestMethod -Uri "$url/api/tags" -TimeoutSec 1 @np -ErrorAction Stop
+        $text = Get-LotusHttpText "$url/api/tags" 1 ([bool](Test-LotusAiLoopback $url))
+        if (-not $text) { return @() }
+        $r = $text | ConvertFrom-Json
         @($r.models | ForEach-Object { [string]$_.name } | Where-Object { $_ })
     } catch { @() }
 }
@@ -670,7 +671,9 @@ function script:Invoke-LotusAiCommand {
     $p = Use-LotusAiProvider
     if (-not $p) { return (St 1) }
     Write-LotusHeader 'AI' "command for: $Task"
-    $answer = Invoke-LotusAiAnswer -System 'You are a Windows PowerShell expert. Answer with a single command line for PowerShell 7 on Windows, nothing else.' -Messages @(@{ role = 'user'; text = $Task }) -Provider $p -Spinner
+    # (the command has to run in the PowerShell this is: Windows PowerShell 5.1 has no &&, ?: or ??)
+    $shell = if ($PSVersionTable.PSEdition -eq 'Core') { 'PowerShell 7' } else { 'Windows PowerShell 5.1' }
+    $answer = Invoke-LotusAiAnswer -System "You are a Windows PowerShell expert. Answer with a single command line for $shell on Windows, nothing else." -Messages @(@{ role = 'user'; text = $Task }) -Provider $p -Spinner
     if ($null -eq $answer) { return (St 1) }
     $lines = @(($answer -replace '`', '') -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -notmatch '^(powershell|pwsh|ps1?|shell|cmd)$' })
     $cmd = if ($lines.Count) { $lines[0] } else { '' }

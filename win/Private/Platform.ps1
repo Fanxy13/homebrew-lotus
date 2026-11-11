@@ -655,6 +655,25 @@ function Get-LotusHttpStatus {
     } catch { $null }
 }
 
+# The body of a GET as text, or $null when nobody answered in time or the answer was an error. With -NoProxy (an address of this
+# computer) no proxy is asked for: Windows PowerShell 5.1 looks for one first, and that can take longer than the second
+# Invoke-RestMethod -TimeoutSec 1 gives it.
+function Get-LotusHttpText {
+    param([Parameter(Mandatory)][string]$Uri, [int]$TimeoutSec = 20, [bool]$NoProxy = $false)
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($Uri)
+        $req.Timeout = $TimeoutSec * 1000
+        $req.ReadWriteTimeout = $TimeoutSec * 1000
+        $req.UserAgent = "lotus/$(Get-LotusVersion)"
+        if ($NoProxy) { $req.Proxy = $null }
+        $resp = $req.GetResponse()
+        try {
+            $reader = [System.IO.StreamReader]::new($resp.GetResponseStream(), [System.Text.Encoding]::UTF8)
+            try { $reader.ReadToEnd() } finally { $reader.Dispose() }
+        } finally { $resp.Dispose() }
+    } catch { $null }
+}
+
 # The arguments of a program that PowerShell calls itself (& $exe @args), as that program reads them back. Windows PowerShell
 # 5.1 (and PowerShell before 7.3) puts quotes around an argument with blanks but leaves the quotes inside it unescaped, and
 # it drops an empty one – so print("x") reaches Python as print(x). PowerShell 7.3 and newer do it right: unchanged there.
