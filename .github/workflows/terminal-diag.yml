@@ -1,0 +1,28 @@
+# (temporary) How a console of Windows PowerShell 5.1 behaves on a GitHub Windows machine under each execution policy.
+name: Terminal diag
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/**']
+    paths: [.github/workflows/terminal-diag.yml, .github/scripts/diag_policy.py]
+jobs:
+  diag:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Each policy, one console
+        shell: pwsh
+        run: |
+          python -m pip install --quiet pyte pywinpty
+          $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          & $ps -NoProfile -Command 'Get-ExecutionPolicy -List | Format-Table -AutoSize | Out-String'
+          foreach ($policy in 'Restricted', 'AllSigned', 'RemoteSigned') {
+            "`n==================== LocalMachine $policy"
+            & $ps -NoProfile -Command "Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy $policy -Force"
+            python .github/scripts/diag_policy.py
+          }
+          "`n==================== Process-scope Restricted with the machine's default"
+          & $ps -NoProfile -Command "Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy Undefined -Force"
+          $env:PSExecutionPolicyPreference = 'Restricted'
+          python .github/scripts/diag_policy.py
