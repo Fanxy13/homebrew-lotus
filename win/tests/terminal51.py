@@ -33,7 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(REPO, 'dev', '3.0', 'video', 'windows'))
 import record  # noqa: E402  (the console, the screen and the setup wizard of the video's driver)
-from record import Console, Recording, fresh_env, hold, wizard  # noqa: E402
+from record import Console, Recording, fresh_env, hold  # noqa: E402
 
 if not record.WINDOWS:
     sys.exit('This test needs Windows (a ConPTY and Windows PowerShell 5.1).')
@@ -105,6 +105,57 @@ def clean_path():
     return env
 
 
+# The pages of the setup, by what they say, and what a person does on them (the video's driver knows the pages of the first Lotus for
+# Windows; Remove BG added three: its model, its folder, and when to download it). The language and the name are asked first.
+PAGES = [
+    ('language', r'Welcome to Lotus', 'enter'),
+    ('name', r'What should Lotus call you\?', 'name'),
+    ('theme', r'Pick a theme', 'enter'),
+    ('start', r'Show Lotus when a terminal', 'enter'),
+    ('features', r'Which features', 'enter'),
+    ('city', r'Your city for /weather', 'city'),
+    ('ai', r'AI answers with /ai|The AI terminal', 'enter'),
+    ('bg model', r'Auto picks the best one', 'enter'),
+    ('bg folder', r'Where the transparent PNGs go', 'enter'),
+    ('bg download', r'When should Lotus download the model', 'enter'),
+    ('pet', r'Adopt a pet', 'enter'),
+    ('pet name', r'What is your (cat|dog) called', 'enter'),
+    ('review', r'Lotus is ready', 'enter'),
+]
+
+
+def wizard(c):
+    """The setup, page by page, whatever order and whichever pages: each page is answered once, the screen tells which it is."""
+    done = []
+    while True:
+        text = c.text()
+        page = next(((n, rx, act) for n, rx, act in PAGES if re.search(rx, text)), None)
+        if page is None:
+            if done and done[-1] == 'review' and c.at_prompt():
+                return done
+            c.wait_for(lambda: any(re.search(rx, c.text()) for _, rx, _ in PAGES) or (done and done[-1] == 'review' and c.at_prompt()),
+                       'the next page of the setup' + (f' (after: {done[-1]})' if done else ''), 90, quiet=0.8)
+            continue
+        name, rx, act = page
+        hold(0.8)
+        if act == 'name':
+            c.key(*['bs'] * 14, gap=0.05)
+            c.type('Alex')
+            hold(0.4)
+            c.key('enter')
+        elif act == 'city':
+            c.type('Paris')
+            hold(0.4)
+            c.key('enter')
+        else:
+            c.key('enter')
+        done.append(name)
+        c.wait_for(lambda: not re.search(rx, c.text()) or c.at_prompt(), f'the setup to leave the page "{name}"', 40, quiet=0.3)
+        if name == 'review':
+            c.wait_for(c.at_prompt, 'the prompt after the setup', 90, quiet=1.5)
+            return done
+
+
 # ── window 1: the install ────────────────────────────────────────────────────
 
 def install():
@@ -139,8 +190,9 @@ def install():
     c.wait(r'Done\. Open a new PowerShell window\.', 180, quiet=1.0)
     c.wait_for(lambda: 'Welcome to Lotus' in c.text() or c.at_prompt(), 'the setup, or the prompt without it', 120, quiet=2.0)
     if check('Welcome to Lotus' in c.text(), 'the installer starts the setup when it is done', c):
-        wizard(rec, c)
-        c.prompt(120, quiet=1.5)
+        pages = wizard(c)
+        print('  the setup went through: ' + ', '.join(pages), flush=True)
+        check('review' in pages and 'name' in pages, 'the setup went through to its end', c)
     text = output_since(mark)
     check('Lotus is in' in text, 'the installer copied Lotus')
     check('ExecutionPolicy RemoteSigned for your user' in text, 'it set RemoteSigned for the user')
