@@ -82,9 +82,18 @@ def answer(c, question, reply='y', timeout=300):
     c.type(reply, enter=True)
 
 
+def window_env():
+    """The environment of a window opened now. The job that runs this is PowerShell 7 and hands its PSModulePath down - PowerShell
+    7's own PSReadLine and Security modules, which Windows PowerShell cannot load - so that one is left out, as on any PC."""
+    env = fresh_env()
+    for name in [n for n in env if n.upper() in ('PSMODULEPATH', 'POWERSHELL_DISTRIBUTION_CHANNEL', 'PSEXECUTIONPOLICYPREFERENCE')]:
+        del env[name]
+    return env
+
+
 def clean_path():
     """PATH without PowerShell 7: lotus.cmd then has only Windows PowerShell to take."""
-    env = fresh_env()
+    env = window_env()
     env['PATH'] = ';'.join(p for p in env['PATH'].split(';') if p and not os.path.exists(os.path.join(p, 'pwsh.exe')))
     return env
 
@@ -94,7 +103,7 @@ def clean_path():
 def install():
     """a fresh Windows PowerShell 5.1: the install line, its questions, the setup"""
     mark = len(rec.events)
-    env = fresh_env()
+    env = window_env()
     env['LOTUS_SRC'] = REPO                       # install.ps1 copies this checkout instead of downloading main
     env['LOTUS_FASTFETCH'] = 'pinned'             # Lotus' own fastfetch (checked against its SHA-256)
     c = Console(rec, [POWERSHELL, '-NoLogo'], env=env)
@@ -127,6 +136,14 @@ def install():
     check(os.path.exists(os.path.join(APP, 'vendor', 'fastfetch', 'fastfetch.exe')), "Lotus' own fastfetch is there")
     no_errors(mark, 'the install')
     show(c, 'window 1 after the setup')
+    # Lotus asks the console for ANSI sequences before it draws: ENABLE_VIRTUAL_TERMINAL_PROCESSING (4) is in the mode of the output
+    c.key('ctrl-l')
+    c.paste("& (Get-Module Lotus) { Enable-LotusVirtualTerminal; $g = Get-LotusNative 'kernel32.dll' 'GetStdHandle' ([IntPtr]) @([int]); "
+            "$m = Get-LotusNative 'kernel32.dll' 'GetConsoleMode' ([bool]) @([IntPtr], [uint32].MakeByRefType()); "
+            "$a = [object[]]@($g.Invoke($null, @(-11)), [uint32]0); [void]$m.Invoke($null, $a); 'VTMODE=' + $a[1] }", enter=True)
+    c.wait(r'VTMODE=\d+', 30, quiet=0.8)
+    mode = int(re.search(r'VTMODE=(\d+)', c.text()).group(1))
+    check(mode & 4 == 4, f'Enable-LotusVirtualTerminal: the console mode of the output has ENABLE_VIRTUAL_TERMINAL_PROCESSING (mode {mode})', c)
     c.type('exit', enter=True)
     time.sleep(1.5)
 
@@ -136,7 +153,7 @@ def install():
 def new_window():
     """a new window: the profile loads Lotus - start screen, prompt, /clock, /settings, doctor, unhook"""
     mark = len(rec.events)
-    c = Console(rec, [POWERSHELL, '-NoLogo'], env=fresh_env())
+    c = Console(rec, [POWERSHELL, '-NoLogo'], env=window_env())
     rec.mark('window 2: the profile loads Lotus')
     c.wait_for(c.at_prompt, 'the start screen and the prompt', 120, quiet=2.0)
     hold(1)
@@ -233,7 +250,7 @@ def command_prompt():
 def after_unhook():
     """a new window after unhook: Lotus is gone"""
     mark = len(rec.events)
-    c = Console(rec, [POWERSHELL, '-NoLogo'], env=fresh_env())
+    c = Console(rec, [POWERSHELL, '-NoLogo'], env=window_env())
     rec.mark('window 4: after unhook')
     c.wait_for(c.at_prompt, 'the prompt', 90, quiet=2.0)
     text = c.text()

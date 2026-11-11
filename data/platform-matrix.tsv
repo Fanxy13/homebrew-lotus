@@ -1,6 +1,6 @@
 # What works where – read by the website and the README. yes = tested on that system · partial = works with the limit in the note · built = the code is there, not yet tested on that system · soon = being built · no = not possible there
 # feature	macos	linux	windows	note
-Start screen, themes, settings, setup	yes	yes	yes	Windows: PowerShell 7 and Windows Terminal; the same settings file and logos.
+Start screen, themes, settings, setup	yes	yes	yes	Windows: Windows PowerShell 5.1 (the one Windows 11 comes with) and PowerShell 7, in Windows Terminal; the same settings file and logos.
 Slash commands and your own shortcuts	yes	yes	yes	In bash the typed line is rewritten, so you see the real command. Windows: PowerShell's Enter key (PSReadLine) rewrites the line – the rewriting is tested, the key in a real window not yet.
 Pets and the math game	yes	yes	yes	Windows: they think with /ai (Claude, Ollama, OpenAI-compatible).
 Clock and keep awake	yes	yes	yes	macOS: caffeinate · Linux: systemd-inhibit. Windows: SetThreadExecutionState

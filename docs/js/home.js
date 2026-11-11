@@ -6,7 +6,7 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ── Install commands (from data/project.tsv) ────────────────
-  // The system the visitor is on picks the command first (Windows: the line for PowerShell 7)
+  // The system the visitor is on picks the command first (Windows: the line for PowerShell)
   const mine = () => {
     const ua = navigator.userAgent || '';
     if (/Windows/i.test(ua)) return 'windows';
@@ -19,7 +19,7 @@
     curl: 'A short setup asks for your name, theme and language. ',
     brew: 'A short setup asks for your name, theme and language. ',
     linux: 'The script asks before it installs zsh and shows the command first. No administrator rights. ',
-    windows: 'In PowerShell 7 (Windows Terminal), no administrator rights; fastfetch is offered with its command first. A beta \u2013 the table above says what is tested where. ',
+    windows: 'In PowerShell (Windows Terminal; the Windows PowerShell 5.1 of Windows 11 is enough), no administrator rights; fastfetch is offered with its command first. A beta \u2013 the table above says what is tested where. ',
   };
   let CMDS = {};
   function showCommand(pill, key) {

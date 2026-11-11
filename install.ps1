@@ -43,7 +43,9 @@ function Install-Lotus {
     # A new Windows 11 lets Windows PowerShell run no script files (the policy is Restricted). This installer was typed in, so it
     # runs - but Lotus' module and the profile that loads it are script files. For this installer's own work this window gets
     # a policy of its own (it ends with the window); what stays is asked about further down, the command first.
-    if ($windowsPowerShell -and [string](Get-ExecutionPolicy) -in 'Restricted', 'AllSigned') {
+    $policy = ''
+    if ($windowsPowerShell) { try { $policy = [string](Get-ExecutionPolicy -ErrorAction Stop) } catch { } }
+    if ($windowsPowerShell -and $policy -in 'Restricted', 'AllSigned') {
         try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop }
         catch { & $warn "Your organization's policy does not let this window run Lotus' scripts: $($_.Exception.Message)" }
     }
@@ -169,7 +171,8 @@ function Install-Lotus {
     # new Windows 11 would not run that profile at all (policy Restricted): RemoteSigned for your user - local scripts run,
     # downloaded ones need a signature; what PowerShell 7 has by default - is the usual setting, and it asks first.
     if ($windowsPowerShell -and $env:LOTUS_NO_PROFILE -ne '1') {
-        $list = Get-ExecutionPolicy -List
+        $list = @()
+        try { $list = @(Get-ExecutionPolicy -List -ErrorAction Stop) } catch { }
         $mine = [string]($list | Where-Object { $_.Scope -eq 'CurrentUser' }).ExecutionPolicy
         $machine = [string]($list | Where-Object { $_.Scope -eq 'LocalMachine' }).ExecutionPolicy
         $inForce = [string]($list | Where-Object { $_.Scope -in 'MachinePolicy', 'UserPolicy' -and $_.ExecutionPolicy -ne 'Undefined' } | Select-Object -First 1).ExecutionPolicy

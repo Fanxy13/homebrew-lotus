@@ -300,6 +300,7 @@ jobs:
         shell: pwsh
         run: |
           $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          Remove-Item Env:PSModulePath -ErrorAction SilentlyContinue      # (this step is PowerShell 7: its module path is not Windows PowerShell's)
           & $ps -NoProfile -Command 'Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy Restricted -Force; Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Undefined -Force; Get-ExecutionPolicy -List | Format-Table -AutoSize | Out-String; $PSVersionTable.PSVersion.ToString(); (Get-Module PSReadLine -ListAvailable | Select-Object -First 1).Version.ToString()'
           if ($LASTEXITCODE -ne 0) { exit 1 }
           python -m pip install --quiet pyte pywinpty

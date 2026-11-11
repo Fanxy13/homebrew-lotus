@@ -120,7 +120,11 @@ function Convert-LotusShellLine {
 function Register-LotusEnterKey {
     if (-not (Get-Module PSReadLine)) { return }
     if ($null -eq $script:EnterWas) {
-        $script:EnterWas = (Get-PSReadLineKeyHandler -Chord Enter -ErrorAction SilentlyContinue | Select-Object -First 1).Function
+        # (what Enter does now: -Chord is newer than the PSReadLine 2.0 of Windows PowerShell 5.1, which lists the bound keys)
+        $was = $null
+        try { $was = Get-PSReadLineKeyHandler -Chord Enter -ErrorAction Stop | Select-Object -First 1 } catch { }
+        if (-not $was) { $was = Get-PSReadLineKeyHandler -Bound -ErrorAction SilentlyContinue | Where-Object { $_.Key -eq 'Enter' } | Select-Object -First 1 }
+        $script:EnterWas = $was.Function
         if (-not $script:EnterWas -or $script:EnterWas -eq 'LotusAcceptLine') { $script:EnterWas = 'AcceptLine' }
     }
     # (no closure: this script block belongs to the Lotus module, so it sees its functions and $script: state; when the
