@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="referrer" content="no-referrer">
+<title>{{title}} – Lotus</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 3h2v10H3zM3 11h10v2H3z' fill='%23ffd60a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="web/editor.css">
+</head>
+<body>
+<div id="app" class="app" data-tab="crop">
+
+  <header class="bar">
+    <button id="cancel" class="pill" type="button" data-t="cancel"></button>
+    <div class="title">
+      <b id="title" class="name"></b>
+      <span id="subtitle" class="sub"></span>
+    </div>
+    <button id="done" class="pill pill-yellow" type="button" data-t="done"></button>
+  </header>
+
+  <main class="main">
+
+    <!-- Crop: turn, mirror, shape, the frame on the picture, the dial -->
+    <section id="panel-crop" class="panel panel-crop">
+      <div class="tools">
+        <div class="capsule" role="group">
+          <button id="flip" class="icon" type="button" data-title="flip" data-label="flip">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18" stroke-dasharray="2 3"/><path d="M9 7.5 4 17h5z"/><path d="M15 7.5 20 17h-5z"/></svg>
+          </button>
+          <button id="turn" class="icon" type="button" data-title="turn" data-label="turn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="10.5" width="12.5" height="9" rx="1.8"/><path d="M5.5 9V6.2a1.7 1.7 0 0 1 1.7-1.7H13"/><path d="m10.6 2 2.7 2.5-2.7 2.5"/></svg>
+          </button>
+        </div>
+        <button id="reset" class="pill pill-plain" type="button" data-t="reset" hidden></button>
+        <div class="capsule right" role="group">
+          <button id="ratio" class="icon wide" type="button" data-title="ratio" data-label="ratio" aria-haspopup="menu" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.2"/><path d="M7 14v-4h4"/><path d="M17 10v4h-4"/></svg>
+            <span id="ratio-label"></span>
+          </button>
+        </div>
+      </div>
+
+      <div id="stage" class="stage">
+        <div id="photo" class="photo"><img id="img" alt="" draggable="false"></div>
+        <div id="frame" class="frame" aria-hidden="true">
+          <i class="line v1"></i><i class="line v2"></i><i class="line h1"></i><i class="line h2"></i>
+          <i class="bar-h n"></i><i class="bar-h s"></i><i class="bar-v w"></i><i class="bar-v e"></i>
+          <i class="corner nw"></i><i class="corner ne"></i><i class="corner sw"></i><i class="corner se"></i>
+        </div>
+        <div id="size" class="size" aria-live="polite"></div>
+        <p id="hint" class="hint" data-t="hint"></p>
+      </div>
+
+      <div class="dial-area">
+        <div id="dial" class="dial" tabindex="0" role="slider" aria-valuemin="-45" aria-valuemax="45" aria-valuenow="0" data-label="straighten">
+          <canvas id="ruler"></canvas>
+          <i class="needle"></i>
+        </div>
+        <div class="dial-info"><span id="angle" class="angle">0°</span><span class="dial-name" data-t="straighten"></span></div>
+      </div>
+    </section>
+
+    <!-- Convert: format, quality, size -->
+    <section id="panel-convert" class="panel panel-convert" hidden>
+      <div class="convert">
+        <div class="result-card">
+          <div class="preview-box"><canvas id="preview" class="preview"></canvas></div>
+          <div class="result-meta">
+            <b id="out-name"></b>
+            <span id="out-dims"></span>
+          </div>
+        </div>
+
+        <h2 data-t="format"></h2>
+        <div id="formats" class="chips" role="radiogroup"></div>
+        <p id="format-about" class="about"></p>
+
+        <div id="quality-group">
+          <h2 data-t="quality"></h2>
+          <div id="qualities" class="segments" role="radiogroup"></div>
+          <p id="quality-about" class="about"></p>
+        </div>
+
+        <h2 data-t="size"></h2>
+        <div id="sizes" class="chips" role="radiogroup"></div>
+        <p id="size-about" class="about"></p>
+
+        <p id="save-note" class="note"></p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" role="tablist">
+    <button id="tab-crop" class="tab" type="button" role="tab" data-tab="crop" aria-selected="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2.5v14.5h14.5"/><path d="M2.5 7H17v14.5"/></svg>
+      <span data-t="tab_crop"></span>
+    </button>
+    <button id="tab-convert" class="tab" type="button" role="tab" data-tab="convert" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14.5"/><path d="m15 4.5 3.5 3.5-3.5 3.5"/><path d="M20 16H5.5"/><path d="M9 12.5 5.5 16 9 19.5"/></svg>
+      <span data-t="tab_convert"></span>
+    </button>
+  </nav>
+
+  <div id="menu" class="menu" role="menu" hidden></div>
+
+  <div id="veil" class="veil" hidden>
+    <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="check"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
+      <h3 id="sheet-title" data-t="saved"></h3>
+      <p id="sheet-name" class="sheet-name"></p>
+      <p id="sheet-where" class="sheet-where"></p>
+      <div class="sheet-actions">
+        <button id="sheet-reveal" class="pill" type="button"></button>
+        <button id="sheet-open" class="pill" type="button" data-t="open"></button>
+      </div>
+      <div class="sheet-actions">
+        <button id="sheet-more" class="pill" type="button" data-t="keep_editing"></button>
+        <button id="sheet-close" class="pill pill-yellow" type="button" data-t="close"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ask" class="veil" hidden>
+    <div class="sheet" role="alertdialog" aria-modal="true" aria-labelledby="ask-title">
+      <h3 id="ask-title" data-t="discard_title"></h3>
+      <p class="sheet-where" data-t="discard_text"></p>
+      <div class="sheet-actions">
+        <button id="ask-no" class="pill" type="button" data-t="keep_editing"></button>
+        <button id="ask-yes" class="pill pill-yellow" type="button" data-t="discard"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="busy" class="busy" hidden><i class="spinner"></i><span id="busy-text"></span></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <div id="gone" class="gone" hidden>
+    <h3 id="gone-title"></h3>
+    <p id="gone-text"></p>
+  </div>
+</div>
+
+<script type="application/json" id="config">{{config}}</script>
+<script src="web/geometry.js"></script>
+<script src="web/editor.js"></script>
+</body>
+</html>

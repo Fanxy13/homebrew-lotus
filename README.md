@@ -152,7 +152,8 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | Device tools | `/ios`, `/ios devices` | AirCard, Nugget, Sideloadly, Dopamine with compatibility checks |
 | Minecraft | `/minecraft`, `/mc <server>` | Create a server, its control center (players, ping, plugins, log), delete a server, port forwarding guide |
 | Chat | `/meshchat`, `/meshchat demo` | One chat with everyone nearby over Bluetooth – no internet, no server; every Mac in the chat passes messages on (macOS) · `doctor`, `history`, `nick`, `relay` |
-| Images | `/img convert <image|folder>` | Convert images and folders: JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, PDF, ICO – the lotus blooms while it works |
+| Images | `/img`, `/img edit <image>` | The image editor in your browser, like the iPhone's Photos: crop, turn, mirror, straighten – then JPEG, PNG, HEIC … in the Convert tab. Drop a picture into the window, or ⏎ for the clipboard |
+| | `/img convert <image|folder>` | Convert images and folders: JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, PDF, ICO – the lotus blooms while it works |
 | | `/img convert … --to webp --max 1920` | Without questions: `--to`, `--quality`, `--max` · `/img formats` |
 | | `/bg remove <image>` | Remove the background on this Mac, save a transparent PNG |
 | | `/bg remove`, `/bg remove <folder>` | Drop images into the window · a whole folder with one model load |
@@ -362,6 +363,34 @@ your files, Lotus' settings or the AI's keys. **Full** runs with your rights and
 Lotus asks you before it installs one, and again whenever its files change. Everything about building one:
 [PLUGINS.md](PLUGINS.md); examples (todo, github, hello): [plugins/](plugins/), all three at once as
 a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/examples`.
+
+## Image editor
+
+`/img` opens a picture in your browser, in a window that looks like the crop screen of the iPhone's Photos app: dark, a
+frame to drag, a dial under the picture. Drop the picture into the terminal window (or press ⏎ for the one in the
+clipboard) – or `/img edit ~/Desktop/IMG_2041.HEIC`. It reads what the Mac's engine reads: HEIC, RAW, WebP, AVIF, PNG, JPEG …
+
+- **Crop** – drag the corners or the edges of the frame, drag inside it to move it. The shape button has Freeform,
+  Original, Square, 16:9, 4:3, 3:2, 5:4, 7:5 and Portrait / Landscape. What is outside the frame is gone.
+- **Turn, mirror, straighten** – the two buttons at the top left turn the picture left and mirror it; the dial under the
+  picture straightens it (−45° to 45°, drag it, scroll on it, or use the arrow keys – a double click sets it back to 0°).
+  The frame follows, so there is never an empty corner. **Reset** puts everything back.
+- **Convert** – the second tab: the format (everything `/img formats` shows), the quality (Best, High, Medium, Small), the
+  size (as it is, 4K … 640 px, never larger than the picture), a preview of what will be saved and the name it gets.
+- **Done** saves a **new** picture next to the original – `photo edited.jpg`, `photo edited (2).jpg` – and says where; the
+  original is never changed. On macOS the camera data (date, camera, place) comes along. A picture from the clipboard goes
+  to `~/Downloads/Lotus`.
+- Keys: **Esc** closes a menu, **⏎** is Done, **R** turns, **F** mirrors, the arrow keys move the frame. The page is in
+  English, German, French or Spanish, as Lotus is.
+
+```bash
+/img                                # drop a picture into the window · ⏎ for the clipboard
+/img edit ~/Desktop/IMG_2041.HEIC   # this picture
+```
+
+Everything stays on this computer: the editor is a small server (`lib/edit/editor.py`, Python's standard library) that
+answers only on `127.0.0.1`, under an address with a secret in it, to its own page, and ends when you close the tab, press
+Cancel or Ctrl-C. The page is plain HTML, CSS and JavaScript – no download, no framework, no account.
 
 ## Remove BG
 

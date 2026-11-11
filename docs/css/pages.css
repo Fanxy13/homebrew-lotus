@@ -164,3 +164,7 @@ table.mini a { color: var(--ink-accent); }
   .studio-main { position: static; order: -1; }
 }
 .btn-row.cta { margin-top: 22px; }
+
+/* a screenshot in the docs */
+.shot { margin: 18px 0 0; }
+.shot img { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line); }
