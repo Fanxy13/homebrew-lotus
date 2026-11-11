@@ -32,13 +32,26 @@ $global:SetCalls = New-Object System.Collections.ArrayList
 $pol = @{}
 foreach ($p in ($env:TEST_POLICIES -split ';')) { if ($p) { $k, $v = $p -split '='; $pol[$k] = $v } }
 function Get-ExecutionPolicy {
-    [CmdletBinding()] param([switch]$List)
+    [CmdletBinding()] param([switch]$List, [string]$Scope)
     $scopes = 'MachinePolicy', 'UserPolicy', 'Process', 'CurrentUser', 'LocalMachine'
     if ($List) { foreach ($s in $scopes) { [pscustomobject]@{ Scope = $s; ExecutionPolicy = $(if ($pol[$s]) { $pol[$s] } else { 'Undefined' }) } }; return }
+    if ($Scope) { if ($pol[$Scope]) { return $pol[$Scope] } else { return 'Undefined' } }
     foreach ($s in $scopes) { if ($pol[$s] -and $pol[$s] -ne 'Undefined') { return $pol[$s] } }
     'Restricted'
 }
-function Set-ExecutionPolicy { [CmdletBinding()] param($ExecutionPolicy, $Scope, [switch]$Force) [void]$global:SetCalls.Add("$Scope=$ExecutionPolicy") }
+function Set-ExecutionPolicy {
+    [CmdletBinding()] param($ExecutionPolicy, $Scope, [switch]$Force)
+    [void]$global:SetCalls.Add("$Scope=$ExecutionPolicy")
+    if ($env:TEST_SETFAIL -eq '1' -and $Scope -eq 'CurrentUser') { throw 'Access to the registry key is denied.' }     # (it really did not work)
+    $pol[[string]$Scope] = [string]$ExecutionPolicy
+    if ($env:TEST_OVERRIDE -eq '1' -and $Scope -ne 'Process') {
+        # what Windows PowerShell does when the window has a policy of its own (Process): the user's is set, and reported as an
+        # error without a message of its own ("Security error."), the real one being in the details
+        $err = [System.Management.Automation.ErrorRecord]::new([System.Security.SecurityException]::new(), 'ExecutionPolicyOverride', [System.Management.Automation.ErrorCategory]::PermissionDenied, $null)
+        $err.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('Windows PowerShell updated your execution policy successfully, but the setting is overridden by a policy defined at a more specific scope.')
+        $PSCmdlet.WriteError($err)
+    }
+}
 function Read-Host { param($Prompt) '' }      # (nobody answers: the question gets a no, with a keyboard or without)
 . $env:TEST_INSTALLER
 'SET: ' + ($global:SetCalls -join ';')
@@ -105,6 +118,19 @@ Describe 'install.ps1 and the execution policy of Windows PowerShell' -Skip:($PS
         $out | Should -Match 'SET: Process=Bypass;CurrentUser=RemoteSigned'
         $out | Should -Match 'The command: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned'
         $out | Should -Match 'ExecutionPolicy RemoteSigned for your user'
+        $out | Should -Match 'Done'
+    }
+    It 'the policy of the user is set although PowerShell calls it overridden by the window''s own policy – that is no failure' {
+        # (Windows PowerShell reports "Security error." for it: the installer looks at what is set, not at that error)
+        $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') 'LocalMachine=Restricted' @{ LOTUS_YES = '1'; TEST_OVERRIDE = '1' }
+        $out | Should -Match 'SET: Process=Bypass;CurrentUser=RemoteSigned'
+        $out | Should -Match 'ExecutionPolicy RemoteSigned for your user'
+        $out | Should -Not -Match 'It did not work'
+    }
+    It 'a policy that really cannot be set is reported, with the reason' {
+        $out = Invoke-TestInstallPolicy (Join-Path $script:Tmp 'app-policy') 'LocalMachine=Restricted' @{ LOTUS_YES = '1'; TEST_SETFAIL = '1' }
+        $out | Should -Match 'It did not work: Access to the registry key is denied'
+        $out | Should -Not -Match 'ExecutionPolicy RemoteSigned for your user'
         $out | Should -Match 'Done'
     }
     It 'asks first: without a yes the user policy stays as it is, and the installer says what happens then' {

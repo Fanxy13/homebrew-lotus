@@ -12,10 +12,21 @@ function Lr { param([int]$Code, $Value = $null, [string[]]$Msg = @()) [pscustomo
 
 # ── This system ───────────────────────────────────────────────
 
+# The processor of this PC as .NET names it (X64, Arm64, X86): RuntimeInformation says it – in one console of Windows PowerShell 5.1 on
+# the CI it said nothing ($null), so the environment answers when .NET does not
+function Get-LotusOsArchitecture {
+    try { $a = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture; if ($null -ne $a -and "$a") { return "$a" } } catch { }
+    $cpu = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+    if ($cpu -eq 'ARM64') { return 'Arm64' }
+    if ($cpu -eq 'x86') { return 'X86' }
+    if ($cpu -eq 'AMD64') { return 'X64' }
+    if ([Environment]::Is64BitOperatingSystem) { 'X64' } else { 'X86' }
+}
+
 function Initialize-LotusPlatform {
     if ($script:Os) { return }
     $os = [ordered]@{ Name = 'other'; Version = ''; Build = 0; Release = ''; Product = ''; Arch = 'unknown'; Terminal = '' }
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    $arch = Get-LotusOsArchitecture
     $os.Arch = switch ($arch) { 'X64' { 'x86_64' } 'Arm64' { 'arm64' } 'X86' { 'x86' } default { $arch.ToLowerInvariant() } }
     if ($IsWindows) {
         $os.Name = 'windows'

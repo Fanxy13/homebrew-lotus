@@ -53,8 +53,17 @@ function Install-Lotus {
         $build = [Environment]::OSVersion.Version.Build
         if ($build -lt 22000) { & $note "This is Windows build $build. Lotus is built for Windows 11 (build 22000 or newer) and Windows Terminal." }
     }
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-    & $say "$([System.Runtime.InteropServices.RuntimeInformation]::OSDescription) - $arch"
+    # (the processor: .NET says it; in one Windows PowerShell 5.1 console it said nothing - the environment is the second chance)
+    $arch = ''
+    try { $arch = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture } catch { }
+    if (-not $arch) {
+        $cpu = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+        $arch = if ($cpu -eq 'ARM64') { 'Arm64' } elseif ($cpu -eq 'x86') { 'X86' } elseif ($cpu -eq 'AMD64') { 'X64' } elseif ([Environment]::Is64BitOperatingSystem) { 'X64' } else { 'X86' }
+    }
+    $osText = ''
+    try { $osText = [string][System.Runtime.InteropServices.RuntimeInformation]::OSDescription } catch { }
+    if (-not $osText) { $osText = [Environment]::OSVersion.VersionString }
+    & $say "$osText - $arch"
 
     $dest = if ($env:LOTUS_DEST) { $env:LOTUS_DEST }
             elseif ($onWindows) { Join-Path $env:LOCALAPPDATA 'lotus/app' }
@@ -182,8 +191,19 @@ function Install-Lotus {
             & $note 'Windows PowerShell runs no script files here (ExecutionPolicy Restricted) - not even the profile that loads Lotus.'
             & $note 'The command: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned'
             if (& $ask 'Set it now (for your user only)?') {
-                try { Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force -ErrorAction Stop; & $say 'ExecutionPolicy RemoteSigned for your user.' }
-                catch { & $warn "It did not work: $($_.Exception.Message)" }
+                $failed = $null
+                try { Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force -ErrorAction Stop } catch { $failed = $_ }
+                # This window runs under a policy of its own (Process, Bypass - set above). PowerShell then calls the new policy of
+                # the user "overridden by a more specific scope" and reports it as an error ("Security error.") although it IS
+                # set - so what is set is looked at, not the error.
+                $now = ''
+                try { $now = [string](Get-ExecutionPolicy -Scope CurrentUser -ErrorAction Stop) } catch { }
+                if ($now -eq 'RemoteSigned') { & $say 'ExecutionPolicy RemoteSigned for your user.' }
+                else {
+                    $why = ''
+                    if ($failed) { $why = if ($failed.ErrorDetails -and $failed.ErrorDetails.Message) { $failed.ErrorDetails.Message } else { $failed.Exception.Message } }
+                    & $warn "It did not work: $why"
+                }
             } else {
                 & $warn 'Without it a new window prints an error and does not load Lotus - run the command above when you want it.'
             }

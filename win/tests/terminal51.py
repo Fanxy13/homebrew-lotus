@@ -23,6 +23,12 @@ import sys
 import time
 import traceback
 
+for _stream in (sys.stdout, sys.stderr):         # (Python on Windows prints in the code page of the console: the screens have ✓ and box drawing)
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, OSError):
+        pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(REPO, 'dev', '3.0', 'video', 'windows'))
@@ -36,8 +42,9 @@ POWERSHELL = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32
 APP = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'lotus', 'app')
 ANSI = re.compile(r'\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b[()][A-Za-z0-9]')
 # what PowerShell prints when a command goes wrong (an error in red), and the sequences when a terminal does not read them
-ERRORS = re.compile(r'CategoryInfo|FullyQualifiedErrorId|At line:\d+|ParserError|is not recognized as|running scripts is disabled|'
-                    r'Exception calling|You cannot call a method|Cannot bind|PSSecurityException|UnauthorizedAccess')
+ERRORS = re.compile(r'CategoryInfo|FullyQualifiedErrorId|At line:\d+|At [A-Za-z]:\\[^\n]*:\d+ char:\d+|ParserError|is not recognized as|'
+                    r'running scripts is disabled|Exception calling|You cannot call a method|Cannot bind|PSSecurityException|UnauthorizedAccess|'
+                    r'It did not work')
 WRITTEN_OUT = re.compile(r'\[\d+(;\d+)*m')
 
 rec = Recording(os.environ.get('LOTUS_TERMINAL_CAST', 'terminal51.cast'))
@@ -112,6 +119,10 @@ def install():
     c.type('$PSVersionTable.PSVersion.ToString() + " / " + (Get-ExecutionPolicy)', enter=True)
     c.prompt(20)
     check(re.search(r'5\.1\.\d+\S* / Restricted', c.text()) is not None, 'this is Windows PowerShell 5.1 and its policy is Restricted', c)
+    c.key('ctrl-l')
+    c.type("[string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture + ' | ' + $env:PROCESSOR_ARCHITECTURE + ' | ' + [Environment]::Is64BitProcess + ' | ' + $ExecutionContext.SessionState.LanguageMode", enter=True)
+    c.prompt(20)
+    show(c, 'the machine (processor by .NET | by the environment | 64-bit process | language mode)')
     before = len(rec.events)
     c.type(f"Import-Module '{os.path.join(REPO, 'win', 'Lotus.psd1')}'", enter=True)
     c.prompt(20)
@@ -125,9 +136,11 @@ def install():
     c.paste(f'iex (Get-Content -Raw "{os.path.join(REPO, "install.ps1")}")', enter=True)    # (irm <url> | iex, from this checkout)
     answer(c, 'Download it?')                     # fastfetch
     answer(c, 'Set it now (for your user only)?') # RemoteSigned
-    c.wait(r'Welcome to Lotus', 300, quiet=1.5)
-    wizard(rec, c)
-    c.prompt(120, quiet=1.5)
+    c.wait(r'Done\. Open a new PowerShell window\.', 180, quiet=1.0)
+    c.wait_for(lambda: 'Welcome to Lotus' in c.text() or c.at_prompt(), 'the setup, or the prompt without it', 120, quiet=2.0)
+    if check('Welcome to Lotus' in c.text(), 'the installer starts the setup when it is done', c):
+        wizard(rec, c)
+        c.prompt(120, quiet=1.5)
     text = output_since(mark)
     check('Lotus is in' in text, 'the installer copied Lotus')
     check('ExecutionPolicy RemoteSigned for your user' in text, 'it set RemoteSigned for the user')
