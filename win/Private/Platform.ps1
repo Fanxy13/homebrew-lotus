@@ -351,19 +351,23 @@ try {
     $status = [string]$s.GetPlaybackInfo().PlaybackStatus
     $p = Wait ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
     $b64 = { param($t) [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([string]$t)) }
+    $asRead = [System.IO.WindowsRuntimeStreamExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsStreamForRead' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IInputStream' } | Select-Object -First 1
+    # the picture comes a moment after the session: asked again for a short while
     $cover = 'nocover'
-    if ($p.Thumbnail) {
+    for ($try = 0; $try -lt 8 -and $cover -ne 'cover'; $try++) {
+        if ($try -gt 0) { Start-Sleep -Milliseconds 400; $p = Wait ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties]) }
+        if (-not $p.Thumbnail) { continue }
         try {
             $stream = Wait ($p.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
-            if ($stream.Size -gt 0 -and $stream.Size -le 8MB) {
-                $in = [System.IO.WindowsRuntimeStreamExtensions]::AsStreamForRead($stream)
-                $fs = [System.IO.File]::Create($env:LOTUS_COVER_OUT)
-                try { $in.CopyTo($fs) } finally { $fs.Dispose(); $in.Dispose() }
-                $cover = 'cover'
-            }
-        } catch { }
+            if ($stream.Size -eq 0) { $cover = 'nocover'; continue }
+            if ($stream.Size -gt 8MB) { $cover = 'toobig'; break }
+            $in = $asRead.Invoke($null, @($stream))
+            $fs = [System.IO.File]::Create($env:LOTUS_COVER_OUT)
+            try { $in.CopyTo($fs) } finally { $fs.Dispose(); $in.Dispose() }
+            $cover = 'cover'
+        } catch { $cover = 'error ' + $_.Exception.Message; break }
     }
-    "ok`t$status`t$(& $b64 $p.Title)`t$(& $b64 $p.Artist)`t$(& $b64 $p.AlbumTitle)`t$cover"
+    "ok`t$status`t$(& $b64 $p.Title)`t$(& $b64 $p.Artist)`t$(& $b64 $p.AlbumTitle)`t$(& $b64 $cover)"
 } catch { "error`t$($_.Exception.Message)" }
 '@
     $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
@@ -392,7 +396,9 @@ try {
         return $null
     }
     $text = { param($b) try { [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)) } catch { '' } }
-    [pscustomobject]@{ Status = $f[1]; Title = & $text $f[2]; Artist = & $text $f[3]; Album = & $text $f[4]; HasCover = ($f[5] -eq 'cover') }
+    $cover = & $text $f[5]
+    if ($cover -ne 'cover') { Write-LotusLog DEBUG cover "No cover from the media session: $cover" }
+    [pscustomobject]@{ Status = $f[1]; Title = & $text $f[2]; Artist = & $text $f[3]; Album = & $text $f[4]; HasCover = ($cover -eq 'cover'); Detail = $cover }
 }
 
 # ── Secrets ───────────────────────────────────────────────────

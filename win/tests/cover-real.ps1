@@ -50,7 +50,7 @@ foreach ($mode in 'manual', 'source') {
     for ($i = 1; $i -le 10 -and -not $found; $i++) {
         $out = Join-Path $tmp "asked-$mode-$i.img"
         $r = & $asked $out
-        "  attempt ${i}: $(if ($r) { "$($r.Status) / $($r.Title) / $($r.Artist) / $($r.Album) / cover=$($r.HasCover)" } else { 'no session' })"
+        "  attempt ${i}: $(if ($r) { "$($r.Status) / $($r.Title) / $($r.Artist) / $($r.Album) / cover=$($r.HasCover) ($($r.Detail))" } else { 'no session' })"
         if ($r -and $r.Title -eq 'Lotus Test Song') { $found = [pscustomobject]@{ Mode = $mode; Result = $r; File = $out } }
         elseif (-not $r) { Start-Sleep -Seconds 2 }
     }

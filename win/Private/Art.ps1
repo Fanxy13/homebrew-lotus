@@ -358,9 +358,9 @@ function Get-LotusCover {
     $drawn = (Test-Path -LiteralPath $art -PathType Leaf) -and (Get-Item -LiteralPath $art).Length -gt 0
     if (-not $drawn) {
         if (-not (Test-Path -LiteralPath $img -PathType Leaf)) {
-            # a song without a cover is asked again after ten minutes, not at every start
+            # a song without a cover is asked again after three minutes, not at every start
             $asked = if (Test-Path -LiteralPath $none) { Get-LotusMtime $none } else { $null }
-            if ($null -ne $asked -and (Get-LotusEpoch) - $asked -lt 600) { return $null }
+            if ($null -ne $asked -and (Get-LotusEpoch) - $asked -lt 180) { return $null }
             New-LotusDir $dir | Out-Null
             $tmp = Join-Path $dir "$PID.tmp"
             try {
