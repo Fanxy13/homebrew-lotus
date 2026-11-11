@@ -1,4 +1,4 @@
-# /zetamac [seconds] [easy|normal|hard] – the math game of the pets, a port of lib/cmd/zetamac.zsh (loaded by pets.ps1).
+﻿# /zetamac [seconds] [easy|normal|hard] – the math game of the pets, a port of lib/cmd/zetamac.zsh (loaded by pets.ps1).
 # Like the Arithmetic Game on arithmetic.zetamac.com: as many problems as you can in 120 seconds, and an answer counts
 # as soon as it is right – no Enter. "normal" has Zetamac's default ranges: (2–100) + (2–100) and (2–12) × (2–100),
 # subtraction and division are these in reverse, so every answer is a whole number above 1. Every right answer is a bite

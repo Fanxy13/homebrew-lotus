@@ -1,4 +1,4 @@
-# The PowerShell adapter – what lib/init.zsh is for zsh and lib/init.bash for bash: the start screen when a window opens,
+﻿# The PowerShell adapter – what lib/init.zsh is for zsh and lib/init.bash for bash: the start screen when a window opens,
 # the /commands, the Enter extras, the prompt in the theme's color, and the command line that Lotus prepares.
 #
 # /weather cannot be a PowerShell alias that takes the rest of the line, and a pasted link with & does not even parse.

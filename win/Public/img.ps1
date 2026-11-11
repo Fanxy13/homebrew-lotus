@@ -1,4 +1,4 @@
-# /img on Windows – images and whole folders into PNG, JPEG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO: a port of
+﻿# /img on Windows – images and whole folders into PNG, JPEG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO: a port of
 # lib/cmd/img.zsh with ImageMagick (magick.exe – its winget package is ImageMagick.ImageMagick), the way Lotus converts
 # off the Mac. Photos come out the right way up, smaller but never larger; transparency becomes white in JPEG and BMP.
 # The originals are never changed: an image gets a new file next to it, a folder gets a folder for the new format inside,

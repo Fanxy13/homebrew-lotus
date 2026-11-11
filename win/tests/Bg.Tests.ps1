@@ -1,4 +1,4 @@
-# /bg on Windows (Public/bg.ps1): the screens, the models, the download with its checksum, the Python it picks and the
+﻿# /bg on Windows (Public/bg.ps1): the screens, the models, the download with its checksum, the Python it picks and the
 # events of the worker – with a stand-in for the worker (fixtures/fake-bg-worker.py: the same commands and events, no
 # PyTorch) and a small list of models whose files are a few bytes, served from this disk. The real worker answers the
 # commands that need no PyTorch. The real model run is the job "Remove BG on real Windows" of windows.yml.

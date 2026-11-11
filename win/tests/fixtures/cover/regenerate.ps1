@@ -10,11 +10,11 @@ try {
     $rows = foreach ($case in Get-CoverCases) {
         $name, $cols, $rows_, $mode = $case
         $psi = [System.Diagnostics.ProcessStartInfo]::new('perl')
-        foreach ($a in (Join-Path $repo 'lib/cover.pl'), (Join-Path $tmp "$name.bmp"), "$cols", "$rows_", $mode) { $psi.ArgumentList.Add($a) }
+        $psi.Arguments = (@((Join-Path $repo 'lib/cover.pl'), (Join-Path $tmp "$name.bmp"), "$cols", "$rows_", $mode) | ForEach-Object { '"' + $_ + '"' }) -join ' '
         $psi.RedirectStandardOutput = $true; $psi.UseShellExecute = $false
         $p = [System.Diagnostics.Process]::Start($psi)
         $ms = [IO.MemoryStream]::new(); $p.StandardOutput.BaseStream.CopyTo($ms); $p.WaitForExit()
-        $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::HashData($ms.ToArray())).Replace('-', '').ToLowerInvariant()
+        $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($ms.ToArray())).Replace('-', '').ToLowerInvariant()
         "$name`t$cols`t$rows_`t$mode`t$hash"
     }
     [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'expected.tsv'), ($rows -join "`n") + "`n", [Text.UTF8Encoding]::new($false))

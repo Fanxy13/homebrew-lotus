@@ -1,4 +1,4 @@
-# install.ps1 from start to end, into a temporary folder and a temporary profile (nothing of yours is touched). On
+﻿# install.ps1 from start to end, into a temporary folder and a temporary profile (nothing of yours is touched). On
 # Windows also: lotus.cmd in the user PATH (the PATH is put back as it was), cmd.exe running it, and Lotus' own pinned
 # fastfetch – downloaded from GitHub and checked against data/vendor.tsv.
 

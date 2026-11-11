@@ -1,4 +1,4 @@
-# lotus setup, update, doctor, uninstall, unhook – a port of lib/cmd/system.zsh for Windows
+﻿# lotus setup, update, doctor, uninstall, unhook – a port of lib/cmd/system.zsh for Windows
 
 function script:Invoke-Lotussystem {
     param([string]$Cmd, [string[]]$Rest)
@@ -8,8 +8,9 @@ function script:Invoke-Lotussystem {
         'doctor' { return Invoke-LotusDoctor $Rest }
         'uninstall' { return Invoke-LotusUninstall $Rest }
         'unhook' {
-            if (Remove-LotusHook) { Write-LotusSuccess "$(T removed_from 'Removed from') $(Get-LotusProfilePath)" }
-            else { Write-LotusInfo 'There were no Lotus lines in your PowerShell profile.' }
+            $gone = 0
+            foreach ($pp in (Get-LotusProfilePaths)) { if (Remove-LotusHook -ProfilePath $pp) { Write-LotusSuccess "$(T removed_from 'Removed from') $pp"; $gone++ } }
+            if (-not $gone) { Write-LotusInfo 'There were no Lotus lines in your PowerShell profile.' }
             return (St 0)
         }
     }
@@ -42,8 +43,7 @@ function script:Invoke-LotusSetup {
     # a settings file made new here is of this version: read as one of Lotus 1.x it would skip the first setup
     if (-not (Test-Path -LiteralPath $script:Paths.Settings)) { $script:S['LOTUS_CONFIG_VERSION'] = '3'; Save-LotusSettings -Quiet }
     Update-LotusFastfetchConfig -Force
-    $path = Add-LotusHook
-    Write-LotusSuccess "$(T added_to 'Added to') $path"
+    foreach ($pp in (Get-LotusProfilePaths)) { $path = Add-LotusHook -ProfilePath $pp; Write-LotusSuccess "$(T added_to 'Added to') $path" }
     Write-LotusInfo 'Open a new PowerShell window – or load it here: . $PROFILE.CurrentUserAllHosts'
     St 0
 }
@@ -184,7 +184,7 @@ function script:Invoke-LotusUninstall {
         Write-LotusBlank
         if (-not (Read-LotusConfirm 'Uninstall Lotus completely?' 'n')) { Write-LotusInfo (T cancelled 'Cancelled.'); return (St 1) }
     }
-    if (Remove-LotusHook) { Write-LotusSuccess "$(T removed_from 'Removed from') $(Get-LotusProfilePath)" }
+    foreach ($pp in (Get-LotusProfilePaths)) { if (Remove-LotusHook -ProfilePath $pp) { Write-LotusSuccess "$(T removed_from 'Removed from') $pp" } }
     # keep awake that Lotus started stops with it
     try { Import-LotusCommand caffeine; Stop-LotusCaffeine -Quiet | Out-Null } catch { }
     foreach ($s in 'lotus-ai', 'lotus-ai-claude', 'lotus-hf') { Remove-LotusSecret $s | Out-Null }

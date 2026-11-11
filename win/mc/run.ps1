@@ -1,4 +1,4 @@
-# lotus – runs one Minecraft server in the background for the control center (win/Public/mcc.ps1): the PowerShell
+﻿# lotus – runs one Minecraft server in the background for the control center (win/Public/mcc.ps1): the PowerShell
 # version of lib/mc/run.zsh, started in a hidden window of its own (Start-LotusDetached), so closing the terminal does
 # not stop the server.
 #   pwsh -File run.ps1 <server folder>
@@ -54,11 +54,42 @@ if (-not $java -or -not (Test-Path -LiteralPath $java -PathType Leaf)) {
     exit 1
 }
 
+# Arguments for a Windows command line, quoted the way programs split them again (CommandLineToArgvW)
+function ConvertTo-RunCommandLine {
+    param([string[]]$Arguments)
+    (@(foreach ($a in $Arguments) {
+                if ($a -and $a -notmatch '[\s"]') { $a; continue }
+                $sb = [System.Text.StringBuilder]::new('"')
+                $bs = 0
+                foreach ($ch in $a.ToCharArray()) {
+                    if ($ch -eq '\') { $bs++; continue }
+                    if ($ch -eq '"') { [void]$sb.Append('\' * (2 * $bs + 1)).Append('"'); $bs = 0; continue }
+                    if ($bs) { [void]$sb.Append('\' * $bs); $bs = 0 }
+                    [void]$sb.Append($ch)
+                }
+                [void]$sb.Append('\' * (2 * $bs)).Append('"')
+                $sb.ToString()
+            })) -join ' '
+}
+# A ProcessStartInfo's arguments: ArgumentList where .NET has it (PowerShell 7), else one quoted line (Windows PowerShell 5.1)
+function Set-RunArguments {
+    param($Info, [string[]]$Arguments)
+    if ([System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList')) { foreach ($a in $Arguments) { $Info.ArgumentList.Add($a) } }
+    elseif ($Arguments.Count) { $Info.Arguments = ConvertTo-RunCommandLine $Arguments }
+}
+# One line to the server's console, in UTF-8 whatever .NET Framework would take for the input
+function Send-RunInput {
+    param($Process, [string]$Line)
+    $b = $utf8.GetBytes($Line + "`n")
+    $Process.StandardInput.BaseStream.Write($b, 0, $b.Length)
+    $Process.StandardInput.BaseStream.Flush()
+}
+
 # A program in this folder, its output into the log (the Paper patcher) → its exit code
 function Invoke-RunLogged {
     param([string]$Exe, [string[]]$Words)
     $psi = [System.Diagnostics.ProcessStartInfo]::new($Exe)
-    foreach ($w in $Words) { $psi.ArgumentList.Add($w) }
+    Set-RunArguments $psi $Words
     $psi.WorkingDirectory = $Dir; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
     $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.RedirectStandardInput = $true
     $p = [System.Diagnostics.Process]::Start($psi)
@@ -110,7 +141,7 @@ function Build-RunBridge {
     $q = { param($t) '"' + $t.Replace('\', '\\') + '"' }
     [IO.File]::WriteAllLines((Join-Path $tmp 'args.txt'), @('-nowarn', '-proc:none', '-encoding', 'UTF-8', '-d', (& $q $classes), '-cp', (& $q ($cp -join [IO.Path]::PathSeparator)), (& $q (Join-Path $src 'LotusBridge.java'))))
     $psi = [System.Diagnostics.ProcessStartInfo]::new($javac)
-    $psi.ArgumentList.Add("@$(Join-Path $tmp 'args.txt')")
+    Set-RunArguments $psi @("@$(Join-Path $tmp 'args.txt')")
     $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
     $p = [System.Diagnostics.Process]::Start($psi)
     $e = $p.StandardError.ReadToEndAsync(); $o = $p.StandardOutput.ReadToEnd(); $p.WaitForExit()
@@ -133,10 +164,11 @@ if ($conf -match 'type=paper') { try { Build-RunBridge } catch { Write-RunNote "
 # The server: its console from .lotus\input, its output into the log – in UTF-8 both ways (Java on Windows would use
 # the old code page of the system where nothing says otherwise)
 $psi = [System.Diagnostics.ProcessStartInfo]::new($java)
-foreach ($w in @('-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8') + $argv) { $psi.ArgumentList.Add($w) }
+Set-RunArguments $psi (@('-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8') + $argv)
 $psi.WorkingDirectory = $Dir; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
 $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
-$psi.StandardInputEncoding = $utf8; $psi.StandardOutputEncoding = $utf8; $psi.StandardErrorEncoding = $utf8
+if ([System.Diagnostics.ProcessStartInfo].GetProperty('StandardInputEncoding')) { $psi.StandardInputEncoding = $utf8 }
+$psi.StandardOutputEncoding = $utf8; $psi.StandardErrorEncoding = $utf8
 try { $p = [System.Diagnostics.Process]::Start($psi) }
 catch {
     Write-RunNote "Java could not be started: $($_.Exception.Message)"
@@ -191,7 +223,7 @@ while ($open[0] -or $open[1] -or -not $p.HasExited) {
                     foreach ($cmd in $text.Substring(0, $cut).Split("`n")) {
                         $cmd = $cmd.TrimEnd("`r")
                         if (-not $cmd -or $p.HasExited) { continue }
-                        $p.StandardInput.WriteLine($cmd); $p.StandardInput.Flush()
+                        Send-RunInput $p $cmd
                         if ($cmd -cne 'stop') { Write-RunLog "[Lotus] > $cmd" }
                     }
                 } else { $inPart = $text }

@@ -1,4 +1,4 @@
-# The Minecraft control center on Windows (/minecraft → open a server, /mc <name>) – a port of lib/mc/control.zsh.
+﻿# The Minecraft control center on Windows (/minecraft → open a server, /mc <name>) – a port of lib/mc/control.zsh.
 # One full-screen window with three pages, Tab switches between them:
 #   Stats     the server's state, players online with their ping, TPS, memory, CPU, the world's size, the newest
 #             events – and a little Minecraft world drifting by (the port of lib/mc/world.zsh, below)
@@ -344,7 +344,7 @@ function script:Stop-LotusMccServer {
     if ($m.Pid) { [void](Send-LotusMccCommand 'stop') }
     elseif ($m.Wrap) {
         # still preparing (the Paper patcher, javac): the runner and what it started end – no world is open yet
-        try { (Get-Process -Id $m.Wrap -ErrorAction Stop).Kill($true) } catch { }
+        try { Stop-LotusProcessTree (Get-Process -Id $m.Wrap -ErrorAction Stop) } catch { }
     }
     Write-LotusLog INFO minecraft "Server stopped: $($m.Name)"
 }
@@ -1834,6 +1834,7 @@ $script:McpErr = ''
 # One HTTP client for Modrinth, which wants to know who asks
 function script:Get-LotusMcpHttp {
     if ($script:McpHttp) { return $script:McpHttp }
+    Add-Type -AssemblyName System.Net.Http      # (loaded in PowerShell 7, not in Windows PowerShell 5.1)
     $h = [System.Net.Http.HttpClient]::new()
     $h.Timeout = [TimeSpan]::FromSeconds(30)
     [void]$h.DefaultRequestHeaders.UserAgent.TryParseAdd("Fanxy13/homebrew-lotus/$(Get-LotusVersion) (lotus minecraft control center)")

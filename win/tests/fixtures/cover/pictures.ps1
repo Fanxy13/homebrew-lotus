@@ -1,4 +1,4 @@
-# The pictures the album cover tests draw, made here so that no binary file has to be kept: 24 and 32 bit BMPs, bottom-up
+﻿# The pictures the album cover tests draw, made here so that no binary file has to be kept: 24 and 32 bit BMPs, bottom-up
 # and top-down. expected.tsv holds the SHA-256 of what lib/cover.pl makes of each (regenerate.ps1 writes it).
 
 # A BMP of <Width> × <Height>: <Pixel> is called with x and y and gives (r, g, b)

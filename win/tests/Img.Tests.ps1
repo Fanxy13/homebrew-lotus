@@ -1,4 +1,4 @@
-# /img on Windows (Public/img.ps1): images and folders converted with ImageMagick – the magick.exe of Windows, or (off
+﻿# /img on Windows (Public/img.ps1): images and folders converted with ImageMagick – the magick.exe of Windows, or (off
 # Windows, for these tests) ImageMagick 6. The originals stay, nothing is written over, photos get smaller but never larger.
 
 BeforeDiscovery {

@@ -1,4 +1,4 @@
-# /convert on Windows – a video saved as MP3 or MP4 with yt-dlp and ffmpeg: a port of lib/cmd/convert.zsh. Only for
+﻿# /convert on Windows – a video saved as MP3 or MP4 with yt-dlp and ffmpeg: a port of lib/cmd/convert.zsh. Only for
 # content you have the right to download: Lotus does not bypass DRM, paywalls, logins or private content – yt-dlp runs
 # with its default behavior. yt-dlp and ffmpeg come from winget (yt-dlp.yt-dlp, Gyan.FFmpeg) after a yes. The questions,
 # yt-dlp's arguments and what a failure means are the Mac's; the progress is shown as steps with a bar of real bytes
@@ -123,8 +123,8 @@ function script:Get-LotusYtdlpLatest {
     }
     $v = ''
     try {
-        $r = Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest' -Method Head -MaximumRedirection 0 -SkipHttpErrorCheck -TimeoutSec 4 -ErrorAction Stop
-        $loc = [string]@($r.Headers['Location'])[0]
+        $r = Get-LotusHttpStatus -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest' -Method HEAD -Redirect $false -TimeoutSec 4
+        $loc = if ($r) { [string]@($r.Headers['Location'])[0] } else { '' }
         if ($loc -match '/tag/(\d+\.\d+\.\d+(\.\d+)?)$') { $v = $Matches[1] }
     } catch { }
     try { Write-LotusFile $f "$v`n" } catch { }
@@ -172,12 +172,12 @@ function script:Update-LotusYtdlp {
 function script:Start-LotusLines {
     param([string]$Program, [string[]]$Arguments)
     $psi = [System.Diagnostics.ProcessStartInfo]::new($Program)
-    foreach ($a in $Arguments) { $psi.ArgumentList.Add($a) }
+    Set-LotusProcessArguments $psi $Arguments
     $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
     $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.RedirectStandardInput = $true
     $psi.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false); $psi.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
     # yt-dlp is Python: its messages in UTF-8, whatever the code page of the console is
-    $psi.Environment['PYTHONIOENCODING'] = 'utf-8'; $psi.Environment['PYTHONUTF8'] = '1'
+    $psi.EnvironmentVariables['PYTHONIOENCODING'] = 'utf-8'; $psi.EnvironmentVariables['PYTHONUTF8'] = '1'
     $p = [System.Diagnostics.Process]::Start($psi)
     $p.StandardInput.Close()
     [pscustomobject]@{ P = $p; Out = $p.StandardOutput.ReadLineAsync(); Err = $p.StandardError.ReadLineAsync(); OutEnd = $false; ErrEnd = $false }
@@ -196,7 +196,7 @@ function script:Read-LotusLines {
     }
     $got
 }
-function script:Stop-LotusLines { param($Run) try { if (-not $Run.P.HasExited) { $Run.P.Kill($true) } } catch { }; try { [void]$Run.P.WaitForExit(5000) } catch { } }
+function script:Stop-LotusLines { param($Run) try { if (-not $Run.P.HasExited) { Stop-LotusProcessTree $Run.P } } catch { }; try { [void]$Run.P.WaitForExit(5000) } catch { } }
 
 # A program to its end, its lines kept apart → @{ Out; Err; Code }
 function script:Invoke-LotusLines {

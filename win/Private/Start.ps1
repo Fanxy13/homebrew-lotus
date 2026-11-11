@@ -1,4 +1,4 @@
-# The start screen – a port of lotus_render, lotus_build, lotus_art_pick, the greetings and now playing (lib/core.zsh,
+﻿# The start screen – a port of lotus_render, lotus_build, lotus_art_pick, the greetings and now playing (lib/core.zsh,
 # lib/art.zsh). fastfetch draws it with the same generated config as on macOS and Linux (the contract tests compare it).
 
 # fastfetch: the one on the PATH, else the copy the installer put next to Lotus (data/vendor.tsv pins it)

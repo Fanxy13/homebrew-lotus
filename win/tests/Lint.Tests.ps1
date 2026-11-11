@@ -1,4 +1,4 @@
-# Mistakes PowerShell does not report until the line runs – checked in every file of the module and the installers.
+﻿# Mistakes PowerShell does not report until the line runs – checked in every file of the module and the installers.
 
 BeforeDiscovery {
     $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -17,6 +17,20 @@ Describe '<Name>' -ForEach $script:Files {
     }
     It 'parses' {
         @($script:Errors | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) | Should -BeNullOrEmpty
+    }
+    It 'is read as UTF-8 by Windows PowerShell 5.1: a byte order mark where there is more than ASCII; what irm | iex runs is ASCII, without one' {
+        # (Windows PowerShell 5.1 reads a script file without a byte order mark as ANSI: "–" becomes three characters, one of
+        # them a quote, and a string ends where none should)
+        $bytes = [System.IO.File]::ReadAllBytes($Path)
+        $bom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+        $wide = $false
+        foreach ($byte in $bytes) { if ($byte -gt 127) { $wide = $true; break } }
+        if ($Name -in 'install.ps1', 'bin/lotus.ps1', 'bin\lotus.ps1') {
+            $wide | Should -BeFalse -Because 'it is run with irm | iex, or by a shim: ASCII only'
+            $bom | Should -BeFalse -Because 'a byte order mark would stay in the text irm gives iex'
+        } elseif ($wide) {
+            $bom | Should -BeTrue -Because 'it has more than ASCII in it'
+        }
     }
     It 'has no variable spelled in two cases in one function ($L and $l are the same variable)' {
         $found = foreach ($fn in $script:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {

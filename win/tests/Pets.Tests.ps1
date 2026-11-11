@@ -1,4 +1,4 @@
-# The pets and their math game on Windows (Public/pets.ps1, Public/zetamac.ps1): the same .pet files and pets.tsv as the
+﻿# The pets and their math game on Windows (Public/pets.ps1, Public/zetamac.ps1): the same .pet files and pets.tsv as the
 # zsh engine, hunger, the drawings, adopting, feeding, reactions, /help with a pet, and a game played with keys.
 # (tests/test-pets.zsh and tests/test-zetamac.zsh check the same things in zsh.)
 
@@ -146,7 +146,7 @@ Describe 'your pets' {
     }
     It 'say only plain words' {
         InModuleScope Lotus {
-            ConvertTo-LotusPetText "Mochi: **Hi**  there`n`e[31mfriend`` ## " 'Mochi' | Should -Be 'Hi there friend'
+            ConvertTo-LotusPetText "Mochi: **Hi**  there`n$([char]27)[31mfriend`` ## " 'Mochi' | Should -Be 'Hi there friend'
             ConvertTo-LotusPetText '"Purr."' 'Mochi' | Should -Be 'Purr.'
             (ConvertTo-LotusPetText ('x' * 400) 'Mochi').Length | Should -Be 318
         }

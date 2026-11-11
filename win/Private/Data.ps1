@@ -1,4 +1,4 @@
-# The files that Lotus shares between systems (data/*.tsv, lib/core.zsh) – the same ones the zsh engine reads.
+﻿# The files that Lotus shares between systems (data/*.tsv, lib/core.zsh) – the same ones the zsh engine reads.
 
 function Read-LotusTsv {
     # the rows of data/<name>.tsv (or of a path), comments and empty lines left out → string arrays

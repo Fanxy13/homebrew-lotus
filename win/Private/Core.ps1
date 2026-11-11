@@ -1,4 +1,4 @@
-# What every lotus call starts with (lotus_load in lib/core.zsh): paths, the system, settings, features, texts, colors.
+﻿# What every lotus call starts with (lotus_load in lib/core.zsh): paths, the system, settings, features, texts, colors.
 
 function Initialize-Lotus {
     $script:Paths = Get-LotusPaths

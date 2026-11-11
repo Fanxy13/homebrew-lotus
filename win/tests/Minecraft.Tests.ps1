@@ -1,4 +1,4 @@
-# /minecraft on Windows (Public/minecraft.ps1, Public/mcc.ps1, mc/run.ps1): the files of a new server, the runner in
+﻿# /minecraft on Windows (Public/minecraft.ps1, Public/mcc.ps1, mc/run.ps1): the files of a new server, the runner in
 # the background with a server of its own (fixtures/FakeServer.java, built here with javac: the lines a Minecraft
 # server prints, a few console commands), the control center with keys, deleting, plugins from a Modrinth on this
 # computer (tests/fake-modrinth.py), the little world and finding Java. The real server is the job "Minecraft on real
@@ -58,7 +58,9 @@ BeforeAll {
         $script:ServerJar = Join-Path $script:Ctx.Tmp 'fake-server.jar'
         New-TestJar $script:ServerJar @{ 'META-INF/MANIFEST.MF' = "Manifest-Version: 1.0`r`nMain-Class: FakeServer`r`n`r`n"; 'FakeServer.class' = [IO.File]::ReadAllBytes((Join-Path $classes 'FakeServer.class')) }
         # the Java home of that javac (its java runs the server)
-        $script:JavaHome = Split-Path -Parent (Split-Path -Parent ((Get-Item -LiteralPath $javac.Source).ResolvedTarget ?? $javac.Source))
+        $javacReal = (Get-Item -LiteralPath $javac.Source).ResolvedTarget      # (PowerShell 7.1 and newer)
+        if (-not $javacReal) { $javacReal = $javac.Source }
+        $script:JavaHome = Split-Path -Parent (Split-Path -Parent $javacReal)
         if (-not (Test-Path -LiteralPath (Join-Path $script:JavaHome 'bin'))) { $script:JavaHome = Split-Path -Parent (Split-Path -Parent $javac.Source) }
     }
     # a new server folder in the test's Minecraft folder, made as the setup makes it

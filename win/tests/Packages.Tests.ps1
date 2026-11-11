@@ -1,4 +1,4 @@
-# /install and /brew on Windows: winget's output read by the position of its columns (it is in the language of Windows),
+﻿# /install and /brew on Windows: winget's output read by the position of its columns (it is in the language of Windows),
 # the card, the install in the open after a yes, and the catalog of data/apps.tsv. winget itself is mocked here; the CI
 # asks the real winget for every id of the catalog (.github/workflows/windows.yml).
 

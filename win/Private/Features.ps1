@@ -1,4 +1,4 @@
-# Features: the parts of Lotus you can turn off (data/features.tsv, LOTUS_FEATURES_OFF) – a feature that is off has no
+﻿# Features: the parts of Lotus you can turn off (data/features.tsv, LOTUS_FEATURES_OFF) – a feature that is off has no
 # command, no settings and downloads nothing; its commands explain how to turn it back on.
 
 function Import-LotusFeatures {

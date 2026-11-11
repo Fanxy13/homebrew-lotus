@@ -1,4 +1,4 @@
-# /weather with ASCII art – a port of lib/cmd/weather.zsh. Provider: Open-Meteo (free, no API key), the same requests
+﻿# /weather with ASCII art – a port of lib/cmd/weather.zsh. Provider: Open-Meteo (free, no API key), the same requests
 # and the same cache files; PowerShell reads the JSON itself (no jq).
 
 $script:WeatherTtl = 600   # seconds a forecast is used again

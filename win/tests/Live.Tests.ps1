@@ -1,4 +1,4 @@
-# /liveserver and /html on Windows (Public/live.ps1, Public/html.ps1): the Python of lib/live and lib/html, the same as
+﻿# /liveserver and /html on Windows (Public/live.ps1, Public/html.ps1): the Python of lib/live and lib/html, the same as
 # on the Mac, started by PowerShell – a server in a process of its own that serves a folder and stops with lotus
 # liveserver stop, and documents made from a small site. (tests/test-liveserver.zsh and test-html.zsh test the Python.)
 
@@ -89,8 +89,8 @@ Describe '/liveserver' -Skip:(-not $script:HasPython) {
             $page | Should -Not -BeNullOrEmpty -Because (Get-Content (Join-Path $script:Ctx.Tmp 'live.err') -Raw)
             $page.Content | Should -Match '<h1>Hello</h1>'
             $page.Content | Should -Match '/__lotus/reload.js'
-            (Invoke-WebRequest -Uri "http://127.0.0.1:$port/css/site.css" -NoProxy -UseBasicParsing).Content | Should -Match 'color'
-            $hidden = try { (Invoke-WebRequest -Uri "http://127.0.0.1:$port/.env" -NoProxy -UseBasicParsing -SkipHttpErrorCheck).StatusCode } catch { 0 }
+            (Invoke-WebRequest -Uri "http://127.0.0.1:$port/css/site.css" -UseBasicParsing).Content | Should -Match 'color'
+            $hidden = InModuleScope Lotus -Parameters @{ Url = "http://127.0.0.1:$port/.env" } { (Get-LotusHttpStatus -Uri $Url -NoProxy $true).StatusCode }
             $hidden | Should -Not -Be 200
             # the note it left for stop and /html: in Lotus' state folder
             Test-Path (Join-Path $env:LOTUS_STATE "live/running/$port") | Should -BeTrue

@@ -1,4 +1,4 @@
-# One log for everything, in the zsh engine's format (lib/log.zsh):
+﻿# One log for everything, in the zsh engine's format (lib/log.zsh):
 #   2026-10-07 09:31:04.123<TAB>INFO<TAB>bg<TAB>Model loaded
 # Keys and tokens are masked and the home folder becomes ~ before anything is written. Writing never fails loudly.
 

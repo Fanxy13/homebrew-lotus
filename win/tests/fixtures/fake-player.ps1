@@ -1,4 +1,4 @@
-# A music player for the tests of the album cover, in Windows PowerShell (the Windows Runtime is not in PowerShell 7): it
+﻿# A music player for the tests of the album cover, in Windows PowerShell (the Windows Runtime is not in PowerShell 7): it
 # shows up in Windows' media controls with a song, an artist, an album and a cover – the way Spotify or a browser does –
 # and stays until -Seconds are over. It prints "ready" (and what Windows' media controls list) when it is there.
 #   powershell.exe -NoProfile -File fake-player.ps1 -Cover cover.png [-Mode manual|source] [-Wav silence.wav] [-Seconds 120]

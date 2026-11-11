@@ -1,4 +1,4 @@
-# /lotus log – what Lotus did, a port of lib/cmd/log.zsh
+﻿# /lotus log – what Lotus did, a port of lib/cmd/log.zsh
 #   lotus log              the viewer (a plain list without a terminal) · lotus log live   the viewer, following new lines
 #   lotus log clear        empty it · lotus log level [lvl]   off, warn, info, debug, trace · lotus log path
 

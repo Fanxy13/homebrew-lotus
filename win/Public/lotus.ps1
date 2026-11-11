@@ -1,4 +1,4 @@
-# The lotus command – what bin/lotus is for zsh: each subcommand goes to its module (Public/<module>.ps1, loaded when
+﻿# The lotus command – what bin/lotus is for zsh: each subcommand goes to its module (Public/<module>.ps1, loaded when
 # first used). A feature that is turned off explains itself; an unknown command gets a suggestion; what Windows does
 # not have says so instead of failing quietly.
 # (A simple function with $args, not an advanced one: "lotus -v" must reach it as the text "-v", not as a parameter.)

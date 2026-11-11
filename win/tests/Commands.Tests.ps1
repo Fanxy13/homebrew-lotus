@@ -1,4 +1,4 @@
-# The commands, with the system mocked where they would open a browser, call a web service or touch the hardware.
+﻿# The commands, with the system mocked where they would open a browser, call a web service or touch the hardware.
 # What only Windows can do (the apps of the Start menu, keep awake, the volume) is in Windows.Tests.ps1.
 
 BeforeAll {

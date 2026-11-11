@@ -1,4 +1,4 @@
-# The album cover on real Windows (the job "Album cover on real Windows" of windows.yml): a player shows a song with a cover
+﻿# The album cover on real Windows (the job "Album cover on real Windows" of windows.yml): a player shows a song with a cover
 # in Windows' media controls (fixtures/fake-player.ps1), Lotus asks for it, decodes the picture with Windows' own image
 # component and draws it – and the four colors of the cover are where they were. Status 1 when something does not hold.
 #   pwsh win/tests/cover-real.ps1

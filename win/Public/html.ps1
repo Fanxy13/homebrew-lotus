@@ -1,4 +1,4 @@
-# /html on Windows – web pages, style sheets and scripts as Word, PDF, Text, Markdown, OpenDocument or RTF: a port of
+﻿# /html on Windows – web pages, style sheets and scripts as Word, PDF, Text, Markdown, OpenDocument or RTF: a port of
 # lib/cmd/html.zsh. The work is done by lib/html/convert.py and lotusdoc/ – the same converter as on the Mac, Python's
 # standard library only (Python 3.9 or newer). The originals stay as they are: documents of single files go next to them,
 # all of a folder goes into a folder of its own (Word\ …), nothing is written over.

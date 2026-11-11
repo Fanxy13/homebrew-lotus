@@ -234,7 +234,7 @@ jobs:
           if (-not ($ok | Select-Object -Last 1)) { Get-Content "$tmp\state\lotus.log" -Tail 60; exit 1 }
 
   powershell51:
-    name: Windows PowerShell 5.1 reads the shims and installers
+    name: Windows PowerShell 5.1 reads every script
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -243,13 +243,36 @@ jobs:
         shell: powershell
         run: |
           $bad = 0
-          foreach ($f in @('install.ps1', 'bin/lotus.ps1', 'win/meshchat/install.ps1')) {
-            if (-not (Test-Path $f)) { continue }
+          $files = @('install.ps1', 'bin/lotus.ps1') + @(Get-ChildItem win -Recurse -Filter '*.ps1' -File | ForEach-Object { $_.FullName.Substring($PWD.Path.Length + 1) })
+          foreach ($f in $files) {
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path, [ref]$null, [ref]$errors) | Out-Null
-            if ($errors) { $errors | ForEach-Object { Write-Host "$f : $_" }; $bad++ } else { Write-Host "$f parses in PowerShell $($PSVersionTable.PSVersion)" }
+            if ($errors) { $errors | ForEach-Object { Write-Host "$f : $_" }; $bad++ }
           }
+          "$($files.Count) files read by Windows PowerShell $($PSVersionTable.PSVersion); $bad with errors"
           if ($bad) { exit 1 }
+
+  pester-51:
+    name: Windows PowerShell 5.1 (the one Windows 11 comes with)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pester, in Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $PSVersionTable | Format-Table -AutoSize | Out-String | Write-Host
+          Install-Module Pester -MinimumVersion 5.5 -Force -SkipPublisherCheck -Scope CurrentUser
+          Import-Module Pester -MinimumVersion 5.5
+          "Pester $((Get-Module Pester).Version)"
+          # (Windows PowerShell has no $IsWindows and its kin: the tests ask for them)
+          $global:IsWindows = $true; $global:IsLinux = $false; $global:IsMacOS = $false; $global:IsCoreCLR = $false
+          $c = New-PesterConfiguration
+          $c.Run.Path = 'win/tests'
+          $c.Run.Exit = $true
+          $c.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $c
 
   winget-ids:
     name: The winget ids of the app catalog exist

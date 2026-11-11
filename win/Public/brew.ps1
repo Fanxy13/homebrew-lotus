@@ -1,4 +1,4 @@
-# /brew on Windows: search, details and installs with winget, the package manager of Windows – a port of
+﻿# /brew on Windows: search, details and installs with winget, the package manager of Windows – a port of
 # lib/cmd/brew.zsh. The same cards and the same rule: the exact command is shown, nothing is installed without a yes,
 # and winget runs in the open – its own questions (licenses, administrator rights) are answered by you, not by Lotus.
 #   /brew <words>   search · /brew info <id>   one package · /brew install <id>   install after a preview

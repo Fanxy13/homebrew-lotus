@@ -1,4 +1,4 @@
-# /settings – the settings menu, a port of lib/settings.zsh. Rows of what Windows does not have (Apple Intelligence,
+﻿# /settings – the settings menu, a port of lib/settings.zsh. Rows of what Windows does not have (Apple Intelligence,
 # local MLX models, the AI web chat, the drawing editor of Remove BG, the live album cover, the "Last login" line) are
 # left out; Remove BG's backend offers the graphics card (DirectML) where the Mac offers its GPU (MPS).
 #   lotus settings                the menu (in a window), else the list

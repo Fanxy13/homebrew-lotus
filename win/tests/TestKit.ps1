@@ -1,4 +1,4 @@
-# Shared by the test files: each one runs in folders of its own (nothing of yours is read or changed), never waits for a
+﻿# Shared by the test files: each one runs in folders of its own (nothing of yours is read or changed), never waits for a
 # keyboard (LOTUS_NO_TTY), and puts the environment back when it is done. Keys for the screens come from a queue.
 
 $script:LotusTestVars = 'LOTUS_ROOT', 'LOTUS_CONF', 'LOTUS_CACHE', 'LOTUS_STATE', 'LOTUS_DATA', 'LOTUS_PROFILE', 'LOTUS_NO_TTY',

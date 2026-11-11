@@ -1,4 +1,4 @@
-# Pester 5. The module's own functions are reached with InModuleScope; `lotus` itself is called like a user does.
+﻿# Pester 5. The module's own functions are reached with InModuleScope; `lotus` itself is called like a user does.
 # These run on Windows in CI (.github/workflows/windows.yml, test.yml) – and on any system with PowerShell 7.
 # The settings file in fixtures/ was written by the zsh engine (lotus_save), so the two sides are tested against each other.
 

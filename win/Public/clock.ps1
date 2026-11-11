@@ -1,4 +1,4 @@
-# /clock – a clock in the colors of your theme, a port of lib/cmd/clock.zsh
+﻿# /clock – a clock in the colors of your theme, a port of lib/cmd/clock.zsh
 #   lotus clock [minimal|big|retro|matrix|analog|world]
 # ←/→ or space switch the design, s seconds on/off, z a second time zone, q or esc leaves. The zones are the IANA names
 # of the settings (America/New_York …): .NET knows them on Windows too.

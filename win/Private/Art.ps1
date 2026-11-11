@@ -1,4 +1,4 @@
-# The art left of the start screen – a port of lib/art.zsh. logos/*.txt hold shapes only; Lotus paints them into the
+﻿# The art left of the start screen – a port of lib/art.zsh. logos/*.txt hold shapes only; Lotus paints them into the
 # cache: in the theme's colors (a gradient from its second key color over the logo color to its key color, mixed in
 # OKLab, or the logo color alone) or in their own colors. The painted file is byte for byte the one the zsh engine
 # makes (the contract tests compare them), and both engines share the cache.

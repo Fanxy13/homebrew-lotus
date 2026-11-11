@@ -1,4 +1,4 @@
-# /minecraft and /mc on Windows – the Minecraft server setup assistant, a port of lib/cmd/minecraft.zsh. Server files
+﻿# /minecraft and /mc on Windows – the Minecraft server setup assistant, a port of lib/cmd/minecraft.zsh. Server files
 # come only from the official sources: Mojang (Vanilla) and PaperMC (Paper), each checked against its checksum. Java
 # comes from what is installed, or – after a yes – from Eclipse Temurin (adoptium.net), into Lotus' own folder: no
 # administrator rights, its SHA-256 checked before anything is unpacked. A server runs in its control center

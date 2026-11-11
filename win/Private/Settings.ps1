@@ -1,4 +1,4 @@
-# settings.zsh: one line KEY='value' for every setting and the shortcuts as a zsh array – the file zsh sources. The same
+﻿# settings.zsh: one line KEY='value' for every setting and the shortcuts as a zsh array – the file zsh sources. The same
 # file on every system, so it can move between them. The keys, their order and their defaults are read from
 # lib/core.zsh itself (LOTUS_KEYS, lotus_defaults), so the two engines never disagree about them.
 

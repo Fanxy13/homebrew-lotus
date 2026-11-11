@@ -1,4 +1,4 @@
-# /ai on Windows (Public/ai.ps1) against a small fake AI on 127.0.0.1 (TestKit.ps1: Start-LotusFakeAi) – Claude's,
+﻿# /ai on Windows (Public/ai.ps1) against a small fake AI on 127.0.0.1 (TestKit.ps1: Start-LotusFakeAi) – Claude's,
 # OpenAI's and Ollama's streams, the conversation of the last hour, the commands, the keys, and a pet that thinks with it.
 # No real key is used: the test kit empties ANTHROPIC_API_KEY, LOTUS_AI_KEY, LOTUS_AI_CLAUDE_URL and OLLAMA_HOST.
 

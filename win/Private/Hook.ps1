@@ -1,4 +1,4 @@
-# The lines in the PowerShell profile that load Lotus (the same marks as in ~/.zshrc and ~/.bashrc).
+﻿# The lines in the PowerShell profile that load Lotus (the same marks as in ~/.zshrc and ~/.bashrc).
 
 $script:HookStart = '# >>> lotus >>>'
 $script:HookEnd = '# <<< lotus <<<'
@@ -15,6 +15,24 @@ function Get-LotusHookBlock {
 
 function Get-LotusProfilePath {
     if ($env:LOTUS_PROFILE) { $env:LOTUS_PROFILE } else { $PROFILE.CurrentUserAllHosts }
+}
+
+# The profile files that load Lotus: this PowerShell's and, when it is installed, the other one's – Windows PowerShell 5.1
+# (the one every Windows 11 has) and PowerShell 7 each read a profile of their own, in Documents\WindowsPowerShell and
+# Documents\PowerShell. LOTUS_PROFILE (the tests) names the one file there is.
+function Get-LotusProfilePaths {
+    $paths = @(Get-LotusProfilePath)
+    if ($env:LOTUS_PROFILE -or -not $IsWindows) { return $paths }
+    $docs = [Environment]::GetFolderPath('MyDocuments')
+    if ($PSVersionTable.PSEdition -eq 'Core') {
+        $other = Join-Path $docs 'WindowsPowerShell\profile.ps1'
+        $there = Test-Path -LiteralPath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
+    } else {
+        $other = Join-Path $docs 'PowerShell\profile.ps1'
+        $there = [bool](Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue)
+    }
+    if ($there -and $other -ne $paths[0]) { $paths += $other }
+    $paths
 }
 
 function Add-LotusHook {

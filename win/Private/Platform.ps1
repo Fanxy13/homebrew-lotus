@@ -1,4 +1,4 @@
-# The platform layer for Windows – the functions of lib/platform/*.zsh, by their PowerShell names. A function that this
+﻿# The platform layer for Windows – the functions of lib/platform/*.zsh, by their PowerShell names. A function that this
 # system cannot offer returns status 2 and prints nothing; the command says in words what is not possible. Nothing is
 # faked. A function with more to say than a status returns a result: Code (the status), Value, Msg (why it failed).
 #
@@ -374,8 +374,8 @@ try {
     $proc = $null
     try {
         $psi = [System.Diagnostics.ProcessStartInfo]::new($ps)
-        foreach ($a in '-NoProfile', '-NonInteractive', '-EncodedCommand', $enc) { $psi.ArgumentList.Add($a) }
-        $psi.Environment['LOTUS_COVER_OUT'] = $OutFile
+        Set-LotusProcessArguments $psi @('-NoProfile', '-NonInteractive', '-EncodedCommand', $enc)
+        $psi.EnvironmentVariables['LOTUS_COVER_OUT'] = $OutFile
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
         $psi.RedirectStandardInput = $true
@@ -385,7 +385,7 @@ try {
         $proc.StandardInput.Close()
         $err = $proc.StandardError.ReadToEndAsync()
         $out = $proc.StandardOutput.ReadToEndAsync()
-        if (-not $proc.WaitForExit(10000)) { try { $proc.Kill($true) } catch { }; return $null }
+        if (-not $proc.WaitForExit(10000)) { Stop-LotusProcessTree $proc; return $null }
         $proc.WaitForExit()
         $null = $err.Result
         $line = @(([string]$out.Result) -split "`r?`n" | Where-Object { $_ }) | Select-Object -Last 1
@@ -490,7 +490,11 @@ function Remove-LotusUserPath {
 # ── This computer ─────────────────────────────────────────────
 
 function Get-LotusCpuCount { [Environment]::ProcessorCount }
-function Get-LotusMemBytes { [long][GC]::GetGCMemoryInfo().TotalAvailableMemoryBytes }
+function Get-LotusMemBytes {
+    # (.NET Framework, under Windows PowerShell 5.1, has no GetGCMemoryInfo: the processor's board knows)
+    try { return [long][GC]::GetGCMemoryInfo().TotalAvailableMemoryBytes } catch { }
+    try { [long](Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop).TotalPhysicalMemory } catch { 0 }
+}
 function Get-LotusChip {
     if ($IsWindows) {
         try { return ((Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | Select-Object -First 1).Name).Trim() } catch { }
@@ -595,6 +599,41 @@ function ConvertTo-LotusCommandLine {
                 [void]$sb.Append('\' * (2 * $bs)).Append('"')
                 $sb.ToString()
             })) -join ' '
+}
+
+# A ProcessStartInfo's arguments: one by one where .NET has ArgumentList (PowerShell 7), else as one quoted line (Windows
+# PowerShell 5.1 runs on .NET Framework, which has only Arguments)
+function Set-LotusProcessArguments {
+    param([Parameter(Mandatory)][System.Diagnostics.ProcessStartInfo]$Info, [string[]]$Arguments = @())
+    if ([System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList')) { foreach ($a in $Arguments) { $Info.ArgumentList.Add($a) } }
+    elseif ($Arguments.Count) { $Info.Arguments = ConvertTo-LotusCommandLine $Arguments }
+}
+
+# A program and everything it started (Process.Kill($true) is .NET Core's; on .NET Framework taskkill does the tree)
+function Stop-LotusProcessTree {
+    param($Process)
+    if (-not $Process) { return }
+    try { if ([System.Diagnostics.Process].GetMethod('Kill', [type[]]@([bool]))) { $Process.Kill($true); return } } catch { }
+    try { & (Join-Path $env:SystemRoot 'System32\taskkill.exe') /PID $Process.Id /T /F 2>&1 | Out-Null } catch { }
+    try { if (-not $Process.HasExited) { $Process.Kill() } } catch { }
+}
+
+# The status of an HTTP request and its headers, whatever the status is (Invoke-WebRequest -SkipHttpErrorCheck is
+# PowerShell 7's; a 4xx or 5xx is an error in Windows PowerShell 5.1) → @{ StatusCode; Headers }, or $null when nobody answered
+function Get-LotusHttpStatus {
+    param([Parameter(Mandatory)][string]$Uri, [string]$Method = 'GET', [hashtable]$Headers = @{}, [int]$TimeoutSec = 20, [bool]$Redirect = $true, [bool]$NoProxy = $false)
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($Uri)
+        $req.Method = $Method
+        $req.Timeout = $TimeoutSec * 1000
+        $req.AllowAutoRedirect = $Redirect
+        $req.UserAgent = "lotus/$(Get-LotusVersion)"
+        if ($NoProxy) { $req.Proxy = $null }
+        foreach ($k in $Headers.Keys) { $req.Headers[$k] = [string]$Headers[$k] }
+        $resp = $null
+        try { $resp = $req.GetResponse() } catch [System.Net.WebException] { $resp = $_.Exception.Response; if ($null -eq $resp) { return $null } }
+        try { [pscustomobject]@{ StatusCode = [int]$resp.StatusCode; Headers = $resp.Headers } } finally { $resp.Dispose() }
+    } catch { $null }
 }
 
 # A program run in the open: its own output, questions and progress go straight to this window (not through

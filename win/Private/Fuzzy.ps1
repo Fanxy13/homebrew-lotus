@@ -1,4 +1,4 @@
-# Fuzzy matching, shared by commands, apps, packages and shortcuts – the same scores as lib/fuzzy.zsh, so the same typo
+﻿# Fuzzy matching, shared by commands, apps, packages and shortcuts – the same scores as lib/fuzzy.zsh, so the same typo
 # gets the same answer on every system (the contract tests compare both engines).
 
 # Edit distance between two strings
