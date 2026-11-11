@@ -326,6 +326,81 @@ if ($ok) { "set $next" } else { 'refused' }
     }
 }
 
+# What plays, and its cover (lotus_os_media_cover): Windows' media session, asked in Windows PowerShell – the Windows
+# Runtime is not in PowerShell 7. The picture is written to <OutFile> exactly as the player hands it out (at most 8 MB);
+# nothing is decoded here.
+#   → @{ Status; Title; Artist; Album; HasCover }  (Status: Playing, Paused, Stopped …), or $null when no player has a
+#     session or the session cannot be read
+function Get-LotusMediaCover {
+    param([Parameter(Mandatory)][string]$OutFile)
+    if (-not $IsWindows) { return $null }
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (-not (Test-Path -LiteralPath $ps)) { return $null }
+    $script = @'
+$ErrorActionPreference = 'Stop'
+try {
+    Add-Type -AssemblyName System.Runtime.WindowsRuntime
+    $await = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' } | Select-Object -First 1
+    function Wait($op, $type) { $t = $await.MakeGenericMethod($type).Invoke($null, @($op)); if (-not $t.Wait(4000)) { throw 'The media session did not answer' }; $t.Result }
+    $null = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]
+    $null = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties, Windows.Media.Control, ContentType = WindowsRuntime]
+    $null = [Windows.Storage.Streams.IRandomAccessStreamWithContentType, Windows.Storage.Streams, ContentType = WindowsRuntime]
+    $m = Wait ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
+    $s = $m.GetCurrentSession()
+    if (-not $s) { 'none'; exit }
+    $status = [string]$s.GetPlaybackInfo().PlaybackStatus
+    $p = Wait ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
+    $b64 = { param($t) [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([string]$t)) }
+    $asRead = [System.IO.WindowsRuntimeStreamExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsStreamForRead' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IInputStream' } | Select-Object -First 1
+    # the picture comes a moment after the session: asked again for about two seconds
+    $cover = 'nocover'
+    for ($try = 0; $try -lt 6 -and $cover -ne 'cover'; $try++) {
+        if ($try -gt 0) { Start-Sleep -Milliseconds 350; $p = Wait ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties]) }
+        if (-not $p.Thumbnail) { continue }
+        try {
+            $stream = Wait ($p.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
+            if ($stream.Size -eq 0) { $cover = 'nocover'; continue }
+            if ($stream.Size -gt 8MB) { $cover = 'toobig'; break }
+            $in = $asRead.Invoke($null, @($stream))
+            $fs = [System.IO.File]::Create($env:LOTUS_COVER_OUT)
+            try { $in.CopyTo($fs) } finally { $fs.Dispose(); $in.Dispose() }
+            $cover = 'cover'
+        } catch { $cover = 'error ' + $_.Exception.Message; break }
+    }
+    "ok`t$status`t$(& $b64 $p.Title)`t$(& $b64 $p.Artist)`t$(& $b64 $p.AlbumTitle)`t$(& $b64 $cover)"
+} catch { "error`t$($_.Exception.Message)" }
+'@
+    $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+    $proc = $null
+    try {
+        $psi = [System.Diagnostics.ProcessStartInfo]::new($ps)
+        foreach ($a in '-NoProfile', '-NonInteractive', '-EncodedCommand', $enc) { $psi.ArgumentList.Add($a) }
+        $psi.Environment['LOTUS_COVER_OUT'] = $OutFile
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.RedirectStandardInput = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $proc.StandardInput.Close()
+        $err = $proc.StandardError.ReadToEndAsync()
+        $out = $proc.StandardOutput.ReadToEndAsync()
+        if (-not $proc.WaitForExit(10000)) { try { $proc.Kill($true) } catch { }; return $null }
+        $proc.WaitForExit()
+        $null = $err.Result
+        $line = @(([string]$out.Result) -split "`r?`n" | Where-Object { $_ }) | Select-Object -Last 1
+    } catch { return $null } finally { if ($proc) { $proc.Dispose() } }
+    $f = ([string]$line) -split "`t"
+    if ($f[0] -ne 'ok' -or $f.Count -lt 6) {
+        if ($f[0] -eq 'error') { Write-LotusLog DEBUG cover "The media session could not be read: $($f[1])" }
+        return $null
+    }
+    $text = { param($b) try { [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)) } catch { '' } }
+    $cover = & $text $f[5]
+    if ($cover -ne 'cover') { Write-LotusLog DEBUG cover "No cover from the media session: $cover" }
+    [pscustomobject]@{ Status = $f[1]; Title = & $text $f[2]; Artist = & $text $f[3]; Album = & $text $f[4]; HasCover = ($cover -eq 'cover'); Detail = $cover }
+}
+
 # ── Secrets ───────────────────────────────────────────────────
 # Windows: a file only you can read – protected by Windows (DPAPI: only your account on this PC can decrypt it), in
 # secrets\ next to the settings. Elsewhere (the tests): a file with mode 600, as the zsh engine keeps it without a keyring.

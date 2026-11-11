@@ -65,6 +65,8 @@ function script:Get-LotusSettingsItems {
     if (& $on 'music') {
         & $add @(
             "bool|LOTUS_SHOW_MUSIC|$(T sec_music 'Now playing')|"
+            "head||$(T head_np 'Now playing')|"
+            "bool|LOTUS_COVER|$(T cover 'Album cover instead of the logo')|"
             "choice|LOTUS_INTERVAL|$(T interval 'Update every')|1=$(T sec1 '1 second');2=2 $(T secs 'seconds');3=3 $(T secs 'seconds');5=5 $(T secs 'seconds')")
     }
     & $add @(
