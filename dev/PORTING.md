@@ -81,7 +81,7 @@ platform layer (`lotus_os_*`, `Platform.ps1`), never straight from a feature.
 | The engine (`engine.py`) | `ImageIO` → `lotus-img`, built once | `Magick` | `Magick` – nothing to write |
 | The glue | `lib/edit/launch.zsh` | the same file | **to do**: `win/Public/img.ps1` |
 | Camera data of the original in the cropped copy | yes (ImageIO) | not yet | not yet |
-| Tests | engine, geometry, texts on CI Macs; server on a real Mac | all of it in the containers | to do |
+| Tests | engine, geometry, texts on the CI Macs; the server over HTTP on a real Mac (a CI Mac cannot talk to 127.0.0.1) | engine, server and texts in the containers (the geometry where Node is there); the page in a browser where Playwright is there | to do |
 
 What the Windows glue (`Invoke-LotusImgEdit`) has to do – this is all of it:
 
