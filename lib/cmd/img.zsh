@@ -1,4 +1,7 @@
-# lotus – /img convert: images and whole folders into PNG, JPEG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO.
+# lotus – /img: a picture cropped, turned, straightened and converted in a window like the iPhone's Photos (lib/edit), and
+# images and whole folders converted into PNG, JPEG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO.
+#   /img                                        the editor: drop a picture into the window (an empty ⏎ takes the clipboard)
+#   /img edit <image>                           the editor for this picture
 #   /img convert                                drop images or a folder into the window (an empty ⏎ takes the clipboard)
 #   /img convert <image|folder>… [--to <format>] [--quality <1–100>] [--max <pixels>]
 #   /img formats                                what this Mac reads and writes
@@ -27,23 +30,29 @@ typeset -ga IMG_FORMATS=(
 typeset -ga IMG_IN=() IMG_OUT=() IMG_FROM=()
 typeset -gi IMG_STOP=0
 
+source $LOTUS_ROOT/lib/edit/launch.zsh       # img_edit: the editor in the browser
+
 lotus_cmd_img() {
   shift   # "img"
   case $1 in
     convert|conv|c) shift; img_convert "$@" ;;
+    edit|crop|e)    shift; img_edit "$@" ;;
     formats)        img_formats ;;
-    ''|help|-h|--help) img_help ;;
+    '')             if ui_has_tty; then img_edit; else img_help; fi ;;
+    help|-h|--help) img_help ;;
     *)  if [[ -e ${1/#\~/$HOME} || $1 == file://* ]]; then img_convert "$@"
-        else ui_error "Unknown: /img $1" "" "/img convert <image|folder>   ·   /img help"; return 1; fi ;;
+        else ui_error "Unknown: /img $1" "" "/img edit <image>   ·   /img convert <image|folder>   ·   /img help"; return 1; fi ;;
   esac
 }
 
 img_help() {
-  ui_hero "Image converter" "PNG, JPEG, HEIC, AVIF, WebP, PDF and more – on $LOTUS_THIS"
+  ui_hero "Images" "Crop, straighten and convert pictures – on $LOTUS_THIS"
   local k=$'\e['"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" r
   local -a rows=(
+    "/img|the editor: drop a picture into the window – or ⏎ for the clipboard"
+    "/img edit <image>|crop, turn, straighten and convert this picture, in your browser"
     "/img convert|drop images or a folder into the window – or ⏎ for the clipboard"
-    "/img convert <image|folder>|one or more images, every image in a folder"
+    "/img convert <image or folder>|one or more images, every image in a folder"
     "  --to <format>|jpeg png heic avif webp tiff gif bmp pdf ico – no questions"
     "  --quality <1–100>|for JPEG, HEIC, AVIF and WebP (85 when not given)"
     "  --max <pixels>|at most this wide and high – never larger"
@@ -51,10 +60,11 @@ img_help() {
   for r in $rows; do print -r -- "    ${k}${(r:30:)${r%%|*}}${_UI_R}${r#*|}"; done
   ui_blank
   ui_section Examples; ui_blank
+  print -r -- "    ${d}/img edit ~/Desktop/IMG_2041.HEIC${_UI_R}"
   print -r -- "    ${d}/img convert ~/Desktop/IMG_2041.HEIC --to jpeg${_UI_R}"
   print -r -- "    ${d}/img convert ~/Desktop/shoot --to webp --max 1920${_UI_R}"
   ui_blank
-  ui_dim "  The originals stay as they are. A folder gets a folder for the new format inside it."
+  ui_dim "  The originals stay as they are. The editor saves a new picture next to it; a folder gets a folder for the new format inside it."
   ui_blank
 }
 
@@ -153,11 +163,13 @@ img_collect() {
 }
 
 # The drop zone: Finder types the path of what is dropped into the window, Lotus reads it without running anything
-img_ask() {
+img_ask() {   # [edit] – one picture for the editor; otherwise images and folders to convert
   local -i W=${COLUMNS:-80}
   (( W > 20 )) || W=80
-  if (( W >= 44 )); then ui_drop_zone $(( W - 8 > 60 ? 60 : W - 8 )) "Drop images or a folder here" "HEIC · PNG · JPEG · WebP · RAW · folders"
-  else ui_text "Drag images or a folder into this window"; fi
+  local title="Drop images or a folder here" types="HEIC · PNG · JPEG · WebP · RAW · folders" short="Drag images or a folder into this window"
+  [[ $1 == edit ]] && title="Drop a picture here" types="HEIC · PNG · JPEG · WebP · RAW" short="Drag a picture into this window"
+  if (( W >= 44 )); then ui_drop_zone $(( W - 8 > 60 ? 60 : W - 8 )) $title $types
+  else ui_text $short; fi
   local clip
   lotus_os_clip_peek; clip=$REPLY
   if [[ $clip == image\ * ]]; then

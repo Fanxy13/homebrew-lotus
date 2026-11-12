@@ -37,10 +37,10 @@ jobs:
         run: xcrun swiftc -typecheck -parse-as-library -swift-version 5 lib/ai/*.swift
       - name: Tests
         run: |
-          # liveserver, html (its Live Server part) and minecraft start servers and a game, and talk to them on 127.0.0.1: on a CI Mac
+          # liveserver, html (its Live Server part), editserver (the image editor's server) and minecraft start servers and a game, and talk to them on 127.0.0.1: on a CI Mac
           # those connections time out (a Python 3.15 and no desktop session), and nothing of it points to Lotus. They run on a real Mac:
-          #   zsh tests/run.zsh liveserver html minecraft
-          tests=$(ls tests/test-*.zsh | sed 's|tests/test-||; s|\.zsh$||' | grep -vE '^(liveserver|html|minecraft)$')
+          #   zsh tests/run.zsh liveserver html editserver minecraft
+          tests=$(ls tests/test-*.zsh | sed 's|tests/test-||; s|\.zsh$||' | grep -vE '^(liveserver|html|editserver|minecraft)$')
           zsh tests/run.zsh $tests
 
   ai-linux:
@@ -86,7 +86,9 @@ jobs:
       - name: Build the test image
         run: |
           platform=; [ "${{ matrix.distro }}" = arch ] && platform="--platform linux/amd64"
-          docker build $platform -q -f tests/docker/${{ matrix.distro }}.Dockerfile -t lotus-test:${{ matrix.distro }} .
+          # quiet; when it fails (a package mirror that is out of sync, a download that broke) once more, with the whole output
+          docker build $platform -q -f tests/docker/${{ matrix.distro }}.Dockerfile -t lotus-test:${{ matrix.distro }} . ||
+            docker build $platform --progress=plain -f tests/docker/${{ matrix.distro }}.Dockerfile -t lotus-test:${{ matrix.distro }} .
       - name: Tests (privileged, so that the plugin sandbox can be tested)
         run: LOTUS_TEST_JOBS=2 LOTUS_TEST_PRIV=1 tests/docker/par.sh ${{ matrix.distro }}      # two at a time: a few tests wait for programs they start and are slow when the CPU is busy
 

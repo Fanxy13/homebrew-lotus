@@ -3,6 +3,7 @@
 //   lotus-img --formats      what this Mac can write: one "<type identifier>" per line
 //   lotus-img --jobs <n>     the jobs on stdin, one per line, tab-separated, n at a time:
 //                            <input> <output> <type identifier> <quality 1–100, 0 = the format's own> <max pixels, 0 = keep>
+//                            [<a file whose camera data the new picture gets – the editor crops in a browser, which leaves it out>]
 //                            and one line per image on stdout:
 //                              start <i>
 //                              done <i> <input bytes> <output bytes> <w>x<h> <new w>x<new h>
@@ -19,7 +20,7 @@ import ImageIO
 import CoreGraphics
 import UniformTypeIdentifiers
 
-struct Job { let index: Int; let input: String; let output: String; let type: String; let quality: Int; let max: Int }
+struct Job { let index: Int; let input: String; let output: String; let type: String; let quality: Int; let max: Int; let meta: String }
 struct Failure: Error { let reason: String }
 
 let out = FileHandle.standardOutput
@@ -72,8 +73,18 @@ func convert(_ job: Job) throws -> String {
         img = square
     }
 
-    // the camera data stays, the orientation is in the pixels now
+    // the camera data stays, the orientation is in the pixels now – the file's own, or another file's (a cropped copy of it)
     var meta = props
+    if !job.meta.isEmpty,
+       let msrc = CGImageSourceCreateWithURL(URL(fileURLWithPath: job.meta) as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+       let mprops = CGImageSourceCopyPropertiesAtIndex(msrc, 0, nil) as? [CFString: Any] {
+        meta = mprops
+        if var exif = meta[kCGImagePropertyExifDictionary] as? [CFString: Any] {      // (the size of the picture it came from)
+            exif.removeValue(forKey: kCGImagePropertyExifPixelXDimension)
+            exif.removeValue(forKey: kCGImagePropertyExifPixelYDimension)
+            meta[kCGImagePropertyExifDictionary] = exif
+        }
+    }
     for k in [kCGImagePropertyPixelWidth, kCGImagePropertyPixelHeight, kCGImagePropertyOrientation, kCGImagePropertyDepth,
               kCGImagePropertyHasAlpha, kCGImagePropertyColorModel, kCGImagePropertyProfileName] { meta.removeValue(forKey: k) }
     if var tiff = meta[kCGImagePropertyTIFFDictionary] as? [CFString: Any] {
@@ -128,7 +139,8 @@ struct Main {
         while let line = readLine() {
             let f = line.components(separatedBy: "\t")
             guard f.count >= 5 else { continue }
-            jobs.append(Job(index: jobs.count + 1, input: f[0], output: f[1], type: f[2], quality: Int(f[3]) ?? 0, max: Int(f[4]) ?? 0))
+            jobs.append(Job(index: jobs.count + 1, input: f[0], output: f[1], type: f[2], quality: Int(f[3]) ?? 0, max: Int(f[4]) ?? 0,
+                            meta: f.count > 5 ? f[5] : ""))
         }
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = n

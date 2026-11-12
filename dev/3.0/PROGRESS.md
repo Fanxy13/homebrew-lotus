@@ -192,3 +192,20 @@ the texts said "macOS user" on Linux.
   script and pin its sha256 in `data/vendor.tsv` (two-commit release, like the Cask checksum).
 - Chromium refuses to start its sandbox in containers; `view_page` then refuses too, unless `LOTUS_PAGE_NOSANDBOX=1`
   (set only in the test containers). As root it adds `--no-sandbox` itself.
+
+### 2026-11-11 – the image editor (`/img`)
+- A crop editor in the look of the iPhone's Photos app, in the browser: frame with handles and a grid, shapes, turn, mirror, a
+  dial to straighten, and the conversion tools (format, quality, size) in a second tab. `lib/edit/web` (page, geometry, texts),
+  `lib/edit/editor.py` (the server), `lib/edit/engine.py` (ImageIO on a Mac, ImageMagick elsewhere), `lib/edit/launch.zsh` (the glue).
+- The rule it was built under, and now the rule for every feature: shared code, a small adapter per system, a screen of glue per
+  shell, tests that need no system – `dev/PORTING.md`. Windows needs only `win/Public/img.ps1`, the installer's folder list and
+  a Pester file that runs the Python tests; Linux has it already (the same glue file).
+- Tests: 28 geometry checks (Node), 17 engine and session checks, 8 on the page's texts and content policy, 19 on the server over HTTP,
+  15 with the page in Chromium. Found by them: a class name used twice (the hint and the "editor stopped" overlay – the hint covered the
+  screen while it faded), Enter on a button that was clicked with the mouse (a keyboard modality is not a Tab), a self-recursive
+  test helper. Seen by eye: the saved file is the picture the frame showed (mirrored, straightened, 16:9).
+- Checked on a Mac (the CI Macs, Apple silicon and Intel): the converter builds with the new camera-data field and the engine tests run
+  with ImageIO (a cropped JPEG carries the original's camera make; a photo on its side comes out upright), and the geometry (Node)
+  and the page's texts pass. Not yet checked: Safari and Chrome on a Mac by script (the page was driven in Chromium on Linux), and
+  the server over HTTP on a Mac (a CI Mac cannot talk to 127.0.0.1 – `tests/test-editserver.zsh` runs on a real Mac and in the Linux
+  containers, where it passes on Debian, Fedora and Arch).

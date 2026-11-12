@@ -41,7 +41,7 @@ Nothing here is bundled in the repository. Each is fetched from the project that
 | [Swift](https://www.swift.org) runtime and Foundation | linked statically into the AI program for Linux (built with Swift's Static Linux SDK) | Apache-2.0 with the Runtime Library Exception |
 | [musl libc](https://musl.libc.org), [libcurl](https://curl.se), [zlib](https://zlib.net), [libxml2](https://gitlab.gnome.org/GNOME/libxml2), [ICU](https://icu.unicode.org) | parts of that static program (they come with the Static Linux SDK) | MIT, curl license, zlib license, MIT, Unicode license |
 | [bubblewrap](https://github.com/containers/bubblewrap) | the sandbox of limited plugins on Linux (from your package manager) | LGPL-2.0-or-later |
-| [ImageMagick](https://imagemagick.org) | `/img convert` and covers on Linux (from your package manager) | ImageMagick License |
+| [ImageMagick](https://imagemagick.org) | `/img` (the editor and `/img convert`) and covers on Linux (from your package manager) | ImageMagick License |
 | [Chromium](https://www.chromium.org), Chrome, Edge | the AI looks at the pages it builds, in headless mode (the one you installed) | BSD-3-Clause and others |
 | [Pester](https://pester.dev) | the tests of the Windows module (not part of an install) | Apache-2.0 |
 
