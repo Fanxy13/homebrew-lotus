@@ -18,6 +18,9 @@ BeforeDiscovery {
         & $t -size 1x1 'xc:white' $probe *> $null
         if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $probe)) { $script:HasMagick = $true; Remove-Item -LiteralPath $probe -Force; break }
     }
+    # the programs of tests/edit that run here: the page's needs no image program, the engine's and the server's do (without one that
+    # works they would take the broken magick.exe of the PATH for the engine)
+    $script:EditPrograms = @('page_test.py') + $(if ($script:HasMagick) { @('engine_test.py', 'server_test.py') } else { @() })
 }
 
 BeforeAll {
@@ -194,7 +197,7 @@ Describe '/img edit – the editor itself, started by the glue' -Skip:(-not ($sc
 }
 
 Describe 'the editor program, on this system' -Skip:(-not $script:HasPython) {
-    It '<_> passes' -ForEach 'page_test.py', 'engine_test.py', 'server_test.py' {
+    It '<_> passes' -ForEach $script:EditPrograms {
         $name = $_
         $r = Invoke-EditProgram $script:Py.Exe (@($script:Py.Args) + @('-B', '-X', 'utf8', (Join-Path $script:Ctx.Repo "tests/edit/$name"))) $name
         $r.Rc | Should -Be 0 -Because $r.Out

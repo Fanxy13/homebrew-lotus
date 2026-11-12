@@ -20,6 +20,11 @@ D = tmpdir()
 GRAD = lambda x, y: (x % 256, y % 256, 120)
 
 
+def same(a, b):
+    """The same path, whatever the separators (Windows writes a backslash where these tests write a slash)."""
+    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+
+
 @test("the code is written for Python 3.9 (the oldest one a Mac's Command Line Tools bring)")
 def _():
     for name in ("editor.py", "engine.py"):
@@ -189,11 +194,11 @@ def _():
 @test("the new file goes next to the original, never over a file that is there")
 def _():
     s = session()
-    assert s.plan("jpeg", True) == D + "/a edited.jpg"
-    assert s.plan("jpeg", False) == D + "/a (2).jpg", s.plan("jpeg", False)      # a.jpg is there already
-    assert s.plan("png", False) == D + "/a (2).png", s.plan("png", False)        # a.png is the original
+    assert same(s.plan("jpeg", True), D + "/a edited.jpg")
+    assert same(s.plan("jpeg", False), D + "/a (2).jpg"), s.plan("jpeg", False)      # a.jpg is there already
+    assert same(s.plan("png", False), D + "/a (2).png"), s.plan("png", False)        # a.png is the original
     open(D + "/a edited.jpg", "w").close()
-    assert s.plan("jpeg", True) == D + "/a edited (2).jpg"
+    assert same(s.plan("jpeg", True), D + "/a edited (2).jpg")
     os.remove(D + "/a edited.jpg")
     s.forget()
 
@@ -240,9 +245,9 @@ def _():
 @test("a picture from the clipboard goes to the folder that was named – made when it is not there yet")
 def _():
     s = session("a.png", out=D + "/clip/Lotus")
-    assert s.out_dir == D + "/clip/Lotus" and s.note == "", (s.out_dir, s.note)
+    assert same(s.out_dir, D + "/clip/Lotus") and s.note == "", (s.out_dir, s.note)
     item = s.save("png", 0, 0, False, None)
-    assert os.path.dirname(item["path"]) == D + "/clip/Lotus" and os.path.isfile(item["path"])
+    assert same(os.path.dirname(item["path"]), D + "/clip/Lotus") and os.path.isfile(item["path"])
     s.forget()
 
 
@@ -258,7 +263,7 @@ def _():
     os.chmod(ro, stat.S_IRUSR | stat.S_IXUSR)
     try:
         s = ED.Session(ro + "/r.png", eng, D + "/data", None, None, D + "/Downloads")
-        assert s.out_dir == D + "/Downloads" and s.note == "folder", (s.out_dir, s.note)
+        assert same(s.out_dir, D + "/Downloads") and s.note == "folder", (s.out_dir, s.note)
         s.forget()
     finally:
         os.chmod(ro, stat.S_IRWXU)
