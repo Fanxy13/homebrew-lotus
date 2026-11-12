@@ -88,9 +88,10 @@ function Install-Lotus {
             & $fail "That does not look like Lotus ($src)."
         }
         # only what Windows needs: the module, the shared data, the logos, the shims, and from lib/ the file that holds the
-        # version, the settings' keys and defaults, the texts in four languages and the Python of Live Server and /html
+        # version, the settings' keys and defaults, the texts in four languages, the Python of Live Server, /html and the
+        # image editor (with its page), the worker of Remove BG and the sources of the Minecraft plugin
         New-Item -ItemType Directory -Force -Path $dest | Out-Null
-        foreach ($item in 'win', 'data', 'logos', 'lib/lang', 'lib/live', 'lib/html') {
+        foreach ($item in 'win', 'data', 'logos', 'lib/lang', 'lib/live', 'lib/html', 'lib/edit', 'lib/bg', 'lib/mc') {
             $from = Join-Path $src $item
             $target = Join-Path $dest $item
             if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
