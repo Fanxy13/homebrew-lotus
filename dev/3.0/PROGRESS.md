@@ -226,3 +226,19 @@ the texts said "macOS user" on Linux.
   `server_test.py` (13 s) and the geometry in Node. On Windows on Arm the tests that need an ImageMagick that works are left out.
 - Not checked on Windows: the page in Edge or Chrome by script, a file dropped into Windows Terminal, the clipboard (a copied image,
   copied files) and the camera data of a photo (not copied by ImageMagick).
+
+### 2026-11-12 – Face Blur (`/img`, a third tab)
+- The faces of a picture found by YuNet (MIT) – a network of 53,000 numbers run in the page in plain JavaScript, in a worker – and
+  hidden: left out by a tap, more drawn over with a pencil, Blur, Pixelate or Black and a strength. Shared by every system: no glue.
+- Proved before it was used: the forward pass equals ONNX Runtime's to 4·10⁻⁶ (a photo, noise), and on nine photos (99 faces) the
+  faces and boxes equal OpenCV's own YuNet (`cv2.FaceDetectorYN`) to 0.002 px. The multi-size plan (640 and smaller, plus 1280 for a
+  big photo) found all faces of the photos it was tried on and none in pictures without faces (scikit-image's samples) – one weak
+  "face" (0.62) in a motorcycle at the looser threshold of 0.5, none at 0.6.
+- Found while measuring: at a strength of 0.6 a blurred face was still found by the detector (score 0.61) – the tab starts at 0.8,
+  where none is found; pixelated faces keep their rough shape and are found at every strength (that does not mean a person can be
+  recognized). A picture with hidden faces is saved without its camera data.
+- Found by the browser test: a row of 94 faces made the page as wide as all of them (a grid column without a limit); a check of the
+  Reset button in the old browser test ran before the page had drawn – the "dial" test that failed now and then.
+- Not checked: Safari, Edge, Firefox by script; a real iPhone photo with dozens of faces on a slow computer (the 2048 × 1150 group
+  photo takes about two seconds in Chromium here).
+

@@ -77,7 +77,7 @@ platform layer (`lotus_os_*`, `Platform.ps1`), never straight from a feature.
 
 | | macOS | Linux | Windows |
 |---|---|---|---|
-| The page, the server, the geometry (`lib/edit`) | shared | shared | shared |
+| The page, the server, the geometry, Face Blur (`lib/edit`) | shared | shared | shared |
 | The engine (`engine.py`) | `ImageIO` → `lotus-img`, built once | `Magick` | `Magick` – nothing to write |
 | The glue | `lib/edit/launch.zsh` | the same file | `win/Public/img.ps1` (`Invoke-LotusImgEdit`, about 75 lines) |
 | Camera data of the original in the cropped copy | yes (ImageIO) | not yet | not yet |
@@ -116,6 +116,22 @@ What the port taught – for the next feature:
 - **POSIX habits that Windows does not share**: `SO_REUSEADDR` lets a second program take a port that is in use (the server
   turns it off there), and a folder's read-only mark does not stop writing into it.
 - **Pester's `BeforeDiscovery` variables are not there in `BeforeAll`**: what the run needs it must find again.
+
+## An AI in the page: Face Blur
+
+Face Blur needed a face detector, and it is the same on every system because it is part of the page: a small network
+(YuNet, 53,000 numbers) run by plain JavaScript (`lib/edit/web/faces.js`, in a worker) – no runtime to install, no per-system
+build, no download. How it was made, for the next small model:
+
+1. Take a model whose license allows it and that is small (here: MIT, 230 KB as ONNX), and whose operations are few
+   (here: convolutions, ReLU, max pooling, nearest upsampling, addition, sigmoid).
+2. Turn its file into one the page reads in a few lines (`scripts/make-face-model.py`: the ONNX protocol buffer read with
+   Python's standard library; a JSON header with the steps, then the numbers) – pinned by the checksum of the file it comes from.
+3. Write each operation as a pure function and prove the whole network against the reference: the same numbers as ONNX Runtime
+   (here at most 4 millionths apart) and the same results as the project's own code (OpenCV's YuNet: the same 99 faces on nine
+   photos). Those checks need numpy, onnxruntime and OpenCV once, on a developer's machine; the tests that stay
+   (`tests/edit/faces.test.js`) need only Node and a public-domain portrait.
+4. Run it beside the page (a worker), so the page stays quick; give the work to the page in pixels of the picture.
 
 ## What stays system-specific on purpose
 

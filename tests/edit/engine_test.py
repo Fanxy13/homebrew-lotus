@@ -157,6 +157,22 @@ def _():
         assert b"Lotus Test Camera" in f.read()
 
 
+@test("a picture with hidden faces gets no camera data – the place would tell where it was taken (lotus-img)")
+def _():
+    if eng.kind != "imageio":
+        raise Skip("ImageMagick does not copy camera data at all")
+    s = ED.Session(D + "/side.jpg", eng, D + "/data", D + "/blurred", None, D + "/Downloads")
+    s.prepare()
+    crop = png(D + "/crop2.png", 120, 90, GRAD)
+    with_camera = s.save("jpeg", 90, 0, True, crop)
+    without = s.save("jpeg", 90, 0, True, crop, camera=False)
+    with open(with_camera["path"], "rb") as f:
+        assert b"Lotus Test Camera" in f.read(), "as before: a cropped copy has the original's camera data"
+    with open(without["path"], "rb") as f:
+        assert b"Lotus Test Camera" not in f.read()
+    s.forget()
+
+
 # ── The session of one picture ──
 def session(name="a.png", out=None, last=None, **kw):
     s = ED.Session(D + "/" + name, eng, D + "/data", out, last, D + "/Downloads")

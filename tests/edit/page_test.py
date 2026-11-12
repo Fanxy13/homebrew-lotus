@@ -10,7 +10,8 @@ import engine as E
 
 WEB = os.path.join(EDIT, "web")
 read = lambda name: open(os.path.join(WEB, name), encoding="utf-8").read()
-HTML, JS, CSS = read("index.html"), read("editor.js"), read("editor.css")
+HTML, CSS = read("index.html"), read("editor.css")
+JS = read("editor.js") + read("blur.js") + read("faces.js") + read("faces-worker.js")     # (everything that runs in the page)
 S = json.loads(read("strings.json"))
 EN = S["en"]
 QUALITIES, SIZES = (95, 85, 70, 50), (0, 3840, 2560, 1920, 1280, 640)
@@ -24,6 +25,7 @@ def keys_used():
     keys |= {"q_%d" % q for q in QUALITIES} | {"q_%d_d" % q for q in QUALITIES}   # t('q_' + quality)
     keys |= {"size_%d" % s for s in SIZES}                                        # SIZE_NAMES
     keys |= {"ratio_portrait", "ratio_landscape"}                                  # t('ratio_' + …)
+    keys |= {"fb_type_blur", "fb_type_pixel", "fb_type_solid"}                     # t('fb_type_' + type) – LotusBlur.TYPES
     return keys
 
 
@@ -86,5 +88,15 @@ def _():
 @test("the word 'gone' on the hint cannot clash with the overlay of the same name any more")
 def _():
     assert "hint').classList.add('away')" in JS and ".hint.away" in CSS and ".hint.gone" not in CSS
+
+@test("the Face Blur tab: its kinds of hiding are the ones blur.js knows, and every file the page loads is one the server sends")
+def _():
+    assert re.search(r"var TYPES = \['blur', 'pixel', 'solid'\]", read("blur.js"))
+    import editor as ED
+    for name in re.findall(r'src="web/([\w.-]+)"', HTML) + ["faces-worker.js", "faces.js", "faces.bin"]:
+        assert name in ED.ASSETS, name
+        assert os.path.isfile(os.path.join(WEB, name)), name
+    assert "importScripts('faces.js')" in read("faces-worker.js") and "fetch('faces.bin')" in read("faces-worker.js")
+    assert "new Worker(base + 'web/faces-worker.js')" in read("editor.js")
 
 finish()

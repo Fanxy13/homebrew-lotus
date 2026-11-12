@@ -81,7 +81,7 @@ function script:Get-LotusImgWritable {
 function script:Show-LotusImgHelp {
     Write-LotusHero 'Images' 'Crop, straighten and convert pictures – on this PC'
     $k = E key; $d = E dim; $r = $script:R
-    foreach ($row in @('/img|the editor: drop a picture into the window – or ⏎ for the clipboard', '/img edit <image>|crop, turn, straighten and convert this picture, in your browser',
+    foreach ($row in @('/img|the editor: drop a picture into the window – or ⏎ for the clipboard', '/img edit <image>|crop, turn, straighten, hide faces and convert this picture, in your browser',
             '/img convert|drop images or a folder into the window', '/img convert <image or folder>|one or more images, every image in a folder',
             '  --to <format>|jpeg png heic avif webp tiff gif bmp pdf ico – no questions', '  --quality <1–100>|for JPEG, HEIC, AVIF and WebP (85 when not given)',
             '  --max <pixels>|at most this wide and high – never larger', '/img formats|what this PC reads and writes')) {

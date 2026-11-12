@@ -2,3 +2,5 @@
 # zsh engine and Lotus for Windows compare their bytes. Batch files are the exception – cmd.exe wants CRLF.
 * text=auto eol=lf
 *.cmd text eol=crlf
+# the face detector of the image editor (numbers, not text)
+lib/edit/web/faces.bin binary

@@ -375,20 +375,27 @@ clipboard) – or `/img edit ~/Desktop/IMG_2041.HEIC`. It reads what the system'
 - **Turn, mirror, straighten** – the two buttons at the top left turn the picture left and mirror it; the dial under the
   picture straightens it (−45° to 45°, drag it, scroll on it, or use the arrow keys – a double click sets it back to 0°).
   The frame follows, so there is never an empty corner. **Reset** puts everything back.
-- **Convert** – the second tab: the format (everything `/img formats` shows), the quality (Best, High, Medium, Small), the
+- **Face Blur** – the second tab finds the faces in the picture with a small AI that runs in the page itself (YuNet, about
+  210 KB, on this computer – nothing is uploaded) and hides them all. Tap a face – on the picture or in the row of faces under
+  it – to leave it out; **Blur all** / **Show all** for all of them. The pencil draws over anything else that should go (a name
+  tag, a number plate; three brush sizes, **Undo**). How it is hidden: **Blur**, **Pixelate** or **Black**, and how strongly –
+  blurred at the strength it starts with, or black, a face cannot be found again by the detector itself. A picture with hidden
+  faces is saved without its camera data (date, place – they would tell where it was taken). Very small faces in a big photo
+  (under about 1 % of its width) and faces turned on their side can be missed: draw over them.
+- **Convert** – the third tab: the format (everything `/img formats` shows), the quality (Best, High, Medium, Small), the
   size (as it is, 4K … 640 px, never larger than the picture), a preview of what will be saved and the name it gets.
 - **Done** saves a **new** picture next to the original – `photo edited.jpg`, `photo edited (2).jpg` – and says where; the
   original is never changed. On macOS the camera data (date, camera, place) comes along. A picture from the clipboard goes
   to `~/Downloads/Lotus`.
-- Keys: **Esc** closes a menu, **⏎** is Done, **R** turns, **F** mirrors, the arrow keys move the frame. The page is in
-  English, German, French or Spanish, as Lotus is.
+- Keys: **Esc** closes a menu, **⏎** is Done, **R** turns, **F** mirrors, the arrow keys move the frame, **D** takes the
+  pencil in Face Blur. The page is in English, German, French or Spanish, as Lotus is.
 
 ```bash
 /img                                # drop a picture into the window · ⏎ for the clipboard
 /img edit ~/Desktop/IMG_2041.HEIC   # this picture
 ```
 
-It runs on **macOS**, **Linux** and **Windows** (beta). The page, the server and the geometry of the crop are the same files on
+It runs on **macOS**, **Linux** and **Windows** (beta). The page, the server, the geometry of the crop and Face Blur are the same files on
 every system; only the image engine differs: Apple's ImageIO on a Mac (the camera data comes along), ImageMagick on Linux and
 Windows (`sudo apt install imagemagick` · `winget install ImageMagick.ImageMagick` – Lotus shows the command and asks first; the
 cropped picture has no camera data there yet). It also needs Python 3.9 or newer: a Mac's Command Line Tools have it, on

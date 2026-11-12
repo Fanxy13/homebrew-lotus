@@ -61,8 +61,8 @@ Device tools	/ios	ios	/ios	iOS tools: AirCard, Nugget, Sideloadly, Dopamine	/ios
 Device tools	-	ios devices	/ios devices	Show connected iPhones and iPads	/ios devices	0
 Media	/convert	convert	/convert <link>	Save a video as MP3 or MP4 with yt-dlp	/convert https://youtube.com/watch?v=…	0
 Media	-	visual	/lotus visual	Animated audio visualizer, 8 modes	/lotus visual	0
-Images	/img	img	/img	Crop, turn, straighten and convert a picture in your browser – like the iPhone's Photos. Drop it into the window, or ⏎ for the clipboard	/img	0
-Images	-	img edit	/img edit <image>	The same for one picture: a frame to drag, the shape (square, 16:9 …), turn, mirror, straighten – then JPEG, PNG, HEIC … in the Convert tab	/img edit ~/Desktop/IMG_2041.HEIC	0
+Images	/img	img	/img	Crop, turn, straighten, hide faces and convert a picture in your browser – like the iPhone's Photos. Drop it into the window, or ⏎ for the clipboard	/img	0
+Images	-	img edit	/img edit <image>	The same for one picture: a frame to drag, the shape (square, 16:9 …), turn, mirror, straighten, faces hidden in the Face Blur tab – then JPEG, PNG, HEIC … in the Convert tab	/img edit ~/Desktop/IMG_2041.HEIC	0
 Images	-	img	/img convert <image|folder>	Convert images and whole folders: JPEG, PNG, HEIC, AVIF, WebP, TIFF, GIF, PDF, ICO	/img convert ~/Desktop/shoot	0
 Images	-	img convert	/img convert	Drag images or a folder into the window – or ⏎ for the clipboard	/img convert	0
 Images	-	img convert	/img convert <…> --to webp	Without questions: --to <format>, --quality <1–100>, --max <pixels>	/img convert photo.heic --to jpeg	0

@@ -1,8 +1,9 @@
-"""Lotus image editor – crop, turn, straighten and convert a picture in a window like the iPhone's Photos app.
+"""Lotus image editor – crop, turn, straighten, hide faces and convert a picture in a window like the iPhone's Photos app.
 
     python3 editor.py <picture> [--out-dir <folder>] [--no-open] [--port <n>]
 
-Part of Lotus (lib/cmd/img.zsh starts it: /img, /img edit). Python's standard library, nothing to install.
+Part of Lotus (lib/cmd/img.zsh starts it: /img, /img edit). Python's standard library, nothing to install. The Face Blur tab
+finds faces in the page itself (web/faces.js, a small network in plain JavaScript) – the server only hands it its file.
 
 How it works – the same on every system:
   * the page (web/: HTML, CSS, JavaScript – no framework, no download) is served to this computer only: 127.0.0.1, an
@@ -40,7 +41,9 @@ import engine as engines  # noqa: E402
 
 WEB = os.path.join(HERE, "web")
 ASSETS = {"editor.css": "text/css; charset=utf-8", "editor.js": "text/javascript; charset=utf-8",
-          "geometry.js": "text/javascript; charset=utf-8"}
+          "geometry.js": "text/javascript; charset=utf-8", "blur.js": "text/javascript; charset=utf-8",
+          "faces.js": "text/javascript; charset=utf-8", "faces-worker.js": "text/javascript; charset=utf-8",
+          "faces.bin": "application/octet-stream"}       # faces.bin: the face detector of the Face Blur tab (YuNet, MIT – THIRD_PARTY.md)
 LANGS = ("en", "de", "fr", "es")
 QUALITIES = (95, 85, 70, 50)                       # Best, High, Medium, Small – the same as /img convert
 SIZES = (0, 3840, 2560, 1920, 1280, 640)           # all, 4K, 2560, Full HD, 1280, 640 – the same as /img convert
@@ -222,8 +225,10 @@ class Session(object):
                 return path
             n += 1
 
-    def save(self, key, quality, max_px, edited, upload):
-        """Writes the new file → a dict for the page. `upload`: the cropped picture as a PNG (when it was edited)."""
+    def save(self, key, quality, max_px, edited, upload, camera=True):
+        """Writes the new file → a dict for the page. `upload`: the cropped picture as a PNG (when it was edited).
+        camera: the original's camera data (date, camera, place) go into the new file – not when faces were blurred: the place
+        would tell where the picture was taken."""
         if key not in self.formats:
             raise engines.EngineError("this computer cannot write that format")
         lossy = engines.BY_KEY[key][4]
@@ -232,7 +237,7 @@ class Session(object):
         with self.lock:
             out = self.plan(key, edited)
             if edited:
-                res = self.engine.convert(upload, out, key, quality, max_px, self.image)
+                res = self.engine.convert(upload, out, key, quality, max_px, self.image if camera else None)
             else:
                 res = self.engine.convert(self.image, out, key, quality, max_px, None)
             item = {"path": out, "name": os.path.basename(out), "folder": tilde(os.path.dirname(out)),
@@ -310,7 +315,7 @@ class Editor(object):
             .replace("{{title}}", os.path.basename(self.session.image).replace("&", "&amp;").replace("<", "&lt;"))
 
 
-CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; "
+CSP = ("default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; "
        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
@@ -435,6 +440,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 return default
         key, edited = (q.get("format") or [""])[0], (q.get("edited") or ["0"])[0] == "1"
+        camera = (q.get("camera") or ["1"])[0] != "0"
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
@@ -460,7 +466,7 @@ class Handler(BaseHTTPRequestHandler):
             elif length:
                 self.rfile.read(length)
             try:
-                item = s.save(key, num("quality", QUALITIES[1]), num("max", 0), edited, upload)
+                item = s.save(key, num("quality", QUALITIES[1]), num("max", 0), edited, upload, camera)
             except engines.EngineError as e:
                 return self.json(200, {"ok": False, "error": e.reason})
             say("  %s Saved  %s  %s" % (paint(KEY, "✓", True), paint(KEY, tilde(item["path"])),

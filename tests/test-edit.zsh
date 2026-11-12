@@ -26,7 +26,7 @@ check "/img is still an alias for lotus img" grep -q $'^Images\t/img\timg\t/img\
 check "and the cheatsheet lists the editor" grep -q $'^Images\t-\timg edit\t/img edit <image>\t' $LOTUS_ROOT/data/commands.tsv
 check_has "the help names the editor first" "$(lotus img help 2>&1 | plain)" "/img edit <image>"
 check_has "and still the converter" "$(lotus img help 2>&1 | plain)" "/img convert <image or folder>"
-check_has "/img without a keyboard is the help" "$(lotus img 2>&1 < /dev/null | plain)" "crop, turn, straighten and convert this picture"
+check_has "/img without a keyboard is the help" "$(lotus img 2>&1 < /dev/null | plain)" "crop, turn, straighten, hide faces and convert this picture"
 
 # ── the glue ──
 out=$(lotus img edit 2>&1 < /dev/null | plain)
@@ -47,8 +47,11 @@ else
 fi
 
 # ── the test programs: Python and, for the geometry, Node ──
-if (( $+commands[node] )); then suite "geometry" node $LOTUS_ROOT/tests/edit/geometry.test.js
-else print -r -- "  · no Node here: the geometry of the crop is not tested"; fi
+if (( $+commands[node] )); then
+  suite "geometry" node $LOTUS_ROOT/tests/edit/geometry.test.js
+  suite "faces (Face Blur's detector)" node $LOTUS_ROOT/tests/edit/faces.test.js
+  suite "hiding faces (Face Blur)" node $LOTUS_ROOT/tests/edit/blur.test.js
+else print -r -- "  · no Node here: the geometry of the crop, the face detector and the hiding of faces are not tested"; fi
 if (( ! $+commands[python3] )); then
   print -r -- "  · no Python 3: the editor's tests are skipped"
 else
