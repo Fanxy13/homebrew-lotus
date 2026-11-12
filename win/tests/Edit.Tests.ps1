@@ -68,7 +68,7 @@ Describe '/img – the editor first' {
     It 'the help names the editor and still the converter' {
         $out = lotus img help 6>&1 | Out-String
         $out | Should -Match '/img edit <image>'
-        $out | Should -Match 'crop, turn, straighten and convert this picture'
+        $out | Should -Match 'crop, turn, straighten, hide faces and convert this picture'
         $out | Should -Match '/img convert <image or folder>'
         $out | Should -Match '/img formats'
     }
@@ -86,7 +86,7 @@ Describe '/img – the editor first' {
     It 'the cheat sheet lists the editor – it is on Windows now' {
         $out = lotus cheatsheet *>&1 | Out-String
         $out | Should -Match '/img edit <image>'
-        $out | Should -Match 'Crop, turn, straighten and convert a picture'
+        $out | Should -Match 'Crop, turn, straighten, hide faces'                      # (the cheat sheet cuts long descriptions)
     }
 }
 
@@ -250,10 +250,10 @@ Describe 'the editor program, on this system' -Skip:(-not $script:HasPython) {
     }
 }
 
-Describe 'the geometry of the crop, on this system' -Skip:(-not $script:HasNode) {
-    It 'passes in Node – the same pure functions the page runs in every browser' {
+Describe 'the pure functions of the page, on this system: the geometry of the crop, the face detector, hiding faces' -Skip:(-not $script:HasNode) {
+    It '<_> passes in Node – the same functions the page runs in every browser' -ForEach 'geometry.test.js', 'faces.test.js', 'blur.test.js' {
         $node = (Get-Command node -CommandType Application | Select-Object -First 1).Source
-        $r = Invoke-EditProgram $node @((Join-Path $script:Ctx.Repo 'tests/edit/geometry.test.js')) 'geometry'
+        $r = Invoke-EditProgram $node @((Join-Path $script:Ctx.Repo "tests/edit/$_")) $_
         $r.Rc | Should -Be 0 -Because $r.Out
         $r.Out | Should -Not -Match '✗' -Because $r.Out
         $r.Out | Should -Match '✓'

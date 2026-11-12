@@ -106,9 +106,12 @@ def _():
 
 @test("the page's files, and only those")
 def _():
-    for name, kind in (("editor.js", "javascript"), ("geometry.js", "javascript"), ("editor.css", "css")):
+    for name, kind in (("editor.js", "javascript"), ("geometry.js", "javascript"), ("editor.css", "css"), ("blur.js", "javascript"),
+                       ("faces.js", "javascript"), ("faces-worker.js", "javascript"), ("faces.bin", "application/octet-stream")):
         status, h, body = ed.request("GET", "web/" + name)
         assert status == 200 and kind in h["content-type"] and len(body) > 1000, name
+    status, _, body = ed.request("GET", "web/faces.bin")
+    assert body[:8] == b"LFACE1\n\0", "the face detector of the Face Blur tab"
     for name in ("strings.json", "index.html", "../editor.py", "..%2Feditor.py", "editor.js/../../editor.py", ".", ""):
         status, _, body = ed.request("GET", "web/" + name)
         assert status == 404 and b"def main" not in body, (name, status)

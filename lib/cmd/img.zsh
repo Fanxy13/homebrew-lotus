@@ -50,7 +50,7 @@ img_help() {
   local k=$'\e['"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" r
   local -a rows=(
     "/img|the editor: drop a picture into the window – or ⏎ for the clipboard"
-    "/img edit <image>|crop, turn, straighten and convert this picture, in your browser"
+    "/img edit <image>|crop, turn, straighten, hide faces and convert this picture, in your browser"
     "/img convert|drop images or a folder into the window – or ⏎ for the clipboard"
     "/img convert <image or folder>|one or more images, every image in a folder"
     "  --to <format>|jpeg png heic avif webp tiff gif bmp pdf ico – no questions"
