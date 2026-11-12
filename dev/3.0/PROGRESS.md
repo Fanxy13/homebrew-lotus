@@ -209,3 +209,20 @@ the texts said "macOS user" on Linux.
   and the page's texts pass. Not yet checked: Safari and Chrome on a Mac by script (the page was driven in Chromium on Linux), and
   the server over HTTP on a Mac (a CI Mac cannot talk to 127.0.0.1 – `tests/test-editserver.zsh` runs on a real Mac and in the Linux
   containers, where it passes on Debian, Fedora and Arch).
+
+### 2026-11-12 – the image editor on Windows
+- `win/Public/img.ps1`: `Invoke-LotusImgEdit` – about 75 lines of glue, as `dev/PORTING.md` said it would be: Python 3.9+ and ImageMagick
+  (the winget command when one is missing), the picture (a path, the drop zone, the clipboard), `lib/edit/editor.py` with Lotus'
+  environment. `/img`, `/img edit`, `/img crop`, `/img e`; the help names the editor first. The clipboard code of `/bg` moved to
+  `Platform.ps1` for both. The editor is told which ImageMagick to use (`LOTUS_MAGICK`) – on the Arm64 runner the first `magick` of the
+  PATH cannot write an image.
+- Found by the port: the installer copied neither `lib/bg` nor `lib/mc` (an installed Lotus for Windows could not run Remove BG's worker
+  or build the Minecraft plugin; the tests run from a checkout and could not see it) – it ships them now, with `lib/edit`, and the
+  install test looks for a file of each; a row of the help was cut at the `|` inside `<image|folder>`; `engine_test.py` compared
+  paths with `/`.
+- Real Windows (GitHub's runners): the first run had one red test in each of PowerShell 7 (x64), Windows PowerShell 5.1 and the
+  `Tests` workflow's Windows job – always that path comparison – and everything else green, among it the editor started by the glue
+  for a real picture (page, picture, a wrong secret gets 404, Cancel ends it with 0 and removes its working folder), `page_test.py`,
+  `server_test.py` (13 s) and the geometry in Node. On Windows on Arm the tests that need an ImageMagick that works are left out.
+- Not checked on Windows: the page in Edge or Chrome by script, a file dropped into Windows Terminal, the clipboard (a copied image,
+  copied files) and the camera data of a photo (not copied by ImageMagick).

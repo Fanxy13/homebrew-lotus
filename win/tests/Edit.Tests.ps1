@@ -150,6 +150,50 @@ Describe '/img edit – the glue' {
     }
 }
 
+Describe '/img edit – the drop zone' {
+    BeforeAll {
+        # the keys of a typed line: one for each character, a space is "space", then Enter
+        function Get-LineKeys { param([string]$Text) @(foreach ($c in $Text.ToCharArray()) { if ($c -eq ' ') { 'space' } else { [string]$c } }) + @('enter') }
+        function Read-DropZone {
+            param([string[]]$Keys)
+            $text = Invoke-LotusWithKeys $Keys { $script:EditTestWords = @(Read-LotusImgEditPaths) }
+            [pscustomobject]@{ Text = $text; Words = @(InModuleScope Lotus { $script:EditTestWords }) }
+        }
+    }
+    It 'shows the frame to drop on, and reads the path that is typed or dropped – nothing is run' {
+        Mock -ModuleName Lotus Get-LotusClipboardKind { 'none' }
+        $got = Read-DropZone (Get-LineKeys $script:Png)
+        $got.Text | Should -Match 'Drop a picture here'
+        $got.Text | Should -Match 'HEIC · PNG · JPEG · WebP · RAW'
+        $got.Words | Should -Be @($script:Png)
+    }
+    It 'a path in quotes, with spaces, is one word' {
+        Mock -ModuleName Lotus Get-LotusClipboardKind { 'none' }
+        $spaced = Join-Path $script:Dir 'my holiday photo.png'
+        $got = Read-DropZone (Get-LineKeys ('"' + $spaced + '"'))
+        $got.Words | Should -Be @($spaced)
+    }
+    It 'an empty Enter takes the picture in the clipboard' {
+        Mock -ModuleName Lotus Get-LotusClipboardKind { 'image 640x480' }
+        Mock -ModuleName Lotus Save-LotusClipboardPicture { 'the-clipboard-picture.png' }
+        $got = Read-DropZone @('enter')
+        $got.Text | Should -Match 'An image in the clipboard \(640 × 480\) – ⏎ takes it'
+        $got.Words | Should -Be @('the-clipboard-picture.png')
+    }
+    It 'files copied in File Explorer are offered too' {
+        Mock -ModuleName Lotus Get-LotusClipboardKind { 'files 2' }
+        Mock -ModuleName Lotus Save-LotusClipboardPicture { @('a.png', 'b.png') }
+        $got = Read-DropZone @('enter')
+        $got.Text | Should -Match '2 copied file\(s\) in the clipboard'
+        $got.Words | Should -Be @('a.png', 'b.png')
+    }
+    It 'an empty Enter with nothing in the clipboard, and Esc, go back with no picture' {
+        Mock -ModuleName Lotus Get-LotusClipboardKind { 'none' }
+        (Read-DropZone @('enter')).Words.Count | Should -Be 0
+        (Read-DropZone @('esc')).Words.Count | Should -Be 0
+    }
+}
+
 Describe '/img edit – the editor itself, started by the glue' -Skip:(-not ($script:HasPython -and $script:HasMagick)) {
     It 'serves its page and the picture to this computer only, saves nothing, and ends with Cancel' {
         $out = Join-Path $script:Ctx.Tmp 'edit.out'; $err = Join-Path $script:Ctx.Tmp 'edit.err'

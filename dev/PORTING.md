@@ -79,24 +79,43 @@ platform layer (`lotus_os_*`, `Platform.ps1`), never straight from a feature.
 |---|---|---|---|
 | The page, the server, the geometry (`lib/edit`) | shared | shared | shared |
 | The engine (`engine.py`) | `ImageIO` → `lotus-img`, built once | `Magick` | `Magick` – nothing to write |
-| The glue | `lib/edit/launch.zsh` | the same file | **to do**: `win/Public/img.ps1` |
+| The glue | `lib/edit/launch.zsh` | the same file | `win/Public/img.ps1` (`Invoke-LotusImgEdit`, about 75 lines) |
 | Camera data of the original in the cropped copy | yes (ImageIO) | not yet | not yet |
-| Tests | engine, geometry, texts on the CI Macs; the server over HTTP on a real Mac (a CI Mac cannot talk to 127.0.0.1) | engine, server and texts in the containers (the geometry where Node is there); the page in a browser where Playwright is there | to do |
+| Tests | engine, geometry, texts on the CI Macs; the server over HTTP on a real Mac (a CI Mac cannot talk to 127.0.0.1) | engine, server and texts in the containers (the geometry where Node is there); the page in a browser where Playwright is there | `win/tests/Edit.Tests.ps1` on GitHub's Windows machines: the glue, the editor started for a real picture, and the Python and Node programs of `tests/edit` with the machine's Python (the page is not driven in a browser there) |
 
-What the Windows glue (`Invoke-LotusImgEdit`) has to do – this is all of it:
+What the Windows glue (`Invoke-LotusImgEdit` in `win/Public/img.ps1`) does – this is all of it:
 
-1. `Find-LotusPython` (3.9 or newer) – say `winget install Python.Python.3.13` if there is none; `Find-LotusMagick` – say
-   `winget install ImageMagick.ImageMagick` if there is none.
-2. The picture: `Get-LotusImgInputs` (already there for `/img convert`), the drop zone, the clipboard (`--out-dir ~\Downloads\Lotus`).
-3. `python lib\edit\editor.py <picture> [--out-dir <folder>]` with `LOTUS_LANG`, `LOTUS_THIS=this PC`,
+1. `Find-LotusPython` (3.9 or newer) – it shows `winget install --id Python.Python.3.13 -e` if there is none; `Find-LotusMagick`
+   (the first `magick.exe` that can really write a PNG) – it shows `winget install --id ImageMagick.ImageMagick -e` and asks, if
+   there is none (`Install-LotusMagick`, the one `/img convert` has).
+2. The picture: `Get-LotusImgInputs` (shared with `/img convert`; a folder is refused with the way to `/img convert`), the drop
+   zone (`Read-LotusImgEditPaths`), and with an empty ⏎ the clipboard – an image or files copied in File Explorer
+   (`Get-LotusClipboardKind`, `Save-LotusClipboardPicture` in `Platform.ps1`) – whose picture goes to `--out-dir ~\Downloads\Lotus`.
+3. `Invoke-LotusPython` runs `lib/edit/editor.py <picture> [--out-dir <folder>]` with `LOTUS_LANG`, `LOTUS_THIS=this PC`,
    `LOTUS_FILES_APP=File Explorer`, `LOTUS_EDIT_DATA`, `LOTUS_IMG_LAST` (the file `/img convert` shares), `LOTUS_DOWNLOADS`,
-   `LOTUS_COLOR_KEY/ACCENT/DIM` – through `ConvertTo-LotusNativeArgs` and the helpers of `Platform.ps1` (Windows PowerShell 5.1 too).
-4. `/img` without arguments calls it, `/img edit <picture>` too; remove `img edit` and `/img` from `$script:RowsNotHere`.
-5. `win/tests/Edit.Tests.ps1`: run `tests/edit/page_test.py`, `engine_test.py` and `server_test.py` with the Python the module
-   found (they are plain Python and run on Windows as they are), and the geometry test with Node when it is there.
-6. Ship it: `lib/edit` goes into the list of folders in `install.ps1` (next to `lib/live` and `lib/html`) and into the `paths:`
-   of `.github/workflows/windows.yml`, so that a change of the editor runs the Windows tests. (`install.sh` and the Homebrew
-   cask copy the whole of `lib` already.)
+   `LOTUS_COLOR_KEY/ACCENT/DIM` and `LOTUS_MAGICK` (the ImageMagick that was tried out) – Windows PowerShell 5.1 too.
+4. `/img` without arguments calls it when there is a keyboard (the help otherwise), `/img edit|crop|e <picture>` too;
+   `$script:RowsNotHere` in `help.ps1` no longer hides the rows of the editor (the list stays, empty, for the next feature).
+5. `win/tests/Edit.Tests.ps1`: the commands; the glue with a Python and an ImageMagick that are made up (none, no picture, a
+   folder); the editor started by the glue for a real picture, asked for its page and its picture, and ended with Cancel; and the
+   programs of `tests/edit` (`page_test.py`, `engine_test.py`, `server_test.py`, the geometry with Node) run with the Python
+   the module finds. They are plain Python and run on Windows as they are – only a test that needs POSIX (a folder marked
+   read-only still being writable on Windows) says `Skip`.
+6. Ship it: `lib/edit` goes into the list of folders in `install.ps1` and into the `paths:` of `.github/workflows/windows.yml`,
+   so that a change of the editor runs the Windows tests. (`install.sh` and the Homebrew cask copy the whole of `lib` already.)
+
+What the port taught – for the next feature:
+
+- **A folder that a feature reads at run time must be in the installer's list.** The tests run from a checkout and cannot see a
+  missing one; `Install.Tests.ps1` now looks for a file of each folder (this is how `lib/bg` and `lib/mc` were found to be missing).
+- **Tell the shared program what the glue has already tried out** (`LOTUS_MAGICK`) instead of letting it search the PATH again:
+  the first `magick` of the PATH may be a program that cannot read or write images.
+- **What the system does for a feature belongs in the platform layer** – the clipboard of `/bg` moved to `Platform.ps1` and the
+  editor uses it too.
+- **A row of the help is cut at its first `|`**: `<image|folder>` shows as two columns; write `<image or folder>`.
+- **POSIX habits that Windows does not share**: `SO_REUSEADDR` lets a second program take a port that is in use (the server
+  turns it off there), and a folder's read-only mark does not stop writing into it.
+- **Pester's `BeforeDiscovery` variables are not there in `BeforeAll`**: what the run needs it must find again.
 
 ## What stays system-specific on purpose
 

@@ -368,7 +368,7 @@ a pack: `lotus plugin install https://github.com/Fanxy13/homebrew-lotus#packs/ex
 
 `/img` opens a picture in your browser, in a window that looks like the crop screen of the iPhone's Photos app: dark, a
 frame to drag, a dial under the picture. Drop the picture into the terminal window (or press ⏎ for the one in the
-clipboard) – or `/img edit ~/Desktop/IMG_2041.HEIC`. It reads what the Mac's engine reads: HEIC, RAW, WebP, AVIF, PNG, JPEG …
+clipboard) – or `/img edit ~/Desktop/IMG_2041.HEIC`. It reads what the system's image engine reads – on a Mac everything Preview opens: HEIC, RAW, WebP, AVIF, PNG, JPEG …
 
 - **Crop** – drag the corners or the edges of the frame, drag inside it to move it. The shape button has Freeform,
   Original, Square, 16:9, 4:3, 3:2, 5:4, 7:5 and Portrait / Landscape. What is outside the frame is gone.
@@ -387,6 +387,12 @@ clipboard) – or `/img edit ~/Desktop/IMG_2041.HEIC`. It reads what the Mac's e
 /img                                # drop a picture into the window · ⏎ for the clipboard
 /img edit ~/Desktop/IMG_2041.HEIC   # this picture
 ```
+
+It runs on **macOS**, **Linux** and **Windows** (beta). The page, the server and the geometry of the crop are the same files on
+every system; only the image engine differs: Apple's ImageIO on a Mac (the camera data comes along), ImageMagick on Linux and
+Windows (`sudo apt install imagemagick` · `winget install ImageMagick.ImageMagick` – Lotus shows the command and asks first; the
+cropped picture has no camera data there yet). It also needs Python 3.9 or newer: a Mac's Command Line Tools have it, on
+Windows it is `winget install Python.Python.3.13`.
 
 Everything stays on this computer: the editor is a small server (`lib/edit/editor.py`, Python's standard library) that
 answers only on `127.0.0.1`, under an address with a secret in it, to its own page, and ends when you close the tab, press
