@@ -82,7 +82,8 @@ Describe 'install.ps1' {
         $out | Should -Match 'Lotus is in'
         $out | Should -Match 'Done'
         foreach ($file in 'win/Lotus.psd1', 'win/Public/lotus.ps1', 'win/Public/pets.ps1', 'win/Public/ai.ps1', 'data/commands.tsv', 'data/pets/lotus.windows.tsv', 'data/ai/system.md',
-            'logos/lotus.txt', 'lib/core.zsh', 'lib/lang/en.zsh', 'lib/lang/setup.de.zsh', 'lib/live/liveserver.py', 'lib/html/convert.py', 'bin/lotus.cmd', 'bin/lotus.ps1', '.lotus-install') {
+            'logos/lotus.txt', 'lib/core.zsh', 'lib/lang/en.zsh', 'lib/lang/setup.de.zsh', 'lib/live/liveserver.py', 'lib/html/convert.py',
+            'lib/edit/editor.py', 'lib/edit/engine.py', 'lib/edit/web/index.html', 'lib/bg/worker.py', 'lib/mc/bridge/LotusBridge.java', 'bin/lotus.cmd', 'bin/lotus.ps1', '.lotus-install') {
             Test-Path (Join-Path $dest $file) | Should -BeTrue -Because "$file is there"
         }
         Test-Path (Join-Path $dest 'win/tests') | Should -BeFalse

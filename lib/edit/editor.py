@@ -476,7 +476,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class Server(ThreadingHTTPServer):
-    allow_reuse_address = True
+    allow_reuse_address = os.name != "nt"       # (on Windows this option would let a second program take a port that is in use)
     daemon_threads = True
 
     def handle_error(self, request, client_address):

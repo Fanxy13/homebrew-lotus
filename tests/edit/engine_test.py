@@ -20,6 +20,11 @@ D = tmpdir()
 GRAD = lambda x, y: (x % 256, y % 256, 120)
 
 
+def same(a, b):
+    """The same path, whatever the separators (Windows writes a backslash where these tests write a slash)."""
+    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+
+
 @test("the code is written for Python 3.9 (the oldest one a Mac's Command Line Tools bring)")
 def _():
     for name in ("editor.py", "engine.py"):
@@ -40,6 +45,20 @@ def _():
 def _():
     can = eng.writable()
     assert "png" in can and "jpeg" in can, can
+
+
+@test("LOTUS_MAGICK names the ImageMagick a shell has tried out – it comes before the one in the PATH")
+def _():
+    fake = os.path.join(D, "my-magick.exe" if os.name == "nt" else "my-magick")
+    with open(fake, "wb") as f:
+        f.write(b"x")
+    m = E.find_magick(magick=fake)
+    assert m.convert_cmd == [fake] and m.identify_cmd == [fake, "identify"] and m.list_cmd == [fake, "-list", "format"], (m.convert_cmd, m.identify_cmd)
+    m = E.find_engine({"LOTUS_MAGICK": fake})
+    assert m.kind == "magick" and m.convert_cmd == [fake], (m.kind, m.convert_cmd)
+    nothing = os.path.join(D, "nothing-here")
+    other = E.find_magick(magick=nothing)                  # (a name that is no file is passed over: the PATH is asked)
+    assert other is None or other.convert_cmd != [nothing]
 
 
 @test("a picture becomes a JPEG, smaller when asked, never larger")
@@ -175,11 +194,11 @@ def _():
 @test("the new file goes next to the original, never over a file that is there")
 def _():
     s = session()
-    assert s.plan("jpeg", True) == D + "/a edited.jpg"
-    assert s.plan("jpeg", False) == D + "/a (2).jpg", s.plan("jpeg", False)      # a.jpg is there already
-    assert s.plan("png", False) == D + "/a (2).png", s.plan("png", False)        # a.png is the original
+    assert same(s.plan("jpeg", True), D + "/a edited.jpg")
+    assert same(s.plan("jpeg", False), D + "/a (2).jpg"), s.plan("jpeg", False)      # a.jpg is there already
+    assert same(s.plan("png", False), D + "/a (2).png"), s.plan("png", False)        # a.png is the original
     open(D + "/a edited.jpg", "w").close()
-    assert s.plan("jpeg", True) == D + "/a edited (2).jpg"
+    assert same(s.plan("jpeg", True), D + "/a edited (2).jpg")
     os.remove(D + "/a edited.jpg")
     s.forget()
 
@@ -226,9 +245,9 @@ def _():
 @test("a picture from the clipboard goes to the folder that was named – made when it is not there yet")
 def _():
     s = session("a.png", out=D + "/clip/Lotus")
-    assert s.out_dir == D + "/clip/Lotus" and s.note == "", (s.out_dir, s.note)
+    assert same(s.out_dir, D + "/clip/Lotus") and s.note == "", (s.out_dir, s.note)
     item = s.save("png", 0, 0, False, None)
-    assert os.path.dirname(item["path"]) == D + "/clip/Lotus" and os.path.isfile(item["path"])
+    assert same(os.path.dirname(item["path"]), D + "/clip/Lotus") and os.path.isfile(item["path"])
     s.forget()
 
 
@@ -236,13 +255,15 @@ def _():
 def _():
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         raise Skip("root can write everywhere")
+    if os.name == "nt":
+        raise Skip("Windows does not stop a program from writing into a folder that is marked read-only")
     ro = D + "/readonly"
     os.makedirs(ro)
     png(ro + "/r.png", 20, 20, GRAD)
     os.chmod(ro, stat.S_IRUSR | stat.S_IXUSR)
     try:
         s = ED.Session(ro + "/r.png", eng, D + "/data", None, None, D + "/Downloads")
-        assert s.out_dir == D + "/Downloads" and s.note == "folder", (s.out_dir, s.note)
+        assert same(s.out_dir, D + "/Downloads") and s.note == "folder", (s.out_dir, s.note)
         s.forget()
     finally:
         os.chmod(ro, stat.S_IRWXU)

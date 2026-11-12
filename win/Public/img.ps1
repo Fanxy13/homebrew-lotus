@@ -1,8 +1,11 @@
-﻿# /img on Windows – images and whole folders into PNG, JPEG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO: a port of
-# lib/cmd/img.zsh with ImageMagick (magick.exe – its winget package is ImageMagick.ImageMagick), the way Lotus converts
-# off the Mac. Photos come out the right way up, smaller but never larger; transparency becomes white in JPEG and BMP.
-# The originals are never changed: an image gets a new file next to it, a folder gets a folder for the new format inside,
-# nothing is written over ("name (2).jpg"). Nothing is uploaded.
+﻿# /img on Windows – a picture cropped, turned, straightened and converted in the browser like the iPhone's Photos
+# (lib/edit – the same program as on the Mac and on Linux; this file is only its glue), and images and whole folders into
+# PNG, JPEG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO: a port of lib/cmd/img.zsh with ImageMagick (magick.exe – its
+# winget package is ImageMagick.ImageMagick), the way Lotus converts off the Mac. Photos come out the right way up,
+# smaller but never larger; transparency becomes white in JPEG and BMP. The originals are never changed: an image gets a
+# new file next to it, a folder gets a folder for the new format inside, nothing is written over ("name (2).jpg").
+# Nothing is uploaded.
+#   /img   ·   /img edit <image>
 #   /img convert [<image|folder>…] [--to <format>] [--quality <1–100>] [--max <pixels>]   ·   /img formats
 
 $script:ImgExt = @('png', 'jpg', 'jpeg', 'jpe', 'heic', 'heif', 'avif', 'webp', 'gif', 'tif', 'tiff', 'bmp', 'psd', 'jp2', 'jxl', 'svg', 'tga', 'ico',
@@ -25,11 +28,13 @@ function script:Invoke-Lotusimg {
     param([string]$Cmd, [string[]]$Rest)
     $sub = if ($Rest.Count) { $Rest[0] } else { '' }
     $more = [string[]]@($Rest | Select-Object -Skip 1)
+    if ($sub -cin 'edit', 'crop', 'e') { return Invoke-LotusImgEdit $more }
     if ($sub -cin 'convert', 'conv', 'c') { return Invoke-LotusImgConvert $more }
     if ($sub -ceq 'formats') { return Show-LotusImgFormats }
-    if ($sub -cin '', 'help', '-h', '--help') { return Show-LotusImgHelp }
+    if ($sub -ceq '') { if ((Test-LotusTty) -and (Test-LotusOutTty)) { return Invoke-LotusImgEdit @() } else { return Show-LotusImgHelp } }
+    if ($sub -cin 'help', '-h', '--help') { return Show-LotusImgHelp }
     if (Test-Path -LiteralPath (ConvertTo-LotusCleanPath $sub)) { return Invoke-LotusImgConvert $Rest }
-    Write-LotusError "Unknown: /img $sub" '' @('/img convert <image|folder>   ·   /img help')
+    Write-LotusError "Unknown: /img $sub" '' @('/img edit <image>   ·   /img convert <image|folder>   ·   /img help')
     St 1
 }
 
@@ -74,9 +79,10 @@ function script:Get-LotusImgWritable {
 }
 
 function script:Show-LotusImgHelp {
-    Write-LotusHero 'Image converter' 'PNG, JPEG, HEIC, AVIF, WebP, PDF and more – on this PC'
+    Write-LotusHero 'Images' 'Crop, straighten and convert pictures – on this PC'
     $k = E key; $d = E dim; $r = $script:R
-    foreach ($row in @('/img convert|drop images or a folder into the window', '/img convert <image|folder>|one or more images, every image in a folder',
+    foreach ($row in @('/img|the editor: drop a picture into the window – or ⏎ for the clipboard', '/img edit <image>|crop, turn, straighten and convert this picture, in your browser',
+            '/img convert|drop images or a folder into the window', '/img convert <image or folder>|one or more images, every image in a folder',
             '  --to <format>|jpeg png heic avif webp tiff gif bmp pdf ico – no questions', '  --quality <1–100>|for JPEG, HEIC, AVIF and WebP (85 when not given)',
             '  --max <pixels>|at most this wide and high – never larger', '/img formats|what this PC reads and writes')) {
         $p = $row -split '\|', 2
@@ -84,10 +90,11 @@ function script:Show-LotusImgHelp {
     }
     Write-LotusBlank
     Write-LotusSection 'Examples'; Write-LotusBlank
+    Write-LotusLine "    $d/img edit ~\Desktop\IMG_2041.HEIC$r"
     Write-LotusLine "    $d/img convert ~\Desktop\IMG_2041.HEIC --to jpeg$r"
     Write-LotusLine "    $d/img convert ~\Desktop\shoot --to webp --max 1920$r"
     Write-LotusBlank
-    Write-LotusDim '  The originals stay as they are. A folder gets a folder for the new format inside it.'
+    Write-LotusDim '  The originals stay as they are. The editor saves a new picture next to it; a folder gets a folder for the new format inside it.'
     Write-LotusBlank
     St 0
 }
@@ -334,4 +341,86 @@ function script:Invoke-LotusImgConvert {
         if ($first -and (Read-LotusConfirm "Show $(if ($done -eq 1) { 'it' } else { 'them' }) in File Explorer?" 'y')) { [void](Show-LotusInFolder $first[0]) }
     }
     St 0
+}
+
+# ── /img edit ─────────────────────────────────────────────────
+
+# The drop zone of the editor: Windows Terminal types the path of what is dropped into the window, Lotus reads it without
+# running anything. An empty ⏎ takes the clipboard – an image, or files copied in File Explorer. → the words (none:
+# cancelled, or nothing in the clipboard)
+function script:Read-LotusImgEditPaths {
+    $width = [Math]::Min(60, (Get-LotusColumns) - 8)
+    if ($width -ge 36) { Write-LotusDropZone $width 'Drop a picture here' 'HEIC · PNG · JPEG · WebP · RAW' } else { Write-LotusText 'Drag a picture into this window' }
+    $clip = Get-LotusClipboardKind
+    if ($clip -like 'image *') { Write-LotusLine "    $(E key)✓$($script:R) An image in the clipboard ($($clip.Substring(6) -replace 'x', ' × ')) – ⏎ takes it" }
+    elseif ($clip -like 'files *') { Write-LotusLine "    $(E key)✓$($script:R) $($clip.Substring(6)) copied file(s) in the clipboard – ⏎ takes them" }
+    Write-LotusDim '  Drop, then ⏎ · or type a path · esc goes back'
+    Write-LotusBlank
+    $line = Read-LotusLine 'Picture' ''
+    if ($null -eq $line) { return }
+    if (-not $line.Trim()) {
+        if ($clip -ceq 'none') { return }
+        return @(Save-LotusClipboardPicture (Join-Path $script:Paths.Cache 'img\clipboard'))
+    }
+    Split-LotusShellWords $line
+}
+
+# The picture editor in the browser: lib/edit/editor.py, the program of every system (Python's standard library – the page,
+# the server and the geometry of the crop know no operating system). This is its glue and nothing more: find the picture,
+# make sure Python and ImageMagick are there, start the server with Lotus' environment, show what it printed.
+function script:Invoke-LotusImgEdit {
+    param([string[]]$Words)
+    Write-LotusHero 'Image editor' 'Crop, straighten and convert – in your browser, on this PC'
+
+    # Python 3.9 or newer (nothing to install but Python itself)
+    $py = Find-LotusPython
+    if (-not $py) {
+        Write-LotusError 'The editor needs Python 3.9 or newer' 'Python is free; Lotus uses only its standard library.' @(
+            'winget install --id Python.Python.3.13 -e   then open a new window')
+        return (St 1)
+    }
+
+    # the picture
+    $paths = [System.Collections.Generic.List[string]]::new()
+    foreach ($w in $Words) { $paths.Add($w) }
+    if (-not $paths.Count) {
+        if (-not ((Test-LotusTty) -and (Test-LotusOutTty))) { Write-LotusError 'Which picture?' '' @('/img edit <picture>'); return (St 1) }
+        foreach ($w in @(Read-LotusImgEditPaths)) { $paths.Add($w) }
+        if (-not $paths.Count) { return (St 0) }
+        Write-LotusBlank
+    }
+    $inputs = Get-LotusImgInputs $paths.ToArray()
+    foreach ($m in $inputs.Missing) { Write-LotusWarn "Not found: $m" }
+    if (-not $inputs.In.Count) {
+        Write-LotusError 'No picture to edit' '' @("Pictures: $((($script:ImgExt | Select-Object -First 12) | ForEach-Object { $_.ToUpper() }) -join ', ') …")
+        return (St 1)
+    }
+    if (@($inputs.From | Where-Object { $_ }).Count) {
+        Write-LotusError 'The editor opens one picture at a time' '' @('A whole folder: /img convert <folder>')
+        return (St 1)
+    }
+    if ($inputs.In.Count -gt 1) { Write-LotusDim "  $($inputs.In.Count) pictures – the editor opens the first, $(Split-Path -Leaf $inputs.In[0]). All of them at once: /img convert" }
+
+    # the image program (ImageMagick) – the editor uses the one that was tried out here
+    $magick = Find-LotusMagick
+    if (-not $magick) { $magick = Install-LotusMagick; if (-not $magick) { return (St 1) } }
+
+    # a picture from the clipboard has no folder: the new one goes to Downloads\Lotus
+    $image = $inputs.In[0]
+    $downloads = if ($env:LOTUS_DOWNLOADS) { $env:LOTUS_DOWNLOADS } else { Join-Path (Get-LotusHome) 'Downloads\Lotus' }
+    $fromClipboard = $image.StartsWith((Join-Path $script:Paths.Cache 'img\clipboard') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+    $vars = @{
+        LOTUS_LANG = [string]$script:S['LOTUS_LANG']; LOTUS_THIS = 'this PC'; LOTUS_FILES_APP = 'File Explorer'
+        LOTUS_EDIT_DATA = (Join-Path $script:Paths.Cache 'img\edit'); LOTUS_IMG_LAST = (Join-Path $script:Paths.State 'img-last'); LOTUS_DOWNLOADS = $downloads
+        LOTUS_COLOR_KEY = $script:C['key']; LOTUS_COLOR_ACCENT = $script:C['accent']; LOTUS_COLOR_DIM = $script:C['dim']
+    }
+    if ($magick.Convert.Count -eq 1 -and (Split-Path -Leaf $magick.Convert[0]) -match '^magick(\.exe)?$') { $vars['LOTUS_MAGICK'] = $magick.Convert[0] }
+    New-LotusDir $vars['LOTUS_EDIT_DATA'] | Out-Null
+    $args_ = @($image)
+    if ($fromClipboard) { $args_ += @('--out-dir', $downloads) }
+    Write-LotusLog INFO img "editor: $(Split-Path -Leaf $image)"
+    $rc = Invoke-LotusPython $py (Join-Path (Get-LotusRoot) 'lib/edit/editor.py') $args_ $vars
+    if ($rc -eq 130) { $rc = 0 }                  # Ctrl-C is how it is closed, not a failure
+    Write-LotusLog INFO img "editor closed ($rc)"
+    St $rc
 }
