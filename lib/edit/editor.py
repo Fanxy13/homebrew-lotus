@@ -315,7 +315,7 @@ class Editor(object):
             .replace("{{title}}", os.path.basename(self.session.image).replace("&", "&amp;").replace("<", "&lt;"))
 
 
-CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; "
+CSP = ("default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; "
        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 

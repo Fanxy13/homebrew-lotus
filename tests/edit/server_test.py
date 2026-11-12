@@ -95,6 +95,7 @@ def _():
     page = body.decode("utf-8")
     assert status == 200 and h["content-type"].startswith("text/html")
     assert "default-src 'none'" in h["content-security-policy"] and "script-src 'self'" in h["content-security-policy"]
+    assert "worker-src 'self'" in h["content-security-policy"], "the face detector's worker (a browser without CSP 3's fallback)"
     assert h["cache-control"] == "no-store" and h["x-content-type-options"] == "nosniff"
     assert '<html lang="de">' in page and "<title>shot.png – Lotus</title>" in page
     cfg = json.loads(re.search(r'<script type="application/json" id="config">(.*?)</script>', page, re.S).group(1))
