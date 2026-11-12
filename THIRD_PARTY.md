@@ -1,7 +1,48 @@
 # Third-party software
 
-Lotus itself is MIT licensed (see [LICENSE](LICENSE)). It does not bundle the software below.
-Remove BG downloads it on first use, after asking, into `~/.local/share/lotus` on your Mac.
+Lotus itself is MIT licensed (see [LICENSE](LICENSE)). It bundles only what is listed under *In the repository*; the rest
+below it does not bundle – Remove BG downloads it on first use, after asking, into `~/.local/share/lotus` on your Mac.
+
+## In the repository
+
+### YuNet – the face detector of the image editor's Face Blur tab
+
+`lib/edit/web/faces.bin` holds the weights of **YuNet** (Shiqi Yu et al., *YuNet: A Tiny Millisecond-level Face Detector*,
+Machine Intelligence Research 2023; training code [ShiqiYu/libfacedetection.train](https://github.com/ShiqiYu/libfacedetection.train)),
+53,104 numbers. They come from `face_detection_yunet_2023mar.onnx` of OpenCV's model zoo
+([opencv/opencv_zoo, models/face_detection_yunet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)),
+SHA-256 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`, converted by `scripts/make-face-model.py` into a file
+the page reads (SHA-256 `e0cdd19406bb0a1c96cb0c1962fe67636591d34e1fd4bdea6b75e373dc14e1f3`). The network runs in the browser, in plain JavaScript (`lib/edit/web/faces.js`); nothing is downloaded.
+
+```
+MIT License
+
+Copyright (c) 2020 Shiqi Yu <shiqi.yu@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### A portrait for the tests
+
+`tests/edit/face.png` (SHA-256 `ae200abbe80c32a09c43e2751d3324ff64ab59547ef9d29fdc70012b309eb1e9`) is a part of the portrait of astronaut Eileen Collins by NASA – public domain, as a
+work of the U.S. government; it is the `astronaut.png` of [scikit-image](https://github.com/scikit-image/scikit-image)'s sample
+data. The tests of the face detector and of Face Blur use it; it is not part of an install.
 
 ## Models
 
