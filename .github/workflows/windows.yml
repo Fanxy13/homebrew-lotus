@@ -12,9 +12,9 @@ name: Lotus for Windows
 on:
   push:
     branches: ['**']
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/fake-modrinth.py, dev/3.0/video/windows/record.py, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/edit/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/edit/**, tests/fake-modrinth.py, dev/3.0/video/windows/record.py, .gitattributes, .github/workflows/windows.yml]
   pull_request:
-    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/fake-modrinth.py, dev/3.0/video/windows/record.py, .gitattributes, .github/workflows/windows.yml]
+    paths: [win/**, install.ps1, bin/lotus.cmd, bin/lotus.ps1, data/**, logos/**, lib/core.zsh, lib/lang/**, lib/live/**, lib/html/**, lib/edit/**, lib/bg/**, lib/mc/**, tests/contract/**, tests/edit/**, tests/fake-modrinth.py, dev/3.0/video/windows/record.py, .gitattributes, .github/workflows/windows.yml]
   workflow_dispatch:
 
 permissions:

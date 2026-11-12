@@ -215,9 +215,10 @@ def _first(path):
     return ("./" + path if path.startswith("-") else path) + "[0]"
 
 
-def find_magick(cwebp=None):
-    """ImageMagick if this system has it, else None."""
-    exe = shutil.which("magick")
+def find_magick(cwebp=None, magick=None):
+    """ImageMagick if this system has it, else None. magick: the program a shell has already tried out (LOTUS_MAGICK) –
+    it comes first, because another program may bring a `magick` that cannot read or write images and sit earlier in the PATH."""
+    exe = magick if magick and os.path.isfile(magick) else shutil.which("magick")
     if not exe and os.name == "nt":
         found = sorted(glob.glob(os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "ImageMagick-*", "magick.exe")), reverse=True)
         exe = found[0] if found else None
@@ -236,4 +237,4 @@ def find_engine(environ=None):
     tool = env.get("LOTUS_IMG_TOOL", "")
     if tool and os.access(tool, os.X_OK):
         return ImageIO(tool, env.get("LOTUS_CWEBP") or None)
-    return find_magick(env.get("LOTUS_CWEBP") or None)
+    return find_magick(env.get("LOTUS_CWEBP") or None, env.get("LOTUS_MAGICK") or None)

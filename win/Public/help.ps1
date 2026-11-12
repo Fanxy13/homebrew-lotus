@@ -37,8 +37,8 @@ function script:Test-LotusCommandOn {
 # Commands of the AI that are the AI program's – the terminal app, models on this computer, the web chat: not on Windows yet
 $script:AiNotHere = @('ai local', 'ai local restart', 'ai server', 'ai server port', 'ai stats')
 
-# Rows of data/commands.tsv for what is not on Windows yet, by command or by usage: the image editor (/img here shows its help)
-$script:RowsNotHere = @('img edit', '/img')
+# Rows of data/commands.tsv for what is not on Windows yet, by command or by usage (none now: the image editor is here)
+$script:RowsNotHere = @()
 
 # Words of data/commands.tsv (written for macOS and Linux) in the words of Windows, in this order
 $script:CommandWordsHere = @(

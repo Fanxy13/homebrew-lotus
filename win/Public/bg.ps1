@@ -936,7 +936,7 @@ function script:Read-LotusBgPaths {
     $W = Get-LotusColumns
     if ($W -ge 44) { Write-LotusDropZone ([Math]::Min(60, $W - 8)) (T bg_drop_here 'Drop images here') (T bg_drop_types) }
     else { Write-LotusText (T bg_drop); Write-LotusDim "  $(T bg_drop_hint)" }
-    $clip = Get-LotusBgClipboard -Peek
+    $clip = Get-LotusClipboardKind
     if ($clip -like 'image *') { Write-LotusLine "    $(E key)✓$($script:R) $((T bg_clip_image).Replace('%s', ($clip.Substring(6) -replace 'x', ' × ')))" }
     elseif ($clip -like 'files *') { Write-LotusLine "    $(E key)✓$($script:R) $((T bg_clip_files).Replace('%s', $clip.Substring(6)))" }
     Write-LotusDim "  $(if ($clip -ceq 'none') { T bg_drop_keys } else { T bg_drop_keys_clip })"
@@ -950,69 +950,12 @@ function script:Read-LotusBgPaths {
     Split-LotusShellWords $line
 }
 
-# What the clipboard holds: "files <n>", "image <w>x<h>" or "none" (Windows Forms, which needs a single-threaded
-# apartment – PowerShell 7 has one; else Windows PowerShell answers)
-function script:Get-LotusBgClipboard {
-    param([switch]$Peek)
-    if (-not $IsWindows) { return 'none' }
-    $r = Invoke-LotusBgClipboard ''
-    if ($r.Count) { return [string]$r[0] }
-    'none'
-}
-
 # The clipboard as input → paths: copied files as they are, an image saved as a PNG in Lotus' cache (removed after a
-# day) – with its transparency when the program that copied it put a PNG there
+# day) – with its transparency when the program that copied it put a PNG there (Platform.ps1 does the reading)
 function script:Save-LotusBgClipboard {
-    if (-not $IsWindows) { return @() }
-    $dir = Join-Path (Get-LotusBgDirs).Cache 'clipboard'
-    New-LotusDir $dir | Out-Null
-    $old = (Get-Date).AddHours(-24)
-    Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $old } | Remove-Item -Force -ErrorAction SilentlyContinue
-    $png = Join-Path $dir "Clipboard $((Get-Date).ToString('yyyy-MM-dd HH.mm.ss', [cultureinfo]::InvariantCulture)).png"
-    $r = @(Invoke-LotusBgClipboard $png)
-    if (-not $r.Count -or $r[0] -ceq 'none') { return @() }
-    $paths = @($r | Select-Object -Skip 1 | Where-Object { $_ })
+    $paths = @(Save-LotusClipboardPicture (Join-Path (Get-LotusBgDirs).Cache 'clipboard'))
     if ($paths.Count) { Write-LotusLog INFO bg "From the clipboard: $($paths.Count) item(s)" }
     $paths
-}
-
-# The clipboard, read (and an image written to <png> when given) → @(what it holds, paths…)
-function script:Invoke-LotusBgClipboard {
-    param([string]$Png)
-    $code = {
-        param([string]$Png)
-        Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-        $cb = [System.Windows.Forms.Clipboard]
-        if ($cb::ContainsFileDropList()) {
-            $files = @($cb::GetFileDropList())
-            "files $($files.Count)"
-            if ($Png) { $files }
-            return
-        }
-        $bytes = $null
-        if ($cb::ContainsData('PNG')) { $s = $cb::GetData('PNG'); if ($s -is [IO.MemoryStream]) { $bytes = $s.ToArray() } }
-        if ($bytes -and $bytes.Length -gt 24) {
-            $w = ([int]$bytes[16] -shl 24) -bor ([int]$bytes[17] -shl 16) -bor ([int]$bytes[18] -shl 8) -bor [int]$bytes[19]
-            $h = ([int]$bytes[20] -shl 24) -bor ([int]$bytes[21] -shl 16) -bor ([int]$bytes[22] -shl 8) -bor [int]$bytes[23]
-            "image $($w)x$h"
-            if ($Png) { [IO.File]::WriteAllBytes($Png, $bytes); $Png }
-            return
-        }
-        if ($cb::ContainsImage()) {
-            $img = $cb::GetImage()
-            "image $($img.Width)x$($img.Height)"
-            if ($Png) { $img.Save($Png, [System.Drawing.Imaging.ImageFormat]::Png); $Png }
-            return
-        }
-        'none'
-    }
-    try {
-        if ([Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA') { return @(& $code $Png) }
-        $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("& {$code} `$env:LOTUS_CLIP_PNG"))
-        $env:LOTUS_CLIP_PNG = $Png
-        try { @(& $ps -STA -NoProfile -NonInteractive -EncodedCommand $enc 2>$null) } finally { Remove-Item Env:LOTUS_CLIP_PNG -ErrorAction SilentlyContinue }
-    } catch { Write-LotusLog DEBUG bg "Clipboard: $($_.Exception.Message)"; @('none') }
 }
 
 # ── /bg remove ────────────────────────────────────────────────

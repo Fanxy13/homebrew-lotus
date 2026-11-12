@@ -42,6 +42,20 @@ def _():
     assert "png" in can and "jpeg" in can, can
 
 
+@test("LOTUS_MAGICK names the ImageMagick a shell has tried out – it comes before the one in the PATH")
+def _():
+    fake = os.path.join(D, "my-magick.exe" if os.name == "nt" else "my-magick")
+    with open(fake, "wb") as f:
+        f.write(b"x")
+    m = E.find_magick(magick=fake)
+    assert m.convert_cmd == [fake] and m.identify_cmd == [fake, "identify"] and m.list_cmd == [fake, "-list", "format"], (m.convert_cmd, m.identify_cmd)
+    m = E.find_engine({"LOTUS_MAGICK": fake})
+    assert m.kind == "magick" and m.convert_cmd == [fake], (m.kind, m.convert_cmd)
+    nothing = os.path.join(D, "nothing-here")
+    other = E.find_magick(magick=nothing)                  # (a name that is no file is passed over: the PATH is asked)
+    assert other is None or other.convert_cmd != [nothing]
+
+
 @test("a picture becomes a JPEG, smaller when asked, never larger")
 def _():
     a = png(D + "/a.png", 400, 300, GRAD)
@@ -236,6 +250,8 @@ def _():
 def _():
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         raise Skip("root can write everywhere")
+    if os.name == "nt":
+        raise Skip("Windows does not stop a program from writing into a folder that is marked read-only")
     ro = D + "/readonly"
     os.makedirs(ro)
     png(ro + "/r.png", 20, 20, GRAD)
