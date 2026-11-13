@@ -1,5 +1,6 @@
 """The image editor's server (lib/edit/editor.py) as a browser meets it: the page and its files, who is let in, saving, and how it
 ends – the real program on a port of its own, asked over HTTP. python3 tests/edit/server_test.py"""
+import glob
 import http.client
 import json
 import os
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+from urllib.parse import quote
 
 from kit import EDIT, bmp_pixel, finish, png, png_size, test, tmpdir
 
@@ -29,7 +31,7 @@ class Editor(object):
 
     def __init__(self, image, extra_env=None, args=()):
         self.lines = []
-        self.proc = subprocess.Popen([sys.executable, "-B", EDIT + "/editor.py", image, "--no-open"] + list(args), stdout=subprocess.PIPE,
+        self.proc = subprocess.Popen([sys.executable, "-B", EDIT + "/editor.py"] + ([image] if image else []) + ["--no-open"] + list(args), stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT, universal_newlines=True, env=dict(ENV, **(extra_env or {})))
         threading.Thread(target=self._read, daemon=True).start()
         self.url = None
@@ -300,6 +302,141 @@ def _():
     out = subprocess.run([sys.executable, "-B", EDIT + "/editor.py", D + "/nothing.png", "--no-open"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          universal_newlines=True, env=ENV).stdout
     assert "There is no picture" in out, out
+
+
+# ── --drop: /img without a picture – the page sends it ──
+def config_of(page):
+    return json.loads(re.search(r'<script type="application/json" id="config">(.*?)</script>', page, re.S).group(1))
+
+
+PICTURE = open(IMAGE, "rb").read()
+dr = Editor(None, args=("--drop", "--out-dir", D + "/Dropped"))
+assert dr.url, "the editor did not start without a picture: " + dr.output()
+
+
+@test("--drop: without a picture the page is the drop page – in the language of Lotus, with the folder the pictures go to")
+def _():
+    out = dr.output()
+    assert "Dropped" in out and "Drop a picture on the page" in out and "Picture" not in out, out
+    status, h, body = dr.request("GET", "")
+    page = body.decode("utf-8")
+    assert status == 200 and "default-src 'none'" in h["content-security-policy"] and h["cache-control"] == "no-store"
+    assert "<title>Bildeditor – Lotus</title>" in page and 'src="web/drop.js"' in page and '<html lang="de">' in page
+    cfg = config_of(page)
+    assert cfg["folder"].endswith("Dropped") and "heic" in cfg["pictures"] and "cr3" in cfg["pictures"] and cfg["max"] == 1 << 30, cfg
+    assert cfg["strings"]["drop_here"] == "Bild hierher ziehen" and cfg["lang"] == "de"
+    status, h, body = dr.request("GET", "web/drop.js")
+    assert status == 200 and "javascript" in h["content-type"] and b"api/drop" in body
+
+
+@test("--drop: before a picture there is no picture to show, to plan, to save or to show in the Finder")
+def _():
+    assert dr.request("GET", "image")[0] == 404
+    assert dr.request("GET", "api/plan?format=png&edited=0")[0] == 409
+    assert dr.post("api/save?format=png&edited=0")[0] == 409
+    assert dr.post("api/reveal")[0] == 400
+    assert ed.proc.poll() is not None and dr.proc.poll() is None
+
+
+@test("--drop: a picture must come from the page itself, whole and not too big – and only in --drop")
+def _():
+    assert dr.request("POST", "api/drop?name=a.png", PICTURE)[0] == 403                          # no header of the page
+    assert dr.post("api/drop?name=a.png", PICTURE, {"Origin": "http://evil.example"})[0] == 403
+    assert dr.post("api/drop?name=a.png", PICTURE, {"Sec-Fetch-Site": "cross-site"})[0] == 403
+    assert dr.post("/wrong-secret/api/drop?name=a.png", PICTURE, token=False)[0] == 404
+    assert dr.post("api/drop?name=a.png", b"")[0] == 411
+    c = http.client.HTTPConnection("127.0.0.1", dr.port, timeout=10)                              # far too big: not even read
+    c.putrequest("POST", "/%s/api/drop?name=big.png" % dr.token, skip_host=True)
+    c.putheader("Host", "127.0.0.1:%d" % dr.port)
+    c.putheader("X-Lotus-Edit", "1")
+    c.putheader("Content-Length", str(5 * 1024 ** 3))
+    c.endheaders()
+    assert c.getresponse().status == 413
+    c.close()
+    assert dr.request("GET", "image")[0] == 404, "still no picture"
+    e2 = Editor(IMAGE)                                                                            # an editor of a picture has no drop
+    try:
+        assert e2.post("api/drop?name=a.png", PICTURE)[0] == 404 and e2.post("api/another")[0] == 404
+        assert e2.post("api/quit")[0] == 200 and e2.wait(8) == 0
+    finally:
+        e2.kill()
+
+
+@test("--drop: what is not a picture is said, and the page stays the drop page")
+def _():
+    status, _, out = dr.post("api/drop?name=notes.txt", b"just some text\n")
+    j = json.loads(out)
+    assert status == 200 and not j["ok"] and j["error"], j
+    assert "<title>Bildeditor – Lotus</title>" in dr.request("GET", "")[2].decode("utf-8")
+    assert "notes.txt" in dr.output()
+    assert not glob.glob(D + "/data/edit-*/picture/notes.txt"), "its copy is gone"
+
+
+@test("--drop: a dropped picture is made ready, then the address is the editor with it – named as a file, nothing outside its folder")
+def _():
+    status, _, out = dr.post("api/drop?name=" + quote("../../Ferien: Tag 1.png") + "&count=3", PICTURE)
+    j = json.loads(out)
+    assert status == 200 and j["ok"] and j["pic"] == 1 and j["name"] == "Ferien Tag 1.png", j
+    status, _, body = dr.request("GET", "")
+    page = body.decode("utf-8")
+    cfg = config_of(page)
+    assert "<title>Ferien Tag 1.png – Lotus</title>" in page and 'src="web/editor.js"' in page
+    assert cfg["image"]["name"] == "Ferien Tag 1.png" and cfg["image"]["width"] == 400 and cfg["drop"] is True and cfg["pic"] == 1, cfg
+    assert cfg["folder"].endswith("Dropped") and cfg["defaults"]["format"] == "png", cfg
+    status, h, img = dr.request("GET", "image?pic=1")
+    assert status == 200 and h["content-type"] == "image/png" and img[:8] == b"\x89PNG\r\n\x1a\n"
+    out = dr.output()
+    assert "Ferien Tag 1.png  400 × 300" in out and "3 pictures – the editor opens the first" in out, out
+    assert len(glob.glob(D + "/data/edit-*/picture/Ferien Tag 1.png")) == 1, "the copy is in a working folder of its own"
+    assert not glob.glob(D + "/Ferien*") and not glob.glob(D + "/data/Ferien*") and not glob.glob(D + "/data/edit-*/Ferien*")
+
+
+@test("--drop: one picture at a time – a second drop while one is open is refused, the open one stays")
+def _():
+    status, _, out = dr.post("api/drop?name=other.png", PICTURE)
+    assert status == 409 and json.loads(out)["error"] == "open", out
+    assert config_of(dr.request("GET", "")[2].decode("utf-8"))["image"]["name"] == "Ferien Tag 1.png"
+
+
+@test("--drop: it is saved in the folder given (for /img: Downloads/Lotus); a page of another picture cannot save")
+def _():
+    status, _, out = dr.post("api/save?format=jpeg&quality=80&max=0&edited=0&pic=1")
+    j = json.loads(out)
+    assert status == 200 and j["ok"] and j["name"] == "Ferien Tag 1.jpg" and os.path.isfile(D + "/Dropped/Ferien Tag 1.jpg"), j
+    status, _, out = dr.post("api/save?format=jpeg&quality=80&max=0&edited=0&pic=2")
+    assert status == 409 and not json.loads(out)["ok"], out
+    assert dr.post("api/reveal")[0] == 200
+
+
+@test("--drop: Another picture puts it away – the drop page again, its working folder gone; the next one is number 2")
+def _():
+    status, _, out = dr.post("api/another")
+    assert status == 200 and json.loads(out)["ok"]
+    assert "<title>Bildeditor – Lotus</title>" in dr.request("GET", "")[2].decode("utf-8")
+    assert dr.request("GET", "image")[0] == 404 and not glob.glob(D + "/data/edit-*/picture/Ferien*")
+    assert os.path.isfile(D + "/Dropped/Ferien Tag 1.jpg"), "what was saved stays"
+    status, _, out = dr.post("api/drop?name=" + quote("Clipboard 2026-11-12 21.40.00.png"), PICTURE)
+    assert json.loads(out)["pic"] == 2, out
+    cfg = config_of(dr.request("GET", "")[2].decode("utf-8"))
+    assert cfg["pic"] == 2 and cfg["image"]["name"] == "Clipboard 2026-11-12 21.40.00.png", cfg
+    crop = png(D + "/crop2.png", 120, 80, lambda x, y: (x, y, 9))
+    status, _, out = dr.post("api/save?format=png&quality=0&max=0&edited=1&pic=2", open(crop, "rb").read(), {"Content-Type": "image/png"})
+    j = json.loads(out)
+    assert j["ok"] and j["name"] == "Clipboard 2026-11-12 21.40.00 edited.png" and (j["width"], j["height"]) == (120, 80), j
+
+
+@test("--drop: closing it says how many pictures were saved – of every picture – and leaves no working folder")
+def _():
+    assert dr.post("api/quit")[0] == 200
+    assert dr.wait(8) == 0
+    assert "2 pictures saved." in dr.output(), dr.output()
+
+
+@test("a picture and --drop at once is a mistake: it shows how it is used")
+def _():
+    r = subprocess.run([sys.executable, "-B", EDIT + "/editor.py", IMAGE, "--drop", "--no-open"], stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT, universal_newlines=True, env=ENV)
+    assert r.returncode == 2 and "editor.py --drop" in r.stdout, r.stdout
 
 
 @test("no working folder is left behind when the editors have ended")

@@ -1,6 +1,6 @@
 # lotus – /img: a picture cropped, turned, straightened and converted in a window like the iPhone's Photos (lib/edit), and
 # images and whole folders converted into PNG, JPEG, HEIC, AVIF, WebP, TIFF, GIF, BMP, PDF or ICO.
-#   /img                                        the editor: drop a picture into the window (an empty ⏎ takes the clipboard)
+#   /img                                        the editor in the browser: drop a picture on its page, choose or paste one
 #   /img edit <image>                           the editor for this picture
 #   /img convert                                drop images or a folder into the window (an empty ⏎ takes the clipboard)
 #   /img convert <image|folder>… [--to <format>] [--quality <1–100>] [--max <pixels>]
@@ -49,7 +49,7 @@ img_help() {
   ui_hero "Images" "Crop, straighten and convert pictures – on $LOTUS_THIS"
   local k=$'\e['"$LOTUS_C[key]m" d=$'\e['"$LOTUS_C[dim]m" r
   local -a rows=(
-    "/img|the editor: drop a picture into the window – or ⏎ for the clipboard"
+    "/img|the editor in your browser: drop a picture on it, choose or paste one"
     "/img edit <image>|crop, turn, straighten, hide faces and convert this picture, in your browser"
     "/img convert|drop images or a folder into the window – or ⏎ for the clipboard"
     "/img convert <image or folder>|one or more images, every image in a folder"
@@ -162,12 +162,12 @@ img_collect() {
   done
 }
 
-# The drop zone: Finder types the path of what is dropped into the window, Lotus reads it without running anything
-img_ask() {   # [edit] – one picture for the editor; otherwise images and folders to convert
+# The drop zone of /img convert: Finder types the path of what is dropped into the window, Lotus reads it without running anything
+# (the editor has a drop page of its own, in the browser: lib/edit/web/drop.html)
+img_ask() {   # images and folders to convert → reply
   local -i W=${COLUMNS:-80}
   (( W > 20 )) || W=80
   local title="Drop images or a folder here" types="HEIC · PNG · JPEG · WebP · RAW · folders" short="Drag images or a folder into this window"
-  [[ $1 == edit ]] && title="Drop a picture here" types="HEIC · PNG · JPEG · WebP · RAW" short="Drag a picture into this window"
   if (( W >= 44 )); then ui_drop_zone $(( W - 8 > 60 ? 60 : W - 8 )) $title $types
   else ui_text $short; fi
   local clip

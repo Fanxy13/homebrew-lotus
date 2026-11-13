@@ -227,6 +227,19 @@ the texts said "macOS user" on Linux.
 - Not checked on Windows: the page in Edge or Chrome by script, a file dropped into Windows Terminal, the clipboard (a copied image,
   copied files) and the camera data of a photo (not copied by ImageMagick).
 
+### 2026-11-12 – the image editor's drop page (`/img` without a picture)
+- `/img` (and `/img edit` without a picture) no longer asks in the terminal: the editor opens in the browser on a drop page – drop a
+  picture anywhere in the window, choose one or paste one (⌘V). The server (`editor.py --drop`) takes it (`POST api/drop`: the page's
+  own requests only, at most 1 GiB, its name made a safe file name), makes it ready and serves the editor at the same address; what
+  is saved goes to `~/Downloads/Lotus`. Cancel and "Another picture" go back to the drop page; Close ends it and the terminal says how
+  many pictures were saved. A file dropped on the editor itself no longer replaces the page.
+- Tests: `server_test.py` (11 for `--drop`), `page_test.py` (both pages; the picture list equals `IMG_EXT`), `ui.test.js` in Chromium
+  (11: chosen, dropped, pasted, not a picture, a broken picture, Another picture, Cancel, German, a phone, Close), and
+  `test-editserver.zsh` (`/img` without a picture starts the drop page). Found by them: the browser test read the page before its
+  script had run (a wait for the script, not for the markup).
+- Not checked: Safari and Chrome on a Mac by script – the drop, the chooser and ⌘V there; a file copied in the Finder and pasted (the
+  browsers differ: a screenshot in the clipboard is what the paste is for). Windows: unchanged, still the terminal's drop zone.
+
 ### 2026-11-12 – Face Blur (`/img`, a third tab)
 - The faces of a picture found by YuNet (MIT) – a network of 53,000 numbers run in the page in plain JavaScript, in a worker – and
   hidden: left out by a tap, more drawn over with a pencil, Blur, Pixelate or Black and a strength. Shared by every system: no glue.

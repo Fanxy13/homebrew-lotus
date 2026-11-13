@@ -1,6 +1,7 @@
 // The image editor's page in a real browser (Chromium through Playwright): the mouse on the frame, the shape menu, turn and mirror,
 // the dial, the Convert tab, saving, Cancel, the Face Blur tab (faces found, left out, drawn over, how they are hidden, and the
-// saved picture – in which the face detector itself finds none of the hidden faces) – and that a phone-sized window does not
+// saved picture – in which the face detector itself finds none of the hidden faces), the drop page of /img without a picture
+// (a picture chosen, dropped and pasted; what is not one; another picture; Close) – and that a phone-sized window does not
 // scroll sideways.
 //   node tests/edit/ui.test.js      (needs the Node package "playwright" and a browser it can start; tests/test-editserver.zsh
 //                                    runs it where both are there and says so where they are not)
@@ -37,8 +38,8 @@ function png(file, w, h, fn) {
 const pngSize = (file) => { const b = fs.readFileSync(file); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
 
 // an editor process
-function start(image, lang) {
-  const proc = spawn('python3', ['-B', path.join(ROOT, 'lib', 'edit', 'editor.py'), image, '--no-open'], {
+function start(image, lang, args) {          // image null: --drop (args: ['--drop', '--out-dir', …])
+  const proc = spawn('python3', ['-B', path.join(ROOT, 'lib', 'edit', 'editor.py')].concat(image ? [image] : [], ['--no-open'], args || []), {
     env: Object.assign({}, process.env, { LOTUS_EDIT_DATA: path.join(D, 'data'), LOTUS_EDIT_NO_SHOW: '1', LOTUS_LANG: lang || 'en', LOTUS_IMG_LAST: path.join(D, 'last'), LOTUS_EDIT_IDLE: '30' })
   });
   let out = '';
@@ -494,6 +495,147 @@ function start(image, lang) {
     await fetchQuit(cr.url);
     await cr.exited;
   });
+
+  // ── The drop page: /img without a picture ──
+  const dropDir = path.join(D, 'Dropped');
+  const dr = await start(null, 'en', ['--drop', '--out-dir', dropDir]);
+  const c5 = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+  const p5 = await c5.newPage();
+  const problems5 = [];
+  p5.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') problems5.push(m.type() + ': ' + m.text()); });
+  p5.on('pageerror', (e) => problems5.push('pageerror: ' + e.message));
+  const onDrop = () => p5.waitForFunction(() => window.__lotusDrop && document.getElementById('zone'), null, { timeout: 20000 });   // (its script has run)
+  const inEditor = () => p5.waitForFunction(() => window.__lotus && window.__lotus.state, null, { timeout: 30000 });
+  // a file handed to the page as the browser would: dropped (a drag over the window first), or pasted
+  const give = (how, name, type, b64) => p5.evaluate(([how, name, type, b64]) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([bytes], name, { type: type }));
+    if (how === 'paste') { document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); return null; }
+    const zone = document.getElementById('zone');
+    zone.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    const during = [document.getElementById('app').classList.contains('dragging'), document.getElementById('zone-title').textContent];
+    zone.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    zone.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    return during;
+  }, [how, name, type, b64]);
+  const shot = fs.readFileSync(image).toString('base64');
+
+  await test('the drop page: /img without a picture opens it – the zone, what it takes, where the pictures go, and Close', async () => {
+    await p5.goto(dr.url);
+    await onDrop();
+    ok(problems5.length === 0, problems5.join('\n'));
+    ok((await p5.title()) === 'Image editor – Lotus', await p5.title());
+    ok((await p5.textContent('#zone-title')) === 'Drop a picture here' && (await p5.textContent('#choose')) === 'Choose a picture …');
+    ok((await p5.textContent('#zone-paste')) === 'or paste one with ' + (process.platform === 'darwin' ? '⌘V' : 'Ctrl+V'), await p5.textContent('#zone-paste'));
+    ok((await p5.textContent('.drop-note b')) === dropDir, await p5.textContent('#drop-note'));
+    const accept = await p5.getAttribute('#file', 'accept');
+    ok(accept.startsWith('image/*,') && accept.includes('.heic') && accept.includes('.cr3'), accept);
+    ok((await p5.textContent('#close')) === 'Close' && await p5.locator('#zone-error').isHidden());
+  });
+
+  await test('the drop page: a picture chosen opens in the editor at the same address – a picture without a folder, so Downloads/Lotus', async () => {
+    await p5.setInputFiles('#file', image);
+    await inEditor();
+    ok(p5.url() === dr.url, 'the same address: ' + p5.url());
+    ok((await p5.textContent('#title')) === 'shot.png' && (await p5.textContent('#subtitle')).includes('800 × 600'));
+    const s = await p5.evaluate(() => [window.__lotus.state.W, window.__lotus.state.H]);
+    ok(s.join() === '800,600', s.join());
+    await p5.click('#tab-convert');
+    ok((await p5.textContent('#save-note')).includes(dropDir), await p5.textContent('#save-note'));
+    ok(problems5.length === 0, problems5.join('\n'));
+  });
+
+  await test('the drop page: Done saves it in that folder; Another picture goes back to the drop page', async () => {
+    await p5.click('#tab-crop'); await p5.click('#turn');
+    await p5.click('#done');
+    await p5.waitForSelector('#veil:not([hidden])', { timeout: 20000 });
+    ok((await p5.textContent('#sheet-name')) === 'shot edited.png', await p5.textContent('#sheet-name'));
+    ok(pngSize(path.join(dropDir, 'shot edited.png')).join() === '600,800', 'turned a quarter, in the folder of the drop page');
+    ok(await p5.locator('#sheet-new').isVisible() && (await p5.textContent('#sheet-new')) === 'Another picture');
+    await p5.click('#sheet-new');
+    await onDrop();
+    ok((await p5.textContent('#zone-title')) === 'Drop a picture here');
+    ok(dr.proc.exitCode === null, 'the editor goes on');
+  });
+
+  await test('the drop page: a picture dropped on it – the zone lights up while it is dragged over the window – opens in the editor', async () => {
+    const during = await give('drop', 'holiday.png', 'image/png', shot);
+    ok(during[0] === true && during[1] === 'Let go to open it', 'while dragged: ' + during.join(' · '));
+    await inEditor();
+    ok((await p5.textContent('#title')) === 'holiday.png', await p5.textContent('#title'));
+  });
+
+  await test('the drop page: a file dropped on the editor does not replace it – it says to press Cancel first', async () => {
+    const prevented = await p5.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File(['x'], 'next.png', { type: 'image/png' }));
+      const ev = new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true });
+      document.getElementById('stage').dispatchEvent(ev);
+      return ev.defaultPrevented;
+    });
+    ok(prevented, 'the browser does not open the file in place of the editor');
+    ok((await p5.textContent('#toast')) === 'One picture at a time – press Cancel, then drop the next one.', await p5.textContent('#toast'));
+    ok((await p5.textContent('#title')) === 'holiday.png' && p5.url() === dr.url, 'still the editor of holiday.png');
+  });
+
+  await test('the drop page: Cancel in the editor goes back to it – and asks first when there are changes', async () => {
+    await p5.click('#flip');
+    await p5.click('#cancel');
+    ok(await p5.locator('#ask').isVisible(), 'unsaved changes: it asks');
+    await p5.click('#ask-yes');
+    await onDrop();
+    ok(!fs.existsSync(path.join(dropDir, 'holiday edited.png')), 'nothing was saved');
+    ok(dr.proc.exitCode === null, 'the editor goes on');
+  });
+
+  await test('the drop page: a picture pasted (⌘V) opens too – named like a picture of the clipboard in the terminal', async () => {
+    await give('paste', 'image.png', 'image/png', shot);
+    await inEditor();
+    ok(/^Clipboard \d{4}-\d\d-\d\d \d\d\.\d\d\.\d\d\.png$/.test(await p5.textContent('#title')), await p5.textContent('#title'));
+    await p5.click('#cancel');
+    await onDrop();
+  });
+
+  await test('the drop page: what is not a picture is said there, and nothing is sent; a broken picture is said by the editor', async () => {
+    await give('drop', 'notes.txt', 'text/plain', Buffer.from('just some notes').toString('base64'));
+    await p5.waitForSelector('#zone-error:not([hidden])');
+    ok((await p5.textContent('#zone-error')) === 'notes.txt is not a picture.', await p5.textContent('#zone-error'));
+    ok(!dr.out().includes('notes.txt'), 'it was not sent');
+    await give('paste', 'notes.txt', 'text/plain', Buffer.from('more notes').toString('base64'));
+    ok((await p5.textContent('#zone-error')) === 'notes.txt is not a picture.');
+    await give('drop', 'broken.png', 'image/png', Buffer.from('this is no PNG at all').toString('base64'));
+    await p5.waitForFunction(() => /^broken\.png cannot be opened: /.test(document.getElementById('zone-error').textContent), null, { timeout: 20000 });
+    ok(await p5.locator('#zone').isVisible() && !(await p5.evaluate(() => window.__lotusDrop.busy())), 'still the drop page');
+    ok(problems5.filter((x) => !/Failed to load resource/.test(x)).length === 0, problems5.join('\n'));
+  });
+
+  await test('the drop page in German, and on a phone it does not scroll sideways', async () => {
+    const de = await start(null, 'de', ['--drop', '--out-dir', dropDir]);
+    const c6 = await browser.newContext({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+    const p6 = await c6.newPage();
+    await p6.goto(de.url);
+    await p6.waitForFunction(() => window.__lotusDrop);
+    ok((await p6.textContent('#zone-title')) === 'Bild hierher ziehen' && (await p6.textContent('#choose')) === 'Bild auswählen …');
+    ok((await p6.textContent('#close')) === 'Schließen' && (await p6.title()) === 'Bildeditor – Lotus');
+    const wide = await p6.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok(wide <= 0, 'the drop page is ' + wide + 'px too wide');
+    const z = await p6.locator('#zone').boundingBox();
+    ok(z.x >= 0 && z.x + z.width <= 390, 'the zone is in the window');
+    await c6.close();
+    await fetchQuit(de.url);
+    await de.exited;
+  });
+
+  await test('the drop page: Close ends the editor – and it says how many pictures were saved, of every picture', async () => {
+    await p5.click('#close');
+    await p5.waitForSelector('#gone:not([hidden])');
+    ok((await p5.textContent('#gone-title')) === 'Closed', await p5.textContent('#gone-title'));
+    const code = await Promise.race([dr.exited, new Promise((r) => setTimeout(() => r('still running'), 8000))]);
+    ok(code === 0, 'exit ' + code);
+    ok(/1 picture saved\./.test(dr.out()), dr.out());
+  });
+  await c5.close();
 
   await browser.close();
   ed.proc.kill();

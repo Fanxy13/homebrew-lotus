@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased – the image editor's drop page
+
+- **`/img` opens the editor in your browser on a drop page** – no drop zone in the terminal any more: drag a picture from the Finder onto the page (anywhere in the window – the zone lights up), click **Choose a picture …**, or paste one with ⌘V (a screenshot, say). It opens in the editor at the same address; **Another picture** (in the sheet after Done) and **Cancel** go back to the drop page for the next one, **Close** ends it, and the terminal says how many pictures were saved. `/img edit <picture>` opens that picture right away, as before.
+- A picture from the drop page is saved in `~/Downloads/Lotus` – a browser does not tell which folder a file came from. It goes only to the editor's own server on this computer (`lib/edit/editor.py --drop`: the page's own requests, at most 1 GB, its name made a safe file name), and its copy goes with the editor's working folder.
+- A file dropped on the editor itself no longer replaces the page with the picture: it says to press Cancel first.
+- Tests: the server over HTTP (`tests/edit/server_test.py`, 11 more), both pages' texts and policy (`page_test.py` – the pictures the chooser offers are `IMG_EXT` of `/img convert`), the page in Chromium (`ui.test.js`, 11 more: a picture chosen, dropped and pasted, what is not a picture, a broken picture, Another picture, Cancel, German, a phone, Close) and the command (`test-editserver.zsh`). Not tested by script: Safari and Chrome on a Mac. Windows: `/img` still asks in the terminal.
+
 ## 3.3.1 – Face Blur, and the image editor on Windows
 
 Two things in this release: Face Blur, a third tab of the image editor that hides the faces of a picture – found by a small AI that runs in the page, on this computer – and the image editor on Windows. And a fix for Lotus for Windows: its installer now ships Remove BG's worker and the sources of the Minecraft plugin, which an installed copy was missing.

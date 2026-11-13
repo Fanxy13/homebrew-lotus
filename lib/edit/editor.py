@@ -1,8 +1,12 @@
 """Lotus image editor – crop, turn, straighten, hide faces and convert a picture in a window like the iPhone's Photos app.
 
     python3 editor.py <picture> [--out-dir <folder>] [--no-open] [--port <n>]
+    python3 editor.py --drop [--out-dir <folder>] [--no-open] [--port <n>]
 
-Part of Lotus (lib/cmd/img.zsh starts it: /img, /img edit). Python's standard library, nothing to install. The Face Blur tab
+Part of Lotus (lib/cmd/img.zsh starts it: /img, /img edit). With --drop it opens without a picture: the page is a drop page
+(web/drop.html) – a picture dropped on it, chosen or pasted is sent to this server, which opens it in the editor at the same
+address; Cancel and "Another picture" (after Done) go back to the drop page for the next one. A dropped picture has no folder
+a browser would tell: what is saved goes to --out-dir (Lotus gives it Downloads/Lotus). Python's standard library, nothing to install. The Face Blur tab
 finds faces in the page itself (web/faces.js, a small network in plain JavaScript) – the server only hands it its file.
 
 How it works – the same on every system:
@@ -43,15 +47,20 @@ WEB = os.path.join(HERE, "web")
 ASSETS = {"editor.css": "text/css; charset=utf-8", "editor.js": "text/javascript; charset=utf-8",
           "geometry.js": "text/javascript; charset=utf-8", "blur.js": "text/javascript; charset=utf-8",
           "faces.js": "text/javascript; charset=utf-8", "faces-worker.js": "text/javascript; charset=utf-8",
-          "faces.bin": "application/octet-stream"}       # faces.bin: the face detector of the Face Blur tab (YuNet, MIT – THIRD_PARTY.md)
+          "faces.bin": "application/octet-stream",       # faces.bin: the face detector of the Face Blur tab (YuNet, MIT – THIRD_PARTY.md)
+          "drop.js": "text/javascript; charset=utf-8"}   # the drop page (--drop)
 LANGS = ("en", "de", "fr", "es")
 QUALITIES = (95, 85, 70, 50)                       # Best, High, Medium, Small – the same as /img convert
 SIZES = (0, 3840, 2560, 1920, 1280, 640)           # all, 4K, 2560, Full HD, 1280, 640 – the same as /img convert
 WORK_MAX = 10000                                   # a picture bigger than this is worked on as a smaller copy (browsers' canvases)
-UPLOAD_MAX = 1 << 30                               # the cropped picture the page sends back: at most 1 GiB
+UPLOAD_MAX = 1 << 30                               # the cropped picture the page sends back, and a dropped one: at most 1 GiB
 IDLE = 180                                         # seconds without a sign of the page (it pings every 2) – it is gone
 GRACE = 4                                          # seconds the page has to come back after it said goodbye (a reload does)
 FIRST = 900                                        # seconds the browser has to open the page
+# what the drop page lets the browser's file chooser offer – the pictures /img reads (IMG_EXT in lib/cmd/img.zsh; tests/edit/page_test.py
+# compares the two lists)
+PICTURES = ("png", "jpg", "jpeg", "jpe", "heic", "heif", "heics", "avif", "webp", "gif", "tif", "tiff", "bmp", "psd", "jp2", "j2k", "jxl",
+            "svg", "tga", "exr", "ico", "icns", "dng", "cr2", "cr3", "nef", "nrw", "arw", "raf", "orf", "rw2", "pef", "srw", "3fr", "iiq")
 TTY = sys.stdout.isatty()
 HOME = os.path.expanduser("~")
 
@@ -139,10 +148,23 @@ def show_file(path, reveal):
         return False
 
 
+def picture_name(name):
+    """The name of a picture the page sent, as a file name: its last part only, nothing a file name should not have (control
+    characters – tabs and line breaks cannot be told to lotus-img –, / \\ : * ? " < > |), no dot in front; never empty, not too long."""
+    name = re.split(r"[\\/]", name or "")[-1]
+    name = "".join(c for c in name if c >= " " and c != "\x7f" and c not in ':*?"<>|')
+    name = name.strip().lstrip(".").strip()
+    stem, ext = os.path.splitext(name)
+    if not re.fullmatch(r"\.[A-Za-z0-9]{1,8}", ext or ""):
+        stem, ext = name, ""
+    stem = stem.strip()[:100].strip() or "Picture"
+    return stem + ext
+
+
 # ── The picture ────────────────────────────────────────────────
 
 class Session(object):
-    def __init__(self, image, eng, data_dir, out_dir=None, last_file=None, downloads=None):
+    def __init__(self, image, eng, data_dir, out_dir=None, last_file=None, downloads=None, work_dir=None):
         self.image = os.path.abspath(image)
         self.engine = eng
         self.last_file = last_file
@@ -150,7 +172,7 @@ class Session(object):
         self.note = ""                                            # why the pictures do not go next to the original
         self.out_dir = self._out_dir(out_dir)
         os.makedirs(data_dir, mode=0o700, exist_ok=True)
-        self.work_dir = tempfile.mkdtemp(prefix="edit-", dir=data_dir)
+        self.work_dir = work_dir or tempfile.mkdtemp(prefix="edit-", dir=data_dir)      # (a dropped picture is in it already)
         self.work = os.path.join(self.work_dir, "work.png")
         self.formats = []
         self.size = (0, 0)                                        # as it is seen
@@ -249,6 +271,27 @@ class Session(object):
     def forget(self):
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
+    @classmethod
+    def dropped(cls, name, read, length, eng, data_dir, out_dir, last_file=None, downloads=None):
+        """A picture the drop page sent: `length` bytes from `read` into a working folder of its own → (the session, or None
+        when it did not arrive whole). The copy is the picture from now on (and goes with the working folder)."""
+        os.makedirs(data_dir, mode=0o700, exist_ok=True)
+        work_dir = tempfile.mkdtemp(prefix="edit-", dir=data_dir)
+        os.mkdir(os.path.join(work_dir, "picture"))                # (its own folder: the picture may be called work.png too)
+        path = os.path.join(work_dir, "picture", name)
+        left = length
+        with open(path, "wb") as f:
+            while left > 0:
+                chunk = read(min(1 << 20, left))
+                if not chunk:
+                    break
+                f.write(chunk)
+                left -= len(chunk)
+        if left:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            return None
+        return cls(path, eng, data_dir, out_dir, last_file, downloads, work_dir)
+
 
 # ── The page ───────────────────────────────────────────────────
 
@@ -283,8 +326,14 @@ def js_json(data):
 
 
 class Editor(object):
-    def __init__(self, session, lang, this, files_app):
+    def __init__(self, session, lang, this, files_app, drop=None):
         self.session, self.lang, self.this, self.files_app = session, lang, this, files_app
+        # --drop: what a dropped picture's session needs (engine, data_dir, out_dir, last_file, downloads) – without a session the
+        # page is the drop page. `pic` counts the pictures, so that a page always knows which one it shows
+        self.drop = drop
+        self.pic = 1 if session else 0
+        self.saved_before = 0                   # pictures saved of the pictures that were put away (--drop)
+        self.opening = threading.Lock()
         self.token = secrets.token_urlsafe(18)
         self.idle, self.grace, self.first = IDLE, GRACE, FIRST        # (LOTUS_EDIT_IDLE, _GRACE and _FIRST shorten them for the tests)
         self.started = time.monotonic()
@@ -306,13 +355,33 @@ class Editor(object):
             "defaults": s.defaults(), "source": s.source_format() if s.source_format() in s.formats else None,
             "qualities": list(QUALITIES), "sizes": list(SIZES),
             "folder": tilde(s.out_dir), "folderNote": s.note, "engine": s.engine.kind,
+            "drop": self.drop is not None, "pic": self.pic,
         }
 
+    def drop_config(self):
+        return {"lang": self.lang, "strings": strings(self.lang), "this": self.this, "folder": tilde(self.drop["out_dir"]),
+                "pictures": list(PICTURES), "max": UPLOAD_MAX}
+
     def page(self):
-        with open(os.path.join(WEB, "index.html"), encoding="utf-8") as f:
+        if self.session is None:
+            name, cfg, title = "drop.html", self.drop_config(), strings(self.lang)["drop_title"]
+        else:
+            name, cfg, title = "index.html", self.config(), os.path.basename(self.session.image)
+        with open(os.path.join(WEB, name), encoding="utf-8") as f:
             html = f.read()
-        return html.replace("{{config}}", js_json(self.config())).replace("{{lang}}", self.lang) \
-            .replace("{{title}}", os.path.basename(self.session.image).replace("&", "&amp;").replace("<", "&lt;"))
+        return html.replace("{{config}}", js_json(cfg)).replace("{{lang}}", self.lang) \
+            .replace("{{title}}", title.replace("&", "&amp;").replace("<", "&lt;"))
+
+    def saved_count(self):
+        return self.saved_before + (len(self.session.saved) if self.session else 0)
+
+    def another(self):
+        """--drop: the picture that is open is put away – what was saved of it stays saved – and the page is the drop page again."""
+        with self.opening:
+            s, self.session = self.session, None
+            if s:
+                self.saved_before += len(s.saved)
+                s.forget()
 
 
 CSP = ("default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; "
@@ -387,6 +456,8 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(WEB, rest[4:]), "rb") as f:
                 return self.send(200, ASSETS[rest[4:]], f.read())
         if rest == "image":
+            if ed.session is None:
+                return self.text(404, "Not found")
             try:
                 with open(ed.session.work, "rb") as f:
                     data = f.read()
@@ -394,6 +465,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.text(404, "Not found")
             return self.send(200, "image/png", data, [("Cache-Control", "private, max-age=3600")])
         if rest == "api/plan":
+            if ed.session is None:
+                return self.json(409, {"ok": False, "error": "no picture"})
             q = parse_qs(url.query)
             key = (q.get("format") or [""])[0]
             if key not in ed.session.formats:
@@ -423,13 +496,86 @@ class Handler(BaseHTTPRequestHandler):
             ed.quit = True
             return self.json(200, {"ok": True})
         if rest in ("api/reveal", "api/open"):
-            saved = ed.session.saved
+            saved = ed.session.saved if ed.session else []
             if not saved:
                 return self.json(400, {"ok": False, "error": "nothing saved yet"})
             return self.json(200, {"ok": show_file(saved[-1]["path"], rest == "api/reveal")})
+        q = parse_qs(url.query)
         if rest == "api/save":
-            return self.save(ed, parse_qs(url.query))
+            if not self.this_picture(ed, q):
+                self.close_connection = True                       # (its picture was not read)
+                return self.send(409, "application/json; charset=utf-8", json.dumps(
+                    {"ok": False, "error": "another picture is open in the editor now"}).encode("utf-8"), [("Connection", "close")])
+            return self.save(ed, q)
+        if rest == "api/drop":
+            return self.drop(ed, q)
+        if rest == "api/another":
+            if ed.drop is None:
+                return self.refuse(404, "Not found")
+            if ed.busy:
+                return self.json(409, {"ok": False, "error": "busy"})
+            ed.another()
+            return self.json(200, {"ok": True})
         return self.refuse(404, "Not found")
+
+    @staticmethod
+    def this_picture(ed, q):
+        """Is the picture the page has open (pic=, when it says) the one the editor has? (A page of a picture that was put away
+        must not save over the next one.)"""
+        if ed.session is None:
+            return False
+        pic = (q.get("pic") or [""])[0]
+        return not pic or pic == str(ed.pic)
+
+    def drop(self, ed, q):
+        """--drop: the picture the drop page sends (its bytes; name= and how many were dropped, count=) – made ready like a
+        picture of the command line. → {ok, pic} or {ok: false, error}; the page then loads the editor at the same address."""
+        if ed.drop is None:
+            return self.refuse(404, "Not found")
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return self.refuse(400, "Content-Length is not a number.")
+        if not 0 < length <= UPLOAD_MAX:
+            return self.refuse(413 if length else 411, "The picture is missing or too big.")
+        name = picture_name((q.get("name") or [""])[0])
+        try:
+            count = max(1, int((q.get("count") or ["1"])[0]))
+        except ValueError:
+            count = 1
+        got = ed.opening.acquire(False)                            # (one picture at a time: a second page, a second drop)
+        if not got or ed.session is not None:
+            if got:
+                ed.opening.release()
+            left = length                                          # (read, so that the browser hears the answer)
+            while left > 0:
+                chunk = self.rfile.read(min(1 << 20, left))
+                if not chunk:
+                    break
+                left -= len(chunk)
+            return self.json(409, {"ok": False, "error": "open"})
+        ed.busy += 1
+        try:
+            d = ed.drop
+            s = Session.dropped(name, self.rfile.read, length, d["engine"], d["data_dir"], d["out_dir"], d["last_file"], d["downloads"])
+            if s is None:
+                return self.json(400, {"ok": False, "error": "The picture did not arrive whole."})
+            say("  %s Opening %s …" % (paint(DIM, "…"), name))
+            try:
+                s.prepare()
+            except engines.EngineError as e:
+                s.forget()
+                say("  %s %s – %s" % (paint("31", "✗", True), name, e.reason))
+                return self.json(200, {"ok": False, "error": e.reason})
+            ed.session, ed.pic = s, ed.pic + 1
+            w, h = s.size
+            kv("Picture", "%s  %s" % (name, paint(DIM, "%d × %d · %s" % (w, h, human(s.bytes)))))
+            if count > 1:
+                say("    " + paint(DIM, "%d pictures – the editor opens the first. All of them at once: /img convert" % count))
+            return self.json(200, {"ok": True, "pic": ed.pic, "name": name})
+        finally:
+            ed.busy -= 1
+            ed.opening.release()
 
     def save(self, ed, q):
         s = ed.session
@@ -516,6 +662,7 @@ def clean_old(data_dir):
 def main(argv):
     ap = argparse.ArgumentParser(prog="editor.py", add_help=False)
     ap.add_argument("image", nargs="?")
+    ap.add_argument("--drop", action="store_true")
     ap.add_argument("--out-dir")
     ap.add_argument("--no-open", action="store_true")
     ap.add_argument("--port", type=int, default=0)
@@ -524,10 +671,10 @@ def main(argv):
         args = ap.parse_args(argv)
     except SystemExit:
         return 2
-    if args.help or not args.image:
-        say(__doc__.strip().split("\n\n")[0])
+    if args.help or not (args.image or args.drop) or (args.image and args.drop):
+        say("\n\n".join(__doc__.strip().split("\n\n")[:2]))             # what it is, and how it is used
         return 0 if args.help else 2
-    if not os.path.isfile(args.image):
+    if args.image and not os.path.isfile(args.image):
         return fail("There is no picture %s." % args.image, "/img edit <picture>")
     env = os.environ
     lang = env.get("LOTUS_LANG", "")
@@ -540,21 +687,29 @@ def main(argv):
                     "macOS ships its own; Linux: install imagemagick · Windows: winget install ImageMagick.ImageMagick")
     data_dir = env.get("LOTUS_EDIT_DATA") or os.path.join(tempfile.gettempdir(), "lotus-edit-%d" % os.getuid() if hasattr(os, "getuid") else "lotus-edit")
     clean_old(data_dir)
-    session = Session(args.image, eng, data_dir, args.out_dir, env.get("LOTUS_IMG_LAST"), env.get("LOTUS_DOWNLOADS"))
-    try:
-        say("  %s Opening %s …" % (paint(DIM, "…"), os.path.basename(args.image)))
-        session.prepare()
-    except engines.EngineError as e:
-        session.forget()
-        return fail("%s – %s" % (os.path.basename(args.image), e.reason), "Pictures: JPEG, PNG, HEIC, WebP, AVIF, GIF, TIFF, BMP, RAW …")
-    except KeyboardInterrupt:                                  # Ctrl-C while the picture is made ready
-        session.forget()
-        return 130
-    ed = Editor(session, lang, env.get("LOTUS_THIS", "this computer"), env.get("LOTUS_FILES_APP", "the file manager"))
+    session, drop = None, None
+    if args.drop:
+        # no picture yet: the drop page sends it; what is saved goes to the folder given (Lotus: Downloads/Lotus)
+        out_dir = os.path.abspath(args.out_dir or env.get("LOTUS_DOWNLOADS") or os.path.join(HOME, "Downloads", "Lotus"))
+        drop = {"engine": eng, "data_dir": data_dir, "out_dir": out_dir, "last_file": env.get("LOTUS_IMG_LAST"),
+                "downloads": env.get("LOTUS_DOWNLOADS")}
+    else:
+        session = Session(args.image, eng, data_dir, args.out_dir, env.get("LOTUS_IMG_LAST"), env.get("LOTUS_DOWNLOADS"))
+        try:
+            say("  %s Opening %s …" % (paint(DIM, "…"), os.path.basename(args.image)))
+            session.prepare()
+        except engines.EngineError as e:
+            session.forget()
+            return fail("%s – %s" % (os.path.basename(args.image), e.reason), "Pictures: JPEG, PNG, HEIC, WebP, AVIF, GIF, TIFF, BMP, RAW …")
+        except KeyboardInterrupt:                              # Ctrl-C while the picture is made ready
+            session.forget()
+            return 130
+    ed = Editor(session, lang, env.get("LOTUS_THIS", "this computer"), env.get("LOTUS_FILES_APP", "the file manager"), drop)
     try:
         server = Server(("127.0.0.1", args.port), Handler)
     except OSError:
-        session.forget()
+        if session:
+            session.forget()
         return fail("The port %d is taken." % args.port)
     for name in ("idle", "grace", "first"):
         try:
@@ -564,9 +719,12 @@ def main(argv):
     server.editor = ed
     ed.port = server.server_address[1]
     url = "http://127.0.0.1:%d/%s/" % (ed.port, ed.token)
-    w, h = session.size
-    kv("Picture", "%s  %s" % (os.path.basename(args.image), paint(DIM, "%d × %d · %s" % (w, h, human(session.bytes)))))
-    kv("Folder", "%s%s" % (tilde(session.out_dir), paint(DIM, "  (the folder of the picture is read-only)") if session.note else ""))
+    if session:
+        w, h = session.size
+        kv("Picture", "%s  %s" % (os.path.basename(args.image), paint(DIM, "%d × %d · %s" % (w, h, human(session.bytes)))))
+        kv("Folder", "%s%s" % (tilde(session.out_dir), paint(DIM, "  (the folder of the picture is read-only)") if session.note else ""))
+    else:
+        kv("Folder", "%s%s" % (tilde(drop["out_dir"]), paint(DIM, "  (where the pictures dropped in the browser are saved)")))
     kv("Address", paint(KEY, url))
     say()
 
@@ -580,6 +738,8 @@ def main(argv):
         say("  %s Open this address in your browser." % paint(KEY, "›", True))
     else:
         say("  %s Open in your browser. %s" % (paint(KEY, "✓", True), paint(DIM, "Ctrl-C closes it.")))
+    if drop:
+        say("  %s Drop a picture on the page – or choose one there, or paste it." % paint(KEY, "›", True))
     code = 0
     try:
         server.serve_forever(poll_interval=0.25)
@@ -587,11 +747,17 @@ def main(argv):
         code = 130 if not ed.quit else 0
     finally:
         server.server_close()
-        saved = list(session.saved)
-        session.forget()
+        got = ed.opening.acquire(timeout=5)                    # (a picture that is being made ready right now)
+        try:
+            saved = ed.saved_count()
+            if ed.session:
+                ed.session.forget()
+        finally:
+            if got:
+                ed.opening.release()
     say()
     if saved:
-        say("  %s %d picture%s saved." % (paint(KEY, "✓", True), len(saved), "" if len(saved) == 1 else "s"))
+        say("  %s %d picture%s saved." % (paint(KEY, "✓", True), saved, "" if saved == 1 else "s"))
     else:
         say("  %s Closed – nothing was saved." % paint(DIM, "›"))
     return code

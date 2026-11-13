@@ -62,6 +62,29 @@ else
   pkill -f "lib/edit/editor.py $HOME/pics/shot.png" 2>/dev/null
 fi
 
+# ── the command without a picture: /img starts it on its drop page, in the browser – not a drop zone in the terminal ──
+( ui_has_tty() { true }; img_edit >| $HOME/drop.log 2>&1 < /dev/null & )
+url=
+for i in {1..100}; do
+  url=$(plain < $HOME/drop.log | grep -o 'http://127.0.0.1:[0-9]*/[A-Za-z0-9_-]*/' | head -1)
+  [[ -n $url ]] && break
+  sleep 0.1
+done
+check "/img without a picture starts the editor and says its address" test -n "$url"
+out=$(plain < $HOME/drop.log)
+check_has "it asks for the picture on the page" "$out" "Drop a picture on the page"
+check_has "and says where the pictures go: Downloads/Lotus" "$out" "Downloads/Lotus"
+check "no drop zone in the terminal" eval '[[ $out != *"Drag a picture into this window"* && $out != *"Drop a picture here"* ]]'
+if [[ -n $url ]]; then
+  check_has "the page is the drop page" "$(curl -s -m 5 $url)" 'src="web/drop.js"'
+  curl -s -m 5 -X POST -H 'X-Lotus-Edit: 1' ${url}api/quit > /dev/null
+  for i in {1..60}; do pgrep -f "lib/edit/editor.py --drop" > /dev/null || break; sleep 0.1; done
+  check "closing the page ends it" eval '! pgrep -f "lib/edit/editor.py --drop"'
+  check_has "and it says that nothing was saved" "$(plain < $HOME/drop.log)" "Closed – nothing was saved."
+else
+  pkill -f "lib/edit/editor.py --drop" 2>/dev/null
+fi
+
 # ── the page in a browser, when there is one to drive ──
 if (( $+commands[node] )) && node -e "require('playwright')" 2>/dev/null; then
   suite "page in a browser" node $LOTUS_ROOT/tests/edit/ui.test.js

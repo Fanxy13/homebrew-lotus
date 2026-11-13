@@ -1,5 +1,6 @@
-"""The image editor's page (lib/edit/web): its texts exist in every language and fit their places, and it keeps to the content policy
-the server sends (no inline script, no inline style, no handlers in the markup). python3 tests/edit/page_test.py"""
+"""The image editor's pages (lib/edit/web: the editor, and the drop page of /img without a picture): their texts exist in every
+language and fit their places, and they keep to the content policy the server sends (no inline script, no inline style, no handlers
+in the markup). python3 tests/edit/page_test.py"""
 import json
 import os
 import re
@@ -12,14 +13,17 @@ WEB = os.path.join(EDIT, "web")
 read = lambda name: open(os.path.join(WEB, name), encoding="utf-8").read()
 HTML, CSS = read("index.html"), read("editor.css")
 JS = read("editor.js") + read("blur.js") + read("faces.js") + read("faces-worker.js")     # (everything that runs in the page)
+DROP_HTML, DROP_JS = read("drop.html"), read("drop.js")                                  # the drop page
+PAGES = (("the editor", HTML, read("editor.js")), ("the drop page", DROP_HTML, DROP_JS))
 S = json.loads(read("strings.json"))
 EN = S["en"]
 QUALITIES, SIZES = (95, 85, 70, 50), (0, 3840, 2560, 1920, 1280, 640)
 
 
 def keys_used():
-    keys = {k for k in re.findall(r"""\bt\('([a-z0-9_]+)'""", JS) if not k.endswith("_")}      # (t('fmt_' + …) is a prefix: below)
-    keys |= set(re.findall(r'data-t="([a-z0-9_]+)"', HTML))
+    keys = {k for k in re.findall(r"""\bt\('([a-z0-9_]+)'""", JS + DROP_JS) if not k.endswith("_")}   # (t('fmt_' + …): below)
+    keys |= set(re.findall(r'data-t="([a-z0-9_]+)"', HTML + DROP_HTML))
+    keys |= {"drop_here", "drop_release"}                                          # t(on ? 'drop_release' : 'drop_here')
     keys |= {"t_" + k for k in re.findall(r'data-(?:title|label)="([a-z0-9_]+)"', HTML)}
     keys |= {"fmt_" + f[0] for f in E.FORMATS}                                    # t('fmt_' + format)
     keys |= {"q_%d" % q for q in QUALITIES} | {"q_%d_d" % q for q in QUALITIES}   # t('q_' + quality)
@@ -67,22 +71,41 @@ def _():
             assert not emoji.search(text), (lang, key)
 
 
-@test("the page keeps to its content policy: no inline script, no inline style, no handlers in the markup")
+@test("both pages keep to their content policy: no inline script, no inline style, no handlers in the markup")
 def _():
-    assert not re.search(r"\sstyle\s*=", HTML), "style attribute"
-    assert not re.search(r"<style", HTML, re.I), "style block"
-    assert not re.search(r"\son[a-z]+\s*=", HTML), "event handler attribute"
-    for m in re.finditer(r"<script([^>]*)>", HTML):
-        assert "src=" in m.group(1) or 'type="application/json"' in m.group(1), m.group(0)
-    assert "setAttribute('style'" not in JS and ".innerHTML" not in JS and "eval(" not in JS, "JS the policy would stop (or that is unsafe)"
-    assert "https://" not in HTML + JS + CSS and "http://" not in re.sub(r"http://www\.w3\.org/2000/svg", "", HTML + JS + CSS), "nothing is fetched from elsewhere"
+    for what, html, _js in PAGES:
+        assert not re.search(r"\sstyle\s*=", html), (what, "style attribute")
+        assert not re.search(r"<style", html, re.I), (what, "style block")
+        assert not re.search(r"\son[a-z]+\s*=", html), (what, "event handler attribute")
+        for m in re.finditer(r"<script([^>]*)>", html):
+            assert "src=" in m.group(1) or 'type="application/json"' in m.group(1), (what, m.group(0))
+    every = HTML + DROP_HTML + JS + DROP_JS + CSS
+    assert "setAttribute('style'" not in JS + DROP_JS and ".innerHTML" not in JS + DROP_JS and "eval(" not in JS + DROP_JS, "JS the policy would stop (or that is unsafe)"
+    assert "https://" not in every and "http://" not in re.sub(r"http://www\.w3\.org/2000/svg", "", every), "nothing is fetched from elsewhere"
 
 
-@test("every id the script asks for is in the page")
+@test("every id a script asks for is in its own page")
 def _():
-    ids = set(re.findall(r'\bid="([\w-]+)"', HTML))
-    asked = set(re.findall(r"""\$\('([\w-]+)'\)""", JS))
-    assert not asked - ids, sorted(asked - ids)
+    for what, html, js in PAGES:
+        ids = set(re.findall(r'\bid="([\w-]+)"', html))
+        asked = set(re.findall(r"""\$\('([\w-]+)'\)""", js))
+        assert not asked - ids, (what, sorted(asked - ids))
+
+
+@test("the drop page sends the picture to the editor's own server only, and takes what the server says a picture is")
+def _():
+    assert re.findall(r"fetch\(([^,]+)", DROP_JS) == ["base + 'api/drop?name=' + encodeURIComponent(name) + '&count=' + count",
+                                                      "base + path", "base + 'api/bye'"], re.findall(r"fetch\(([^,]+)", DROP_JS)
+    assert "cfg.pictures" in DROP_JS and "cfg.max" in DROP_JS and "location.replace(base)" in DROP_JS
+    assert "cfg.drop" in read("editor.js") and "'image?pic=' + cfg.pic" in read("editor.js") and "'&pic=' + cfg.pic" in read("editor.js")
+
+
+@test("the drop page offers the pictures /img reads – IMG_EXT of lib/cmd/img.zsh, in the same order")
+def _():
+    import editor as ED
+    with open(os.path.join(os.path.dirname(EDIT), "cmd", "img.zsh"), encoding="utf-8") as f:
+        zsh = f.read().split("typeset -ga IMG_EXT=(")[1].split(")")[0].split()
+    assert zsh == list(ED.PICTURES), "%r != %r" % (zsh, ED.PICTURES)
 
 
 @test("the word 'gone' on the hint cannot clash with the overlay of the same name any more")
@@ -93,7 +116,7 @@ def _():
 def _():
     assert re.search(r"var TYPES = \['blur', 'pixel', 'solid'\]", read("blur.js"))
     import editor as ED
-    for name in re.findall(r'src="web/([\w.-]+)"', HTML) + ["faces-worker.js", "faces.js", "faces.bin"]:
+    for name in re.findall(r'src="web/([\w.-]+)"', HTML + DROP_HTML) + ["faces-worker.js", "faces.js", "faces.bin"]:
         assert name in ED.ASSETS, name
         assert os.path.isfile(os.path.join(WEB, name)), name
     assert "importScripts('faces.js')" in read("faces-worker.js") and "fetch('faces.bin')" in read("faces-worker.js")

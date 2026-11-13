@@ -80,8 +80,14 @@ platform layer (`lotus_os_*`, `Platform.ps1`), never straight from a feature.
 | The page, the server, the geometry, Face Blur (`lib/edit`) | shared | shared | shared |
 | The engine (`engine.py`) | `ImageIO` → `lotus-img`, built once | `Magick` | `Magick` – nothing to write |
 | The glue | `lib/edit/launch.zsh` | the same file | `win/Public/img.ps1` (`Invoke-LotusImgEdit`, about 75 lines) |
+| `/img` without a picture | the drop page in the browser (`editor.py --drop`) | the same | a drop zone in the terminal (the glue's own) |
 | Camera data of the original in the cropped copy | yes (ImageIO) | not yet | not yet |
 | Tests | engine, geometry, texts on the CI Macs; the server over HTTP on a real Mac (a CI Mac cannot talk to 127.0.0.1) | engine, server and texts in the containers (the geometry where Node is there); the page in a browser where Playwright is there | `win/tests/Edit.Tests.ps1` on GitHub's Windows machines: the glue, the editor started for a real picture, and the Python and Node programs of `tests/edit` with the machine's Python (the page is not driven in a browser there) |
+
+Without a picture the server asks for one itself: `editor.py --drop --out-dir <folder>` serves a drop page (`web/drop.html`) –
+a picture dropped on it, chosen or pasted is sent to the server (`POST api/drop`), made ready by the engine and opened in the editor
+at the same address; Cancel and "Another picture" go back to it. A glue needs no drop zone of its own any more: the zsh glue of macOS
+and Linux passes `--drop`. (The Windows glue still asks in the terminal – passing `--drop` there is a change of one line.)
 
 What the Windows glue (`Invoke-LotusImgEdit` in `win/Public/img.ps1`) does – this is all of it:
 

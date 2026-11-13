@@ -2,6 +2,7 @@
 On a Mac the engine is lotus-img (LOTUS_IMG_TOOL, which tests/test-edit.zsh builds), elsewhere ImageMagick.
 python3 tests/edit/engine_test.py"""
 import ast
+import io
 import os
 import stat
 import sys
@@ -283,5 +284,41 @@ def _():
         s.forget()
     finally:
         os.chmod(ro, stat.S_IRWXU)
+
+
+# ── A picture from the drop page (/img without a picture: the browser sends its bytes) ──
+@test("a picture from the drop page becomes a copy in a working folder of its own, made ready like a picture of a path")
+def _():
+    with open(D + "/side.jpg", "rb") as f:
+        data = f.read()
+    s = ED.Session.dropped("Ferien 1.jpg", io.BytesIO(data).read, len(data), eng, D + "/data", D + "/dropped/Lotus")
+    assert s is not None and same(os.path.dirname(s.image), os.path.join(s.work_dir, "picture")), s.image
+    s.prepare()
+    assert s.size == (300, 400), "upright, as from a path: %r" % (s.size,)
+    item = s.save("jpeg", 90, 0, False, None)
+    assert same(os.path.dirname(item["path"]), D + "/dropped/Lotus") and item["name"] == "Ferien 1.jpg", item
+    if eng.kind == "imageio":
+        edited = s.save("jpeg", 90, 0, True, png(D + "/crop3.png", 120, 90, GRAD))
+        with open(edited["path"], "rb") as f:
+            assert b"Lotus Test Camera" in f.read(), "the camera data of a dropped photo comes along, as from a path"
+    s.forget()
+    assert not os.path.exists(s.work_dir), "the copy goes with the working folder"
+
+
+@test("a picture from the drop page that did not arrive whole is none – and nothing is left of it")
+def _():
+    before = set(os.listdir(D + "/data"))
+    s = ED.Session.dropped("half.jpg", io.BytesIO(b"\xff\xd8 only the start").read, 5000, eng, D + "/data", D + "/dropped/Lotus")
+    assert s is None and set(os.listdir(D + "/data")) == before
+
+
+@test("the name a page sends becomes a file name: its last part, nothing a file name should not have, never empty")
+def _():
+    N = ED.picture_name
+    assert N("../../etc/passwd") == "passwd" and N("C:\\Users\\me\\Bild 1.HEIC") == "Bild 1.HEIC"
+    assert N("a\tb\nc.png") == "abc.png" and N('wh?at*:"<>|.jpg') == "what.jpg"
+    assert N("") == "Picture" and N("...") == "Picture" and N(".hidden.png") == "hidden.png"
+    assert N("x" * 300 + ".jpg") == "x" * 100 + ".jpg"
+    assert N("Clipboard 2026-11-12 21.40.00.png") == "Clipboard 2026-11-12 21.40.00.png"
 
 finish()

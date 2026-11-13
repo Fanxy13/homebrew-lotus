@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="referrer" content="no-referrer">
+<title>{{title}} – Lotus</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 3h2v10H3zM3 11h10v2H3z' fill='%23ffd60a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="web/editor.css">
+</head>
+<body>
+<!-- /img without a picture: drop one on this page, choose one or paste it – it opens in the editor at the same address -->
+<div id="app" class="app app-drop">
+
+  <header class="bar">
+    <button id="close" class="pill" type="button" data-t="close"></button>
+    <div class="title">
+      <b class="name" data-t="drop_title"></b>
+      <span class="sub" data-t="drop_sub"></span>
+    </div>
+    <span></span>
+  </header>
+
+  <main class="main drop-main">
+    <div id="zone" class="zone" role="button" tabindex="0" aria-describedby="zone-types">
+      <svg class="zone-icon" viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="11" width="34" height="27" rx="5"/><circle cx="17.5" cy="20.5" r="3.2"/><path d="m8.5 34 9.5-9 6.5 6 5-4.5 10 8.5"/><path d="M24 2.5v6.5"/><path d="m20.5 6 3.5 3.5L27.5 6"/></svg>
+      <h1 id="zone-title" data-t="drop_here"></h1>
+      <p id="zone-types" class="zone-types" data-t="drop_types"></p>
+      <button id="choose" class="pill pill-yellow" type="button" data-t="drop_choose"></button>
+      <p id="zone-paste" class="zone-paste"></p>
+      <p id="zone-error" class="zone-error" role="alert" hidden></p>
+    </div>
+    <p id="drop-note" class="drop-note"></p>
+    <input id="file" class="file-input" type="file" tabindex="-1" aria-hidden="true">
+  </main>
+
+  <div id="busy" class="busy" hidden><i class="spinner"></i><span id="busy-text"></span></div>
+
+  <div id="gone" class="gone" hidden>
+    <h3 id="gone-title"></h3>
+    <p id="gone-text"></p>
+  </div>
+</div>
+
+<script type="application/json" id="config">{{config}}</script>
+<script src="web/drop.js"></script>
+</body>
+</html>

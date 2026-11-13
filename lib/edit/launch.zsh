@@ -1,5 +1,5 @@
 # lotus – /img edit: one picture in the image editor, in the browser (lib/edit/editor.py and the page in lib/edit/web).
-#   /img                       the editor: drop a picture into the window (an empty ⏎ takes the clipboard)
+#   /img                       the editor in the browser, on its drop page: drop a picture on it, choose one or paste it
 #   /img edit <image>          the editor for this picture
 # This file is only the glue of macOS and Linux: it finds the picture, makes sure the system's image engine is there
 # (macOS: lotus-img, built once; Linux: ImageMagick) and starts the server – the editor itself (the page, the server, the
@@ -18,26 +18,27 @@ img_edit() {
     return 1
   fi
 
-  # the picture
+  # the picture – without one the page asks for it: its drop page takes a picture dropped on it, chosen or pasted (the browser
+  # sends it to the editor's server on this computer), and what is saved goes to Downloads/Lotus – a browser tells no folder
   local -a paths=("$@")
+  local drop=
   if (( ! ${#paths} )); then
     ui_has_tty || { ui_error "Which picture?" "" "/img edit <picture>"; return 1 }
-    img_ask edit || return 0
-    paths=("${reply[@]}")
-    ui_blank
+    drop=1
+  else
+    img_collect "${paths[@]}"
+    for a in $IMG_MISSING; do ui_warn "Not found: $a"; done
+    if (( ! ${#IMG_IN} )); then
+      ui_error "No picture to edit" "" "Pictures: ${(j:, :)${(U)IMG_EXT[1,12]}} …"
+      return 1
+    fi
+    local -a folders=(${(u)IMG_FROM:#(|clipboard)})
+    if (( ${#folders} )); then
+      ui_error "The editor opens one picture at a time" "" "A whole folder: /img convert <folder>"
+      return 1
+    fi
+    (( ${#IMG_IN} > 1 )) && ui_dim "  ${#IMG_IN} pictures – the editor opens the first, ${IMG_IN[1]:t}. All of them at once: /img convert"
   fi
-  img_collect "${paths[@]}"
-  for a in $IMG_MISSING; do ui_warn "Not found: $a"; done
-  if (( ! ${#IMG_IN} )); then
-    ui_error "No picture to edit" "" "Pictures: ${(j:, :)${(U)IMG_EXT[1,12]}} …"
-    return 1
-  fi
-  local -a folders=(${(u)IMG_FROM:#(|clipboard)})
-  if (( ${#folders} )); then
-    ui_error "The editor opens one picture at a time" "" "A whole folder: /img convert <folder>"
-    return 1
-  fi
-  (( ${#IMG_IN} > 1 )) && ui_dim "  ${#IMG_IN} pictures – the editor opens the first, ${IMG_IN[1]:t}. All of them at once: /img convert"
 
   # the image engine of this system
   local tool=
@@ -55,16 +56,23 @@ img_edit() {
     return 1
   fi
 
-  # a picture from the clipboard has no folder: the new one goes to Downloads/Lotus
-  local image=$IMG_IN[1] downloads=${LOTUS_DOWNLOADS/#\~/$HOME} outdir=
-  [[ $IMG_FROM[1] == clipboard ]] && outdir=$downloads
+  # a picture from the clipboard or the drop page has no folder: the new one goes to Downloads/Lotus
+  local downloads=${LOTUS_DOWNLOADS/#\~/$HOME}
+  local -a what
+  if [[ -n $drop ]]; then
+    what=(--drop --out-dir $downloads)
+    lotus_log INFO img "editor: the drop page"
+  else
+    what=($IMG_IN[1])
+    [[ $IMG_FROM[1] == clipboard ]] && what+=(--out-dir $downloads)
+    lotus_log INFO img "editor: ${IMG_IN[1]:t}"
+  fi
   zf_mkdir -p $LOTUS_CACHE/img 2>/dev/null
-  lotus_log INFO img "editor: ${image:t}"
   env PYTHONDONTWRITEBYTECODE=1 LOTUS_IMG_TOOL=$tool LOTUS_CWEBP=${commands[cwebp]:-} \
     LOTUS_LANG=$LOTUS_LANG LOTUS_THIS=$LOTUS_THIS LOTUS_FILES_APP=$LOTUS_FILES_APP \
     LOTUS_EDIT_DATA=$LOTUS_CACHE/img/edit LOTUS_IMG_LAST=$LOTUS_STATE/img-last LOTUS_DOWNLOADS=$downloads \
     LOTUS_COLOR_KEY=$LOTUS_C[key] LOTUS_COLOR_ACCENT=$LOTUS_C[accent] LOTUS_COLOR_DIM=$LOTUS_C[dim] \
-    python3 -B $LOTUS_ROOT/lib/edit/editor.py "$image" ${outdir:+--out-dir "$outdir"}
+    python3 -B $LOTUS_ROOT/lib/edit/editor.py "${what[@]}"
   local -i rc=$?
   (( rc == 130 )) && rc=0                  # Ctrl-C is how it is closed, not a failure
   lotus_log INFO img "editor closed ($rc)"
