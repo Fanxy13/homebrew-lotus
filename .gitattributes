@@ -4,3 +4,6 @@
 *.cmd text eol=crlf
 # the face detector of the image editor (numbers, not text)
 lib/edit/web/faces.bin binary
+# Vue 3 for the Live Server, as published on npm (scripts/vendor-vue.py): not Lotus' code – no diffs, not counted as a language
+lib/live/vue/vue.js -diff linguist-vendored
+lib/live/vue/compiler-sfc.js -diff linguist-vendored

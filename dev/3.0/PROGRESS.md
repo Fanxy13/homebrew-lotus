@@ -227,6 +227,25 @@ the texts said "macOS user" on Linux.
 - Not checked on Windows: the page in Edge or Chrome by script, a file dropped into Windows Terminal, the clipboard (a copied image,
   copied files) and the camera data of a photo (not copied by ImageMagick).
 
+### 2026-11-13 – Vue 3 in the Live Server (macOS only, by decision)
+- The Live Server serves a folder of Vue 3 single-file components as it is – no Node, npm or build step. A page with a module script gets an
+  import map for `vue` (`/__lotus/vue/vue.js`); a `.vue` file a script imports is compiled on the Mac by Vue's own `@vue/compiler-sfc`
+  (3.5.45) running in JavaScriptCore – `lotus-vue`, a 60-line Swift host (`lib/live/Vue.swift`, built once by `lotus_swift_build` when
+  `lotus liveserver --build-vue` is asked, i.e. when a folder of `.vue` files is served), speaking one JSON line per request. The glue that
+  turns an SFC into a module (`lib/live/vue/sfc.js`) follows `@vitejs/plugin-vue` (script / script setup with `genDefaultAs`, the
+  template compiled non-inline with the script's `bindingMetadata`, `compileStyle` for scoped CSS, `transformAssetUrls` with a base so
+  that `./logo.png` is the file's URL) and is plain synchronous JavaScript, so that one file runs in JavaScriptCore and in Node.
+- Why the server compiles and the browser does not: a phone in the Wi-Fi must get a finished module (and a page that may POST code to
+  the server is a way in for every device in the Wi-Fi); why JavaScriptCore: it is on every Mac, Python cannot compile Vue, and the build
+  is the pattern of `lotus-img`.
+- Also: `import './main.css'` in a script → a `<link>` (so a CSS-only change is swapped in by `reload.js`), `import './store'` →
+  `store.js` / `store/index.js` (only when the browser says `Sec-Fetch-Dest: script`), a router's page → `index.html` in a Vue project,
+  errors over the page (`window.__lotusError`) and in the terminal. Not yet: TypeScript, SCSS/Less/Stylus/Pug, CSS modules, `src=` blocks,
+  packages from `node_modules`.
+- Windows and Linux: the same Python server, no compiler (`NOT_HERE`); `LOTUS_VUE_HOST` names a program for the tests (Node, or a stand-in
+  that has no Vue in it).
+- Not checked: Safari, a project made by `npm create vue`, the Swift host on a Mac before CI ran it.
+
 ### 2026-11-12 – the image editor's drop page (`/img` without a picture)
 - `/img` (and `/img edit` without a picture) no longer asks in the terminal: the editor opens in the browser on a drop page – drop a
   picture anywhere in the window, choose one or paste one (⌘V). The server (`editor.py --drop`) takes it (`POST api/drop`: the page's

@@ -306,6 +306,20 @@ network (your Wi-Fi, the iPhone's hotspot, the devices your Mac shares its inter
 /liveserver                       # the folder you are in · /liveserver about.html · --port 8080 · --local · stop
 ```
 
+**Vue 3, on a Mac.** A folder of Vue 3 single-file components (`.vue`) opens as it is – no Node, no npm, no build step. A page's
+`import { createApp } from 'vue'` gets Vue (Lotus carries Vue 3.5, so it works offline too), and every `.vue` file a script
+imports is compiled right here, on the Mac, by Vue's own compiler in Apple's JavaScript engine – nothing is sent anywhere, and
+a phone in the Wi-Fi gets the finished module. The first time Lotus builds the small program that runs the compiler (about half a
+minute, once, with Apple's Command Line Tools – like the converter of `/img`). It understands `<script setup>`, `<script>`,
+`<template>` and `<style>` / `<style scoped>` (with `v-bind()` in CSS and `:deep()`); `import './main.css'` in a script becomes
+a stylesheet link (and a change in it is swapped in without a reload), `import './store'` finds `store.js`, and a route of the
+router (`/about`) is answered with `index.html`. What cannot be compiled is shown over the page and in the terminal: the
+line, and what is wrong.
+
+Not yet: TypeScript (`lang="ts"`), SCSS, Sass, Less, Stylus and Pug in a `.vue` file, CSS modules, and packages from
+`node_modules` – `vue-router` and `pinia` need a page that names them in an import map. Windows and Linux: the same server,
+but no compiler there – a `.vue` file says so in the page.
+
 **`/html`** makes documents of your web files: pages, style sheets and scripts as Word, PDF, Text, Markdown,
 OpenDocument or RTF. `/html` takes the page open in the browser (or asks which file), `/html all` puts every page,
 style sheet and script of the folder into a folder of their own (`my-site/Word`, `my-site/PDF` …). As code – colored
