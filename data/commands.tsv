@@ -106,3 +106,10 @@ Pets	-	pet	<name> [message]	Type a pet's name to talk to it – alone for a chat
 Pets	/feed	feed	/feed <name>	Feed a pet – pets get hungry after half a day	/feed mochi	0
 Pets	/zetamac	zetamac	/zetamac [seconds] [easy|hard]	Math game like Zetamac: 120 seconds of mental arithmetic – every right answer feeds your pets	/zetamac 60	0
 Pets	-	pets add	lotus pets add	Add your own pet from the prompt on the website (reads the clipboard)	lotus pets add	0
+Desktop	/icons	icons	/icons	Change the icon of the folders on your Desktop – one, a few or all of them. Choose the folders, drop a picture into the window, done	/icons	0
+Desktop	-	icons	/icons <picture>	The same with the picture already chosen – then choose the folders	/icons ~/Pictures/star.png	0
+Desktop	-	icons set	/icons set <picture> <folders>	Without questions: this picture for these folders – names of folders on the Desktop, or paths	/icons set star.png Projects Photos	0
+Desktop	-	icons set	/icons set <picture> --all	The same picture for every folder on the Desktop	/icons set star.png --all	0
+Desktop	-	icons reset	/icons reset [<folders>|--all]	The normal icons again – without folders, choose them from a list	/icons reset --all	0
+Desktop	-	icons list	/icons list	The folders on your Desktop, and which have a picture of their own	/icons list	0
+Desktop	-	icons check	/icons check	What the folder icons need on this Mac, and whether you have it	/icons check	0

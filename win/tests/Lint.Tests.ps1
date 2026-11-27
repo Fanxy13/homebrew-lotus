@@ -58,4 +58,13 @@ Describe '<Name>' -ForEach $script:Files {
         }
         @($bad) | Should -BeNullOrEmpty
     }
+    It 'has no typographic double quote outside a comment or a single-quoted string (PowerShell takes it for a quote: "Drop for <curly>$name<curly>" falls apart and the name is lost)' {
+        $q = "[$([char]0x201c)$([char]0x201d)$([char]0x201e)]"
+        $bad = foreach ($t in $script:Tokens) {
+            if ($t.Kind -eq 'Comment') { continue }
+            if ($t.Kind -eq 'StringLiteral' -and $t.Text.Length -gt 1 -and $t.Text[0] -eq "'") { continue }
+            if ($t.Text -match $q) { "line $($t.Extent.StartLineNumber)" }
+        }
+        @($bad) | Should -BeNullOrEmpty
+    }
 }

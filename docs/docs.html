@@ -23,7 +23,7 @@
 
     <nav class="toc card">
       <a href="#install">Install</a><a href="#setup">First start</a><a href="#use">Using Lotus</a><a href="#settings">Settings</a>
-      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#editor">Image editor</a><a href="#img">Image converter</a><a href="#live">Live Server</a><a href="#meshchat">MeshChat</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
+      <a href="#features">Features</a><a href="#config">Configuration file</a><a href="#ai">AI providers</a><a href="#bg">Remove BG</a><a href="#editor">Image editor</a><a href="#img">Image converter</a><a href="#icons">Folder icons</a><a href="#live">Live Server</a><a href="#meshchat">MeshChat</a><a href="#pets">Pets</a><a href="#clock">Clock</a><a href="#log">Log</a><a href="#update">Update and uninstall</a>
       <a href="#privacy">Privacy and security</a><a href="#trouble">Troubleshooting</a><a href="#changelog">Changelog</a>
     </nav>
 
@@ -272,6 +272,58 @@ typeset -gA LOTUS_SHORTCUTS=(<span class="t-acc">'yt' 'url|https://youtube.com|o
       <div class="card"><h3>Fast</h3><p class="muted">Several images at a time, as many as your Mac has performance cores. Ctrl-C stops between images and leaves no half file behind.</p></div>
     </div>
     <p class="muted">Without questions: <code>/img convert &lt;image|folder&gt;… --to &lt;format&gt; --quality &lt;1–100&gt; --max &lt;pixels&gt;</code>. <code>/img formats</code> shows what your Mac reads and writes. The converter is a small Swift program Lotus builds once with the Command Line Tools; without them it uses macOS' <code>sips</code>.</p>
+
+    <h2 class="section" id="icons">Folder icons</h2>
+    <p><code>/icons</code> changes the icon of the folders on your Desktop – one, a few or all of them. It starts by telling you what it needs and checking that your computer has it, then asks three short questions: <strong>which folders</strong>, <strong>which picture</strong> – you drop it into the terminal window, the same drop zone as Remove BG – and a last look before anything changes. What is inside your folders stays as it is; only the picture of the folder changes, and the picture you dropped stays where it is.</p>
+    <div class="term"><div class="term-bar"><i></i><i></i><i></i><span>zsh</span></div><pre><span class="t-dim">$</span> /icons
+
+    <span class="t-acc">◇</span> <span class="t-b">lotus</span><span class="t-dim"> / </span><span class="t-b">Folder icons</span>
+
+    <span class="t-dim">WHAT IT NEEDS</span>
+
+    <span class="t-key">✓</span> macOS 11 or newer  <span class="t-dim">this Mac has macOS 15.1</span>
+    <span class="t-key">✓</span> Nothing to install  <span class="t-dim">macOS' own tools do the work – no administrator password</span>
+    <span class="t-key">✓</span> Your Desktop        <span class="t-dim">~/Desktop</span>
+    <span class="t-key">✓</span> A picture           <span class="t-dim">PNG · JPEG · HEIC · ICNS · GIF · TIFF</span>
+
+  <span class="t-b">Step 1 of 3 · Which folders?</span>
+    <span class="t-key">●</span> <span class="t-b">All 6 folders on the Desktop</span>  <span class="t-dim">every folder you see there</span>
+    <span class="t-dim">○</span> Choose which ones  <span class="t-dim">a list of the folders on your Desktop</span>
+    <span class="t-dim">○</span> Other folders  <span class="t-dim">drop folders from anywhere into the window</span>
+
+  <span class="t-b">Step 2 of 3 · The picture</span>
+    <span class="t-dim">╭╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╮</span>
+    <span class="t-dim">┆</span>                            <span class="t-key">┃</span>                             <span class="t-dim">┆</span>
+    <span class="t-dim">┆</span>                          <span class="t-key">━━╋━━</span>                           <span class="t-dim">┆</span>
+    <span class="t-dim">┆</span>                            <span class="t-key">┃</span>                             <span class="t-dim">┆</span>
+    <span class="t-dim">┆</span>                  <span class="t-b">Drop the picture here</span>                   <span class="t-dim">┆</span>
+    <span class="t-dim">┆       PNG · JPEG · HEIC · ICNS · GIF · TIFF        ┆</span>
+    <span class="t-dim">╰╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╯</span>
+  <span class="t-dim">Drag the picture from Finder into this window, then press ⏎.</span>
+
+  <span class="t-b">Step 3 of 3 · Check</span>
+    Projects     <span class="t-dim">→</span> star.png
+    Photos       <span class="t-dim">→</span> star.png
+    <span class="t-dim">…</span>
+  Change the icon of 6 folders? <span class="t-dim">[Y/n]</span> yes
+
+  <span class="t-key">✓</span> 6 folders have a new icon
+    <span class="t-dim">The normal icons are back any time: /icons reset</span></pre></div>
+    <div class="table-wrap" style="margin-top:18px">
+      <table class="docs">
+        <tr><th>Needs</th><th>macOS</th><th>Linux</th><th>Windows</th></tr>
+        <tr><td>System</td><td>macOS 11 or newer</td><td>GNOME, Cinnamon, MATE, XFCE, Budgie – or KDE Plasma, LXQt</td><td>Windows 10 or 11</td></tr>
+        <tr><td>To install</td><td>Nothing. macOS' own tools do it, no administrator password.</td><td>KDE and LXQt: nothing. The others need <code>gio</code> and <code>gvfs</code>, which those desktops have already – <code>/icons check</code> shows the command if one is missing.</td><td>Nothing. Windows draws the icon itself, no administrator rights.</td></tr>
+        <tr><td>Permission</td><td>Your terminal must be allowed to use the Desktop folder. macOS asks once – choose Allow (System Settings → Privacy &amp; Security → Files and Folders).</td><td>–</td><td>–</td></tr>
+        <tr><td>A picture</td><td>PNG, JPEG, HEIC, ICNS, GIF, TIFF – what Preview opens</td><td>PNG, JPEG, SVG, GIF; with ImageMagick (optional) also WebP, HEIC, TIFF</td><td>PNG, JPEG, BMP, GIF, TIFF, ICO; with ImageMagick (optional) also WebP, HEIC, SVG</td></tr>
+      </table>
+    </div>
+    <div class="grid" style="margin-top:18px">
+      <div class="card"><h3>One, a few or all</h3><p class="muted">Choose all the folders of the Desktop, tick the ones you want in a list (Space ticks, A ticks all), or drop other folders into the window. With several folders: the same picture for all of them, or a different one for each.</p></div>
+      <div class="card"><h3>Without questions</h3><p class="muted"><code>/icons set star.png Projects Photos</code> – names of folders on the Desktop, or paths. <code>--all</code> is every folder of the Desktop. <code>/icons star.png</code> has the picture chosen and asks for the folders.</p></div>
+      <div class="card"><h3>Back to normal</h3><p class="muted"><code>/icons reset</code> lets you choose the folders, <code>/icons reset --all</code> takes the picture away from every folder that has one. <code>/icons list</code> shows which they are.</p></div>
+    </div>
+    <p class="muted"><code>/icons check</code> shows the list of what it needs alone, tested on your computer: a ✓ is there, a ! is good to have, a ✗ is missing and says how to fix it. How the icon is kept: macOS – what Finder's Get Info does (a hidden file called <code>Icon</code> in the folder); GNOME, Cinnamon, MATE and XFCE – an attribute of the folder that <code>gio</code> stores through GVfs; KDE and LXQt – a hidden <code>.directory</code> file; Windows – a hidden <code>desktop.ini</code> and <code>.ico</code> in the folder. Lotus keeps a copy of the picture in <code>~/.local/share/lotus/icons</code> where the system points to one, so the original can be moved or deleted.</p>
 
     <h2 class="section" id="live">Live Server and /html</h2>
     <p>Type <code>/liveserver</code> in a project folder – in VS Code's terminal too. It serves the folder on this Mac – and to your phone in the same Wi-Fi – opens <code>index.html</code> or, when there is none, a menu of all its pages, and reloads the browser whenever you save a file. Change only CSS, and only the styles swap – the page keeps its place. A QR code opens it on the iPhone: point the camera at the screen.</p>

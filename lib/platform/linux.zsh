@@ -540,6 +540,288 @@ lotus_os_image_info() {
   REPLY=$out
 }
 
+# ── Folder icons ──────────────────────────────────────────────
+# A picture as the icon of a folder. Desktop file managers keep it in one of two places:
+#   gio    GNOME Files, Cinnamon (Nemo), MATE (Caja), XFCE (Thunar), Budgie, Pantheon: the attribute metadata::custom-icon of
+#          the folder, which GVfs stores for the user – so it needs the gio program and GVfs' metadata service, which those
+#          desktops have. The folder itself is not touched.
+#   file   KDE Plasma (Dolphin and the desktop) and LXQt: a ".directory" file in the folder, "Icon=<picture>" in [Desktop Entry]
+# Both only point to the picture, so Lotus keeps a copy of its own in $LOTUS_DATA/icons – the original may be moved or deleted.
+# LOTUS_ICON_METHOD=gio|file chooses the way when the desktop is not one of those (and in the tests).
+
+# The Desktop folder of this user, from xdg-user-dirs (it may be called Schreibtisch, Bureau …) → REPLY
+# Status 1: there is none – REPLY is the folder that was expected, or empty when xdg-user-dirs says there is no desktop folder
+lotus_os_desktop() {
+  local conf=${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs line d=${XDG_DESKTOP_DIR-}
+  if [[ -z $d && -r $conf ]]; then
+    for line in "${(@f)$(<$conf)}"; do
+      [[ $line == XDG_DESKTOP_DIR=* ]] && d=${(Q)${line#XDG_DESKTOP_DIR=}}
+    done
+    d=${d//\$HOME/$HOME}
+  fi
+  if [[ -z $d ]]; then d=$HOME/Desktop
+  elif [[ $d != /* || ${d%/} == ${HOME%/} ]]; then REPLY=; return 1       # "$HOME/" is how xdg-user-dirs says: no desktop folder
+  fi
+  REPLY=${d%/}
+  [[ -d $REPLY ]]
+}
+
+# What the drop zone says a picture may be
+lotus_os_folder_icon_types() {
+  REPLY="PNG · JPEG · SVG · GIF"
+  (( $+commands[magick] || $+commands[convert] )) && REPLY+=" · WebP · HEIC · TIFF"
+}
+
+# Which way this desktop keeps folder icons → REPLY = gio | file
+_lotus_os_icon_method() {
+  case ${LOTUS_ICON_METHOD:-} in gio|file) REPLY=$LOTUS_ICON_METHOD; return 0 ;; esac
+  case $LOTUS_DESKTOP in
+    kde|plasma|lxqt) REPLY=file ;;
+    *)               REPLY=gio ;;
+  esac
+}
+
+# Does GVfs keep what gio gives it? Tried once on a folder of its own (a system without a desktop session, or without GVfs,
+# says "not supported"). Cached for the process.
+typeset -gi _LOTUS_ICON_GIO=-1
+_lotus_os_gio_ready() {
+  (( _LOTUS_ICON_GIO >= 0 )) && return $(( 1 - _LOTUS_ICON_GIO ))
+  _LOTUS_ICON_GIO=0
+  (( $+commands[gio] )) || return 1
+  local dir
+  dir=$(mktemp -d "${TMPDIR:-/tmp}/lotus-gio.XXXXXX" 2>/dev/null) || return 1
+  if gio set -t string -- $dir metadata::lotus-probe 1 >/dev/null 2>&1 &&
+     [[ $(gio info -a metadata::lotus-probe -- $dir 2>/dev/null) == *"metadata::lotus-probe: 1"* ]]; then
+    _LOTUS_ICON_GIO=1
+  fi
+  gio set -t unset -- $dir metadata::lotus-probe >/dev/null 2>&1
+  rm -rf -- ${dir:?}
+  (( _LOTUS_ICON_GIO ))
+}
+
+# file:///… for a path: every byte that is not plain is written as %XX (what GIO expects) → REPLY
+_lotus_os_file_uri() {
+  local LC_ALL=C ch h enc=
+  for ch in ${(s::)1}; do
+    if [[ $ch == [A-Za-z0-9/._~-] ]]; then enc+=$ch; else printf -v h '%%%02X' "'$ch"; enc+=$h; fi
+  done
+  REPLY=file://$enc
+}
+
+# What kind of picture a file is, by its first bytes (the extension can be wrong) → REPLY: png jpeg gif bmp webp tiff ico
+# icns heic avif svg, or nothing
+_lotus_os_icon_kind() {
+  local hex
+  REPLY=
+  hex=$(od -An -tx1 -N16 -- "$1" 2>/dev/null | tr -d ' \n')
+  case $hex in
+    89504e470d0a1a0a*)         REPLY=png ;;
+    ffd8ff*)                   REPLY=jpeg ;;
+    47494638*)                 REPLY=gif ;;
+    424d*)                     REPLY=bmp ;;
+    52494646????????57454250*) REPLY=webp ;;
+    49492a00*|4d4d002a*)       REPLY=tiff ;;
+    0000010000*)               ;;                          # an icon file that holds no icon
+    00000100*)                 REPLY=ico ;;
+    69636e73*)                 REPLY=icns ;;
+    ????????66747970(68656963|68656978|68657663|68657678|6865696d|68656973|6d696631|6d736631)*) REPLY=heic ;;
+    ????????66747970(61766966|61766973)*) REPLY=avif ;;
+    *) head -c 4096 -- "$1" 2>/dev/null | grep -aqi '<svg' && REPLY=svg ;;
+  esac
+  [[ -n $REPLY ]]
+}
+
+# Lotus' own copy of the picture, named by what is in it (the same picture for many folders is kept once) → REPLY = its path
+# A PNG, JPEG, GIF, BMP or SVG that is not big is copied as it is; everything else becomes a PNG of at most 512 pixels, with
+# ImageMagick. Status 1: LOTUS_OS_MSG says why.
+_lotus_os_icon_store() {   # <picture>
+  local src=$1 kind sum dest tmp dir=$LOTUS_DATA/icons
+  local -i size=0 im=0
+  local -a st
+  LOTUS_OS_MSG=()
+  _lotus_os_icon_kind $src || {
+    LOTUS_OS_MSG=("Lotus cannot use this picture" "${src:t} is not a PNG, JPEG, SVG, GIF, BMP, WebP, TIFF, ICO, ICNS or HEIC picture." "Pick another picture.")
+    return 1
+  }
+  kind=$REPLY
+  zstat -A st +size -- $src 2>/dev/null && size=$st[1]
+  (( $+commands[magick] || $+commands[convert] )) && im=1
+  lotus_os_hash 256 $src || { REPLY=${$(cksum < $src)%% *}; }
+  sum=${REPLY[1,16]}
+  zf_mkdir -p $dir 2>/dev/null || { LOTUS_OS_MSG=("Lotus cannot keep the picture" "${dir/#$HOME/~} cannot be written." "Check the rights of that folder."); return 1 }
+  tmp=$dir/.new.$$
+  if [[ $kind == svg ]] || { [[ $kind == (png|jpeg|gif|bmp) ]] && (( size <= 2097152 || ! im )) }; then
+    dest=$dir/$sum.${kind/jpeg/jpg}
+    [[ -s $dest ]] || { cp -- $src $tmp && zf_mv -f $tmp $dest } 2>/dev/null || { rm -f -- $tmp; [[ -s $dest ]] || { LOTUS_OS_MSG=("Lotus cannot keep the picture" "Copying it to ${dir/#$HOME/~} failed." "Is the disk full?"); return 1 } }
+  elif (( im )); then
+    dest=$dir/$sum.png
+    if [[ ! -s $dest ]]; then
+      _lotus_os_magick ${kind:u}:"${src}[0]" -auto-orient -resize '512x512>' -strip PNG:"$tmp" && [[ -s $tmp ]] && zf_mv -f $tmp $dest 2>/dev/null
+      if [[ ! -s $dest ]]; then
+        rm -f -- $tmp
+        LOTUS_OS_MSG=("ImageMagick could not read this picture" "${src:t} is a ${kind:u} picture that it cannot turn into a PNG." "Save it as a PNG or JPEG and use that one.")
+        return 1
+      fi
+    fi
+  else
+    lotus_pkg_hint magick
+    LOTUS_OS_MSG=("This picture needs ImageMagick" "A ${kind:u} picture is turned into a PNG first, and no image program is installed." "$REPLY   –   or use a PNG, JPEG or SVG picture.")
+    return 1
+  fi
+  REPLY=$dest
+}
+
+# The .directory file of a folder (KDE, LXQt): the key Icon in [Desktop Entry]; every other line stays as it is, blank lines
+# too. "unset" takes the key away, the heading with it when nothing else is in that group, and the whole file when nothing
+# else is in it – it was only there for the icon. Status 1: it could not be written.
+_lotus_os_dotdirectory() {   # set <folder> <picture> | unset <folder>
+  local mode=$1 file=$2/.directory line
+  local -a lines=() out=() held=()
+  local -i in=0 seen=0 keep=0
+  [[ $mode == unset && ! -e $file ]] && return 0
+  [[ -r $file ]] && lines=("${(@f)$(<$file)}")
+  # (every append is quoted: an empty line must not vanish)
+  for line in "${lines[@]}"; do
+    if [[ $line == '['*']' ]]; then
+      in=0 held=()                                 # a group that stayed empty goes with its heading
+      if [[ $line == '[Desktop Entry]' ]]; then
+        in=1
+        if [[ $mode == set ]]; then
+          out+=("$line")
+          (( seen )) || out+=("Icon=$3")
+        else
+          held=("$line")
+        fi
+        seen=1
+        continue
+      fi
+    fi
+    if (( in )); then
+      [[ $line == Icon=* ]] && continue
+      if (( ${#held} )); then
+        if [[ -z ${line//[[:space:]]/} ]]; then held+=("$line"); continue; fi
+        out+=("${held[@]}"); held=()
+      fi
+    fi
+    out+=("$line")
+  done
+  if [[ $mode == set ]]; then
+    (( seen )) || out=("[Desktop Entry]" "Icon=$3" "${out[@]}")
+  else
+    for line in "${out[@]}"; do [[ -z ${line//[[:space:]]/} ]] || { keep=1; break }; done
+    (( keep )) || { rm -f -- $file; return }
+  fi
+  { print -r -- "${(F)out}" >| $file.lotus.$$ && zf_mv -f $file.lotus.$$ $file } 2>/dev/null || { rm -f -- $file.lotus.$$; return 1 }
+}
+
+# A picture as the icon of a folder → status 0 done · 1 failed (LOTUS_OS_MSG = title, detail, hint) · 2 not possible here
+lotus_os_folder_icon_set() {   # <folder> <picture>
+  local folder=${1:A} method err
+  LOTUS_OS_MSG=()
+  _lotus_os_icon_method; method=$REPLY
+  if [[ $method == gio ]]; then
+    (( $+commands[gio] )) || return 2
+    _lotus_os_gio_ready || {
+      lotus_pkg_hint gvfs
+      LOTUS_OS_MSG=("The icon service of your desktop is not running" "gio is installed, but GVfs does not keep what it is given – a desktop session has it running." "In a desktop window: $REPLY")
+      return 1
+    }
+  elif [[ ! -w $folder ]]; then
+    LOTUS_OS_MSG=("Lotus cannot write into this folder" "${folder/#$HOME/~} is locked." "KDE keeps the icon in a small file inside the folder.")
+    return 1
+  fi
+  _lotus_os_icon_store "$2" || return 1
+  local stored=$REPLY
+  case $method in
+    gio)
+      _lotus_os_file_uri $stored
+      err=$(gio set -t string -- $folder metadata::custom-icon $REPLY 2>&1) || {
+        err=${err%%$'\n'*}                           # (the first line)
+        LOTUS_OS_MSG=("Your desktop did not take the icon" "${err:-gio said no.}" "Is a desktop session running? GNOME Files, Nemo, Caja and Thunar keep icons through GVfs.")
+        return 1
+      } ;;
+    file)
+      _lotus_os_dotdirectory set $folder $stored || { LOTUS_OS_MSG=("Lotus cannot write into this folder" "The .directory file could not be written." "Is the folder locked?"); return 1 } ;;
+  esac
+  return 0
+}
+
+# The normal icon again → status 0 · 1 failed (LOTUS_OS_MSG) · 2 not possible here
+lotus_os_folder_icon_reset() {   # <folder>
+  local folder=${1:A} method err
+  LOTUS_OS_MSG=()
+  _lotus_os_icon_method; method=$REPLY
+  case $method in
+    gio)
+      (( $+commands[gio] )) || return 2
+      err=$(gio set -t unset -- $folder metadata::custom-icon 2>&1) || {
+        err=${err%%$'\n'*}
+        LOTUS_OS_MSG=("Your desktop did not take the icon away" "${err:-gio said no.}" "Is a desktop session running?")
+        return 1
+      } ;;
+    file)
+      _lotus_os_dotdirectory unset $folder || { LOTUS_OS_MSG=("Lotus cannot write into this folder" "The .directory file could not be changed." "Is the folder locked?"); return 1 } ;;
+  esac
+  return 0
+}
+
+# Does the folder have a picture of its own?
+lotus_os_folder_icon_has() {   # <folder>
+  _lotus_os_icon_method
+  case $REPLY in
+    gio)  (( $+commands[gio] )) && [[ $(gio info -a metadata::custom-icon -- ${1:A} 2>/dev/null) == *"metadata::custom-icon: "* ]] ;;
+    file) [[ -r $1/.directory ]] && grep -q -- '^Icon=' $1/.directory 2>/dev/null ;;
+  esac
+}
+
+# What the feature needs, and whether this system has it → reply = rows "status|what|detail|how to fix it" with the status ok,
+# warn (works, but …) or fail; the status of the function is 1 when a row failed.
+lotus_os_folder_icon_needs() {
+  local -a rows=()                       # (lotus_pkg_hint uses reply itself)
+  local -i bad=0
+  local method desk=${LOTUS_DESKTOP:-none} name fm d hint
+  _lotus_os_icon_method; method=$REPLY
+  case $desk in
+    gnome|ubuntu|unity)  name=GNOME fm="GNOME Files" ;;
+    budgie)              name=Budgie fm="GNOME Files" ;;
+    x-cinnamon|cinnamon) name=Cinnamon fm=Nemo ;;
+    mate)                name=MATE fm=Caja ;;
+    xfce)                name=XFCE fm=Thunar ;;
+    pantheon)            name=Pantheon fm=Files ;;
+    kde|plasma)          name="KDE Plasma" fm=Dolphin ;;
+    lxqt)                name=LXQt fm=PCManFM-Qt ;;
+    none)                name= ;;
+    *)                   name=$desk fm= ;;
+  esac
+  if [[ -n $name && -n $fm ]]; then rows+=("ok|A desktop that shows folder icons|$name – $fm|")
+  elif [[ -n $name ]]; then rows+=("warn|A desktop that shows folder icons|$name is not one Lotus knows|GNOME Files, Nemo, Caja, Thunar and Dolphin show them – yours may not.")
+  else rows+=("warn|A desktop that shows folder icons|no desktop is running here (SSH or a text login)|The icon is saved for your next desktop session. GNOME Files, Nemo, Caja, Thunar and Dolphin show it.")
+  fi
+  if [[ $method == file ]]; then
+    rows+=("ok|Nothing to install|a small .directory file is written in each folder|")
+  elif (( ! $+commands[gio] )); then
+    lotus_pkg_hint gio; hint=$REPLY
+    rows+=("fail|gio|the program that keeps folder icons is missing|$hint"); bad=1
+  elif _lotus_os_gio_ready; then
+    rows+=("ok|gio and GVfs|your desktop keeps the icons for you|")
+  else
+    lotus_pkg_hint gvfs; hint=$REPLY
+    rows+=("fail|GVfs|its icon service is not running – a desktop session has it|In a desktop window, or install it: $hint"); bad=1
+  fi
+  if lotus_os_desktop; then rows+=("ok|Your Desktop folder|${REPLY/#$HOME/~}|")
+  elif [[ -n $REPLY ]]; then rows+=("warn|No Desktop folder|${REPLY/#$HOME/~} is not there|You can still drop other folders into the window.")
+  else rows+=("warn|No Desktop folder|your system has none (xdg-user-dirs)|You can still drop other folders into the window.")
+  fi
+  if (( $+commands[magick] || $+commands[convert] )); then
+    rows+=("ok|ImageMagick (optional)|turns WebP, HEIC, TIFF and big pictures into PNG|")
+  else
+    lotus_pkg_hint magick; hint=$REPLY
+    rows+=("warn|ImageMagick (optional)|only for WebP, HEIC and TIFF pictures – PNG, JPEG and SVG work without|$hint")
+  fi
+  reply=("${rows[@]}")
+  return bad
+}
+
 # ── Programs and processes ────────────────────────────────────
 
 # Java home for at least <major> → REPLY (status 1 when there is none). Looks at JAVA_HOME, the system's own

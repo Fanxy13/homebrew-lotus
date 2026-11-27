@@ -208,6 +208,97 @@ lotus_os_image_square() {   # <src> <size> <out.png>
   return st
 }
 
+# ── Folder icons ──────────────────────────────────────────────
+# What Finder does for "Get Info, paste a picture onto the icon": NSWorkspace's setIcon, through JavaScript for Automation
+# (lib/icons/seticon.js) – nothing to install, no administrator rights. macOS keeps the picture in a hidden file called Icon
+# inside the folder, so the icon moves with the folder; the rest of the folder is not touched.
+
+# The Desktop folder → REPLY (status 1: it is not there)
+lotus_os_desktop() { REPLY=$HOME/Desktop; [[ -d $REPLY ]] }
+
+# What the drop zone says a picture may be
+lotus_os_folder_icon_types() { REPLY="PNG · JPEG · HEIC · ICNS · GIF · TIFF" }
+
+# A picture as the icon of a folder → status 0 done · 1 failed (LOTUS_OS_MSG = title, detail, hint) · 2 not possible here
+lotus_os_folder_icon_set() {   # <folder> <picture>
+  local out why
+  LOTUS_OS_MSG=()
+  (( $+commands[osascript] )) || return 2
+  out=$(osascript -l JavaScript $LOTUS_ROOT/lib/icons/seticon.js set "$1" "$2" 2>&1)
+  case ${out##*$'\n'} in
+    ok) return 0 ;;
+    unreadable) LOTUS_OS_MSG=("macOS cannot read this picture" "${2:t} is not a picture that Preview can open." "Use a PNG, JPEG, HEIC, ICNS, GIF or TIFF picture.") ;;
+    *) why=${out%%$'\n'*}; why=${why[1,160]}           # (the first line)
+       [[ -z $why || $why == failed ]] && why="macOS said no without saying why."
+       LOTUS_OS_MSG=("macOS did not change the icon" "$why" "Is the folder locked? Does your terminal have access to it? System Settings → Privacy & Security → Files & Folders.") ;;
+  esac
+  return 1
+}
+
+# The normal icon again → status 0 · 1 failed (LOTUS_OS_MSG) · 2 not possible here
+lotus_os_folder_icon_reset() {   # <folder>
+  local out why
+  LOTUS_OS_MSG=()
+  (( $+commands[osascript] )) || return 2
+  out=$(osascript -l JavaScript $LOTUS_ROOT/lib/icons/seticon.js reset "$1" 2>&1)
+  [[ ${out##*$'\n'} == ok ]] && return 0
+  why=${out%%$'\n'*}; why=${why[1,160]}           # (the first line)
+  [[ -z $why || $why == failed ]] && why="macOS said no without saying why."
+  LOTUS_OS_MSG=("macOS did not give the folder its normal icon back" "$why" "Is the folder locked? Does your terminal have access to it? System Settings → Privacy & Security → Files & Folders.")
+  return 1
+}
+
+# Does the folder have a picture of its own? (the hidden file Icon, whose name ends in a carriage return)
+lotus_os_folder_icon_has() { [[ -e ${1}/Icon$'\r' ]] }
+
+# The terminal program by its own name, for the words "allow <terminal> to use your Desktop" → REPLY
+_lotus_os_terminal_name() {
+  case ${TERM_PROGRAM:-} in
+    Apple_Terminal) REPLY=Terminal ;;
+    iTerm.app)      REPLY=iTerm ;;
+    vscode)         REPLY="Visual Studio Code" ;;
+    WarpTerminal)   REPLY=Warp ;;
+    ghostty)        REPLY=Ghostty ;;
+    WezTerm)        REPLY=WezTerm ;;
+    Hyper)          REPLY=Hyper ;;
+    kitty)          REPLY=kitty ;;
+    *)              REPLY="your terminal app" ;;
+  esac
+}
+
+# What the feature needs, and whether this Mac has it → reply = rows "status|what|detail|how to fix it" with the status
+# ok, warn (works, but …) or fail; the status of the function is 1 when a row failed. Listing the Desktop here is also the
+# moment macOS asks – once – whether the terminal may use it, so the question comes now and not in the middle of the work.
+lotus_os_folder_icon_needs() {
+  local -a rows=()                       # (lotus_pkg_hint uses reply itself)
+  local -i bad=0
+  local v d t
+  lotus_os_version; v=$REPLY
+  if [[ $v == <->* ]] && (( ${v%%.*} < 11 )); then
+    rows+=("fail|macOS 11 or newer|this Mac has macOS $v|Update macOS – Lotus needs 11 or newer."); bad=1
+  else
+    rows+=("ok|macOS 11 or newer|${v:+this Mac has macOS $v}|")
+  fi
+  if (( $+commands[osascript] )); then
+    rows+=("ok|Nothing to install|macOS' own tools do the work – no administrator password|")
+  else
+    rows+=("fail|osascript is missing|macOS' own scripting tool is not on this Mac|Reinstall or repair macOS."); bad=1
+  fi
+  lotus_os_desktop; d=$REPLY
+  if [[ -d $d ]]; then
+    if ls -A -- $d >/dev/null 2>&1; then
+      rows+=("ok|Your Desktop|${d/#$HOME/~}|")
+    else
+      _lotus_os_terminal_name; t=$REPLY
+      rows+=("fail|Your Desktop is locked|macOS does not let $t use ${d/#$HOME/~} yet|Open System Settings → Privacy & Security → Files & Folders, turn on Desktop Folder for $t (or give it Full Disk Access), then run this again."); bad=1
+    fi
+  else
+    rows+=("warn|No Desktop folder|${d/#$HOME/~} is not there|You can still drop other folders into the window.")
+  fi
+  reply=("${rows[@]}")
+  return bad
+}
+
 # What plays, and its cover → reply = (status title artist album cover-file); 1 = nothing. MediaRemote, the way
 # fastfetch asks it. The cover file is new and ours: the caller removes it (lotus_cover in lib/art.zsh).
 lotus_os_media_cover() {
