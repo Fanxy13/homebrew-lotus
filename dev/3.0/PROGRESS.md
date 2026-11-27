@@ -270,8 +270,9 @@ the texts said "macOS user" on Linux.
   has `osascript` in `/usr/bin` (no `PATH` with `/usr/bin` hides it); a folder with the file `Icon` has a picture of its own on a Mac, so its note
   says so; Pester 6 reads `<8 letters>` in the name of a test as a value to put in; a `Mock` block runs where the test is and cannot see the
   module's private `Lr` (the other tests write the object out). One small inconsistency in the program, shown by two of the checks: a bare name
-  of the Desktop was joined with `$base/$name` while a typed path went through `ui_clean_path` (`:a`) – with a `//` in the home folder one folder was two
-  entries; `icons_paths` writes both the same way now. `Lint.Tests.ps1` has a rule for the names of tests.
+  of the Desktop was joined with `$base/$name`, and `--all` listed `$REPLY/*(N/)`, while a typed path went through `ui_clean_path` (`:a`) – with a `//`
+  in the home folder one folder was two entries; `icons_paths` and `icons_desktop_folders` write them the same way now (the first change did the
+  bare names only, and the Macs then counted `--all` plus two named folders as 5 – found by the second run). `Lint.Tests.ps1` has a rule for the names of tests.
 - Still not checked: what Finder and Explorer show (the tests look at the files and marks they read), macOS before 15, the question macOS asks the
   first time a terminal uses the Desktop folder, and the file managers of a real GNOME, Cinnamon, MATE, XFCE and KDE desktop (GVfs). The
   matrix says `yes` / `partial` / `yes` since those runs.
