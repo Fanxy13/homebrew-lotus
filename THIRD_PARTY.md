@@ -38,6 +38,48 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+### Vue 3 – .vue files in the Live Server (macOS)
+
+`lib/live/vue/` holds **Vue 3.5.45** (Evan You and the Vue contributors, MIT) – the two files `lotus liveserver` needs to serve a project
+that is made of `.vue` files without Node, npm or a build step. They are made by `scripts/vendor-vue.py` from the packages on the npm
+registry (each checked against the sha512 the registry publishes for it, pinned in the script):
+
+| File | From | SHA-256 |
+|---|---|---|
+| `lib/live/vue/vue.js` | `vue@3.5.45`, `dist/vue.esm-browser.js`, as it is | `47528b748162468b6a98fe6587ad4cfbe8febd504673cf28a07114dfcf4485a1` |
+| `lib/live/vue/compiler-sfc.js` | `@vue/compiler-sfc@3.5.45`, `dist/compiler-sfc.esm-browser.js`; only its last line is changed (`export { … }` → `globalThis.VueCompilerSFC = { … }`, so that JavaScriptCore can run it as a script) | `ade4bd4219482c7980e5654adad7cfc0958bf7fce66ba0fd4ac24202825fe467` |
+| `lib/live/vue/LICENSE` | the `LICENSE` of both packages | `1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175` |
+
+`vue.js` is what a page gets for `import { createApp } from 'vue'` (through an import map the Live Server puts into the page);
+`compiler-sfc.js` compiles each `.vue` file on the Mac, in Apple's own JavaScript engine (JavaScriptCore) – nothing is sent anywhere.
+The compiler file also contains, with their notices kept where they are, code of Babel's parser (`@babel/parser`), `estree-walker`,
+`magic-string`, PostCSS and `postcss-selector-parser`, `source-map-js` (BSD-3-Clause, © Mozilla Foundation and contributors, and
+the Closure Compiler Authors), `merge-source-map` and `hash-sum` – the packages `@vue/compiler-sfc` itself is built from.
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2018-present, Yuxi (Evan) You
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
 ### A portrait for the tests
 
 `tests/edit/face.png` (SHA-256 `ae200abbe80c32a09c43e2751d3324ff64ab59547ef9d29fdc70012b309eb1e9`) is a part of the portrait of astronaut Eileen Collins by NASA – public domain, as a

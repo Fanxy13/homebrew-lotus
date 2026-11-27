@@ -6,7 +6,8 @@
 #   /liveserver --no-qr          without the QR code (for the phone's camera; Tab shows the next network's)
 #   /liveserver stop             stops the ones that run in other windows
 # The server is lib/live/liveserver.py – Python's standard library, nothing to install. It reloads the page when you
-# save, answers this Mac and the devices in its Wi-Fi (nobody else), and serves nothing outside the folder.
+# save, answers this Mac and the devices in its Wi-Fi (nobody else), and serves nothing outside the folder. A folder of Vue 3
+# files (.vue) opens as it is (lib/live/vuesfc.py: compiled here, no Node, no build step – macOS).
 # lib/cmd/html.zsh (/html) takes the page that is open in its browser.
 
 typeset -g LOTUS_LOG_COMP=live
@@ -17,10 +18,16 @@ lotus_cmd_live() {
     ui_error "Live Server needs Python 3" "" "xcode-select --install   (Apple's Command Line Tools bring it)"
     return 1
   fi
+  # lib/live/vuesfc.py asks for the program that compiles .vue files when the first one is asked for (a Mac; built once, in about
+  # half a minute, from lib/live/Vue.swift) – its path, or nothing when it cannot be built
+  if [[ $1 == --build-vue ]]; then
+    [[ $LOTUS_OS == macos ]] && lotus_swift_build lotus-vue $LOTUS_ROOT/lib/live/Vue.swift > /dev/null 2>&1 && print -r -- $REPLY
+    return 0
+  fi
   zf_mkdir -p $LOTUS_STATE/live 2>/dev/null
   lotus_log INFO live "liveserver${*:+ $*}"
   # the folder you are in, Lotus' colors, and where the servers that run leave a note (for stop and /html)
-  env PYTHONDONTWRITEBYTECODE=1 LOTUS_PWD=$PWD LOTUS_LIVE_DATA=$LOTUS_STATE/live \
+  env PYTHONDONTWRITEBYTECODE=1 LOTUS_PWD=$PWD LOTUS_LIVE_DATA=$LOTUS_STATE/live LOTUS_BIN=$LOTUS_ROOT/bin/lotus \
     LOTUS_COLOR_KEY=$LOTUS_C[key] LOTUS_COLOR_ACCENT=$LOTUS_C[accent] LOTUS_COLOR_DIM=$LOTUS_C[dim] LOTUS_COLOR_LOGO=$LOTUS_C[logo] \
     python3 -B $LOTUS_ROOT/lib/live/liveserver.py "$@"
 }

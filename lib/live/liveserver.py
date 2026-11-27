@@ -9,7 +9,8 @@
     lotus liveserver stop             stops the live servers that run in other windows
 
 Like Live Server in VS Code: the page reloads when a file of the folder changes – only the style sheets when
-nothing but CSS changed (a WebSocket, /__lotus/ws). Ctrl-C stops it. Phones and computers in the same Wi-Fi
+nothing but CSS changed (a WebSocket, /__lotus/ws). A folder of Vue 3 files (.vue) opens as it is, on a Mac – nothing to install
+and no build step: the files are compiled here, as the page asks for them (lib/live/vuesfc.py). Ctrl-C stops it. Phones and computers in the same Wi-Fi
 (or Ethernet) open it too, at the Mac's address in that network – nobody else: a device from another network
 is turned away, and so is any name for the Mac but its own (127.0.0.1, localhost, its address, its .local
 name). With --local it listens on 127.0.0.1 only. It serves nothing outside the folder (no .., no links out of
@@ -35,6 +36,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import quote, unquote, urlsplit
 
 import qrart
+import vuesfc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORTS = range(5500, 5600)                      # VS Code's Live Server starts at 5500 too
@@ -620,10 +622,22 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/__lotus/reload.js":
             with open(os.path.join(HERE, "reload.js"), "rb") as f:
                 return self.answer(200, "text/javascript; charset=utf-8", f.read(), head_only)
+        if path == vuesfc.RUNTIME:                          # Vue itself, for `import { createApp } from 'vue'`
+            with open(os.path.join(vuesfc.FILES, "vue.js"), "rb") as f:
+                return self.answer(200, "text/javascript; charset=utf-8", f.read(), head_only, cache="public, max-age=3600")
         if path in ("/__lotus", "/__lotus/"):
             return self.answer(200, "text/html; charset=utf-8", menu(site), head_only)
         full = None if path.startswith("/__lotus/") else site.resolve(path)
+        own = not path.startswith("/__lotus/")
+        if own and vuesfc.from_script(self.headers) and (full is None or os.path.isdir(full)):
+            found = vuesfc.module_file(site, path)            # a script's import './store' → store.js, store/index.js
+            if found:
+                return self.file(found, head_only)
         if full is None:
+            if own and os.path.splitext(path)[1] == "" and vuesfc.navigation(self.headers) and self.server.vue.project(site):
+                index = site.index()                          # a page of a Vue project's router (/about): its index.html
+                if index:
+                    return self.file(index, head_only)
             if not path.endswith("/favicon.ico"):
                 log("404", path, DIM)
             return self.answer(404, "text/html; charset=utf-8", not_here(site, path), head_only)
@@ -644,11 +658,11 @@ class Handler(BaseHTTPRequestHandler):
         name = name.rstrip(".")
         return name in ("127.0.0.1", "localhost") or name.endswith(".localhost") or name in self.server.lan.get()[1]
 
-    def answer(self, code, ctype, data, head_only, extra=()):
+    def answer(self, code, ctype, data, head_only, extra=(), cache="no-store"):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         for k, v in extra:
             self.send_header(k, v)
         self.end_headers()
@@ -660,10 +674,21 @@ class Handler(BaseHTTPRequestHandler):
         ctype = TYPES.get(ext) or mimetypes.guess_type(full)[0] or "application/octet-stream"
         if ctype.startswith(TEXT):
             ctype += "; charset=utf-8"
+        site, vue = self.server.site, self.server.vue
         try:
+            if ext == ".vue":                                 # a Vue component: the module of it – the source for a browser that opens it
+                if not vuesfc.wants_module(self.headers):
+                    with open(full, "rb") as f:
+                        return self.answer(200, "text/plain; charset=utf-8", f.read(), head_only)
+                rel = site.rel(full)
+                code, errors = vue.module(rel, full)
+                body = code if code is not None else vuesfc.error_module(rel, errors)
+                return self.answer(200, "text/javascript; charset=utf-8", body.encode("utf-8"), head_only)
+            if ext == ".css" and (vuesfc.from_script(self.headers) or (vue.project(site) and vuesfc.wants_module(self.headers))):
+                return self.answer(200, "text/javascript; charset=utf-8", vuesfc.css_module("/" + site.rel(full)).encode("utf-8"), head_only)
             if ext in PAGES:
                 with open(full, "rb") as f:
-                    return self.answer(200, ctype, inject(f.read()), head_only)
+                    return self.answer(200, ctype, inject(vuesfc.with_vue(f.read())), head_only)
             size = os.path.getsize(full)
             start, end, code = 0, size - 1, 200
             m = re.fullmatch(r"bytes=(\d*)-(\d*)", (self.headers.get("Range") or "").strip())
@@ -903,6 +928,7 @@ def usage():
     say(f"  {paint(DIM, f'{THIS[0].upper() + THIS[1:]} and the phones and computers in the same Wi-Fi can open it – nobody else.')}")
     say(f"  {paint(DIM, 'A QR code on the screen opens it on the iPhone; Tab shows the one of the next network.')}")
     say(f"  {paint(DIM, 'Hidden files (.git, .env) and files outside the folder stay out.')}")
+    say(f"  {paint(DIM, 'Vue 3: a folder of .vue files opens as it is – compiled here, no Node, no build (macOS).')}")
     say()
 
 
@@ -998,6 +1024,7 @@ def main(args):
     if server is None:
         return fail(f"Port {port} is taken.", "lotus liveserver  takes the next free one from 5500")
     server.site, server.hub, server.lan = site, Hub(), Lan(wifi)
+    server.vue = vuesfc.Compiler(say, log)
     port = server.server_address[1]
     base = f"http://127.0.0.1:{port}"
     mark = os.path.join(running_dir(), str(port))
@@ -1023,6 +1050,15 @@ def main(args):
     else:
         n = len(pages)
         kv("Address", f"{paint(KEY, base)}  {paint(DIM, '→ a menu of ' + (f'{n} page' if n == 1 else f'{n} pages') if n else '→ no pages yet')}")
+    if server.vue.project(site):
+        if WINDOWS or (sys.platform != "darwin" and not os.environ.get("LOTUS_VUE_HOST")):
+            kv("Vue 3", paint(DIM, f".vue files: {vuesfc.NOT_HERE}"))
+        else:
+            kv("Vue 3", paint(DIM, ".vue files are compiled as the page asks for them – nothing to install"))
+            server.vue.warm()
+        extra = server.vue.others(site)
+        if extra:
+            kv("", paint(DIM, f"Not available without a build step: {', '.join(extra[:4])}{' …' if len(extra) > 4 else ''} – name them in an import map of the page"))
     page = "" if start == "/" else start
     if WINDOWS:
         kv("Wi-Fi", paint(DIM, f"off – only {THIS}: the phones in the Wi-Fi are not on Windows yet"))
@@ -1055,6 +1091,7 @@ def main(args):
         server.hub.closing = True
         if restore:
             restore()
+        server.vue.close()
         server.server_close()
         for path in (mark, mark + ".page"):
             try:
