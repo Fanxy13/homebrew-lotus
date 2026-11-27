@@ -17,3 +17,5 @@ lotus-ai	3.3.0	linux-x86_64	https://github.com/Fanxy13/homebrew-lotus/releases/d
 lotus-ai	3.3.0	linux-arm64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.3.0/lotus-ai-linux-arm64.gz	54533f42031cf5a36373e2fd58d9ef784a6b50232d162b09ee5290779bfd3a98
 lotus-ai	3.3.1	linux-x86_64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.3.1/lotus-ai-linux-x86_64.gz	42bdac22372c740dd08c4c73bed3f34bd645aefb21440056911939526a995459
 lotus-ai	3.3.1	linux-arm64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.3.1/lotus-ai-linux-arm64.gz	f399c6853802fb41ac4e617af76668c7da3210ccc8bff307c337fe43cc2e7217
+lotus-ai	3.4.0	linux-x86_64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.4.0/lotus-ai-linux-x86_64.gz	368cedae1c4ad5b66191c675e06065ac0ee480595e99d2650730df9b47d1cb69
+lotus-ai	3.4.0	linux-arm64	https://github.com/Fanxy13/homebrew-lotus/releases/download/v3.4.0/lotus-ai-linux-arm64.gz	90d8c38deb12aa705b4d09fcf489543ca489bdf5d9981baaff71397f8dd419c4
