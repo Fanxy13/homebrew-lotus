@@ -262,3 +262,16 @@ the texts said "macOS user" on Linux.
 - Not checked: a real Mac (the first run of `/icons` there will tell – `data/platform-matrix.tsv` says `built`), the file managers of a real
   GNOME, Cinnamon, MATE, XFCE and KDE desktop, and the Windows-only part of `Icons.Tests.ps1` (the drawing, the Hidden/System/ReadOnly marks, JPEG,
   BMP and GIF pictures, Explorer's refresh) – none of it has run on Windows.
+- Then, on GitHub's machines (the same day, after the merge): the Linux containers (Arch, Fedora, Debian, Ubuntu) were green; the Macs
+  (Apple silicon and Intel, macOS 15) had 5 failing checks and the Windows machines (Windows PowerShell 5.1, PowerShell 7, 7 on Arm) 3. The system's part worked
+  (the program's own work, but for one detail below): the real `osascript` and NSWorkspace set the icon (the hidden `Icon` file is there) and `reset` took it away; the drawing, the
+  files, the Hidden/System/ReadOnly marks and Explorer's refresh passed on real Windows. Mistakes of the tests: a Mac's `$TMPDIR` ends in `/`,
+  so `$HOME` has a `//` that `${HOME:a}` removes; a Mac keeps the picture in the resource fork of `Icon` (the file is empty: `test -s` says no) and
+  has `osascript` in `/usr/bin` (no `PATH` with `/usr/bin` hides it); a folder with the file `Icon` has a picture of its own on a Mac, so its note
+  says so; Pester 6 reads `<8 letters>` in the name of a test as a value to put in; a `Mock` block runs where the test is and cannot see the
+  module's private `Lr` (the other tests write the object out). One small inconsistency in the program, shown by two of the checks: a bare name
+  of the Desktop was joined with `$base/$name` while a typed path went through `ui_clean_path` (`:a`) – with a `//` in the home folder one folder was two
+  entries; `icons_paths` writes both the same way now. `Lint.Tests.ps1` has a rule for the names of tests.
+- Still not checked: what Finder and Explorer show (the tests look at the files and marks they read), macOS before 15, the question macOS asks the
+  first time a terminal uses the Desktop folder, and the file managers of a real GNOME, Cinnamon, MATE, XFCE and KDE desktop (GVfs). The
+  matrix says `yes` / `partial` / `yes` since those runs.
