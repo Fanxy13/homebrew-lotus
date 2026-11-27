@@ -16,7 +16,7 @@ foreach ($pair in @(
         'bg bg', 'log log', 'features setup', 'pets pets', 'pet pets', 'feed pets', 'zetamac pets', 'clock clock',
         'caffeine caffeine', 'awake caffeine', 'ai-tool aitools',
         'plugin plugin', 'plugins plugin', 'plugin-tool plugin', 'plugin-startup plugin', 'bash-init shell',
-        'img img', 'liveserver live', 'html html', 'meshchat meshchat')) {
+        'img img', 'liveserver live', 'html html', 'meshchat meshchat', 'icons icons', 'icon icons')) {
     $kv = $pair -split ' '
     $script:Modules[$kv[0]] = $kv[1]
 }

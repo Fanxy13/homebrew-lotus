@@ -938,3 +938,311 @@ function Get-LotusImageArt {
     } catch { }
     finally { if ($g) { $g.Dispose() }; if ($bmp) { $bmp.Dispose() }; if ($img) { $img.Dispose() } }
 }
+
+# ── Folder icons ──────────────────────────────────────────────
+
+# What File Explorer does for "Properties, Customize, Change Icon": the folder gets a desktop.ini that names the icon, and
+# Explorer reads that file only when the folder is marked read-only (the mark stops no one from writing in the folder). The icon is
+# an .ico file in the folder, hidden – so it moves with the folder. Lotus makes the .ico from the picture with Windows' own
+# drawing library: PNG frames of 256 down to 16 pixels in one ICO file. Nothing to install, no administrator rights.
+# (lotus_os_desktop, lotus_os_folder_icon_set, _reset, _has, _needs and _types of the zsh engine)
+
+$script:IconFileName = 'lotus-icon'                 # lotus-icon-<8 hex>.ico – the name follows the picture, so that Explorer's icon cache looks again
+$script:IconSizes = @(256, 128, 64, 48, 32, 16)
+
+# The Desktop folder of this user – the one OneDrive keeps, when it keeps it. LOTUS_DESKTOP_DIR names another (the tests)
+function Get-LotusDesktopFolder {
+    if ($env:LOTUS_DESKTOP_DIR) { return $env:LOTUS_DESKTOP_DIR }
+    $d = ''
+    try { $d = [Environment]::GetFolderPath('DesktopDirectory') } catch { }
+    if (-not $d) { $d = Join-Path (Get-LotusHome) 'Desktop' }
+    $d
+}
+
+# What the drop zone says a picture may be
+function Get-LotusFolderIconTypes {
+    $t = 'PNG · JPEG · BMP · GIF · TIFF · ICO'
+    if (Find-LotusProgram @('magick')) { $t += ' · WebP · HEIC' }
+    $t
+}
+
+# PNG pictures, each of 256 pixels or less → the bytes of an .ico file that holds them all (a PNG frame is what Windows Vista and
+# newer read); $null when one of them is not a PNG of that size. Several are passed as an array of byte arrays, one as @(,$bytes).
+function ConvertTo-LotusIco {
+    param([byte[][]]$Png)
+    $frames = [System.Collections.Generic.List[object]]::new()
+    foreach ($p in $Png) {
+        if ($null -eq $p -or $p.Length -lt 33 -or [BitConverter]::ToString($p, 0, 8) -ne '89-50-4E-47-0D-0A-1A-0A') { return $null }
+        $w = ([int]$p[16] * 16777216) + ([int]$p[17] * 65536) + ([int]$p[18] * 256) + [int]$p[19]
+        $h = ([int]$p[20] * 16777216) + ([int]$p[21] * 65536) + ([int]$p[22] * 256) + [int]$p[23]
+        if ($w -lt 1 -or $h -lt 1 -or $w -gt 256 -or $h -gt 256) { return $null }
+        $frames.Add([pscustomobject]@{ Bytes = $p; W = $w; H = $h })
+    }
+    if (-not $frames.Count) { return $null }
+    $ms = [System.IO.MemoryStream]::new()
+    $bw = [System.IO.BinaryWriter]::new($ms)
+    try {
+        $bw.Write([uint16]0); $bw.Write([uint16]1); $bw.Write([uint16]$frames.Count)       # reserved, "icon", how many pictures
+        $offset = 6 + 16 * $frames.Count
+        foreach ($f in $frames) {
+            $bw.Write([byte]$(if ($f.W -ge 256) { 0 } else { $f.W }))                     # (0 stands for 256)
+            $bw.Write([byte]$(if ($f.H -ge 256) { 0 } else { $f.H }))
+            $bw.Write([byte]0); $bw.Write([byte]0)                                         # no palette, reserved
+            $bw.Write([uint16]1); $bw.Write([uint16]32)                                    # planes, bits per pixel
+            $bw.Write([uint32]$f.Bytes.Length); $bw.Write([uint32]$offset)
+            $offset += $f.Bytes.Length
+        }
+        foreach ($f in $frames) { $bw.Write($f.Bytes) }
+        $bw.Flush()
+        , $ms.ToArray()
+    } finally { $bw.Dispose(); $ms.Dispose() }
+}
+
+# A picture → PNG frames of the sizes of an icon (the whole picture in the middle of each; a picture that is not square gets a
+# see-through margin). Windows' drawing library reads PNG, JPEG, BMP, GIF and TIFF – a photo is turned upright; other kinds are
+# turned into a PNG by ImageMagick first, when it is installed. → a result: 0 with the frames, 1 with Msg = title, detail, hint,
+# 2 when this system has no drawing library
+function Get-LotusIconFrames {
+    param([string]$Source)
+    if (-not $IsWindows) { return (Lr 2) }
+    try { Add-Type -AssemblyName System.Drawing -ErrorAction Stop } catch { return (Lr 2) }
+    $path = $Source
+    $temp = $null
+    $ext = [IO.Path]::GetExtension($Source).TrimStart('.').ToLowerInvariant()
+    if ($ext -notin 'png', 'jpg', 'jpeg', 'jpe', 'bmp', 'gif', 'tif', 'tiff') {
+        $magick = Find-LotusProgram @('magick')
+        if (-not $magick) {
+            return (Lr 1 $null @('This picture needs ImageMagick', "A $($ext.ToUpperInvariant()) picture is turned into a PNG first, and no image program is installed.", 'winget install --id ImageMagick.ImageMagick -e   –   or use a PNG or JPEG picture.'))
+        }
+        $temp = Join-Path ([IO.Path]::GetTempPath()) "lotus-icon-$PID.png"
+        & $magick "$Source[0]" -auto-orient -resize '1024x1024>' "PNG:$temp" *> $null
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $temp)) {
+            Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+            return (Lr 1 $null @('ImageMagick could not read this picture', "$([IO.Path]::GetFileName($Source)) is a picture it cannot turn into a PNG.", 'Save it as a PNG or JPEG and use that one.'))
+        }
+        $path = $temp
+    }
+    $img = $null
+    try {
+        $img = [System.Drawing.Image]::FromFile($path)
+        # a photo as the camera held it: the orientation tag of the file turns it upright
+        if ($img.PropertyIdList -contains 0x0112) {
+            switch ([int]$img.GetPropertyItem(0x0112).Value[0]) {
+                3 { $img.RotateFlip([System.Drawing.RotateFlipType]::Rotate180FlipNone) }
+                6 { $img.RotateFlip([System.Drawing.RotateFlipType]::Rotate90FlipNone) }
+                8 { $img.RotateFlip([System.Drawing.RotateFlipType]::Rotate270FlipNone) }
+            }
+        }
+        $frames = [System.Collections.Generic.List[byte[]]]::new()
+        foreach ($size in $script:IconSizes) {
+            $bmp = [System.Drawing.Bitmap]::new($size, $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $ms = [System.IO.MemoryStream]::new()
+            try {
+                $g.Clear([System.Drawing.Color]::Transparent)
+                $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+                $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+                $g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+                $scale = [Math]::Min($size / $img.Width, $size / $img.Height)
+                $w = [Math]::Max(1, [int][Math]::Round($img.Width * $scale))
+                $h = [Math]::Max(1, [int][Math]::Round($img.Height * $scale))
+                $g.DrawImage($img, [int](($size - $w) / 2), [int](($size - $h) / 2), $w, $h)
+                $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+                $frames.Add($ms.ToArray())
+            } finally { $ms.Dispose(); $g.Dispose(); $bmp.Dispose() }
+        }
+        Lr 0 ([byte[][]]$frames.ToArray())
+    } catch {
+        Lr 1 $null @('Windows cannot read this picture', "$([IO.Path]::GetFileName($Source)) is not a picture that Windows can open.", 'Use a PNG, JPEG, BMP, GIF or TIFF picture.')
+    } finally {
+        if ($img) { $img.Dispose() }
+        if ($temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+# The text of a desktop.ini with the icon set (-Icon is the file name) or taken away (-Icon empty); every other line stays as it was.
+# [.ShellClassInfo] holds IconResource=<file>,0 (Windows 7 and newer) and IconFile=<file> with IconIndex=0 (older ones). When the icon
+# is taken away, a group that is empty goes with its heading, and $null comes back when nothing is left of the file at all – it
+# was only there for the icon.
+function Update-LotusDesktopIniText {
+    param([AllowEmptyString()][string]$Text, [AllowEmptyString()][string]$Icon)
+    $lines = [System.Collections.Generic.List[string]]::new()
+    if ($Text) { foreach ($l in ($Text.TrimEnd("`r", "`n") -split "`r?`n")) { $lines.Add($l) } }
+    $out = [System.Collections.Generic.List[string]]::new()
+    $held = [System.Collections.Generic.List[string]]::new()
+    $inside = $false; $seen = $false
+    foreach ($line in $lines) {
+        if ($line -match '^\s*\[.*\]\s*$') {
+            $inside = $false; $held.Clear()                                             # a group that stayed empty goes with its heading
+            if ($line.Trim() -ieq '[.ShellClassInfo]') {
+                $inside = $true
+                if ($Icon) {
+                    $out.Add($line)
+                    if (-not $seen) { $out.Add("IconResource=$Icon,0"); $out.Add("IconFile=$Icon"); $out.Add('IconIndex=0') }
+                } else { $held.Add($line) }
+                $seen = $true
+                continue
+            }
+        }
+        if ($inside) {
+            if ($line -match '^\s*(IconResource|IconFile|IconIndex)\s*=') { continue }
+            if ($held.Count) {
+                if (-not $line.Trim()) { $held.Add($line); continue }
+                foreach ($h in $held) { $out.Add($h) }
+                $held.Clear()
+            }
+        }
+        $out.Add($line)
+    }
+    if ($Icon) {
+        if (-not $seen) { $out.InsertRange(0, [string[]]@('[.ShellClassInfo]', "IconResource=$Icon,0", "IconFile=$Icon", 'IconIndex=0')) }
+    } else {
+        $left = $false
+        foreach ($l in $out) { if ($l.Trim()) { $left = $true; break } }
+        if (-not $left) { return $null }
+    }
+    ($out.ToArray() -join "`r`n") + "`r`n"
+}
+
+# A desktop.ini as text, and how it was written: Explorer writes UTF-16 with a byte order mark; other programs write the system's
+# ANSI (read as Latin-1, the bytes come back exactly as they were) or UTF-8 → @{ Text; Kind = utf16 | utf8bom | ansi }
+function Read-LotusIni {
+    param([string]$Path)
+    $r = [pscustomobject]@{ Text = ''; Kind = 'ansi' }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $r }
+    $b = [IO.File]::ReadAllBytes($Path)
+    if ($b.Length -ge 2 -and $b[0] -eq 0xFF -and $b[1] -eq 0xFE) { $r.Kind = 'utf16'; $r.Text = [Text.Encoding]::Unicode.GetString($b, 2, $b.Length - 2) }
+    elseif ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { $r.Kind = 'utf8bom'; $r.Text = [Text.Encoding]::UTF8.GetString($b, 3, $b.Length - 3) }
+    else { $r.Text = [Text.Encoding]::GetEncoding(28591).GetString($b) }
+    $r
+}
+
+# A file that may be hidden or a system file: the marks come off to write it or delete it; for a new one they go on
+function Write-LotusHiddenFile {
+    param([string]$Path, [byte[]]$Bytes)
+    if (Test-Path -LiteralPath $Path) { [IO.File]::SetAttributes($Path, [IO.FileAttributes]::Normal) }
+    [IO.File]::WriteAllBytes($Path, $Bytes)
+    if ($IsWindows) { [IO.File]::SetAttributes($Path, [IO.FileAttributes]'Hidden, System') }
+}
+function Remove-LotusHiddenFile {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    [IO.File]::SetAttributes($Path, [IO.FileAttributes]::Normal)
+    Remove-Item -LiteralPath $Path -Force
+}
+function Write-LotusIni {
+    param([string]$Path, [string]$Text, [string]$Kind)
+    $enc = switch ($Kind) {
+        'utf16' { [Text.UnicodeEncoding]::new($false, $true) }
+        'utf8bom' { [Text.UTF8Encoding]::new($true) }
+        default { [Text.Encoding]::GetEncoding(28591) }
+    }
+    Write-LotusHiddenFile $Path ([byte[]]($enc.GetPreamble() + $enc.GetBytes($Text)))
+}
+
+# Explorer looks at the icons again (SHChangeNotify: SHCNE_ASSOCCHANGED, flushed) – without it a window that is open keeps the old one
+function Update-LotusExplorer {
+    if (-not $IsWindows) { return }
+    try {
+        $notify = Get-LotusNative 'shell32.dll' 'SHChangeNotify' ([void]) @([int], [uint32], [IntPtr], [IntPtr])
+        [void]$notify.Invoke($null, @(0x08000000, [uint32]0x1000, [IntPtr]::Zero, [IntPtr]::Zero))
+    } catch { }
+}
+
+# A picture as the icon of a folder (lotus_os_folder_icon_set) → a result: 0 done · 1 failed (Msg = title, detail, hint) · 2 not possible here
+function Set-LotusFolderIcon {
+    param([string]$Folder, [string]$Picture)
+    $folderName = [IO.Path]::GetFileName($Folder.TrimEnd('\', '/'))
+    if (-not (Test-Path -LiteralPath $Folder -PathType Container)) { return (Lr 1 $null @('This is not a folder', "$Folder is not there.", '')) }
+    # the .ico: an icon file as it is, else the frames of the picture
+    $bytes = $null
+    if ([IO.Path]::GetExtension($Picture) -ieq '.ico') {
+        $bytes = [IO.File]::ReadAllBytes($Picture)
+        if ($bytes.Length -lt 22 -or $bytes[0] -ne 0 -or $bytes[1] -ne 0 -or $bytes[2] -ne 1 -or $bytes[3] -ne 0) {
+            return (Lr 1 $null @('This is not an icon file', "$([IO.Path]::GetFileName($Picture)) has no icons in it.", 'Use a PNG, JPEG, BMP, GIF, TIFF or a real ICO file.'))
+        }
+    } else {
+        $frames = Get-LotusIconFrames $Picture
+        if ($frames.Code -eq 0) { $bytes = ConvertTo-LotusIco $frames.Value }
+        elseif ($frames.Code -eq 1) { return $frames }
+        else {
+            # no drawing library (this is not Windows): a PNG that is small enough is the one frame
+            $bytes = ConvertTo-LotusIco @(, [IO.File]::ReadAllBytes($Picture))
+            if (-not $bytes) { return (Lr 2) }
+        }
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { $hash = ([BitConverter]::ToString($sha.ComputeHash($bytes)) -replace '-', '').Substring(0, 8).ToLowerInvariant() } finally { $sha.Dispose() }
+    $icoName = "$($script:IconFileName)-$hash.ico"
+    $ini = Join-Path $Folder 'desktop.ini'
+    try {
+        foreach ($old in @(Get-ChildItem -LiteralPath $Folder -Force -Filter "$($script:IconFileName)-*.ico" -ErrorAction SilentlyContinue)) {
+            if ($old.Name -ine $icoName) { Remove-LotusHiddenFile $old.FullName }
+        }
+        Write-LotusHiddenFile (Join-Path $Folder $icoName) $bytes
+        $current = Read-LotusIni $ini
+        Write-LotusIni $ini (Update-LotusDesktopIniText $current.Text $icoName) $current.Kind
+        # Explorer reads the desktop.ini only of a folder that is read-only (or a system folder)
+        if ($IsWindows) {
+            $marks = [int][IO.File]::GetAttributes($Folder)                  # (whole numbers: ReadOnly is 1)
+            if (-not ($marks -band 1)) { [IO.File]::SetAttributes($Folder, [IO.FileAttributes]($marks -bor 1)) }
+        }
+    } catch {
+        return (Lr 1 $null @('Windows did not change the icon', ([string]$_.Exception.Message).Split("`n")[0], "Is $folderName locked, or open in a program that keeps it?"))
+    }
+    Update-LotusExplorer
+    Lr 0
+}
+
+# The normal icon again (lotus_os_folder_icon_reset) → a result: 0 · 1 failed (Msg)
+function Reset-LotusFolderIcon {
+    param([string]$Folder)
+    $folderName = [IO.Path]::GetFileName($Folder.TrimEnd('\', '/'))
+    $ini = Join-Path $Folder 'desktop.ini'
+    try {
+        if (Test-Path -LiteralPath $ini -PathType Leaf) {
+            $current = Read-LotusIni $ini
+            $text = Update-LotusDesktopIniText $current.Text ''
+            if ($null -eq $text) {
+                Remove-LotusHiddenFile $ini
+                # a folder that has no desktop.ini needs no read-only mark
+                if ($IsWindows) {
+                    $marks = [int][IO.File]::GetAttributes($Folder)
+                    if ($marks -band 1) { [IO.File]::SetAttributes($Folder, [IO.FileAttributes]($marks -band (-bnot 1))) }
+                }
+            } else { Write-LotusIni $ini $text $current.Kind }
+        }
+        foreach ($old in @(Get-ChildItem -LiteralPath $Folder -Force -Filter "$($script:IconFileName)-*.ico" -ErrorAction SilentlyContinue)) { Remove-LotusHiddenFile $old.FullName }
+    } catch {
+        return (Lr 1 $null @('Windows did not give the folder its normal icon back', ([string]$_.Exception.Message).Split("`n")[0], "Is $folderName locked, or open in a program that keeps it?"))
+    }
+    Update-LotusExplorer
+    Lr 0
+}
+
+# Does the folder have an icon of its own? (its desktop.ini names one)
+function Test-LotusFolderIcon {
+    param([string]$Folder)
+    $ini = Join-Path $Folder 'desktop.ini'
+    if (-not (Test-Path -LiteralPath $ini -PathType Leaf)) { return $false }
+    (Read-LotusIni $ini).Text -match '(?im)^\s*(IconResource|IconFile)\s*='
+}
+
+# What the feature needs, and whether this PC has it → a result: Code 1 when a row failed; Value = rows "status|what|detail|how to fix it"
+# with the status ok, warn (works, but …) or fail
+function Get-LotusFolderIconNeeds {
+    $rows = [System.Collections.Generic.List[string]]::new()
+    $bad = 0
+    $rows.Add("ok|Windows 10 or newer|$(Get-LotusOsDescription)|")
+    $drawing = $true
+    if ($IsWindows) { try { Add-Type -AssemblyName System.Drawing -ErrorAction Stop } catch { $drawing = $false } }
+    if ($drawing) { $rows.Add('ok|Nothing to install|Windows draws the icon itself – no administrator rights|') }
+    else { $rows.Add('fail|The drawing library of Windows is missing|System.Drawing could not be loaded|Repair Windows PowerShell, or install the .NET Framework.'); $bad = 1 }
+    $desktop = Get-LotusDesktopFolder
+    if (Test-Path -LiteralPath $desktop -PathType Container) { $rows.Add("ok|Your Desktop|$(Format-LotusHomePath $desktop)|") }
+    else { $rows.Add("warn|No Desktop folder|$(Format-LotusHomePath $desktop) is not there|You can still drop other folders into the window.") }
+    if (Find-LotusProgram @('magick')) { $rows.Add('ok|ImageMagick (optional)|turns WebP, HEIC and SVG pictures into PNG|') }
+    else { $rows.Add('warn|ImageMagick (optional)|only for WebP, HEIC and SVG pictures – PNG, JPEG, BMP, GIF, TIFF and ICO work without|winget install --id ImageMagick.ImageMagick -e') }
+    Lr $bad $rows.ToArray()
+}

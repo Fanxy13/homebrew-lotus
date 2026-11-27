@@ -160,6 +160,11 @@ Everything from 2.0 and 2.1 stays, and your settings carry over (also from 2.2 t
 | | `/bg paste` | The image in the clipboard – a screenshot, "Copy Image", or files copied in the Finder |
 | | `/bg remove --edit <image>` | Paint what to keep right after the AI |
 | | `/bg models`, `/bg output` | Models on this Mac (download, check, remove) · output folder |
+| Desktop | `/icons` | Change the icon of the folders on your Desktop – choose the folders (one, a few or all), drop a picture into the window, check, done |
+| | `/icons ~/Pictures/star.png` | The same with the picture already chosen – then the folders |
+| | `/icons set star.png Projects Photos`, `/icons set star.png --all` | Without questions: names of folders on the Desktop, or paths · every folder of the Desktop |
+| | `/icons reset`, `/icons reset --all` | The normal icons again – choose them from a list · all that have a picture of their own |
+| | `/icons list`, `/icons check` | The folders and which have a picture of their own · what it needs, and whether you have it |
 | Pets | `/pets` | Your pets: adopt up to 3, talk, feed, rename, personality, settings |
 | | `mochi`, `mochi how was your day?` | Type a pet's name to talk to it – alone for a chat, or with a message |
 | | `/feed mochi` | Feed a pet |
@@ -404,6 +409,59 @@ Windows it is `winget install Python.Python.3.13`.
 Everything stays on this computer: the editor is a small server (`lib/edit/editor.py`, Python's standard library) that
 answers only on `127.0.0.1`, under an address with a secret in it, to its own page, and ends when you close the tab, press
 Cancel or Ctrl-C. The page is plain HTML, CSS and JavaScript – no download, no framework, no account.
+
+## Folder icons
+
+`/icons` changes the icon of the folders on your Desktop – one, a few or all of them. It takes three steps and says each one:
+
+1. **Choose the folders** – all the folders of the Desktop, a list to tick (Space ticks a folder, A ticks all of them), or other
+   folders that you drop into the window.
+2. **Drop a picture into the terminal window** – the same drop zone as Remove BG and the plugin installer. With several folders
+   you choose: the same picture for all of them, or a different one for each.
+3. **Check** – Lotus lists every folder with its picture and asks once.
+
+Nothing inside your folders is changed – only the picture of the folder – and the picture you dropped stays where it is.
+`/icons reset` gives the normal icons back, to the folders you choose or to all that have one of their own.
+
+```bash
+/icons                                       # guided: choose the folders, drop a picture, check
+/icons ~/Pictures/star.png                   # the picture is chosen – then the folders
+/icons set ~/Pictures/star.png Projects Photos   # no questions: names of folders on the Desktop, or paths
+/icons set ~/Pictures/star.png --all         # every folder of the Desktop
+/icons reset --all                           # the normal icons again
+/icons list                                  # the folders, and which have a picture of their own
+/icons check                                 # what it needs, and whether this computer has it
+```
+
+### What it needs
+
+| | macOS | Linux | Windows |
+|---|---|---|---|
+| **System** | macOS 11 or newer | GNOME, Cinnamon, MATE, XFCE, Budgie – or KDE Plasma, LXQt | Windows 10 or 11 |
+| **To install** | nothing – macOS' own tools do it, no administrator password | KDE, LXQt: nothing. The others: `gio` and `gvfs`, which those desktops have already – `/icons check` shows the command if one is missing | nothing – Windows draws the icon itself, no administrator rights |
+| **Permission** | your terminal must be allowed to use the Desktop folder – macOS asks once, choose *Allow* (System Settings → Privacy & Security → Files & Folders) | – | – |
+| **A picture** | PNG, JPEG, HEIC, ICNS, GIF, TIFF – what Preview opens | PNG, JPEG, SVG, GIF; with ImageMagick (optional) also WebP, HEIC, TIFF | PNG, JPEG, BMP, GIF, TIFF, ICO; with ImageMagick (optional) also WebP, HEIC, SVG |
+
+`/icons` starts with this list, tested on your computer: a **✓** is there, a **!** is good to have, and a **✗** is missing and
+comes with what to do about it. `/icons check` shows the list alone.
+
+### How each system keeps the icon
+
+- **macOS** – what Finder does when you paste a picture in *Get Info*: `NSWorkspace`'s `setIcon`, called through a small
+  JavaScript for Automation file (`lib/icons/seticon.js`). macOS keeps the picture in a hidden file called `Icon` inside the
+  folder, so the icon moves with the folder.
+- **Linux** – GNOME Files, Nemo, Caja and Thunar read the folder's `metadata::custom-icon`, which `gio` stores through GVfs
+  (the folder is not touched). KDE (Dolphin and the Desktop) and LXQt read a hidden `.directory` file with `Icon=`; the rest of
+  that file is left as it is. Lotus keeps a copy of the picture in `~/.local/share/lotus/icons`, so the original may be moved
+  or deleted. (Run `/icons reset --all` before you uninstall Lotus: without that copy the folders only show their normal icon
+  again, and the little entry that pointed to it stays behind.)
+- **Windows** – what *Properties → Customize → Change Icon* does: a hidden `desktop.ini` that names a hidden `.ico` in the
+  folder. Lotus makes the `.ico` from your picture, in six sizes, and marks the folder read-only – the mark that makes Explorer
+  look at the `desktop.ini`; it does not stop anyone from writing in the folder.
+
+On a Mac and on Windows nothing has to be installed. The screens are the same on every system (`lib/cmd/icons.zsh`,
+`win/Public/icons.ps1`); what the system does is in the platform layer. Status: macOS and Windows *built*, Linux *partial*
+(`data/platform-matrix.tsv` says what is tested where).
 
 ## Remove BG
 

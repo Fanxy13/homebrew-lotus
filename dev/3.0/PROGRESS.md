@@ -242,3 +242,23 @@ the texts said "macOS user" on Linux.
 - Not checked: Safari, Edge, Firefox by script; a real iPhone photo with dozens of faces on a slow computer (the 2048 × 1150 group
   photo takes about two seconds in Chromium here).
 
+### 2026-11-27 – Folder icons (`/icons`)
+- A new command: change the icon of the folders on the Desktop – one, a few or all: choose the folders, drop a picture into the window
+  (`ui_drop_zone`), check, done; `set`, `reset`, `list` and `check` without questions. The screens are `lib/cmd/icons.zsh` and
+  `win/Public/icons.ps1`; the system's part is six `lotus_os_*` functions (`lotus_os_desktop`, `lotus_os_folder_icon_set`, `_reset`, `_has`,
+  `_needs`, `_types`) in `lib/platform/macos.zsh` and `linux.zsh` and their Windows names in `win/Private/Platform.ps1`. It says what it needs
+  (a list with ✓ ! ✗, and the fix for each ✗) on every start and in `/icons check`; the README and the website have the table.
+- Verified here (a Linux container with zsh 5.9 and PowerShell 7.5): `zsh tests/run.zsh` – 1176 checks, all green (945 before, 231 of them
+  new); the JavaScript of macOS under Node against stand-ins for ObjC (10); the guided command in a pseudo terminal, which types each
+  answer when its question has appeared; `win/tests/Icons.Tests.ps1` (37 checks) run with PowerShell 7 on Linux through a small stand-in for Pester
+  (Pester cannot be installed from here – the PowerShell Gallery is not reachable); the repo's lint rules for the Windows files, and a scan for
+  PowerShell 7-only syntax, since the CI also runs Windows PowerShell 5.1. The `.ico` that `ConvertTo-LotusIco` writes was read back by ImageMagick
+  (two PNG frames, the right sizes).
+- Found by running it: `${${(f)text}[1]}` is the first *character* when the text has one line (zsh) – the first line is `${text%%$'\n'*}`;
+  `lotus_pkg_hint` overwrites the global `reply` (rows are collected in a local array); a blank line of a user's `.directory` vanished when
+  appended unquoted; the macOS file `Icon` and Lotus' own `.ico` and `desktop.ini` were counted as the items of a folder; a drop zone without
+  a keyboard asked again for ever; and PowerShell takes a typographic double quote for a quote (`"…“$name”"` lost the name) – `Lint.Tests.ps1`
+  has a rule for it now.
+- Not checked: a real Mac (the first run of `/icons` there will tell – `data/platform-matrix.tsv` says `built`), the file managers of a real
+  GNOME, Cinnamon, MATE, XFCE and KDE desktop, and the Windows-only part of `Icons.Tests.ps1` (the drawing, the Hidden/System/ReadOnly marks, JPEG,
+  BMP and GIF pictures, Explorer's refresh) – none of it has run on Windows.

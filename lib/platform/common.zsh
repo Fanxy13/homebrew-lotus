@@ -12,6 +12,7 @@ typeset -ga LOTUS_OS_CONTRACT=(
   lotus_os_trash lotus_os_choose_folder lotus_os_java lotus_os_java_package lotus_os_proc_cwds lotus_os_proc_in lotus_os_awake_while
   lotus_os_sandbox_available lotus_os_sandbox_wrap lotus_os_image_info
   lotus_os_image_bmp lotus_os_image_square lotus_os_media_cover
+  lotus_os_desktop lotus_os_folder_icon_types lotus_os_folder_icon_set lotus_os_folder_icon_reset lotus_os_folder_icon_has lotus_os_folder_icon_needs
 )
 
 # The first of these programs that is installed → REPLY (status 1 when there is none)
