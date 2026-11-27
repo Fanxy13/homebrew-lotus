@@ -76,7 +76,8 @@ rmdir $D/apple $D/Banana $D/cherry
 icons_folder_note $D/Projects; check_eq "a folder says what it holds" "$REPLY" "2 items"
 icons_folder_note $D/Photos;   check_eq "an empty one says so" "$REPLY" "empty"
 print -r -- x >| "$D/Photos/Icon"$'\r'
-icons_folder_note $D/Photos;   check_eq "the hidden file Icon of a Mac is not one of the folder's items" "$REPLY" "empty"
+icons_folder_note $D/Photos;   check_eq "the hidden file Icon of a Mac is not one of the folder's items" "${REPLY%% · *}" "empty"
+[[ $LOTUS_OS == macos ]] && check_has "…on a Mac it is the folder's picture, and the note says so" "$REPLY" "empty · has a picture of its own"
 rm -f "$D/Photos/Icon"$'\r'
 
 # ── how it reads what is dropped or typed ──
@@ -188,7 +189,8 @@ r=$(LOTUS_OS_VERSION=15.1 TERM_PROGRAM=iTerm.app PATH=$HOME/ls-bin:$HOME/osa-bin
 check_has "macOS needs: …iTerm by its name" "$r" "turn on Desktop Folder for iTerm"
 r=$(LOTUS_OS_VERSION=15.1 TERM_PROGRAM= PATH=$HOME/ls-bin:$HOME/osa-bin:$PATH needs)
 check_has "macOS needs: …and any other terminal as your terminal app" "$r" "turn on Desktop Folder for your terminal app"
-r=$(LOTUS_OS_VERSION=15.1 PATH=$HOME/emptybin:/usr/bin:/bin needs)
+zf_mkdir -p $HOME/ls-only; ln -sf ${commands[ls]} $HOME/ls-only/ls      # (a Mac has osascript in /usr/bin: the only program on this PATH is ls)
+r=$(LOTUS_OS_VERSION=15.1 PATH=$HOME/ls-only needs)
 check_has "macOS needs: without osascript it fails and says why" "$r" "fail|osascript is missing"
 fakes=$HOME/osa-bin; nohome=$HOME/nohome
 r=$(LOTUS_OS_VERSION=15.1 HOME=$nohome PATH=$fakes:$PATH needs)
@@ -575,7 +577,11 @@ zf_mkdir -p $H/real/Folder
 if [[ $LOTUS_OS == macos ]]; then
   out=$(PATH=$REAL_PATH LOTUS_ICON_METHOD= $LOTUS_ROOT/bin/lotus icons set $RED $H/real/Folder 2>&1 < /dev/null | plain)
   if [[ -e $H/real/Folder/Icon$'\r' ]]; then
-    check "this Mac, for real: the hidden file Icon is in the folder, and it holds the picture" test -s "$H/real/Folder/Icon"$'\r'
+    # (a Mac keeps the picture in the resource fork of that file – the file itself is empty, as for every folder icon)
+    rsrc_ok() { [[ -s $1/Icon$'\r'/..namedfork/rsrc ]] || xattr -p com.apple.ResourceFork $1/Icon$'\r' >/dev/null 2>&1 }
+    check "this Mac, for real: the hidden file Icon is in the folder, and its resource fork holds the picture" rsrc_ok $H/real/Folder
+    rsrc_ok $H/real/Folder || print -r -- "      what is there: $(ls -la@ $H/real/Folder 2>&1 | tr '\r\n' '~|' | cut -c1-500)"
+    print -r -- "  · the Finder flags of the folder (the custom icon is bit 4 of the ninth byte): $(xattr -px com.apple.FinderInfo $H/real/Folder 2>&1 | tr -d '\n' | cut -c1-120)"
     PATH=$REAL_PATH LOTUS_ICON_METHOD= $LOTUS_ROOT/bin/lotus icons reset $H/real/Folder >/dev/null 2>&1 < /dev/null
     check "this Mac, for real: reset takes the hidden file away" test ! -e "$H/real/Folder/Icon"$'\r'
   else

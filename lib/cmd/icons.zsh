@@ -175,7 +175,7 @@ icons_paths() {   # <base folder or ""> <words…>
     ok=0
     for (( j = i; j <= ${#in}; j++ )); do
       t=${(j: :)in[i,j]}
-      if [[ -n $base && $t != */* && $t != \~* && $t != file://* && -e $base/$t ]]; then found+=($base/$t)
+      if [[ -n $base && $t != */* && $t != \~* && $t != file://* && -e $base/$t ]]; then found+=(${base:a}/$t)   # (written as a typed path is: no //, so that one folder is one entry)
       else
         ui_clean_path "$t"
         [[ -e $REPLY ]] || continue
