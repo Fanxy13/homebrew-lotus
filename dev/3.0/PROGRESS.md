@@ -294,4 +294,7 @@ the texts said "macOS user" on Linux.
   runs `vue` and `vueserver` with the Node of the runner, a Vue project through `/liveserver` on Windows (`Live.Tests.ps1`, skipped without Node), and the files
   of the Vue support in the list of `Install.Tests.ps1`. Here: `zsh tests/run.zsh vue vueserver` – 111 checks, all green; the new Windows test through the
   stand-in for Pester with PowerShell 7 on Linux.
-- Not checked: `lotus-vue` itself (JavaScriptCore, built by the CI Macs for the first time), Safari, Node older than 22, and Windows until the CI has run it.
+- Run by the CI of the pull request (dfd71c1): `lotus-vue` was built by both CI Macs – Apple silicon with macOS 26, Intel with macOS 15 – and passed the 13 compiler
+  checks through JavaScriptCore on the first try (the Swift file type-checks too); the new Windows test ran on real Windows (PowerShell 7) and passed; the Linux job
+  (`vue`) took 38 seconds. Not checked: the whole path on a Mac (the CI Macs do not start the server – `liveserver` and `vueserver` stay out there, as for the Live
+  Server's own tests), Safari, Node older than 22. The matrix says `partial` for macOS, Linux and Windows.
