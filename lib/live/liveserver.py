@@ -9,8 +9,8 @@
     lotus liveserver stop             stops the live servers that run in other windows
 
 Like Live Server in VS Code: the page reloads when a file of the folder changes – only the style sheets when
-nothing but CSS changed (a WebSocket, /__lotus/ws). A folder of Vue 3 files (.vue) opens as it is, on a Mac – nothing to install
-and no build step: the files are compiled here, as the page asks for them (lib/live/vuesfc.py). Ctrl-C stops it. Phones and computers in the same Wi-Fi
+nothing but CSS changed (a WebSocket, /__lotus/ws). A folder of Vue 3 files (.vue) opens as it is – no build step, and on a Mac
+nothing to install (elsewhere Node does the compiling): the files are compiled here, as the page asks for them (lib/live/vuesfc.py). Ctrl-C stops it. Phones and computers in the same Wi-Fi
 (or Ethernet) open it too, at the Mac's address in that network – nobody else: a device from another network
 is turned away, and so is any name for the Mac but its own (127.0.0.1, localhost, its address, its .local
 name). With --local it listens on 127.0.0.1 only. It serves nothing outside the folder (no .., no links out of
@@ -928,7 +928,7 @@ def usage():
     say(f"  {paint(DIM, f'{THIS[0].upper() + THIS[1:]} and the phones and computers in the same Wi-Fi can open it – nobody else.')}")
     say(f"  {paint(DIM, 'A QR code on the screen opens it on the iPhone; Tab shows the one of the next network.')}")
     say(f"  {paint(DIM, 'Hidden files (.git, .env) and files outside the folder stay out.')}")
-    say(f"  {paint(DIM, 'Vue 3: a folder of .vue files opens as it is – compiled here, no Node, no build (macOS).')}")
+    say(f"  {paint(DIM, 'Vue 3: a folder of .vue files opens as it is – compiled here, no build step (a Mac needs nothing, elsewhere Node).')}")
     say()
 
 
@@ -1051,10 +1051,12 @@ def main(args):
         n = len(pages)
         kv("Address", f"{paint(KEY, base)}  {paint(DIM, '→ a menu of ' + (f'{n} page' if n == 1 else f'{n} pages') if n else '→ no pages yet')}")
     if server.vue.project(site):
-        if WINDOWS or (sys.platform != "darwin" and not os.environ.get("LOTUS_VUE_HOST")):
+        engine = server.vue.engine()
+        if not engine:
             kv("Vue 3", paint(DIM, f".vue files: {vuesfc.NOT_HERE}"))
         else:
-            kv("Vue 3", paint(DIM, ".vue files are compiled as the page asks for them – nothing to install"))
+            how = {"mac": "nothing to install", "node": "with Node", "host": "with the program LOTUS_VUE_HOST names"}[engine]
+            kv("Vue 3", paint(DIM, f".vue files are compiled as the page asks for them – {how}"))
             server.vue.warm()
         extra = server.vue.others(site)
         if extra:

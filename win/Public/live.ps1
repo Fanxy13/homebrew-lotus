@@ -2,6 +2,7 @@
 # VS Code: lib/live/liveserver.py, the same server as on the Mac (Python's standard library), run with Python 3.9 or
 # newer. On Windows it is for this PC: the phones and computers in the Wi-Fi and their QR code need the Mac's list of its
 # networks and are not on Windows yet. It serves nothing outside the folder and no hidden files.
+# A folder of Vue 3 files (.vue) opens as it is: Node.js, when it is installed, compiles them (lib/live/vuesfc.py).
 #   /liveserver [<folder|page>] [--port <n>] [--no-open]   ·   /liveserver stop
 
 function script:Invoke-Lotuslive {

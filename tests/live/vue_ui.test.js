@@ -1,7 +1,7 @@
 // A Vue 3 app through the Live Server, in a real browser (Chromium through Playwright): a project like the one `npm create vue` makes
 // (JavaScript), in small – an index.html, main.js that imports a stylesheet, components with <script setup>, scoped styles, v-bind() in
 // CSS, a module imported without its extension, an image with a relative URL – served by lib/live/liveserver.py with the compiler
-// that carries Vue's (LOTUS_VUE_HOST: tests/live/vue-host.js, Node). The page runs, reacts, is styled; a change reloads it; what is
+// that carries Vue's (Node – the one that runs this test, as LOTUS_NODE: the choice the Live Server makes where there is no Mac). The page runs, reacts, is styled; a change reloads it; what is
 // wrong in a file is shown over the page and goes away when the file is right; a router's /about is the index.html.
 //   node tests/live/vue_ui.test.js      (needs the Node package "playwright" and a browser it can start)
 'use strict';
@@ -75,9 +75,8 @@ write('src/components/Counter.vue', COUNTER(''));
 (async () => {
   const port = await freePort();
   const B = 'http://127.0.0.1:' + port;
-  const host = 'node ' + path.join(ROOT, 'tests', 'live', 'vue-host.js');
   const server = spawn('python3', ['-B', path.join(ROOT, 'lib', 'live', 'liveserver.py'), '--no-open', '--local', '--port', String(port)], {
-    env: Object.assign({}, process.env, { LOTUS_PWD: SITE, LOTUS_LIVE_DATA: path.join(D, 'state'), LOTUS_VUE_HOST: host }), cwd: SITE
+    env: Object.assign({}, process.env, { LOTUS_PWD: SITE, LOTUS_LIVE_DATA: path.join(D, 'state'), LOTUS_NODE: process.execPath }), cwd: SITE
   });
   let log = '';
   server.stdout.on('data', (d) => { log += d; });
@@ -92,7 +91,7 @@ write('src/components/Counter.vue', COUNTER(''));
   const problems = [];
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') problems.push(m.type() + ': ' + m.text()); });
   page.on('pageerror', (e) => problems.push('pageerror: ' + e.message));
-  const text = (sel) => page.textContent(sel);
+  const text = (sel) => page.innerText(sel);      // (what is seen: the blocks of the error message are on lines of their own)
   const css = (sel, prop) => page.$eval(sel, (el, p) => getComputedStyle(el)[p], prop);
 
   await test('the app runs: the greeting from a module without its extension, the list, the child component with its props', async () => {

@@ -1,4 +1,4 @@
-# Vue 3 in the Live Server (lib/live/vuesfc.py, macOS): the server around the compiler, over HTTP, with a stand-in for the compiler
+# Vue 3 in the Live Server (lib/live/vuesfc.py): the server around the compiler, over HTTP, with a stand-in for the compiler
 # (tests/live/stub-host.py speaks the lines the real program does – the real compiler and Vue itself are tests/test-vue.zsh). Like the
 # Live Server's own tests it talks to 127.0.0.1, which a CI Mac does not let it do (the workflow leaves this file out there; it runs
 # on a real Mac and in the Linux containers).
@@ -65,7 +65,7 @@ export LOTUS_VUE_HOST="python3 -B $LOTUS_ROOT/tests/live/stub-host.py" LOTUS_STU
 check "it answers" up $port
 sleep 0.5
 out=$(plain < $HOME/vue.log)
-check_has "a folder of .vue files says that they are compiled here" "$out" "Vue 3       .vue files are compiled as the page asks for them – nothing to install"
+check_has "a folder of .vue files says that they are compiled here, and by what (a program the test names)" "$out" "Vue 3       .vue files are compiled as the page asks for them – with the program LOTUS_VUE_HOST names"
 check_has "and what a build step would have given that it has not" "$out" "Not available without a build step: vue-router, pinia – name them in an import map of the page"
 check_has "the compiler is ready before the first page is" "$out" "✓ Vue compiler ready"
 
@@ -148,13 +148,33 @@ check_has "a page with a module script knows vue here too (it can only help)" "$
 check_eq "a stylesheet a script imports is a module when the browser says so, in any folder" "$(curl -s -H 'Sec-Fetch-Dest: script' $B/css/style.css | grep -c 'link.rel')" 1
 pkill -f "liveserver.py --no-open --local --port $port" 2>/dev/null
 
-# ── no compiler: a system that is not a Mac says so ──
+# ── no compiler: where there is no Mac and no Node, a .vue file says so ──
 if [[ $LOTUS_OS != macos ]]; then
   free_port; port=$REPLY B=http://127.0.0.1:$REPLY
-  (cd $V && env -u LOTUS_VUE_HOST $LOTUS_ROOT/bin/lotus liveserver --no-open --local --port $port >| $HOME/nohost.log 2>&1 &)
+  (cd $V && env -u LOTUS_VUE_HOST LOTUS_NODE=/nonexistent/node $LOTUS_ROOT/bin/lotus liveserver --no-open --local --port $port >| $HOME/nohost.log 2>&1 &)
   check "a folder of .vue files answers without a compiler" up $port
-  check_has "the terminal says it" "$(plain < $HOME/nohost.log)" "Vue files are compiled on a Mac only – not here yet"
-  check_has "so does the page: the .vue file is the error" "$(curl -s "${script[@]}" $B/src/App.vue)" "Vue files are compiled on a Mac only – not here yet"
+  check_has "the terminal says it" "$(plain < $HOME/nohost.log)" "Vue files are compiled with Node.js here, and there is none"
+  check_has "so does the page: the .vue file is the error" "$(curl -s "${script[@]}" $B/src/App.vue)" "Vue files are compiled with Node.js here, and there is none"
   check_eq "the rest of the folder works" "$(code $B/src/util.js)" 200
+  pkill -f "liveserver.py --no-open --local --port $port" 2>/dev/null
+fi
+
+# ── Node is the compiler where there is no Mac: Vue's own compiler, no stand-in ──
+if [[ $LOTUS_OS != macos ]] && (( $+commands[node] )); then
+  free_port; port=$REPLY B=http://127.0.0.1:$REPLY
+  (cd $V && env -u LOTUS_VUE_HOST $LOTUS_ROOT/bin/lotus liveserver --no-open --local --port $port >| $HOME/node.log 2>&1 &)
+  check "a folder of .vue files answers" up $port
+  for i in {1..100}; do [[ $(plain < $HOME/node.log) == *"Vue compiler ready"* ]] && break; sleep 0.2; done
+  out=$(plain < $HOME/node.log)
+  check_has "the terminal says that Node compiles" "$out" ".vue files are compiled as the page asks for them – with Node"
+  check_has "…and that the compiler is ready" "$out" "✓ Vue compiler ready"
+  print -r -- '<template><h1>Grüezi</h1></template>' >| $V/src/Hello.vue
+  mod=$(curl -s "${script[@]}" $B/src/Hello.vue)
+  check_has "a .vue file a script imports is compiled by Vue: a component, a render function" "$mod" "const _sfc_main"
+  check_has "…and the text of the template is in it" "$mod" "Grüezi"
+  print -r -- $'<template>\n  <div>\n</template>' >| $V/src/Bad.vue
+  bad=$(curl -s "${script[@]}" $B/src/Bad.vue)
+  check_has "a file that cannot be compiled is the error of the file, with Vue's own words" "$bad" "Element is missing end tag"
+  check_has "…shown over the page" "$bad" "globalThis.__lotusError"
   pkill -f "liveserver.py --no-open --local --port $port" 2>/dev/null
 fi

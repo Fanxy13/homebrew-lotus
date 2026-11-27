@@ -1,8 +1,8 @@
-"""Vue's compiler through the program that carries it – lotus-vue on a Mac (JavaScriptCore), tests/live/vue-host.js (Node) where there is no
+"""Vue's compiler through the program that carries it – lotus-vue on a Mac (JavaScriptCore), lib/live/vue/host.js (Node) where there is no
 Mac: what a .vue file becomes, line by line, as the Live Server sends it to the program (LOTUS_VUE_HOST names the program; the two scripts
 it loads are added here, as the server does).
 
-    LOTUS_VUE_HOST="node tests/live/vue-host.js" python3 tests/live/vue_compile_test.py
+    LOTUS_VUE_HOST="node lib/live/vue/host.js" python3 tests/live/vue_compile_test.py
 """
 import json
 import os
@@ -148,16 +148,18 @@ export default { name: 'Options', data() { return { n: 1 } } }
     assert "__scopeId" not in code and "createElement(\"style\")" not in code, "not scoped, no style: none of either"
 
 
-@test("only a template, only a script, only a style")
+@test("only a template, only a script – and a style with a template; a style alone or nothing at all is Vue's own error")
 def _():
     t = host.compile("T.vue", "<template><b>bold</b></template>")["code"]
     assert "const _sfc_main = {};" in t and "_sfc_main.render = render;" in t
     s = host.compile("S.vue", "<script>\nexport default { render() { return null } }\n</script>")["code"]
     assert "_sfc_main.render" not in s and "export default _sfc_main;" in s
-    c = host.compile("C.vue", "<style>\np { color: green }\n</style>")["code"]
-    assert "const _sfc_main = {};" in c and "p { color: green }" in c and "data-v-" not in c.split("textContent =")[1], "a plain style has no scope"
-    e = host.compile("E.vue", "")
-    assert "const _sfc_main = {};" in e["code"] and e["code"].rstrip().endswith("export default _sfc_main;"), e
+    c = host.compile("C.vue", "<template><p>x</p></template>\n<style>\np { color: green }\n</style>")["code"]
+    assert "color: green" in c and "data-v-" not in c.split("textContent =")[1], "a plain style has no scope"   # (PostCSS prints it its way)
+    # (Vue's own parser says so for a component that has neither: @vue/compiler-sfc, and so does Vite – it is not left out silently)
+    for name, source in (("E.vue", ""), ("St.vue", "<style>\np { color: green }\n</style>")):
+        e = errors_of(host.compile(name, source))
+        assert "At least one <template> or <script> is required" in e[0]["message"], (name, e)
 
 
 @test("text that is not ASCII goes through the lines, in the template and the script")
@@ -193,11 +195,12 @@ def _():
              ("<template><p/></template>\n<style module>\n.a { color: red }\n</style>", "CSS modules"),
              ("<template src=\"./t.html\"></template>", "<template src"),
              ("<script src=\"./s.js\"></script>", "<script src"),
-             ("<style src=\"./s.css\"></style>", "<style src"))
+             ("<template><p/></template>\n<style src=\"./s.css\"></style>", "<style src"))
     for source, word in cases:
         e = errors_of(host.compile("X.vue", source))
         assert word in e[0]["message"] and "not supported" in e[0]["message"], (source, e)
-    both = errors_of(host.compile("Y.vue", "<script lang=\"ts\">export default {}</script>\n<style lang=\"scss\"></style>"))
+    # (a block with nothing in it is dropped by Vue itself, so the style has something in it)
+    both = errors_of(host.compile("Y.vue", "<script lang=\"ts\">export default {}</script>\n<style lang=\"scss\">$a: 1;</style>"))
     assert len(both) == 2, both
     assert both[0]["line"] == 1 and both[1]["line"] == 2, "the line of the block"
 

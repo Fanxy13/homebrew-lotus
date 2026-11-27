@@ -116,6 +116,22 @@ jobs:
           Install-Module Pester -MinimumVersion 5.5 -Force -SkipPublisherCheck -Scope CurrentUser
           Invoke-Pester -Path win/tests -CI -Output Detailed
 
+  # The Live Server's Vue support where there is no Mac: .vue files are compiled by Node – the one the runner has – and the server around it is
+  # tested over HTTP. (A Mac builds its own compile program, lotus-vue, in the macOS job; Windows has a test in win/tests/Live.Tests.ps1;
+  # the browser test of tests/live/vue_ui.test.js needs Playwright and is run by hand.)
+  vue:
+    name: Vue 3 in the Live Server (Linux, with Node)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tools the tests use
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends zsh
+      - name: The compiler, and the server around it
+        run: |
+          node --version && python3 --version
+          zsh tests/run.zsh vue vueserver
+
   site:
     name: Website
     runs-on: ubuntu-latest

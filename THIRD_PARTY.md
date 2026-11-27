@@ -38,20 +38,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### Vue 3 – .vue files in the Live Server (macOS)
+### Vue 3 – .vue files in the Live Server
 
 `lib/live/vue/` holds **Vue 3.5.45** (Evan You and the Vue contributors, MIT) – the two files `lotus liveserver` needs to serve a project
-that is made of `.vue` files without Node, npm or a build step. They are made by `scripts/vendor-vue.py` from the packages on the npm
+that is made of `.vue` files without npm or a build step (and, on a Mac, without Node). They are made by `scripts/vendor-vue.py` from the packages on the npm
 registry (each checked against the sha512 the registry publishes for it, pinned in the script):
 
 | File | From | SHA-256 |
 |---|---|---|
 | `lib/live/vue/vue.js` | `vue@3.5.45`, `dist/vue.esm-browser.js`, as it is | `47528b748162468b6a98fe6587ad4cfbe8febd504673cf28a07114dfcf4485a1` |
-| `lib/live/vue/compiler-sfc.js` | `@vue/compiler-sfc@3.5.45`, `dist/compiler-sfc.esm-browser.js`; only its last line is changed (`export { … }` → `globalThis.VueCompilerSFC = { … }`, so that JavaScriptCore can run it as a script) | `ade4bd4219482c7980e5654adad7cfc0958bf7fce66ba0fd4ac24202825fe467` |
+| `lib/live/vue/compiler-sfc.js` | `@vue/compiler-sfc@3.5.45`, `dist/compiler-sfc.esm-browser.js`; only its last line is changed (`export { … }` → `globalThis.VueCompilerSFC = { … }`, so that JavaScriptCore and Node can run it as a script) | `ade4bd4219482c7980e5654adad7cfc0958bf7fce66ba0fd4ac24202825fe467` |
 | `lib/live/vue/LICENSE` | the `LICENSE` of both packages | `1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175` |
 
 `vue.js` is what a page gets for `import { createApp } from 'vue'` (through an import map the Live Server puts into the page);
-`compiler-sfc.js` compiles each `.vue` file on the Mac, in Apple's own JavaScript engine (JavaScriptCore) – nothing is sent anywhere.
+`compiler-sfc.js` compiles each `.vue` file on this computer – in Apple's own JavaScript engine (JavaScriptCore) on a Mac, in Node elsewhere – nothing is sent anywhere.
 The compiler file also contains, with their notices kept where they are, code of Babel's parser (`@babel/parser`), `estree-walker`,
 `magic-string`, PostCSS and `postcss-selector-parser`, `source-map-js` (BSD-3-Clause, © Mozilla Foundation and contributors, and
 the Closure Compiler Authors), `merge-source-map` and `hash-sum` – the packages `@vue/compiler-sfc` itself is built from.

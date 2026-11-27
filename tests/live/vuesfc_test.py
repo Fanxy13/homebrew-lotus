@@ -84,9 +84,10 @@ def _():
     errors = [{"message": "Unexpected </script> token", "line": 4, "column": 2}, {"message": "second"}]
     code = V.error_module("src/A.vue", errors)
     assert "globalThis.__lotusError" in code and "throw new Error(" in code
+    assert code.startswith("export default {};\n"), "it links where a component is imported: the default import of Counter.vue"
     assert "</script" not in code and "<" not in code.replace("\\u003c", ""), "a '<' in a message is escaped"
     assert 'src/A.vue:4 – Unexpected \\u003c/script\\u003e token' in code, code
-    node = subprocess.run(["node", "-e", "const c = require('fs').readFileSync(0,'utf8'); globalThis.seen = []; globalThis.__lotusError = (i) => seen.push(i);"
+    node = subprocess.run(["node", "-e", "const c = require('fs').readFileSync(0,'utf8').replace('export default {};\\n', ''); globalThis.seen = []; globalThis.__lotusError = (i) => seen.push(i);"
                            "try { new Function(c)(); } catch (e) { console.log(JSON.stringify([e.message, seen])); }"], input=code,
                           capture_output=True, text=True) if subprocess.run(["which", "node"], capture_output=True).returncode == 0 else None
     if node:
@@ -191,20 +192,49 @@ def _():
     c = compiler("/nonexistent/lotus-vue-host")
     code, errors = c.module("f.vue", vue_file("f.vue", "<template>1</template>"))
     assert code is None and "did not start" in errors[0]["message"], errors
-    c = compiler(None)
-    saved = sys.platform
+    saved, saved_which = sys.platform, V.shutil.which
     try:
+        V.shutil.which = lambda name: None                  # (no Node on this machine)
         V.sys.platform = "linux"
         c = compiler(None)
+        assert c.engine() == "", "nothing would compile here"
         code, errors = c.module("f.vue", vue_file("f.vue", "<template>1</template>"))
-        assert code is None and errors[0]["message"] == V.NOT_HERE, errors
+        assert code is None and errors[0]["message"] == V.NOT_HERE and "Node.js" in V.NOT_HERE, errors
         V.sys.platform = "darwin"
         os.environ.pop("LOTUS_BIN", None)
         c = compiler(None)
         code, errors = c.module("f.vue", vue_file("f.vue", "<template>1</template>"))
-        assert code is None and "lotus liveserver" in errors[0]["message"], errors
+        assert code is None and "lotus liveserver" in errors[0]["message"], "a Mac that cannot build it, and has no Node, is told why: " + errors[0]["message"]
     finally:
-        V.sys.platform = saved
+        V.sys.platform, V.shutil.which = saved, saved_which
+
+
+@test("where there is no Mac, Node is the program – and on a Mac that cannot build its own, too")
+def _():
+    saved, saved_which = sys.platform, V.shutil.which
+    asked = []
+    try:
+        V.shutil.which = lambda name: (asked.append(name), "/opt/fake/node")[1] if name in ("node", "/custom/node") else None
+        V.sys.platform = "linux"
+        c = compiler(None)
+        assert c.engine() == "node"
+        host = os.path.join(V.FILES, "host.js")
+        assert c.command() == ["/opt/fake/node", host] + [os.path.join(V.FILES, n) for n in V.SCRIPTS], c.command()
+        assert asked == ["node", "node"], "the name `node` is looked for on the PATH: " + repr(asked)
+        del asked[:]
+        c = compiler(None, LOTUS_NODE="/custom/node")
+        assert c.command()[0] == "/opt/fake/node" and asked and set(asked) == {"/custom/node"}, "LOTUS_NODE names the Node: " + repr(asked)
+        V.sys.platform = "darwin"
+        os.environ.pop("LOTUS_BIN", None)
+        c = compiler(None)
+        assert c.engine() == "mac", "a Mac says what it tries first"
+        assert c.command()[1] == host, "…and when its own program cannot be built, Node is used: " + repr(c.command())
+        assert not c.unavailable
+        named = compiler("/x/host --flag")
+        assert named.engine() == "host" and named.command()[:2] == ["/x/host", "--flag"], "a program that is named wins"
+    finally:
+        V.sys.platform, V.shutil.which = saved, saved_which
+        os.environ.pop("LOTUS_NODE", None)
 
 
 @test("a program that says it cannot load the compiler is believed")
