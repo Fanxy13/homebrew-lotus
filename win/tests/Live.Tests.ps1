@@ -5,6 +5,8 @@
 BeforeDiscovery {
     # (the tests need a Python – the runners of the CI have one; a WindowsApps python.exe is only Windows' stand-in)
     $script:HasPython = [bool](@(Get-Command py, python3, python -CommandType Application -ErrorAction SilentlyContinue) | Where-Object { $_.Source -notmatch 'WindowsApps' })
+    # (a Vue project is compiled by Node where there is no Mac: the runners of the CI have it, an ARM image may not)
+    $script:HasNode = [bool](Get-Command node -CommandType Application -ErrorAction SilentlyContinue)
 }
 
 BeforeAll {
@@ -104,5 +106,59 @@ Describe '/liveserver' -Skip:(-not $script:HasPython) {
             if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
         }
         (lotus liveserver stop 6>&1 | Out-String) | Should -Match 'No live server is running'
+    }
+}
+
+Describe '/liveserver – a Vue 3 project' -Skip:(-not ($script:HasPython -and $script:HasNode)) {
+    It 'compiles a .vue file with Node when a script imports it – vue is in the page, and a file that cannot be compiled says what is wrong' {
+        $vue = Join-Path $script:Ctx.Tmp 'my-vue'
+        New-Item -ItemType Directory -Force -Path (Join-Path $vue 'src') | Out-Null
+        $utf8 = New-Object System.Text.UTF8Encoding($false)
+        $put = { param($Name, $Text) [System.IO.File]::WriteAllText((Join-Path $vue $Name), $Text, $utf8) }
+        & $put 'index.html' '<!doctype html><html><body><div id="app"></div><script type="module" src="/src/main.js"></script></body></html>'
+        & $put 'src/main.js' ("import { createApp } from 'vue'`nimport App from './App.vue'`ncreateApp(App).mount('#app')`n")
+        & $put 'src/App.vue' ('<template><h1>Gr' + [char]0xFC + 'ezi {{ n }}</h1></template>' + "`n<script setup>`nconst n = 3`n</script>`n")
+        & $put 'src/Bad.vue' "<template>`n  <div>`n</template>`n"
+        $l = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0); $l.Start(); $port = $l.LocalEndpoint.Port; $l.Stop()
+        $module = (Resolve-Path (Join-Path $PSScriptRoot '../Lotus.psd1')).Path
+        $cmd = "Import-Module '$module'; Set-Location '$vue'; lotus liveserver --no-open --port $port"
+        $server = Start-Process -FilePath $script:Pwsh -ArgumentList @('-NoProfile', '-Command', $cmd) -PassThru -RedirectStandardOutput (Join-Path $script:Ctx.Tmp 'vue.out') -RedirectStandardError (Join-Path $script:Ctx.Tmp 'vue.err')
+        try {
+            # (a browser asks for a module with Sec-Fetch-Dest: script – that is what makes the server answer with the compiled file)
+            $get = {
+                param($Path, $Dest)
+                try {
+                    $req = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$port$Path")
+                    $req.Timeout = 60000
+                    $req.Proxy = $null
+                    if ($Dest) { $req.Headers.Add('Sec-Fetch-Dest', $Dest) }
+                    $resp = $req.GetResponse()
+                    try {
+                        $reader = [System.IO.StreamReader]::new($resp.GetResponseStream(), [System.Text.Encoding]::UTF8)
+                        try { $reader.ReadToEnd() } finally { $reader.Dispose() }
+                    } finally { $resp.Dispose() }
+                } catch { $null }
+            }
+            $page = $null
+            $deadline = (Get-Date).AddSeconds(20)
+            while (-not $page -and (Get-Date) -lt $deadline) {
+                $page = & $get '/' $null
+                if (-not $page) { Start-Sleep -Milliseconds 300 }
+            }
+            $why = Get-Content (Join-Path $script:Ctx.Tmp 'vue.err') -Raw
+            $page | Should -Not -BeNullOrEmpty -Because $why
+            $page | Should -Match 'importmap'
+            $page | Should -Match '/__lotus/vue/vue.js'
+            $compiled = & $get '/src/App.vue' 'script'
+            $compiled | Should -Match '_sfc_main' -Because $why
+            $compiled | Should -Match ('Gr' + [char]0xFC + 'ezi')
+            (& $get '/__lotus/vue/vue.js' 'script') | Should -Match 'createApp'
+            (& $get '/src/Bad.vue' 'script') | Should -Match 'Element is missing end tag'
+            lotus liveserver stop 6>&1 | Out-String | Should -Match "Stopped http://127.0.0.1:$port"
+            $server.WaitForExit(10000) | Should -BeTrue
+            (Get-Content (Join-Path $script:Ctx.Tmp 'vue.out') -Raw) | Should -Match 'with Node'
+        } finally {
+            if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+        }
     }
 }

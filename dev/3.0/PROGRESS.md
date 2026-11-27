@@ -276,3 +276,25 @@ the texts said "macOS user" on Linux.
 - Still not checked: what Finder and Explorer show (the tests look at the files and marks they read), macOS 11 to 14, the question macOS asks the
   first time a terminal uses the Desktop folder, and the file managers of a real GNOME, Cinnamon, MATE, XFCE and KDE desktop (GVfs). The
   matrix says `yes` / `partial` / `yes` since those runs.
+
+### 2026-11-27 – Vue 3 in the Live Server, on three systems
+- The draft of 2026-11-13 (macOS only, "by decision", never run: commit 39a0b0e on `claude/vigilant-turing-cngtn7`, next to the image editor's drop page) was
+  brought onto the main of 3.4.0 without that other commit: the Vue files, `lib/live/vuesfc.py`, `Vue.swift`, the patches of `liveserver.py`, `reload.js` and
+  `live.zsh`, the tests. `git apply --3way` took them cleanly. First run (Node 22, Python 3.13, Chromium through Playwright, in a Linux container): 27 of 34
+  lines passed – 5 checks and the 2 suites around them failed.
+- Found by running it: the module that stands for a broken component had no `export default` – a browser does not link `import Counter from './Counter.vue'`
+  against it and stops before a line of it runs, so nothing was shown (`vuesfc.error_module` has it now; three browser checks); Vue's own parser refuses a
+  component with neither `<template>` nor `<script>` (two compile checks asked for the opposite, and for an empty `<style lang="scss">` that Vue drops); PostCSS
+  prints `p { color: green` and `}` on two lines; `page.textContent` has no line breaks where `innerText` has.
+- Changed here, and not in the draft: the compile program is also Node (`lib/live/vue/host.js`, the old test host; chosen by `Compiler.command`: the program
+  `LOTUS_VUE_HOST` names, else on a Mac `lotus-vue`, else `node` – or `LOTUS_NODE` – where there is one), the answers are read by a thread from a queue (a pipe
+  cannot be `select()`ed on Windows), and the texts, the matrix and `THIRD_PARTY.md` say three systems. That changes the decision "macOS only"; a Mac still
+  needs nothing, and a system without Node gets the message it had. **The owner should look at that decision.**
+- Tests added: which program is chosen (`vuesfc_test.py`), the server with Node's real compiler and without any (`test-vueserver.zsh`), a job of the CI that
+  runs `vue` and `vueserver` with the Node of the runner, a Vue project through `/liveserver` on Windows (`Live.Tests.ps1`, skipped without Node), and the files
+  of the Vue support in the list of `Install.Tests.ps1`. Here: `zsh tests/run.zsh vue vueserver` – 111 checks, all green; the new Windows test through the
+  stand-in for Pester with PowerShell 7 on Linux.
+- Run by the CI of the pull request (dfd71c1): `lotus-vue` was built by both CI Macs – Apple silicon with macOS 26, Intel with macOS 15 – and passed the 13 compiler
+  checks through JavaScriptCore on the first try (the Swift file type-checks too); the new Windows test ran on real Windows (PowerShell 7) and passed; the Linux job
+  (`vue`) took 38 seconds. Not checked: the whole path on a Mac (the CI Macs do not start the server – `liveserver` and `vueserver` stay out there, as for the Live
+  Server's own tests), Safari, Node older than 22. The matrix says `partial` for macOS, Linux and Windows.
