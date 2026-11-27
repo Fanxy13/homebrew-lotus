@@ -460,7 +460,8 @@ comes with what to do about it. `/icons check` shows the list alone.
   look at the `desktop.ini`; it does not stop anyone from writing in the folder.
 
 On a Mac and on Windows nothing has to be installed. The screens are the same on every system (`lib/cmd/icons.zsh`,
-`win/Public/icons.ps1`); what the system does is in the platform layer. Status: macOS and Windows *built*, Linux *partial*
+`win/Public/icons.ps1`); what the system does is in the platform layer. Status: macOS and Windows *yes* – run for real on GitHub's
+Macs and Windows machines, though nobody has looked at a Finder or Explorer window yet – Linux *partial*
 (`data/platform-matrix.tsv` says what is tested where).
 
 ## Remove BG

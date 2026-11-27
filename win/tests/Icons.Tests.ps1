@@ -163,7 +163,7 @@ Describe '/icons – the text of a desktop.ini' {
 
 Describe '/icons – an icon on a folder: the files' {
     BeforeEach { Reset-AllIcons }
-    It 'a picture becomes lotus-icon-<8 letters>.ico and a desktop.ini that names it – and the folder has an icon of its own' {
+    It 'a picture becomes lotus-icon- and 8 letters or digits .ico, and a desktop.ini that names it – and the folder has an icon of its own' {
         $folder = Join-Path $script:Desktop 'Projects'
         $r = InModuleScope Lotus -Parameters @{ F = $folder; P = $script:Red } { Set-LotusFolderIcon $F $P }
         $r.Code | Should -Be 0
@@ -450,8 +450,10 @@ Describe '/icons – the guided command' {
 
 Describe '/icons – when the system says no' {
     It 'a folder that fails is named with the reason, once for all; the others are done; the status is 1' {
+        # (a Mock block runs where the test is, not in the module: the module's private Lr is not there – the result is written out)
         Mock -ModuleName Lotus Set-LotusFolderIcon {
-            if ((Split-Path -Leaf $Folder) -in 'Photos', 'Projects') { Lr 1 $null @('The system said no', 'It is locked.', 'Unlock it.') } else { Lr 0 }
+            if ((Split-Path -Leaf $Folder) -in 'Photos', 'Projects') { [pscustomobject]@{ Code = 1; Value = $null; Msg = @('The system said no', 'It is locked.', 'Unlock it.') } }
+            else { [pscustomobject]@{ Code = 0; Value = $null; Msg = @() } }
         }
         $out = lotus icons set (Join-Path $script:Pics 'red.png') --all 6>&1 | Out-String
         $out | Should -Match '✓ My Games'
@@ -462,7 +464,7 @@ Describe '/icons – when the system says no' {
         $LASTEXITCODE | Should -Be 1
     }
     It 'when this system cannot at all it says so and shows what it needs' {
-        Mock -ModuleName Lotus Set-LotusFolderIcon { Lr 2 }
+        Mock -ModuleName Lotus Set-LotusFolderIcon { [pscustomobject]@{ Code = 2; Value = $null; Msg = @() } }
         $out = lotus icons set (Join-Path $script:Pics 'red.png') Photos 6>&1 | Out-String
         $out | Should -Match 'Folder icons do not work here yet'
         $out | Should -Match 'WHAT IT NEEDS'

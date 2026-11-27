@@ -67,4 +67,15 @@ Describe '<Name>' -ForEach $script:Files {
         }
         @($bad) | Should -BeNullOrEmpty
     }
+    It 'has no angle brackets around anything but a plain word in the name of a test (Pester takes the text between them for a value to put in: a name with a space inside them makes the test fail before it starts)' {
+        # (only the test files; a pair around a word – the name of a variable – is what -ForEach uses, and is fine)
+        if ($Name -notmatch '\.Tests\.ps1$') { return }
+        $bad = foreach ($c in $script:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+            if ($c.GetCommandName() -notin 'It', 'Describe', 'Context') { continue }
+            $first = $c.CommandElements | Select-Object -Skip 1 -First 1
+            if ($first -isnot [System.Management.Automation.Language.StringConstantExpressionAst] -and $first -isnot [System.Management.Automation.Language.ExpandableStringExpressionAst]) { continue }
+            if ($first.Value -match '<[^<>]*[^\w.<>][^<>]*>') { "line $($c.Extent.StartLineNumber)" }
+        }
+        @($bad) | Should -BeNullOrEmpty
+    }
 }

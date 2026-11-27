@@ -153,9 +153,9 @@ icons_desktop_folders() {
   setopt localoptions extendedglob
   reply=()
   lotus_os_desktop || return 1
-  local p
+  local p base=${REPLY:a}                  # (written as a typed path is – see icons_paths: one folder, one spelling)
   local -a found=()
-  for p in $REPLY/*(N/); do
+  for p in $base/*(N/); do
     [[ ${p:t} == *.(#i)(app|bundle|framework|photoslibrary|rtfd|xcodeproj|xcworkspace|playground|sparsebundle) ]] && continue
     found+=($p)
   done
@@ -175,7 +175,7 @@ icons_paths() {   # <base folder or ""> <words…>
     ok=0
     for (( j = i; j <= ${#in}; j++ )); do
       t=${(j: :)in[i,j]}
-      if [[ -n $base && $t != */* && $t != \~* && $t != file://* && -e $base/$t ]]; then found+=($base/$t)
+      if [[ -n $base && $t != */* && $t != \~* && $t != file://* && -e $base/$t ]]; then found+=(${base:a}/$t)   # (written as a typed path is: no //, so that one folder is one entry)
       else
         ui_clean_path "$t"
         [[ -e $REPLY ]] || continue
